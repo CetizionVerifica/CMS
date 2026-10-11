@@ -1,0 +1,53 @@
+name: Audit verdict
+
+# When someone posts or edits an audit report carrying a verdict marker (see
+# .github/scripts/audit-verdict.mjs), re-run the PR's `module-audit` job on its latest CI run, and with it `ci-ok`,
+# so the new verdict counts without a push. The gate itself lives in ci.yml; this only re-evaluates it.
+# Runs from main and checks out no code, so a PR cannot change what it does.
+
+on:
+  issue_comment:
+    types: [created, edited]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: audit-verdict-${{ github.event.issue.number }}
+  cancel-in-progress: true
+
+jobs:
+  rerun:
+    if: >-
+      github.event.issue.pull_request &&
+      contains(github.event.comment.body, '<!-- canopy-audit sha=') &&
+      github.event.comment.user.type == 'User'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      actions: write
+      pull-requests: read
+    steps:
+      - name: Re-run module-audit on the PR's latest CI run
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          PR: ${{ github.event.issue.number }}
+          AUTHOR: ${{ github.event.comment.user.login }}
+        run: |
+          # Only a verdict from someone with write access can change the gate, so only they trigger a re-run.
+          PERM=$(gh api "repos/$GH_REPO/collaborators/$AUTHOR/permission" --jq .permission 2>/dev/null || echo none)
+          case "$PERM" in admin|maintain|write) ;; *) echo "$AUTHOR has $PERM access; ignoring."; exit 0 ;; esac
+          read -r SHA DRAFT < <(gh pr view "$PR" --json headRefOid,isDraft --jq '"\(.headRefOid) \(.isDraft)"')
+          if [ -z "$SHA" ]; then echo "::error::Could not read PR #$PR."; exit 1; fi
+          if [ "$DRAFT" = "true" ]; then echo "PR is a draft; marking it ready runs the gate."; exit 0; fi
+          RUN=$(gh run list --workflow ci.yml --event pull_request --commit "$SHA" --limit 1 --json databaseId --jq '.[0].databaseId // empty')
+          if [ -z "$RUN" ]; then echo "No CI run for $SHA yet; it will read the verdict when it runs."; exit 0; fi
+          # A job can only be re-run once its run has finished; one still running reads the comments itself unless
+          # module-audit already finished, so wait and re-run it either way.
+          gh run watch "$RUN" --interval 30 > /dev/null || true
+          JOB=$(gh run view "$RUN" --json jobs --jq '.jobs[] | select(.name == "module-audit") | .databaseId')
+          if [ -z "$JOB" ]; then echo "::error::Run $RUN has no module-audit job."; exit 1; fi
+          # Re-running a job also re-runs the jobs that need it, here ci-ok.
+          gh run rerun --job "$JOB"
+          echo "Re-ran module-audit (job $JOB) on run $RUN for $SHA."
