@@ -34,3 +34,14 @@ Field-level definitions are in `docs/contracts/domain-model.md` (M0); that file 
 8. **Migrations**: Drizzle Kit generated, reviewed by hand, forward-only. Each migration is safe on a populated table (add nullable, backfill, then constrain). Never edit an applied migration.
 9. **Indexes** at least on `(firm_id, client_id, due_date)`, `(assignment_id, period_start)`, `(owner_id, workflow_state)`, `(approver_id, workflow_state)`.
 10. **Seeds**: `pnpm db:seed` creates two firms and loads the sample register through the importer, not with hand-written inserts.
+
+## How it is built (M3)
+Decisions and their reasons: `docs/adr/0001-m3-tenant-isolation-in-postgres.md`.
+- Schema: `src/schema/*.ts` (Drizzle). Enums come from `@canopy/contracts`. Policies use the helpers in `src/schema/columns.ts`.
+- Migrations: `migrations/`, applied by `pnpm db:migrate`. `pnpm --filter @canopy/db db:generate` writes the schema diff;
+  roles, functions, `FORCE ROW LEVEL SECURITY`, grants and triggers go in custom migrations
+  (`pnpm --filter @canopy/db exec drizzle-kit generate --custom --name=<what>`).
+- Access: `createDatabase({ connectionString }).withTenant(ctx, async (tx) => ...)`. Build `ctx` with `tenantFromRequest(requestContext)`
+  in the API and `systemContext(firmId, requestId)` in jobs and imports. `createAdminDatabase` (migrate, createFirm) is for deploy, seed and tests only.
+- Tests: `pnpm test` (unit, includes a drift check that the migrations match the schema) and `pnpm test:db` (needs Postgres 16 at
+  `DATABASE_URL`; each file creates and drops its own database). Adding a table: see the ADR's Consequences.
