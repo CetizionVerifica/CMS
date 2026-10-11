@@ -59,13 +59,17 @@ jobs:
           fi
           read -r JOB OUTCOME < <(gh run view "$RUN" --json jobs --jq '.jobs[] | select(.name == "module-audit") | "\(.databaseId) \(.conclusion)"')
           if [ -z "$JOB" ]; then echo "::error::Run $RUN has no module-audit job."; exit 1; fi
-          if [ "$OUTCOME" = "success" ]; then
-            # Only the verdict changed (say, Ready to Not-ready): re-run module-audit and the jobs that need it (ci-ok).
-            gh run rerun --job "$JOB"
-          else
-            # Re-run every failed or cancelled job, not just module-audit, so ci-ok isn't left red by jobs that
-            # were cancelled in the first attempt.
+          # Jobs other than the gate that genuinely failed; an audit must never quietly retry those.
+          FAILED=$(gh run view "$RUN" --json jobs --jq '[.jobs[] | select(.conclusion == "failure" and .name != "module-audit" and .name != "ci-ok") | .name] | join(", ")')
+          if [ "$OUTCOME" != "success" ] && [ -z "$FAILED" ]; then
+            # Only the gate failed or was cancelled: re-run it with every cancelled job (a run cancelled by a newer push or a
+            # re-run), so ci-ok isn't left red by jobs that never finished. `--failed` covers failed and cancelled.
             gh run rerun "$RUN" --failed
+          else
+            # The verdict changed on an otherwise finished run, or other jobs really failed: re-run module-audit and
+            # the jobs that need it (ci-ok) only.
+            [ -n "$FAILED" ] && echo "Not re-running failed jobs: $FAILED."
+            gh run rerun --job "$JOB"
           fi
           echo "Re-ran the gate on run $RUN for $SHA."
           # Auto-merge doesn't always notice a required check turning green on a re-run, which left an audited PR
