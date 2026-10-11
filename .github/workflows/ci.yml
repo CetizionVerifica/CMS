@@ -194,6 +194,9 @@ jobs:
             base ${{ github.base_ref }}. Lint, typecheck, unit tests with coverage and the path guard already passed.
             If the title has no module id, audit the diff against the root CLAUDE.md non-negotiables and quality
             gates instead of a MODULES.md acceptance list.
+            The PR head is already checked out and dependencies are installed; do not fetch, check out or install.
+            Run each shell command on its own: no `;`, `&&`, `|`, `cd` or command substitution, or it is refused.
+            Use `pnpm --filter <package> <script>` for one package. Read the PR with `gh pr view` and `gh pr diff`.
             Do not post anything to the PR yourself. Finish by returning the structured output: `report` is the
             full markdown report from the skill's report format, `verdict` is Ready or Not ready.
           claude_args: >-
