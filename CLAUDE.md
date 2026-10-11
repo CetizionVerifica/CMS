@@ -1,0 +1,68 @@
+# Canopy: root CLAUDE.md
+
+Read this file first, then the CLAUDE.md of the area you are changing. Area files add rules; they never relax these.
+
+## What this product is
+A multi-client **statutory compliance management** web app for a consultancy. Consultants manage many clients;
+client owners and approvers complete legal obligations (labour, EHS, tax, IT laws) with evidence.
+Product plan: `PLAN.md`. Module briefs for parallel threads: `MODULES.md`. Requirements source: `docs/requirements/excel-analysis.md` (derived from the client register Excel).
+Visual direction: Canopy (light, forest-green sidebar, client switcher). Design rules: `packages/ui/CLAUDE.md`.
+
+## Map
+| Path | What | Read before changing |
+|---|---|---|
+| `apps/web` | Next.js frontend | `apps/web/CLAUDE.md` |
+| `apps/api` | Fastify API, auth, roles, workflow | `apps/api/CLAUDE.md` |
+| `packages/db` | Postgres schema, Drizzle, RLS, migrations | `packages/db/CLAUDE.md` |
+| `packages/engine` | Recurrence, due dates, status, scores (pure TS) | `packages/engine/CLAUDE.md` |
+| `packages/importer` | Excel import, mapping, cleaning | `packages/importer/CLAUDE.md` |
+| `packages/ui` | Canopy tokens and components | `packages/ui/CLAUDE.md` |
+| `packages/contracts` | Shared types, Zod schemas, OpenAPI, fixtures, mock API (M0) | `MODULES.md` M0 |
+| `docs/` | Requirements, ADRs | — |
+
+Dependency direction: `web → api client → api → engine, db`; `importer → engine, db`; `ui` depends on nothing in the repo.
+`engine` must not import `db`, `api` or any I/O.
+
+## Vocabulary (use these words in code, UI and tests)
+- **Obligation**: a requirement derived from an Act (Excel: one Compliance ID). Not "task", not "compliance".
+- **Assignment**: an obligation applied to a unit, with department, owner and approver.
+- **Instance**: one dated occurrence of an assignment (Excel: one row). Has a due date and a status.
+- **Owner** submits, **Approver** approves. **Unit** = plant/site/office. **Client** = the customer organisation group.
+- **Firm** = the consultancy tenant. **FY** = Indian financial year, April to March, unless the client overrides it.
+
+## Commands
+```
+pnpm install
+pnpm dev            # web + api + local Postgres (docker compose)
+pnpm lint && pnpm typecheck && pnpm test
+pnpm test:e2e       # Playwright against seeded data
+pnpm db:migrate     # apply migrations
+pnpm db:seed        # seeds two firms and the sample client from the Excel fixture
+```
+
+## Parallel module rules
+- Each thread works on one module from `MODULES.md` and edits only the paths that module owns (CODEOWNERS enforces this).
+- Modules depend on each other only through `packages/contracts` (M0). Never import another module's internals.
+- Need a contract change? Request it from M0; do not edit `packages/contracts` from another module.
+- Build against the M0 mock API and fixtures until the real dependency is merged.
+
+## Non-negotiables
+1. **Tenant isolation.** Every table holding client data has `firm_id` and an RLS policy. Every query runs inside a request-scoped tenant context. A cross-tenant read is a P0 bug; every new table gets an isolation test.
+2. **Audit everything that changes compliance state.** Status changes, due-date changes, reassignment, evidence add/remove, NA decisions: write an `AuditEvent` in the same transaction. Never update or delete audit rows.
+3. **Compliance logic lives in `packages/engine` only.** No status, due-date or score maths in components, API handlers or SQL views. Call the engine.
+4. **Dates are dates.** Due dates are calendar dates (`date`, no time zone). Timestamps are UTC `timestamptz`. Display in the client's time zone (default Asia/Kolkata). Never compare a date to a timestamp without the engine helpers.
+5. **No silent data changes on import.** Cleaning is proposed, shown, then applied. Keep the raw source value next to the cleaned one.
+6. **Evidence is personal data.** Never log file contents, names of employees from evidence, or signed URLs. Signed URLs expire in 5 minutes.
+7. **Validate at the edge.** All API input goes through a Zod schema shared with the client. No `any`.
+
+## Working style for Claude in this repo
+- Small PRs, one concern each. Migrations in their own PR when they change existing tables.
+- Write or update tests in the same PR. Engine changes need unit tests with explicit dates; workflow changes need API tests for each role.
+- The sample register is the golden fixture: `packages/importer/fixtures/sample-register.xlsx`. Its expected counts are in `docs/requirements/excel-analysis.md` §5. Do not edit the fixture; add new fixtures instead.
+- When a requirement is unclear, check the Excel analysis, then `PLAN.md` §7 defaults, then ask. Record decisions as ADRs in `docs/adr/NNNN-title.md`.
+- Do not add a dependency without saying why in the PR. Prefer what is already in the stack.
+- Do not build "Later" items from `PLAN.md` §1 unless asked.
+
+## Definition of done
+Lint, typecheck, unit and e2e tests green; new UI checked in light mode at 1280px and 375px and keyboard-only;
+audit events written for state changes; isolation test for new tables; docs or CLAUDE.md updated if a rule changed.

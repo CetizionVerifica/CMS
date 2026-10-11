@@ -1,0 +1,9 @@
+{
+  "identities": [
+    {
+      "name": "canopy-local",
+      "credentials": [{ "accessKey": "canopy", "secretKey": "canopy-secret" }],
+      "actions": ["Admin", "Read", "Write", "List", "Tagging"]
+    }
+  ]
+}
