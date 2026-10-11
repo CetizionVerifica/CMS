@@ -1,0 +1,68 @@
+/* Canopy stylesheet for Tailwind v4 apps. In the app's global CSS:
+     @import 'tailwindcss';
+     @import '@canopy/ui/styles.css';
+   It loads the tokens, the preset, tells Tailwind to scan the component sources, and sets the base rules every
+   component relies on (font, focus ring, reduced motion). */
+@import './tokens.css';
+@config '../tailwind.preset.ts';
+@source './';
+
+@layer base {
+  html {
+    font-family: var(--font-sans);
+    color: var(--ink);
+    background: var(--mist);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Foundations §6: 2px forest ring, 2px offset, on every focusable element. */
+  :focus-visible {
+    outline: 2px solid var(--forest);
+    outline-offset: 2px;
+  }
+
+  /* On forest surfaces (sidebar, sheet nav) the ring is white so it stays visible. */
+  [data-surface='forest'] :focus-visible {
+    outline-color: var(--on-forest);
+  }
+
+  /* Foundations §5: under reduced motion, transitions are opacity-only and near-instant. */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 1ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 1ms !important;
+      transition-property: opacity !important;
+    }
+  }
+}
+
+@utility tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Hit target 44px on touch devices (foundations §3). Apply to controls whose desktop size is 36px or 32px. */
+@utility touch-target {
+  @media (pointer: coarse) {
+    min-height: var(--size-control-touch);
+    min-width: var(--size-control-touch);
+  }
+}
+
+@keyframes canopy-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+@keyframes canopy-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

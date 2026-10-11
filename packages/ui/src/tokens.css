@@ -1,0 +1,85 @@
+/* Canopy design tokens. Source of truth (packages/ui/CLAUDE.md); mirrored in src/tokens.ts and tailwind.preset.ts.
+   Spec: spec/foundations.md. Every colour, size and duration in a component comes from here.
+   Dark mode is out of scope for v1; redefine these variables under a theme selector to add it. */
+:root {
+  /* Brand and neutral */
+  --forest: #1f6b47;
+  --forest-hover: #185a3b;
+  --leaf: #2f8f60;
+  --moss: #a9c97a;
+  --sage: #d9e8dc;
+  --mist: #f5f7f4;
+  --surface: #ffffff;
+  --ink: #13221a;
+  --muted: #5f6f66;
+  --line: #e1e7e2;
+  --line-strong: #7a8a81;
+
+  /* Status: --ok, --warn, --crit are for dots, icons and fills. Text in a status tone uses the -ink token. */
+  --ok: #1e8a55;
+  --warn: #b97a06;
+  --crit: #c0442a;
+  --ok-ink: #176b42;
+  --warn-ink: #8c5c04;
+  --crit-ink: #a8391f;
+  --ok-soft: #e3f3ea;
+  --warn-soft: #fbf0d9;
+  --crit-soft: #fbe5df;
+  --neutral-soft: #eef1ef;
+
+  /* On the forest sidebar */
+  --on-forest: #ffffff;
+  --on-forest-muted: #cfe3d6;
+  --on-forest-hover: rgba(255, 255, 255, 0.08);
+  --on-forest-selected: rgba(255, 255, 255, 0.13);
+  --scrim: rgba(19, 34, 26, 0.4);
+
+  /* Type */
+  --font-sans:
+    'Plus Jakarta Sans', 'Plus Jakarta Sans Variable', system-ui, -apple-system, 'Segoe UI',
+    sans-serif;
+
+  /* Spacing (4px base) */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-3h: 14px;
+  --space-4: 16px;
+  --space-5: 22px;
+  --space-6: 32px;
+  --space-7: 48px;
+
+  /* Radius */
+  --radius-card: 12px;
+  --radius-control: 9px;
+  --radius-chip: 8px;
+  --radius-tag: 6px;
+  --radius-pill: 999px;
+
+  /* Sizes */
+  --size-control: 36px;
+  --size-control-compact: 32px;
+  --size-control-touch: 44px;
+  --size-sidebar: 212px;
+  --size-rail: 64px;
+  --size-topbar: 56px;
+  --size-drawer-lg: 560px;
+  --size-drawer-md: 480px;
+
+  /* Elevation: overlays only, never cards */
+  --shadow-overlay: 0 12px 32px -12px rgba(19, 34, 26, 0.28), 0 2px 6px rgba(19, 34, 26, 0.08);
+
+  /* Layers */
+  --z-sticky: 10;
+  --z-shell: 20;
+  --z-drawer: 40;
+  --z-popover: 50;
+  --z-dialog: 60;
+  --z-toast: 70;
+
+  /* Motion */
+  --ease-out: cubic-bezier(0.2, 0, 0, 1);
+  --dur-fast: 120ms;
+  --dur-base: 200ms;
+  --dur-slow: 260ms;
+}

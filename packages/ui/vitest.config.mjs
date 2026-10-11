@@ -1,3 +1,18 @@
 import { canopyVitestConfig } from '@canopy/vitest-config';
+import react from '@vitejs/plugin-react';
+import { mergeConfig } from 'vitest/config';
 
-export default canopyVitestConfig();
+export default mergeConfig(
+  canopyVitestConfig({
+    // index.ts only re-exports; the demo gallery and e2e specs are checked by Playwright (`pnpm test:e2e`).
+    exclude: ['src/index.ts'],
+  }),
+  {
+    plugins: [react()],
+    test: {
+      environment: 'jsdom',
+      include: ['src/**/*.test.{ts,tsx}'],
+      setupFiles: ['./test/setup.ts'],
+    },
+  },
+);
