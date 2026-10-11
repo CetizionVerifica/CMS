@@ -1,0 +1,270 @@
+import { z } from 'zod';
+
+/**
+ * Enums (docs/contracts/domain-model.md §2). Each enum is a Zod schema plus a type of the same name;
+ * `.options` lists the values in contract order. Clients must tolerate values added later (api-conventions.md §7).
+ */
+
+export const Role = z.enum([
+  'FIRM_ADMIN',
+  'CONSULTANT',
+  'CLIENT_ADMIN',
+  'APPROVER',
+  'OWNER',
+  'VIEWER',
+]);
+export type Role = z.infer<typeof Role>;
+
+/** Roles held at firm level (no clientId on the membership). */
+export const FIRM_ROLES = ['FIRM_ADMIN', 'CONSULTANT'] as const satisfies readonly Role[];
+/** Roles held within one client (membership carries clientId). */
+export const CLIENT_ROLES = [
+  'CLIENT_ADMIN',
+  'APPROVER',
+  'OWNER',
+  'VIEWER',
+] as const satisfies readonly Role[];
+
+export const PersonStatus = z.enum(['UNCLAIMED', 'INVITED', 'ACTIVE', 'DISABLED']);
+export type PersonStatus = z.infer<typeof PersonStatus>;
+
+export const Criticality = z.enum(['SUPER_CRITICAL', 'CRITICAL', 'HIGH', 'MEDIUM', 'LOW']);
+export type Criticality = z.infer<typeof Criticality>;
+
+export const TimelineType = z.enum(['TIME_BASED', 'ONGOING']);
+export type TimelineType = z.infer<typeof TimelineType>;
+
+export const ObligationDomain = z.enum(['HRS', 'EHS', 'TAX', 'IT', 'INT', 'ENG', 'ENV', 'OTHER']);
+export type ObligationDomain = z.infer<typeof ObligationDomain>;
+
+export const Jurisdiction = z.enum(['CENTRAL', 'STATE']);
+export type Jurisdiction = z.infer<typeof Jurisdiction>;
+
+export const Applicability = z.enum(['APPLICABLE', 'NOT_APPLICABLE', 'TO_ASSESS']);
+export type Applicability = z.infer<typeof Applicability>;
+
+/** Stored on the instance. */
+export const WorkflowState = z.enum([
+  'OPEN',
+  'SUBMITTED',
+  'SENT_BACK',
+  'APPROVED',
+  'NOT_APPLICABLE',
+]);
+export type WorkflowState = z.infer<typeof WorkflowState>;
+
+/** What a SUBMITTED instance is waiting to be approved as. */
+export const SubmissionKind = z.enum(['COMPLETION', 'NA']);
+export type SubmissionKind = z.infer<typeof SubmissionKind>;
+
+/** Computed by engine.deriveStatus; never stored as truth. */
+export const DerivedStatus = z.enum([
+  'UPCOMING',
+  'DUE_SOON',
+  'OVERDUE',
+  'SUBMITTED',
+  'COMPLIED',
+  'COMPLIED_LATE',
+  'NOT_APPLICABLE',
+]);
+export type DerivedStatus = z.infer<typeof DerivedStatus>;
+
+/** Recurrence rule confidence: import infers, a consultant confirms. */
+export const RuleStatus = z.enum(['CONFIRMED', 'TO_REVIEW']);
+export type RuleStatus = z.infer<typeof RuleStatus>;
+
+/** Evidence is downloadable only when CLEAN. */
+export const ScanStatus = z.enum(['PENDING', 'CLEAN', 'INFECTED', 'FAILED']);
+export type ScanStatus = z.infer<typeof ScanStatus>;
+
+export const CommentKind = z.enum([
+  'NOTE',
+  'SUBMIT',
+  'NA_REQUEST',
+  'APPROVE',
+  'SEND_BACK',
+  'REOPEN',
+  'IMPORT',
+]);
+export type CommentKind = z.infer<typeof CommentKind>;
+
+export const AuditAction = z.enum([
+  'CREATE',
+  'UPDATE',
+  'ARCHIVE',
+  'RESTORE',
+  'TRANSITION',
+  'REASSIGN',
+  'DUE_DATE_CHANGE',
+  'APPLICABILITY_CHANGE',
+  'EVIDENCE_ADD',
+  'EVIDENCE_REMOVE',
+  'EVIDENCE_DOWNLOAD',
+  'IMPORT',
+  'MERGE_ALIAS',
+  'MEMBERSHIP_CHANGE',
+  'LOGIN',
+  'EXPORT',
+]);
+export type AuditAction = z.infer<typeof AuditAction>;
+
+export const AuditActorKind = z.enum(['PERSON', 'SYSTEM', 'IMPORT']);
+export type AuditActorKind = z.infer<typeof AuditActorKind>;
+
+/** Entity types named in audit events and in `can()` resources. */
+export const EntityType = z.enum([
+  'client',
+  'company',
+  'unit',
+  'location',
+  'department',
+  'person',
+  'membership',
+  'act',
+  'category',
+  'obligation',
+  'assignment',
+  'instance',
+  'evidence',
+  'import_batch',
+  'export',
+]);
+export type EntityType = z.infer<typeof EntityType>;
+
+export const HolidayPolicy = z.enum(['NONE', 'NEXT_WORKING_DAY', 'PREVIOUS_WORKING_DAY']);
+export type HolidayPolicy = z.infer<typeof HolidayPolicy>;
+
+/** Linear import lifecycle (domain-model.md §6). */
+export const ImportBatchStatus = z.enum([
+  'UPLOADED',
+  'MAPPED',
+  'PARSED',
+  'REVIEWED',
+  'DRY_RUN_READY',
+  'COMMITTING',
+  'COMMITTED',
+  'FAILED',
+  'CANCELLED',
+]);
+export type ImportBatchStatus = z.infer<typeof ImportBatchStatus>;
+
+export const ImportRowOutcome = z.enum([
+  'PENDING',
+  'CREATE',
+  'UPDATE',
+  'UNCHANGED',
+  'SKIPPED',
+  'ERROR',
+]);
+export type ImportRowOutcome = z.infer<typeof ImportRowOutcome>;
+
+export const ImportIssueType = z.enum([
+  'PERSON_CASE_MERGE',
+  'PERSON_NEAR_MATCH',
+  'ENUM_NORMALISED',
+  'UNKNOWN_ENUM',
+  'ALIAS_DEPARTMENT',
+  'ALIAS_CATEGORY',
+  'ALIAS_ACT',
+  'NULL_PLACEHOLDER',
+  'COMPLIED_WITHOUT_DATE',
+  'DUPLICATE_PERIOD',
+  'CONFLICTING_OBLIGATION_VALUE',
+  'RULE_LOW_CONFIDENCE',
+  'FILE_NOT_ATTACHED',
+  'UNPARSED_EXTERNAL_REF',
+  'INVALID_DATE',
+  'MISSING_REQUIRED',
+]);
+export type ImportIssueType = z.infer<typeof ImportIssueType>;
+
+/** ERROR blocks the row; WARNING needs a decision; INFO is shown only. */
+export const IssueSeverity = z.enum(['INFO', 'WARNING', 'ERROR']);
+export type IssueSeverity = z.infer<typeof IssueSeverity>;
+
+/** Severity of each import issue type (domain-model.md §6 table). */
+export const IMPORT_ISSUE_SEVERITY = {
+  PERSON_CASE_MERGE: 'INFO',
+  PERSON_NEAR_MATCH: 'WARNING',
+  ENUM_NORMALISED: 'INFO',
+  UNKNOWN_ENUM: 'ERROR',
+  ALIAS_DEPARTMENT: 'WARNING',
+  ALIAS_CATEGORY: 'WARNING',
+  ALIAS_ACT: 'WARNING',
+  NULL_PLACEHOLDER: 'INFO',
+  COMPLIED_WITHOUT_DATE: 'WARNING',
+  DUPLICATE_PERIOD: 'WARNING',
+  CONFLICTING_OBLIGATION_VALUE: 'INFO',
+  RULE_LOW_CONFIDENCE: 'WARNING',
+  FILE_NOT_ATTACHED: 'INFO',
+  UNPARSED_EXTERNAL_REF: 'INFO',
+  INVALID_DATE: 'ERROR',
+  MISSING_REQUIRED: 'ERROR',
+} as const satisfies Record<ImportIssueType, IssueSeverity>;
+
+export const IssueDecision = z.enum(['PENDING', 'ACCEPTED', 'REJECTED', 'EDITED']);
+export type IssueDecision = z.infer<typeof IssueDecision>;
+
+export const NotificationKind = z.enum([
+  'OWNER_REMINDER',
+  'APPROVER_ESCALATION',
+  'CONSULTANT_DIGEST',
+  'INVITE',
+  'MAGIC_LINK',
+  'EXPORT_READY',
+]);
+export type NotificationKind = z.infer<typeof NotificationKind>;
+
+export const ExportKind = z.enum([
+  'REGISTER_XLSX',
+  'CERTIFICATE_PDF',
+  'ACT_REPORT_XLSX',
+  'DEPARTMENT_REPORT_XLSX',
+  'OVERDUE_REPORT_XLSX',
+]);
+export type ExportKind = z.infer<typeof ExportKind>;
+
+/** Status of export and import jobs. */
+export const JobStatus = z.enum(['QUEUED', 'RUNNING', 'DONE', 'FAILED']);
+export type JobStatus = z.infer<typeof JobStatus>;
+
+/** Actions the API may offer on an instance; the UI shows only those in `allowedActions`. */
+export const InstanceAction = z.enum([
+  'SUBMIT',
+  'REQUEST_NA',
+  'APPROVE',
+  'SEND_BACK',
+  'REOPEN',
+  'REASSIGN',
+  'CHANGE_DUE_DATE',
+  'COMMENT',
+  'UPLOAD_EVIDENCE',
+]);
+export type InstanceAction = z.infer<typeof InstanceAction>;
+
+/** Fields an import column can map to (domain-model.md §6). */
+export const CanopyField = z.enum([
+  'externalRef',
+  'title',
+  'timelineType',
+  'description',
+  'category',
+  'applicabilityText',
+  'act',
+  'completedOn',
+  'status',
+  'dueDate',
+  'forms',
+  'logSheets',
+  'organizationPath',
+  'locationPath',
+  'owner',
+  'ownerComment',
+  'approver',
+  'department',
+  'criticality',
+]);
+export type CanopyField = z.infer<typeof CanopyField>;
+
+export const BreakdownBy = z.enum(['department', 'act', 'criticality', 'unit', 'owner']);
+export type BreakdownBy = z.infer<typeof BreakdownBy>;
