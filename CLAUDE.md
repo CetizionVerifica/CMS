@@ -89,3 +89,7 @@ Merging is automatic (`.github/workflows/auto-merge.yml`): every ready PR gets G
 once `ci-ok` is green. Changes to contracts, `packages/db`, auth, `.github`, `tooling/modules.json` or `.claude/skills` also
 wait for Shyam's approval (`.github/CODEOWNERS`). Open PRs as drafts while work is in progress; add the `no-automerge` label to
 hold one. Do not merge by hand around a red check.
+
+After a merge, `cleanup.yml` deletes the PR's branch, and GitHub moves any PR stacked on it to `main`; push follow-up work
+from a fresh branch off `main`. Dependabot (`.github/dependabot.yml`) opens grouped dependency PRs weekly; they merge
+themselves on green like any other PR.
