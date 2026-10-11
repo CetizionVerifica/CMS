@@ -6,6 +6,8 @@ export const galleryRoutes = [
   { path: '/overlays', title: 'Tabs, menus, popover and tooltip', spec: '00' },
   { path: '/display', title: 'Avatar, badge, skeleton and link', spec: '00' },
   { path: '/app-shell', title: 'AppShell', spec: '01' },
+  { path: '/metrics', title: 'KpiCard, ScoreRing and ProgressBar', spec: '04-06' },
+  { path: '/status', title: 'StatusPill and CriticalityTag', spec: '07-08' },
 ] as const;
 
 export type GalleryPath = (typeof galleryRoutes)[number]['path'];

@@ -59,3 +59,17 @@ export type {
   UserMenuItem,
   UserMenuProps,
 } from './components/AppShell';
+
+// 04-08 · Metrics and status language
+export { KpiCard } from './components/KpiCard';
+export type { KpiCardProps } from './components/KpiCard';
+export { ScoreRing } from './components/ScoreRing';
+export type { ScoreRingProps } from './components/ScoreRing';
+export { ProgressBar } from './components/ProgressBar';
+export type { ProgressBarProps, Segment, SegmentKey } from './components/ProgressBar';
+export { DERIVED_STATUSES, StatusPill, statusLabel } from './components/StatusPill';
+export type { DerivedStatus, StatusPillProps } from './components/StatusPill';
+export { CRITICALITY_LABEL, CRITICALITY_ORDER, CriticalityTag } from './components/CriticalityTag';
+export type { Criticality, CriticalityTagProps } from './components/CriticalityTag';
+export { formatDate, formatNumber, formatPercent } from './lib/format';
+export { defaultLink } from './lib/link';

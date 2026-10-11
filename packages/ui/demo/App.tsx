@@ -4,8 +4,10 @@ import { Link } from '../src';
 import { ButtonsPage } from './pages/ButtonsPage';
 import { DisplayPage } from './pages/DisplayPage';
 import { FieldsPage } from './pages/FieldsPage';
+import { MetricsPage } from './pages/MetricsPage';
 import { OverlaysPage } from './pages/OverlaysPage';
 import { ShellFrame, ShellPage } from './pages/ShellPage';
+import { StatusPage } from './pages/StatusPage';
 import { TokensPage } from './pages/TokensPage';
 import { galleryRoutes, type GalleryPath } from './routes';
 import { useRoute } from './router';
@@ -17,6 +19,8 @@ const components: Record<GalleryPath, ComponentType> = {
   '/overlays': OverlaysPage,
   '/display': DisplayPage,
   '/app-shell': ShellPage,
+  '/metrics': MetricsPage,
+  '/status': StatusPage,
 };
 
 function Home() {
@@ -33,7 +37,7 @@ function Home() {
               key={p.path}
               className="flex items-center gap-3 rounded-card border border-line bg-surface px-4 py-3"
             >
-              <span className="w-20 text-meta text-muted">Spec {p.spec}</span>
+              <span className="w-24 shrink-0 text-meta text-muted">Spec {p.spec}</span>
               <Link href={`#${p.path}`}>{p.title}</Link>
             </li>
           ))}
