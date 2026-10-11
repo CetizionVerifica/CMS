@@ -1,73 +1,11 @@
-# Path ownership by module (MODULES.md "Owns" column). Later lines win over earlier ones.
-# Every module is owned by @shyamsharma23 until per-module GitHub teams exist; the comment names the module.
+# Human review is required only where a mistake is expensive to undo: shared contracts, the database schema and
+# tenancy, auth, and CI itself. Everything else merges on a green `ci-ok`, which includes the automatic module audit.
+# Which module may change which paths is enforced by the `module-paths` CI job (tooling/modules.json), not here.
 
-# M1 · Repo foundations & CI (default owner for root config)
-*                                                   @shyamsharma23
-/.github/                                           @shyamsharma23
-/docker/                                            @shyamsharma23
-/tooling/                                           @shyamsharma23
-
-# M0 · Contracts & domain spec
 /packages/contracts/                                @shyamsharma23
 /docs/contracts/                                    @shyamsharma23
-
-# M2 · Design system
-/packages/ui/                                       @shyamsharma23
-
-# M3 · Database & tenancy
-/packages/db/                                       @shyamsharma23
-
-# M4 · Compliance engine
-/packages/engine/                                   @shyamsharma23
-
-# M5 · Auth, roles & permissions
+/packages/db/                                      @shyamsharma23
 /apps/api/src/auth/                                 @shyamsharma23
-
-# M6 · Library & entities API
-/apps/api/src/modules/clients/                      @shyamsharma23
-/apps/api/src/modules/entities/                     @shyamsharma23
-/apps/api/src/modules/people/                       @shyamsharma23
-/apps/api/src/modules/library/                      @shyamsharma23
-/apps/api/src/modules/assignments/                  @shyamsharma23
-
-# M7 · Workflow, evidence & audit API
-/apps/api/src/modules/instances/                    @shyamsharma23
-/apps/api/src/modules/evidence/                     @shyamsharma23
-/apps/api/src/modules/approvals/                    @shyamsharma23
-/apps/api/src/modules/audit/                        @shyamsharma23
-
-# M8 · Excel importer
-/packages/importer/                                 @shyamsharma23
-/apps/api/src/modules/imports/                      @shyamsharma23
-
-# M9 · Jobs & notifications
-/apps/api/src/jobs/                                 @shyamsharma23
-/packages/notifications/                            @shyamsharma23
-
-# M10 · Dashboards & reports API
-/apps/api/src/modules/dashboard/                    @shyamsharma23
-/apps/api/src/modules/reports/                      @shyamsharma23
-
-# M11 · Web shell & navigation
-/apps/web/app/(shell)/                              @shyamsharma23
-/apps/web/app/(auth)/                               @shyamsharma23
-/apps/web/lib/                                      @shyamsharma23
-
-# M12 · Web register & approvals
-/apps/web/app/c/*/register/                         @shyamsharma23
-/apps/web/app/c/*/approvals/                        @shyamsharma23
-/apps/web/app/c/*/calendar/                         @shyamsharma23
-/apps/web/app/c/*/evidence/                         @shyamsharma23
-
-# M13 · Web overview, import, setup, reports
-/apps/web/app/portfolio/                            @shyamsharma23
-/apps/web/app/c/*/overview/                         @shyamsharma23
-/apps/web/app/c/*/import/                           @shyamsharma23
-/apps/web/app/c/*/setup/                            @shyamsharma23
-/apps/web/app/c/*/reports/                          @shyamsharma23
-/apps/web/app/c/*/audit/                            @shyamsharma23
-/apps/web/app/library/                              @shyamsharma23
-
-# M14 · Integration, QA & hardening
-/e2e/                                               @shyamsharma23
-/docs/security/                                     @shyamsharma23
+/.github/                                           @shyamsharma23
+/tooling/modules.json                               @shyamsharma23
+/.claude/skills/                                    @shyamsharma23

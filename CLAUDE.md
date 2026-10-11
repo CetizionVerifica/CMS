@@ -77,9 +77,13 @@ audit events written for state changes; isolation test for new tables; docs or C
 | Module paths | `module-paths` | a PR titled `M<n>: ...` changing files outside that module's paths in `tooling/modules.json` |
 | Dependencies | `audit` | a known high or critical vulnerability (`pnpm audit`) |
 | Static security | `codeql` | a CodeQL security-extended finding |
+| Module audit | `module-audit` | on PRs titled `M<n>: ...` (not drafts), an independent Claude run of `.claude/skills/compliance-module-auditor` against the module's `MODULES.md` acceptance list and these rules returns anything but **Ready**. Needs the `ANTHROPIC_API_KEY` repo secret |
 
 Gates owned by modules, added with their first code: contract tests against the OpenAPI spec (M0, consumed by M6, M7, M8, M10),
 golden counts from `docs/requirements/excel-analysis.md` §5 (M4, M8), and a test that every state-changing route writes an `AuditEvent` (M7).
 
-Title every module PR `M<n>: <what>` so the path guard applies. Before merge, a separate thread audits the PR against its
-`MODULES.md` acceptance list and these rules; the builder thread does not grade its own module.
+Title every module PR `M<n>: <what>` so the path guard and audit apply. Mark it ready for review only when you expect it to pass;
+the audit runs on every push after that. Read the audit comment and fix its findings.
+
+Merging: a PR with green `ci-ok` merges without a human review, except changes to contracts, `packages/db`, auth, `.github`,
+`tooling/modules.json` or `.claude/skills`, which need Shyam's approval (`.github/CODEOWNERS`).
