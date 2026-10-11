@@ -56,15 +56,17 @@ jobs:
           echo "Re-ran module-audit (job $JOB) on run $RUN for $SHA."
           # Auto-merge doesn't always notice a required check turning green on a re-run, which left an audited PR
           # waiting outside the merge queue. Once the re-run finishes green, turn auto-merge off and on again so
-          # the PR joins the queue now. A `no-automerge` label still holds it.
+          # the PR joins the queue now. Only for a PR from this repo whose auto-merge is on, as auto-merge.yml sets
+          # it: a fork PR, a `no-automerge` label or auto-merge turned off by hand still holds it.
           sleep 15
           gh run watch "$RUN" --interval 20 > /dev/null || true
-          read -r STATE QUEUED HELD < <(gh api graphql -F n="$PR" -f o="${GH_REPO%/*}" -f r="${GH_REPO#*/}" -f query='
+          read -r STATE QUEUED AUTO FORK HELD < <(gh api graphql -F n="$PR" -f o="${GH_REPO%/*}" -f r="${GH_REPO#*/}" -f query='
             query($o: String!, $r: String!, $n: Int!) { repository(owner: $o, name: $r) { pullRequest(number: $n) {
-              mergeStateStatus isInMergeQueue labels(first: 50) { nodes { name } } } } }' \
-            --jq '.data.repository.pullRequest | "\(.mergeStateStatus) \(.isInMergeQueue) \(any(.labels.nodes[]; .name == "no-automerge"))"')
-          echo "PR #$PR is $STATE, in merge queue: $QUEUED."
-          if [ "$STATE" = "CLEAN" ] && [ "$QUEUED" = "false" ] && [ "$HELD" = "false" ]; then
+              mergeStateStatus isInMergeQueue isCrossRepository autoMergeRequest { enabledAt }
+              labels(first: 50) { nodes { name } } } } }' \
+            --jq '.data.repository.pullRequest | "\(.mergeStateStatus) \(.isInMergeQueue) \(.autoMergeRequest != null) \(.isCrossRepository) \(any(.labels.nodes[]; .name == "no-automerge"))"')
+          echo "PR #$PR is $STATE; queued $QUEUED, auto-merge $AUTO, fork $FORK, held $HELD."
+          if [ "$STATE" = "CLEAN" ] && [ "$QUEUED" = "false" ] && [ "$AUTO" = "true" ] && [ "$FORK" = "false" ] && [ "$HELD" = "false" ]; then
             gh pr merge "$PR" --disable-auto || true
             gh pr merge "$PR" --auto --squash
           fi
