@@ -242,7 +242,6 @@ export function inferRule(
   const expected = [...dueDates].sort(compareDates);
   const first = expected[0] as LocalDate;
   const last = expected.at(-1) as LocalDate;
-  const span = { from: first, to: last };
   const coverage = options.coverage;
   const window = {
     from: coverage && compareDates(coverage.from, first) < 0 ? coverage.from : first,
