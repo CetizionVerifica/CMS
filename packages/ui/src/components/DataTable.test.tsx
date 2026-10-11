@@ -243,7 +243,7 @@ describe('DataTable', () => {
     await user.click(screen.getByRole('button', { name: 'Clear' }));
     expect(screen.getByText('424 instances')).toBeTruthy();
     expect(screen.getByRole('status').textContent).toBe('');
-  }, 15_000); // Many key presses with axe: about 2s alone, slower under a full parallel run.
+  });
 
   it('selects with the checkboxes, shift-click for a range, and the header box', async () => {
     const user = userEvent.setup();
