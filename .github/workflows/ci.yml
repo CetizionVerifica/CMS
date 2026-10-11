@@ -191,11 +191,23 @@ jobs:
             base ${{ github.base_ref }}. Lint, typecheck, unit tests with coverage and the path guard already passed.
             If the title has no module id, audit the diff against the root CLAUDE.md non-negotiables and quality
             gates instead of a MODULES.md acceptance list.
-            Post the report as one PR comment with `gh pr comment`, then return the verdict as the structured
-            output.
+            The PR head is already checked out and dependencies are installed; do not fetch, check out or install.
+            Run each shell command on its own: no `;`, `&&`, `|`, `cd` or command substitution, or it is refused.
+            Use `pnpm --filter <package> <script>` for one package. Read the PR with `gh pr view` and `gh pr diff`.
+            Write the report to audit-report.md with the Write tool, post it with
+            `gh pr comment ${{ github.event.pull_request.number }} --body-file audit-report.md`, then return the
+            verdict as the structured output.
           claude_args: >-
             --json-schema '{"type":"object","properties":{"verdict":{"type":"string","enum":["Ready","Not ready"]}},"required":["verdict"]}'
-            --allowedTools "Read,Grep,Glob,Bash(pnpm lint*),Bash(pnpm typecheck*),Bash(pnpm test*),Bash(node --test tooling/scripts/*),Bash(git diff *),Bash(git log *),Bash(git show *),Bash(gh pr view *),Bash(gh pr diff *),Bash(gh pr comment *)"
+            --allowedTools "Read,Grep,Glob,Edit(./audit-report.md),Bash(pnpm lint*),Bash(pnpm typecheck*),Bash(pnpm test*),Bash(pnpm --filter *),Bash(node --test tooling/scripts/*),Bash(git diff *),Bash(git log *),Bash(git show *),Bash(gh pr view *),Bash(gh pr diff *),Bash(gh pr comment *)"
+      # The run's transcript, so a failed audit can be diagnosed (the action hides it from the log).
+      - name: Keep the audit transcript
+        if: always() && steps.audit.outputs.execution_file != ''
+        uses: actions/upload-artifact@v7
+        with:
+          name: module-audit-transcript
+          path: ${{ steps.audit.outputs.execution_file }}
+          retention-days: 7
       # The verdict comes back as validated structured output, not a file the model has to write.
       - name: Require a Ready verdict
         env:
