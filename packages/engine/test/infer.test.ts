@@ -192,12 +192,9 @@ describe('inferRule', () => {
 });
 
 describe('inferRule on part-year registers (client onboarded mid-year)', () => {
-  it('TDS by the 7th from December to March is still MONTHLY, and regenerates 12 deposits next FY', () => {
-    const r = inferRule(
-      ds('2022-12-07', '2023-01-07', '2023-02-07', '2023-03-07'),
-      'TIME_BASED',
-      india,
-    );
+  const tdsDecToMar = ds('2022-12-07', '2023-01-07', '2023-02-07', '2023-03-07');
+  it('TDS by the 7th from December to March is MONTHLY and regenerates 12 deposits next FY', () => {
+    const r = inferRule(tdsDecToMar, 'TIME_BASED', india);
     expect(r).toEqual({
       rule: { kind: 'MONTHLY', day: 7, offsetMonths: 1 },
       confidence: 1,
@@ -205,23 +202,45 @@ describe('inferRule on part-year registers (client onboarded mid-year)', () => {
     });
     expect(generateInstances(r.rule, fy2324, india)).toHaveLength(12);
   });
-  it('quarter-end reviews for Q3 and Q4 only are a quarterly review', () => {
+  it('with full-FY coverage, the same TDS register keeps MONTHLY but below confidence 1', () => {
+    const r = inferRule(tdsDecToMar, 'TIME_BASED', india, { coverage: fy2223 });
+    expect(r.rule).toEqual({ kind: 'MONTHLY', day: 7, offsetMonths: 1 });
+    expect(r.confidence).toBeCloseTo(4 / 12);
+    expect(r.mismatches).toEqual([]);
+    expect(generateInstances(r.rule, fy2324, india)).toHaveLength(12);
+    const janToMar = inferRule(ds('2023-01-07', '2023-02-07', '2023-03-07'), 'TIME_BASED', india, {
+      coverage: fy2223,
+    });
+    expect(janToMar.rule).toEqual({ kind: 'MONTHLY', day: 7, offsetMonths: 1 });
+    expect(janToMar.confidence).toBeCloseTo(3 / 12);
+  });
+  it('quarter-end reviews for Q3 and Q4 only are a quarterly review, below confidence 1 with or without coverage', () => {
     const r = inferRule(ds('2022-12-31', '2023-03-31'), 'ONGOING', india);
     expect(r).toEqual({
       rule: { kind: 'ONGOING_REVIEW', every: 'QUARTER' },
-      confidence: 1,
+      confidence: 0.5,
       mismatches: [],
     });
-    expect(generateInstances(r.rule, fy2324, india)).toHaveLength(4);
+    const covered = inferRule(ds('2022-12-31', '2023-03-31'), 'ONGOING', india, {
+      coverage: fy2223,
+    });
+    expect(covered.rule).toEqual({ kind: 'ONGOING_REVIEW', every: 'QUARTER' });
+    expect(covered.confidence).toBe(0.5);
+    expect(generateInstances(covered.rule, fy2324, india)).toHaveLength(4);
   });
-  it('"within 15 days of quarter close" seen twice is QUARTERLY after period end', () => {
+  it('"within 15 days of quarter close" seen twice is QUARTERLY after period end, flagged', () => {
     expect(inferRule(ds('2023-01-15', '2023-04-15'), 'TIME_BASED', india)).toEqual({
       rule: { kind: 'QUARTERLY', anchor: 'AFTER_PERIOD_END', days: 15 },
-      confidence: 1,
+      confidence: 0.5,
       mismatches: [],
     });
+    const covered = inferRule(ds('2023-01-15', '2023-04-15'), 'TIME_BASED', india, {
+      coverage: { from: asLocalDate('2022-04-16'), to: asLocalDate('2023-04-15') },
+    });
+    expect(covered.rule).toEqual({ kind: 'QUARTERLY', anchor: 'AFTER_PERIOD_END', days: 15 });
+    expect(covered.confidence).toBe(0.5);
   });
-  it('month ends from October to March are MONTHLY LAST at full confidence', () => {
+  it('month ends from October to March are MONTHLY LAST: certain alone, flagged with full-FY coverage', () => {
     const dates = ds(
       '2022-10-31',
       '2022-11-30',
@@ -235,6 +254,9 @@ describe('inferRule on part-year registers (client onboarded mid-year)', () => {
       confidence: 1,
       mismatches: [],
     });
+    const covered = inferRule(dates, 'TIME_BASED', india, { coverage: fy2223 });
+    expect(covered.rule).toEqual({ kind: 'MONTHLY', day: 'LAST', offsetMonths: 0 });
+    expect(covered.confidence).toBe(0.5);
   });
   it('four quarters across the FY boundary give the right rule at full confidence', () => {
     expect(
@@ -244,6 +266,18 @@ describe('inferRule on part-year registers (client onboarded mid-year)', () => {
       confidence: 1,
       mismatches: [],
     });
+  });
+  it('a gap between the first and last date is real evidence: FIXED_DATES stays certain over a full year', () => {
+    // 30 Sep is missing between 30 Jun and 31 Dec, so this is not a quarterly review.
+    const r = inferRule(ds('2022-06-30', '2022-12-31'), 'ONGOING', india, { coverage: fy2223 });
+    expect(r.rule).toEqual({
+      kind: 'FIXED_DATES',
+      dates: [
+        { month: 6, day: 30 },
+        { month: 12, day: 31 },
+      ],
+    });
+    expect(r.confidence).toBe(1);
   });
   it('only uses FIXED_DATES when no periodic rule fits, and flags it from a part-year window', () => {
     const r = inferRule(ds('2022-05-10', '2022-11-10'), 'TIME_BASED', india);
@@ -272,6 +306,13 @@ describe('inferRule on part-year registers (client onboarded mid-year)', () => {
     );
     expect(r.rule).toEqual({ kind: 'MONTHLY', day: 7, offsetMonths: 1 });
     expect(r.confidence).toBeCloseTo(3 / 5);
+  });
+  it('never gives full confidence from fewer than three dates without coverage', () => {
+    expect(inferRule(ds('2022-04-07', '2022-05-07'), 'TIME_BASED', india).confidence).toBe(0.5);
+    expect(inferRule(ds('2022-06-30', '2022-09-30'), 'ONGOING', india).confidence).toBe(0.5);
+    expect(
+      inferRule(ds('2022-04-07', '2022-05-07', '2022-06-07'), 'TIME_BASED', india).confidence,
+    ).toBe(1);
   });
   it('widens a coverage that does not include every date', () => {
     const coverage = { from: asLocalDate('2022-04-01'), to: asLocalDate('2022-06-30') };

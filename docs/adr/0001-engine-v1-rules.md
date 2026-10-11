@@ -48,11 +48,18 @@ see, so they are recorded here. Changing any of them bumps `ENGINE_VERSION`.
 3. If periodic rules of different frequencies all match every date (the window is too short to tell, e.g. one date
    with no coverage), the result is ambiguous: the sparsest rule is returned at confidence 0.5 so import flags it
    `TO_REVIEW`.
-4. FIXED_DATES is tried only when no periodic rule matches every date, for two to four distinct month/days, and wins
+4. Onboarding gap: if no periodic rule matches the whole window but one matches every date between the first and the
+   last, with the dates it adds only before the first or after the last, the register most likely starts or stops
+   mid-way (a client onboarded in December). That periodic rule is returned at its window confidence, which is below 1,
+   so import flags it `TO_REVIEW` instead of publishing a FIXED_DATES list that drops the missing periods for good.
+   A missing date between the first and the last (30 Sep absent between 30 Jun and 31 Dec) is real evidence, so the
+   sample's FIXED_DATES rules are unchanged.
+5. Without coverage, fewer than three dates never give a confidence above 0.5.
+6. FIXED_DATES is tried only when no periodic rule matches every date, for two to four distinct month/days, and wins
    when it is at least as good. From a window shorter than a year its confidence is halved, because the register
    says nothing about the rest of the year. Drifting monthly dates therefore come back as MONTHLY with mismatches.
-5. A numeric monthly day prefers `offsetMonths: 1` (statutory deposits are for the previous month); `LAST` prefers 0.
-6. On the sample register (coverage FY 2022-23) 111 of 119 obligations regenerate exactly; the other 8 (drifting
+7. A numeric monthly day prefers `offsetMonths: 1` (statutory deposits are for the previous month); `LAST` prefers 0.
+8. On the sample register (coverage FY 2022-23) 111 of 119 obligations regenerate exactly; the other 8 (drifting
    monthly dates and the two duplicate periods) are listed with their mismatches in
    `packages/engine/test/golden.test.ts`.
 

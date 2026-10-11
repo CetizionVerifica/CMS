@@ -19,9 +19,12 @@ import { generateInstances, type Calendar } from './recurrence.js';
  *     (ONGOING obligations try ONGOING_REVIEW first; TIME_BASED ones ANNUAL, QUARTERLY, HALF_YEARLY, MONTHLY).
  *  2. When periodic rules of different frequencies all match every date (a window too short to tell, such as one
  *     date), the rule is ambiguous and its confidence is halved so import flags it TO_REVIEW.
- *  3. FIXED_DATES is tried only when no periodic rule matches every date, for two to four distinct month/days, and
+ *  3. If no periodic rule matches the whole window but one matches every date between the first and the last (the
+ *     register starts or stops mid-way through the window), that rule is returned at its window confidence, below 1.
+ *  4. FIXED_DATES is tried only when no periodic rule matches every date, for two to four distinct month/days, and
  *     only wins when strictly better. From a window shorter than a year its confidence is halved too, because the
  *     dates the register does not cover are unknown.
+ * Without coverage, fewer than three dates never give confidence above 0.5.
  * Quarter and half-year offsets are tried up to 31 days before the period end and 60 days after it.
  */
 
@@ -169,6 +172,23 @@ function perYear(rule: RecurrenceRule): number {
   }
 }
 
+/** Highest confidence, then the fewest periods a year, then candidate order. */
+function pickBest(scored: readonly Scored[]): Scored {
+  let best = scored[0] as Scored;
+  for (const result of scored) {
+    if (
+      result.confidence > best.confidence ||
+      (result.confidence === best.confidence && perYear(result.rule) < perYear(best.rule))
+    ) {
+      best = result;
+    }
+  }
+  return best;
+}
+
+/** Below this many dates, and with no coverage, a fit is never certain. */
+const MIN_DATES_FOR_CERTAINTY = 3;
+
 /** Infers the recurrence rule behind a register's due dates for one obligation. */
 export function inferRule(
   dueDates: readonly LocalDate[],
@@ -180,38 +200,44 @@ export function inferRule(
   const expected = [...dueDates].sort(compareDates);
   const first = expected[0] as LocalDate;
   const last = expected.at(-1) as LocalDate;
+  const span = { from: first, to: last };
   const coverage = options.coverage;
   const window = {
     from: coverage && compareDates(coverage.from, first) < 0 ? coverage.from : first,
     to: coverage && compareDates(coverage.to, last) > 0 ? coverage.to : last,
   };
-  const scoreRule = (rule: RecurrenceRule): Scored =>
-    score(
-      rule,
-      expected,
-      generateInstances(rule, window, cal).map((p) => p.dueDate),
-    );
+  const scoreIn =
+    (range: { from: LocalDate; to: LocalDate }) =>
+    (rule: RecurrenceRule): Scored =>
+      score(
+        rule,
+        expected,
+        generateInstances(rule, range, cal).map((p) => p.dueDate),
+      );
+  const cap = (result: Scored): Scored =>
+    !coverage && expected.length < MIN_DATES_FOR_CERTAINTY && result.confidence > 0.5
+      ? { ...result, confidence: 0.5 }
+      : result;
 
   const { periodic, fixed } = candidates(expected, timelineType, cal.fyStartMonth);
-  const scored = periodic.map(scoreRule);
-  let best = scored[0] as Scored;
-  for (const result of scored) {
-    if (
-      result.confidence > best.confidence ||
-      (result.confidence === best.confidence && perYear(result.rule) < perYear(best.rule))
-    ) {
-      best = result;
-    }
-  }
-  const shortWindow = daysBetween(window.from, window.to) < 364;
+  const scored = periodic.map(scoreIn(window));
+  const best = pickBest(scored);
   if (best.confidence === 1) {
     const exactFrequencies = new Set(
       scored.filter((r) => r.confidence === 1).map((r) => perYear(r.rule)),
     );
-    return exactFrequencies.size > 1 ? { ...best, confidence: 0.5 } : best;
+    return cap(exactFrequencies.size > 1 ? { ...best, confidence: 0.5 } : best);
+  }
+  // Onboarding gap: a periodic rule fits every date between the first and the last, and the dates it adds lie only
+  // before or after them. The register most likely starts or stops mid-year, so keep the periodic rule (FIXED_DATES
+  // would drop the missing periods for good) at its coverage confidence, below 1, for review.
+  const edgeFit = pickBest(periodic.map(scoreIn(span)));
+  if (edgeFit.confidence === 1) {
+    return scored.find((r) => r.rule === edgeFit.rule) as Scored;
   }
   if (fixed) {
-    const result = scoreRule(fixed);
+    const result = scoreIn(window)(fixed);
+    const shortWindow = daysBetween(window.from, window.to) < 364;
     const confidence = shortWindow ? result.confidence / 2 : result.confidence;
     if (confidence >= best.confidence) return { ...result, confidence };
   }
