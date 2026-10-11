@@ -82,3 +82,15 @@
     left: 100%;
   }
 }
+
+@keyframes canopy-drawer-in {
+  from {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes canopy-fade-in {
+  from {
+    opacity: 0;
+  }
+}

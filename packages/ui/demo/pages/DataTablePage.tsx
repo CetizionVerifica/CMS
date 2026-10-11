@@ -4,7 +4,11 @@ import { useMemo, useState } from 'react';
 
 import {
   Button,
+  ConfirmDialog,
+  CriticalityTag,
   DataTable,
+  Drawer,
+  DrawerSection,
   EmptyState,
   IconButton,
   Menu,
@@ -12,6 +16,8 @@ import {
   MenuItem,
   MenuTrigger,
   RadioGroup,
+  StatusPill,
+  formatDate,
   toast,
   Toaster,
   type Criticality,
@@ -19,6 +25,7 @@ import {
   type DerivedStatus,
 } from '../../src';
 import { Page, Section } from '../Page';
+import { useRoute } from '../router';
 
 type Instance = {
   id: string;
@@ -155,6 +162,14 @@ type Mode = 'data' | 'loading' | 'refetching' | 'error' | 'empty';
 export function DataTablePage() {
   const data = useMemo(() => makeInstances(10_000), []);
   const [mode, setMode] = useState<Mode>('data');
+  const { params } = useRoute();
+  const openId = params.get('open');
+  const openIndex = openId ? data.findIndex((r) => r.id === openId) : -1;
+  const open = openIndex >= 0 ? data[openIndex]! : null;
+  const show = (i: number) => {
+    window.location.hash = `/data-table?open=${data[i]!.id}`;
+  };
+  const [sendBack, setSendBack] = useState(false);
   return (
     <Page
       title="DataTable"
@@ -233,6 +248,81 @@ export function DataTablePage() {
         <Download aria-hidden size={12} className="mr-1 inline" />
         Export and bulk actions only show toasts in this demo.
       </p>
+      <Drawer
+        open={!!open}
+        onOpenChange={(o) => {
+          if (!o) window.location.hash = '/data-table';
+        }}
+        title={open?.title ?? ''}
+        eyebrow={open?.id}
+        meta={
+          open ? (
+            <>
+              <StatusPill status={open.status} days={open.days} />
+              <CriticalityTag level={open.criticality} />
+              <span>Due {formatDate(open.due)}</span>
+            </>
+          ) : null
+        }
+        itemNoun="instance"
+        onPrev={openIndex > 0 ? () => show(openIndex - 1) : undefined}
+        onNext={
+          openIndex >= 0 && openIndex < data.length - 1 ? () => show(openIndex + 1) : undefined
+        }
+        backLabel="Back to register"
+        footer={
+          <>
+            <Button onClick={() => setSendBack(true)}>Send back</Button>
+            <Button
+              variant="primary"
+              onClick={() => toast({ tone: 'success', message: 'Approved.' })}
+            >
+              Approve
+            </Button>
+          </>
+        }
+      >
+        {open ? (
+          <>
+            <DrawerSection title="Description">
+              <p className="whitespace-pre-line text-body text-ink">
+                {`File the ${open.title.toLowerCase()} under the ${open.act}.\n1. Collect the challans.\n2. Upload the acknowledgement.`}
+              </p>
+            </DrawerSection>
+            <DrawerSection title="Details">
+              <dl className="grid grid-cols-2 gap-x-4 gap-y-2">
+                {[
+                  ['Act', open.act],
+                  ['Department', open.department],
+                  ['Owner', open.owner?.name ?? 'Unassigned'],
+                  ['Approver', open.approver?.name ?? 'Unassigned'],
+                ].map(([k, v]) => (
+                  <div key={k}>
+                    <dt className="text-meta text-muted">{k}</dt>
+                    <dd className="text-body text-ink">{v}</dd>
+                  </div>
+                ))}
+              </dl>
+            </DrawerSection>
+          </>
+        ) : null}
+      </Drawer>
+      <ConfirmDialog
+        open={sendBack}
+        onOpenChange={setSendBack}
+        title={`Send back to ${open?.owner?.name ?? 'the owner'}?`}
+        body="They'll be notified and the instance returns to their list."
+        confirmLabel="Send back"
+        reason={{
+          label: 'Reason (required)',
+          required: true,
+          minLength: 5,
+          helper: 'The owner sees this.',
+        }}
+        onConfirm={() => {
+          toast({ tone: 'success', message: 'Sent back.' });
+        }}
+      />
       <Toaster />
     </Page>
   );

@@ -68,3 +68,29 @@ test('states render inside the card', async ({ page }) => {
     page.getByRole('heading', { name: 'No instances match these filters' }),
   ).toBeVisible();
 });
+
+test('a row opens the drawer; J moves on, Esc returns focus to the row', async ({ page }) => {
+  await page.goto('/#/data-table');
+  const link = page.locator('[data-row-index="2"] [data-row-link]');
+  await link.focus();
+  await page.keyboard.press('Enter');
+  const drawer = page.getByRole('dialog');
+  await expect(drawer).toBeVisible();
+  await expect(drawer.getByRole('heading', { level: 2 })).toBeFocused();
+  await expect(drawer.getByText('PF-CL-00003')).toBeVisible();
+  await expectNoA11yViolations(page, openPopup('[role="dialog"]'));
+  await expectNoPageOverflow(page);
+  await page.keyboard.press('j');
+  await expect(drawer.getByText('ENV-CL-00004')).toBeVisible();
+
+  await drawer.getByRole('button', { name: 'Send back' }).click();
+  const confirm = page.getByRole('alertdialog', { name: /^Send back to/ });
+  await expect(confirm.getByRole('textbox', { name: 'Reason (required)' })).toBeFocused();
+  await expectNoA11yViolations(page, openPopup('[role="alertdialog"]'));
+  await page.keyboard.press('Escape');
+  await expect(confirm).toBeHidden();
+
+  await page.keyboard.press('Escape');
+  await expect(drawer).toBeHidden();
+  await expect(page).toHaveURL(/#\/data-table$/);
+});

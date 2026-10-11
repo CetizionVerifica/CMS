@@ -94,6 +94,12 @@ export type {
 } from './components/data-table/cells';
 export type { TableContext } from './components/data-table/context';
 
+// 11, 18 · Drawer and ConfirmDialog
+export { Drawer, DrawerSection } from './components/Drawer';
+export type { DrawerProps } from './components/Drawer';
+export { ConfirmDialog } from './components/ConfirmDialog';
+export type { ConfirmDialogProps } from './components/ConfirmDialog';
+
 // 14, 17 · Feedback
 export { EmptyState } from './components/EmptyState';
 export type { EmptyStateProps, EmptyStateVariant } from './components/EmptyState';
