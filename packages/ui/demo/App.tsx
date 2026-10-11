@@ -3,6 +3,7 @@ import type { ComponentType } from 'react';
 import { Link } from '../src';
 import { ButtonsPage } from './pages/ButtonsPage';
 import { ContextPage } from './pages/ContextPage';
+import { DataTablePage } from './pages/DataTablePage';
 import { DisplayPage } from './pages/DisplayPage';
 import { FeedbackPage } from './pages/FeedbackPage';
 import { FieldsPage } from './pages/FieldsPage';
@@ -25,6 +26,7 @@ const components: Record<GalleryPath, ComponentType> = {
   '/metrics': MetricsPage,
   '/status': StatusPage,
   '/feedback': FeedbackPage,
+  '/data-table': DataTablePage,
 };
 
 function Home() {

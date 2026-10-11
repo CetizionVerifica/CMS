@@ -73,3 +73,12 @@
     transform: translateY(8px);
   }
 }
+
+@keyframes canopy-indeterminate {
+  from {
+    left: -33%;
+  }
+  to {
+    left: 100%;
+  }
+}

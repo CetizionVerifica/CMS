@@ -1,0 +1,239 @@
+import { createColumnHelper } from '@tanstack/react-table';
+import { CheckCheck, Download, MoreHorizontal, UserPlus } from 'lucide-react';
+import { useMemo, useState } from 'react';
+
+import {
+  Button,
+  DataTable,
+  EmptyState,
+  IconButton,
+  Menu,
+  MenuContent,
+  MenuItem,
+  MenuTrigger,
+  RadioGroup,
+  toast,
+  Toaster,
+  type Criticality,
+  type TableContext,
+  type DerivedStatus,
+} from '../../src';
+import { Page, Section } from '../Page';
+
+type Instance = {
+  id: string;
+  title: string;
+  act: string;
+  department: string;
+  owner: { name: string } | null;
+  approver: { name: string } | null;
+  due: string;
+  status: DerivedStatus;
+  days?: number;
+  criticality: Criticality;
+};
+
+const acts = [
+  'Income Tax Act, 1961',
+  'Factories Act, 1948',
+  'Employees’ Provident Funds Act, 1952',
+  'Water (Prevention and Control of Pollution) Act, 1974',
+  'Information Technology Act, 2000',
+];
+const titles = [
+  'Tax collection at source return',
+  'Annual return in Form 1',
+  'Monthly PF challan',
+  'Consent to operate renewal',
+  'Half-yearly compliance report',
+  'Fire safety audit',
+];
+const departments = ['Finance', 'EHS', 'HR', 'Legal', 'IT'];
+const people = ['Priya Rane', 'Arjun Mehta', 'Kavita Iyer', 'Rohan Das', 'Meera Pillai'];
+const statuses: DerivedStatus[] = [
+  'OVERDUE',
+  'DUE_SOON',
+  'UPCOMING',
+  'SUBMITTED',
+  'SENT_BACK',
+  'COMPLIED',
+  'COMPLIED_LATE',
+  'NOT_APPLICABLE',
+];
+const levels: Criticality[] = ['SUPER_CRITICAL', 'CRITICAL', 'HIGH', 'MEDIUM', 'LOW'];
+
+/** Deterministic demo rows (no randomness, so screenshots and tests are stable). */
+function makeInstances(n: number): Instance[] {
+  return Array.from({ length: n }, (_, i) => {
+    const prefix = ['TAX', 'FAC', 'PF', 'ENV', 'IT'][i % 5]!;
+    const month = String((i % 12) + 1).padStart(2, '0');
+    const day = String((i % 28) + 1).padStart(2, '0');
+    return {
+      id: `${prefix}-CL-${String(i + 1).padStart(5, '0')}`,
+      title: titles[i % titles.length]!,
+      act: acts[i % acts.length]!,
+      department: departments[i % departments.length]!,
+      owner: i % 7 === 0 ? null : { name: people[i % people.length]! },
+      approver: { name: people[(i + 2) % people.length]! },
+      due: `2027-${month}-${day}`,
+      status: statuses[i % statuses.length]!,
+      days: (i % 30) + 1,
+      criticality: levels[i % levels.length]!,
+    };
+  });
+}
+
+const col = createColumnHelper<Instance>();
+const columns = [
+  col.accessor('id', { header: 'ID', size: 130, meta: { type: 'id' } }),
+  col.accessor((r) => ({ title: r.title, sub: r.act }), {
+    id: 'title',
+    header: 'Title',
+    size: 300,
+    meta: { type: 'title', locked: true },
+    sortingFn: (a, b) => a.original.title.localeCompare(b.original.title),
+  }),
+  col.accessor('department', { header: 'Department', size: 130, meta: { type: 'text' } }),
+  col.accessor('owner', {
+    header: 'Owner',
+    size: 170,
+    meta: { type: 'person' },
+    enableSorting: false,
+  }),
+  col.accessor('approver', {
+    header: 'Approver',
+    size: 170,
+    meta: { type: 'person' },
+    enableSorting: false,
+  }),
+  col.accessor('due', { header: 'Due date', size: 130, meta: { type: 'date' } }),
+  col.accessor((r) => ({ status: r.status, days: r.days }), {
+    id: 'status',
+    header: 'Status',
+    size: 170,
+    meta: { type: 'status' },
+    enableSorting: false,
+  }),
+  col.accessor('criticality', {
+    header: 'Criticality',
+    size: 140,
+    meta: { type: 'criticality' },
+    sortingFn: (a, b) =>
+      levels.indexOf(a.original.criticality) - levels.indexOf(b.original.criticality),
+  }),
+  col.display({
+    id: 'actions',
+    header: 'Actions',
+    size: 64,
+    meta: { type: 'actions' },
+    cell: ({ row, table }) => (
+      <Menu>
+        <MenuTrigger asChild>
+          <IconButton
+            label={`Actions for ${row.original.id}`}
+            icon={MoreHorizontal}
+            variant="ghost"
+            size="sm"
+            tabIndex={(table.options.meta as TableContext<Instance>).rowTabIndex(row)}
+            hideTooltip
+          />
+        </MenuTrigger>
+        <MenuContent align="end">
+          <MenuItem
+            onSelect={() => toast({ tone: 'info', message: `Reassign ${row.original.id}` })}
+          >
+            Reassign
+          </MenuItem>
+        </MenuContent>
+      </Menu>
+    ),
+  }),
+];
+
+type Mode = 'data' | 'loading' | 'refetching' | 'error' | 'empty';
+
+export function DataTablePage() {
+  const data = useMemo(() => makeInstances(10_000), []);
+  const [mode, setMode] = useState<Mode>('data');
+  return (
+    <Page
+      title="DataTable"
+      intro="10,000 instances, virtualised. Tab into the table, then use the arrow keys, Space to select and Enter to open."
+    >
+      <Section title="State">
+        <RadioGroup
+          label="Table state"
+          orientation="horizontal"
+          value={mode}
+          onValueChange={(v) => setMode(v as Mode)}
+          options={[
+            { value: 'data', label: 'Data' },
+            { value: 'loading', label: 'Loading' },
+            { value: 'refetching', label: 'Refetching' },
+            { value: 'error', label: 'Error' },
+            { value: 'empty', label: 'No results' },
+          ]}
+        />
+      </Section>
+      <DataTable<Instance>
+        label="Register"
+        columns={columns}
+        data={mode === 'empty' || mode === 'error' ? [] : data}
+        rowId={(r) => r.id}
+        rowLabel={(r) => `${r.id}, ${r.title}`}
+        rowHref={(r) => `#/data-table?open=${r.id}`}
+        totalCount={mode === 'empty' ? 0 : 10_000}
+        countNoun={{ one: 'instance', other: 'instances' }}
+        loading={mode === 'loading'}
+        refetching={mode === 'refetching'}
+        error={
+          mode === 'error'
+            ? {
+                message: 'Check your connection and try again.',
+                retry: () => setMode('data'),
+                errorId: '7f3a9c21',
+              }
+            : undefined
+        }
+        empty={
+          <EmptyState
+            variant="no-results"
+            title="No instances match these filters"
+            body="Try removing a filter or widening the period."
+            action={{ label: 'Clear filters', onClick: () => setMode('data') }}
+          />
+        }
+        selection={{
+          bulkActions: [
+            {
+              label: 'Assign',
+              icon: UserPlus,
+              onClick: () => toast({ tone: 'info', message: 'Assign' }),
+            },
+            {
+              label: 'Approve',
+              icon: CheckCheck,
+              onClick: (ids) =>
+                toast({
+                  tone: 'success',
+                  message: `Approved ${ids === 'all' ? 'all matching' : ids.length} instances.`,
+                }),
+            },
+          ],
+        }}
+        toolbarStart={
+          <Button size="sm" variant="ghost">
+            View: Default
+          </Button>
+        }
+        onExport={() => toast({ tone: 'info', message: 'Export started' })}
+        maxHeight={520}
+      />
+      <p className="text-meta text-muted">
+        <Download aria-hidden size={12} className="mr-1 inline" />
+        Export and bulk actions only show toasts in this demo.
+      </p>
+      <Toaster />
+    </Page>
+  );
+}

@@ -83,6 +83,17 @@ export type { Criticality, CriticalityTagProps } from './components/CriticalityT
 export { formatDate, formatNumber, formatPercent } from './lib/format';
 export { defaultLink } from './lib/link';
 
+// 09 · DataTable
+export { DataTable } from './components/data-table/DataTable';
+export type { BulkAction, DataTableProps, Density } from './components/data-table/DataTable';
+export type {
+  ColumnType,
+  PersonValue,
+  StatusValue,
+  TitleValue,
+} from './components/data-table/cells';
+export type { TableContext } from './components/data-table/context';
+
 // 14, 17 · Feedback
 export { EmptyState } from './components/EmptyState';
 export type { EmptyStateProps, EmptyStateVariant } from './components/EmptyState';
