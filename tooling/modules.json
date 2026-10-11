@@ -68,6 +68,7 @@
       "apps/web/app/(shell)/c/[clientId]/[...stub]/",
       "apps/web/lib/",
       "apps/web/next.config.ts",
+      "apps/web/postcss.config.mjs",
       "apps/web/proxy.ts",
       "apps/web/vitest.config.mjs",
       "e2e/tests/shell/"
