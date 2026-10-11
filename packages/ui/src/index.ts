@@ -46,6 +46,8 @@ export { LoadingRegion, Skeleton } from './primitives/Skeleton';
 export type { LoadingRegionProps } from './primitives/Skeleton';
 export { Link, linkClasses } from './primitives/Link';
 export type { LinkProps } from './primitives/Link';
+export { DateInput } from './primitives/DateInput';
+export type { DateInputProps } from './primitives/DateInput';
 
 // 01 · AppShell
 export { AppShell } from './components/AppShell';
@@ -59,6 +61,13 @@ export type {
   UserMenuItem,
   UserMenuProps,
 } from './components/AppShell';
+
+// 02-03 · Client and period context
+export { ClientSwitcher } from './components/ClientSwitcher';
+export type { ClientSummary, ClientSwitcherProps } from './components/ClientSwitcher';
+export { PeriodPicker } from './components/PeriodPicker';
+export type { Period, PeriodPickerProps, Quarter } from './components/PeriodPicker';
+export { fyLabel, periodLabel, periodName } from './lib/period';
 
 // 04-08 · Metrics and status language
 export { KpiCard } from './components/KpiCard';

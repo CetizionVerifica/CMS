@@ -2,6 +2,7 @@ import type { ComponentType } from 'react';
 
 import { Link } from '../src';
 import { ButtonsPage } from './pages/ButtonsPage';
+import { ContextPage } from './pages/ContextPage';
 import { DisplayPage } from './pages/DisplayPage';
 import { FieldsPage } from './pages/FieldsPage';
 import { MetricsPage } from './pages/MetricsPage';
@@ -19,6 +20,7 @@ const components: Record<GalleryPath, ComponentType> = {
   '/overlays': OverlaysPage,
   '/display': DisplayPage,
   '/app-shell': ShellPage,
+  '/context': ContextPage,
   '/metrics': MetricsPage,
   '/status': StatusPage,
 };

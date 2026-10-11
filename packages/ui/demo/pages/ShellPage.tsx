@@ -16,7 +16,17 @@ import {
   Users,
 } from 'lucide-react';
 
-import { AppShell, Button, type AppShellLayout, type NavGroup } from '../../src';
+import { useState } from 'react';
+
+import {
+  AppShell,
+  ClientSwitcher,
+  PeriodPicker,
+  type AppShellLayout,
+  type NavGroup,
+  type Period,
+} from '../../src';
+import { demoClients, demoFys } from '../fixtures';
 import { Page, Section } from '../Page';
 import { useRoute } from '../router';
 import { shellVariants } from '../routes';
@@ -86,6 +96,7 @@ export function ShellFrame() {
   const badge = Number(params.get('badge') ?? 4);
   const client = params.get('client');
   const noClient = client === 'none';
+  const [period, setPeriod] = useState<Period>({ fy: '2022-23' });
   const clientName =
     client === 'long'
       ? 'Hindalco Industries Limited, Belur Aluminium Rolling Plant'
@@ -115,14 +126,24 @@ export function ShellFrame() {
       }}
       topBar={{
         clientSwitcher: (
-          <Button size="sm" className="max-w-full justify-start sm:max-w-72">
-            <span className="truncate">{noClient ? 'Choose a client' : clientName}</span>
-          </Button>
+          <ClientSwitcher
+            current={noClient ? undefined : client === 'long' ? demoClients[6] : demoClients[0]}
+            clients={demoClients}
+            recentIds={['tp', 'sc']}
+            hrefFor={() => `#/shell/${page}${query ? `?${query}` : ''}`}
+            onNavigate={(href) => {
+              window.location.hash = href.slice(1);
+            }}
+            overviewHref="#/shell/portfolio?client=none"
+          />
         ),
         periodPicker: noClient ? undefined : (
-          <span className="inline-flex h-control-compact items-center rounded-chip bg-sage px-3 text-meta font-bold text-forest">
-            FY 2022–23
-          </span>
+          <PeriodPicker
+            value={period}
+            onChange={setPeriod}
+            availableFys={demoFys}
+            thisPeriod={{ fy: '2022-23', quarter: 3 }}
+          />
         ),
         search: (
           <label className="relative block">
