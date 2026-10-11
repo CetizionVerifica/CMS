@@ -124,7 +124,7 @@ export function Timeline({
   hasMore = false,
   loading = false,
   now,
-  systemName = 'Canopy',
+  systemName = 'PlanetPulse Compliance',
   className,
 }: TimelineProps) {
   const listRef = useRef<HTMLOListElement>(null);

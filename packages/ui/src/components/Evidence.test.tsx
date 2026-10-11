@@ -289,7 +289,7 @@ describe('Timeline', () => {
       expect.stringContaining('Priya Rane reassigned'),
       expect.stringContaining('Arun Mehta sent back'),
       expect.stringContaining('Priya Rane changed the due date'),
-      expect.stringContaining('Canopy created this instance'),
+      expect.stringContaining('PlanetPulse Compliance created this instance'),
     ]);
     const separators = [...list.querySelectorAll('li[aria-hidden]')].map((s) => s.textContent);
     expect(separators).toEqual(['Today', 'Yesterday', '29 Mar 2027']);
@@ -375,7 +375,7 @@ describe('Timeline', () => {
     }
     render(<Paged />);
     await user.click(screen.getByRole('button', { name: 'Show earlier activity' }));
-    expect(document.activeElement?.textContent).toContain('Canopy created this instance');
+    expect(document.activeElement?.textContent).toContain('PlanetPulse Compliance created this instance');
   });
 
   it('shows loading and empty states', () => {
