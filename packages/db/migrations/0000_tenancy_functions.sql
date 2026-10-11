@@ -3,15 +3,29 @@
 
 -- The role every request transaction runs as (`withTenant` does SET LOCAL ROLE). It never bypasses RLS.
 -- The connecting user must be a member so it can switch to it; the grant below covers the migrating user.
+-- Roles are cluster-wide: tolerate another database's migration creating it at the same time.
 DO $$
 BEGIN
+  CREATE ROLE canopy_app NOLOGIN NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE;
+EXCEPTION WHEN OTHERS THEN
+  -- duplicate_object, or a unique/concurrent-update error when two databases migrate at once.
   IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'canopy_app') THEN
-    CREATE ROLE canopy_app NOLOGIN NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE;
+    RAISE;
   END IF;
 END
 $$;
 --> statement-breakpoint
-GRANT canopy_app TO CURRENT_USER;
+DO $$
+BEGIN
+  IF NOT pg_has_role(current_user, 'canopy_app', 'MEMBER') THEN
+    GRANT canopy_app TO CURRENT_USER;
+  END IF;
+EXCEPTION WHEN OTHERS THEN
+  IF NOT pg_has_role(current_user, 'canopy_app', 'MEMBER') THEN
+    RAISE;
+  END IF;
+END
+$$;
 --> statement-breakpoint
 GRANT USAGE ON SCHEMA public TO canopy_app;
 --> statement-breakpoint
