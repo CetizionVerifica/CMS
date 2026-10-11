@@ -37,6 +37,7 @@ jobs:
           GH_REPO: ${{ github.repository }}
           PR: ${{ github.event.issue.number }}
           AUTHOR: ${{ github.event.comment.user.login }}
+          BODY: ${{ github.event.comment.body }}
         run: |
           # Only a verdict from someone with write access can change the gate, so only they trigger a re-run.
           PERM=$(gh api "repos/$GH_REPO/collaborators/$AUTHOR/permission" --jq .permission 2>/dev/null || echo none)
@@ -44,16 +45,29 @@ jobs:
           read -r SHA DRAFT < <(gh pr view "$PR" --json headRefOid,isDraft --jq '"\(.headRefOid) \(.isDraft)"')
           if [ -z "$SHA" ]; then echo "::error::Could not read PR #$PR."; exit 1; fi
           if [ "$DRAFT" = "true" ]; then echo "PR is a draft; marking it ready runs the gate."; exit 0; fi
+          # A verdict for an older commit can't change the gate, and re-running that commit's CI would only waste it.
+          if ! grep -qE "^\s*<!-- canopy-audit sha=$SHA verdict=(Ready|Not-ready) -->\s*$" <<< "$BODY"; then
+            echo "The marker is not for the PR's head $SHA; its CI run reads the comments itself."; exit 0
+          fi
           RUN=$(gh run list --workflow ci.yml --event pull_request --commit "$SHA" --limit 1 --json databaseId --jq '.[0].databaseId // empty')
           if [ -z "$RUN" ]; then echo "No CI run for $SHA yet; it will read the verdict when it runs."; exit 0; fi
           # A job can only be re-run once its run has finished; one still running reads the comments itself unless
           # module-audit already finished, so wait and re-run it either way.
           gh run watch "$RUN" --interval 30 > /dev/null || true
-          JOB=$(gh run view "$RUN" --json jobs --jq '.jobs[] | select(.name == "module-audit") | .databaseId')
+          if [ "$(gh pr view "$PR" --json headRefOid --jq .headRefOid)" != "$SHA" ]; then
+            echo "PR #$PR moved past $SHA while waiting; the new commit needs its own audit."; exit 0
+          fi
+          read -r JOB OUTCOME < <(gh run view "$RUN" --json jobs --jq '.jobs[] | select(.name == "module-audit") | "\(.databaseId) \(.conclusion)"')
           if [ -z "$JOB" ]; then echo "::error::Run $RUN has no module-audit job."; exit 1; fi
-          # Re-running a job also re-runs the jobs that need it, here ci-ok.
-          gh run rerun --job "$JOB"
-          echo "Re-ran module-audit (job $JOB) on run $RUN for $SHA."
+          if [ "$OUTCOME" = "success" ]; then
+            # Only the verdict changed (say, Ready to Not-ready): re-run module-audit and the jobs that need it (ci-ok).
+            gh run rerun --job "$JOB"
+          else
+            # Re-run every failed or cancelled job, not just module-audit, so ci-ok isn't left red by jobs that
+            # were cancelled in the first attempt.
+            gh run rerun "$RUN" --failed
+          fi
+          echo "Re-ran the gate on run $RUN for $SHA."
           # Auto-merge doesn't always notice a required check turning green on a re-run, which left an audited PR
           # waiting outside the merge queue. Once the re-run finishes green, turn auto-merge off and on again so
           # the PR joins the queue now. Only for a PR from this repo whose auto-merge is on, as auto-merge.yml sets
