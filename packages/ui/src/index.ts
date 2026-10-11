@@ -36,7 +36,7 @@ export {
   PopoverContent,
   PopoverTrigger,
 } from './primitives/Popover';
-export { Tooltip } from './primitives/Tooltip';
+export { Tooltip, TooltipProvider } from './primitives/Tooltip';
 export type { TooltipProps } from './primitives/Tooltip';
 export { Avatar, AvatarGroup, initials } from './primitives/Avatar';
 export type { AvatarGroupProps, AvatarProps, AvatarSize } from './primitives/Avatar';

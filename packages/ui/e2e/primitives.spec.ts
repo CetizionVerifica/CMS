@@ -103,3 +103,14 @@ test('menu, tabs and popover work from the keyboard and are axe-clean while open
   await page.keyboard.press('Escape');
   await expect(columns).toBeFocused();
 });
+
+test('an overflowing tab list fades the end with more tabs', async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 700 });
+  await page.goto('/#/overlays');
+  const list = page.getByRole('tablist').first();
+  await list.evaluate((el) => {
+    (el as HTMLElement).style.width = '120px';
+  });
+  await expect(list).toHaveAttribute('data-fade-end', 'true');
+  expect(await list.evaluate((el) => getComputedStyle(el).maskImage)).toContain('linear-gradient');
+});

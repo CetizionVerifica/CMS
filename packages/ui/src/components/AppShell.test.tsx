@@ -16,7 +16,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { expectNoAxeViolations } from '../../test/axe';
 import { setViewport } from '../../test/viewport';
-import { AppShell, type AppShellProps, type NavGroup } from './AppShell';
+import { AppShell, currentHref, type AppShellProps, type NavGroup } from './AppShell';
 
 const nav: NavGroup[] = [
   {
@@ -319,5 +319,19 @@ describe('AppShell fixed layouts for demos', () => {
   it('honours a fixed layout regardless of the viewport', () => {
     render(<Shell layout="rail" />);
     expect(screen.getByRole('navigation').className).toContain('w-rail');
+  });
+});
+
+describe('currentHref', () => {
+  it('matches exactly, else the longest nav href that prefixes the page at a path boundary', () => {
+    const groups: NavGroup[] = [
+      ...nav,
+      { items: [{ label: 'Client', href: '/c/1', icon: LayoutDashboard }] },
+    ];
+    expect(currentHref(groups, '/c/1/register')).toBe('/c/1/register');
+    expect(currentHref(groups, '/c/1/register/TAX-CL-033')).toBe('/c/1/register');
+    expect(currentHref(groups, '/c/1/register?status=overdue')).toBe('/c/1/register');
+    expect(currentHref(groups, '/c/1/registers')).toBe('/c/1');
+    expect(currentHref(groups, '/c/2/register')).toBeUndefined();
   });
 });

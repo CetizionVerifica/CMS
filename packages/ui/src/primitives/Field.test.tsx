@@ -171,3 +171,49 @@ describe('Combobox', () => {
     expect(screen.queryByRole('listbox')).toBeNull();
   });
 });
+
+describe('Field review fixes', () => {
+  it("keeps the caller's aria-describedby next to the helper and error ids", () => {
+    render(
+      <div>
+        <p id="own">Shown on the receipt</p>
+        <Input
+          label="Challan number"
+          helper="As printed"
+          error="Enter a number"
+          aria-describedby="own"
+        />
+        <Textarea label="Reason" helper="Seen by the owner" aria-describedby="own" />
+        <Input label="Plain" aria-describedby="own" />
+      </div>,
+    );
+    const ids = (name: string) =>
+      screen.getByLabelText(name).getAttribute('aria-describedby')!.split(' ');
+    expect(ids('Challan number')[0]).toBe('own');
+    expect(ids('Challan number')).toHaveLength(3);
+    expect(ids('Reason')[0]).toBe('own');
+    expect(ids('Reason')).toHaveLength(2);
+    expect(ids('Plain')).toEqual(['own']);
+  });
+
+  it('sets aria-controls only while open and clamps the active option when options shrink', async () => {
+    const user = userEvent.setup();
+    const { rerender } = render(
+      <Combobox label="Unit" options={units} value={null} onValueChange={() => {}} />,
+    );
+    const input = screen.getByRole('combobox', { name: 'Unit' });
+    expect(input.hasAttribute('aria-controls')).toBe(false);
+    await user.click(input);
+    await user.keyboard('{End}');
+    expect(input.getAttribute('aria-controls')).toBe(screen.getByRole('listbox').id);
+    const last = input.getAttribute('aria-activedescendant');
+    expect(document.getElementById(last!)?.textContent).toContain('Taloja');
+    rerender(
+      <Combobox label="Unit" options={units.slice(0, 1)} value={null} onValueChange={() => {}} />,
+    );
+    const id = input.getAttribute('aria-activedescendant');
+    expect(document.getElementById(id!)?.textContent).toContain('Hindalco Belur');
+    await user.keyboard('{Escape}');
+    expect(input.hasAttribute('aria-controls')).toBe(false);
+  });
+});

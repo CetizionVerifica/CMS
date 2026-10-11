@@ -1,6 +1,7 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Download, Trash2 } from 'lucide-react';
+import { createRef } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 
 import { expectNoAxeViolations } from '../../test/axe';
@@ -18,7 +19,7 @@ import {
 } from './Menu';
 import { Popover, PopoverClose, PopoverContent, PopoverTrigger } from './Popover';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './Tabs';
-import { Tooltip } from './Tooltip';
+import { Tooltip, TooltipProvider } from './Tooltip';
 
 describe('Tabs', () => {
   it('arrow keys move, Home and End jump, and the panel follows', async () => {
@@ -194,5 +195,64 @@ describe('Tooltip', () => {
       </Tooltip>,
     );
     expect(screen.getByRole('button', { name: 'Plain' })).toBeTruthy();
+  });
+});
+
+describe('Tabs overflow', () => {
+  it('fades the ends that have more tabs behind them', () => {
+    render(
+      <Tabs defaultValue="a">
+        <TabsList aria-label="Sections">
+          <TabsTrigger value="a">Details</TabsTrigger>
+          <TabsTrigger value="b">Evidence</TabsTrigger>
+        </TabsList>
+      </Tabs>,
+    );
+    const list = screen.getByRole('tablist');
+    expect(list.hasAttribute('data-fade-end')).toBe(false);
+    Object.defineProperty(list, 'clientWidth', { configurable: true, value: 200 });
+    Object.defineProperty(list, 'scrollWidth', { configurable: true, value: 500 });
+    fireEvent.scroll(list);
+    expect(list.hasAttribute('data-fade-start')).toBe(false);
+    expect(list.hasAttribute('data-fade-end')).toBe(true);
+    list.scrollLeft = 120;
+    fireEvent.scroll(list);
+    expect(list.hasAttribute('data-fade-start')).toBe(true);
+    expect(list.hasAttribute('data-fade-end')).toBe(true);
+    list.scrollLeft = 300;
+    fireEvent.scroll(list);
+    expect(list.hasAttribute('data-fade-end')).toBe(false);
+  });
+
+  it('forwards a ref to the tab list', () => {
+    const calls: (HTMLDivElement | null)[] = [];
+    const objectRef = createRef<HTMLDivElement>();
+    render(
+      <Tabs defaultValue="a">
+        <TabsList aria-label="One" ref={(n) => void calls.push(n)}>
+          <TabsTrigger value="a">A</TabsTrigger>
+        </TabsList>
+        <TabsList aria-label="Two" ref={objectRef}>
+          <TabsTrigger value="b">B</TabsTrigger>
+        </TabsList>
+      </Tabs>,
+    );
+    expect(calls[0]).toBe(screen.getByRole('tablist', { name: 'One' }));
+    expect(objectRef.current).toBe(screen.getByRole('tablist', { name: 'Two' }));
+  });
+});
+
+describe('TooltipProvider', () => {
+  it('shares one provider so tooltips inside it still open on focus', async () => {
+    const user = userEvent.setup();
+    render(
+      <TooltipProvider delay={0}>
+        <Tooltip content="Export the register">
+          <button type="button">Export</button>
+        </Tooltip>
+      </TooltipProvider>,
+    );
+    await user.tab();
+    expect((await screen.findByRole('tooltip')).textContent).toBe('Export the register');
   });
 });

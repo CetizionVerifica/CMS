@@ -1,5 +1,5 @@
 import { Tabs as RadixTabs } from 'radix-ui';
-import type { ComponentPropsWithRef } from 'react';
+import { useEffect, useRef, useState, type ComponentPropsWithRef, type RefObject } from 'react';
 
 import { cx } from '../lib/cx';
 
@@ -8,10 +8,55 @@ export function Tabs({ className, ...props }: ComponentPropsWithRef<typeof Radix
   return <RadixTabs.Root {...props} className={cx('flex flex-col', className)} />;
 }
 
-export function TabsList({ className, ...props }: ComponentPropsWithRef<typeof RadixTabs.List>) {
+/** Which ends of a scrolling tab list have hidden tabs behind them. */
+function useOverflowEdges(ref: RefObject<HTMLDivElement | null>) {
+  const [edges, setEdges] = useState({ start: false, end: false });
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const update = () => {
+      const start = el.scrollLeft > 1;
+      const end = el.scrollLeft + el.clientWidth < el.scrollWidth - 1;
+      setEdges((e) => (e.start === start && e.end === end ? e : { start, end }));
+    };
+    update();
+    el.addEventListener('scroll', update, { passive: true });
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(update);
+    observer?.observe(el);
+    return () => {
+      el.removeEventListener('scroll', update);
+      observer?.disconnect();
+    };
+  }, [ref]);
+  return edges;
+}
+
+const FADE = '24px';
+
+/** Overflow scrolls horizontally, with a fade at each end that has more tabs (spec 00). */
+export function TabsList({
+  className,
+  style,
+  ref,
+  ...props
+}: ComponentPropsWithRef<typeof RadixTabs.List>) {
+  const own = useRef<HTMLDivElement>(null);
+  const { start, end } = useOverflowEdges(own);
+  const mask =
+    start || end
+      ? `linear-gradient(to right, ${start ? 'transparent' : 'black'} 0, #000 ${start ? FADE : '0px'}, #000 calc(100% - ${end ? FADE : '0px'}), ${end ? 'transparent' : 'black'} 100%)`
+      : undefined;
   return (
     <RadixTabs.List
       {...props}
+      ref={(node) => {
+        own.current = node;
+        if (typeof ref === 'function') ref(node);
+        else if (ref) ref.current = node;
+      }}
+      data-fade-start={start || undefined}
+      data-fade-end={end || undefined}
+      style={mask ? { ...style, maskImage: mask, WebkitMaskImage: mask } : style}
       className={cx(
         'flex gap-1 overflow-x-auto border-b border-line [scrollbar-width:none]',
         className,

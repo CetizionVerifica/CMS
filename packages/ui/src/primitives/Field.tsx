@@ -72,6 +72,9 @@ type TextControlProps = {
   className?: string;
 };
 
+/** The caller's own aria-describedby ids, then the field's helper and error ids. */
+const mergeIds = (...ids: (string | undefined)[]) => ids.filter(Boolean).join(' ') || undefined;
+
 export type InputProps = Omit<ComponentPropsWithRef<'input'>, 'className' | 'size'> &
   TextControlProps;
 
@@ -87,7 +90,12 @@ export function Input({ label, hideLabel, helper, error, className, id, ...rest 
       className={className}
     >
       {(control) => (
-        <input {...rest} {...control} className={cx(controlClasses(!!error), 'h-control')} />
+        <input
+          {...rest}
+          {...control}
+          aria-describedby={mergeIds(rest['aria-describedby'], control['aria-describedby'])}
+          className={cx(controlClasses(!!error), 'h-control')}
+        />
       )}
     </Field>
   );
@@ -119,6 +127,7 @@ export function Textarea({
         <textarea
           {...rest}
           {...control}
+          aria-describedby={mergeIds(rest['aria-describedby'], control['aria-describedby'])}
           rows={rows}
           className={cx(controlClasses(!!error), 'py-2')}
         />

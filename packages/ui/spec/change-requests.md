@@ -21,3 +21,19 @@ Brief says 14px minimum body text; the mockup uses 10.5-11px labels. Proposed ru
 
 ## CR-5 · TaskList marker is not a checkbox
 The mockup's square checkbox implies one-click completion, which the workflow doesn't allow (evidence + approval). Spec uses a state marker circle instead. Overview card title "My open items" instead of "My tasks" (vocabulary rule).
+
+## CR-6 · Help card text on forest
+Spec 01 said the help card uses 12px text without a colour. `--on-forest-muted` on the card background (`--on-forest-hover`) measures 4.0:1 and fails the 4.5:1 rule, so the card uses `--on-forest`. `src/contrast.test.ts` records the measurement. Spec 01 Tokens updated.
+
+## CR-7 · Period picker row under 640px
+At 375px the top bar cannot fit the menu button, ClientSwitcher, PeriodPicker, search, primary action and avatar at 44px touch targets; axe's target-size check failed. Under 640px the PeriodPicker moves to a row below the top bar. Spec 01 Responsive updated.
+
+## CR-8 · Structured primary action
+Spec 01 had `primaryAction?: ReactNode`. The shell must collapse the action to an IconButton with a tooltip under 1100px, which it cannot do with arbitrary content, so it takes `{ label, icon, onClick | href }`. Spec 01 Props updated, along with the props the shell added (`brand`, `title`, `layout`, `renderLink`, `helpCard.linkLabel`).
+
+## CR-9 · Axe scope while a modal popup is open
+While a Radix Select, menu or dialog is open, Radix sets `aria-hidden` on the rest of the page and traps focus in the popup, so a whole-page axe run always flags `aria-hidden-focus` on content the user cannot reach. The gallery's Playwright checks scope axe to the popup while one is open (`e2e/a11y.ts` `openPopup`) and check the whole page when it is closed.
+
+## CR-10 · Nav matching by prefix
+`activeHref` now matches the nav item with the longest href that prefixes the current page at a path boundary, not only an exact match, so record pages keep their list's item current. Spec 01 Props updated.
+

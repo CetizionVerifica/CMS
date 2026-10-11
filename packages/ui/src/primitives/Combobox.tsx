@@ -118,7 +118,9 @@ export function Combobox({
     }
   };
 
-  const activeOption = open ? filtered[active] : undefined;
+  // Clamp: the options can shrink while the list is open.
+  const activeIndex = Math.min(active, filtered.length - 1);
+  const activeOption = open && activeIndex >= 0 ? filtered[activeIndex] : undefined;
   const optionId = (i: number) => `${listId}-opt-${i}`;
 
   return (
@@ -142,9 +144,10 @@ export function Combobox({
                 ref={inputRef}
                 role="combobox"
                 aria-expanded={open}
-                aria-controls={listId}
+                // Only while open: the listbox is mounted in a portal only then.
+                aria-controls={open ? listId : undefined}
                 aria-autocomplete="list"
-                aria-activedescendant={activeOption ? optionId(active) : undefined}
+                aria-activedescendant={activeOption ? optionId(activeIndex) : undefined}
                 autoComplete="off"
                 disabled={disabled}
                 placeholder={placeholder}

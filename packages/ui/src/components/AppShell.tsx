@@ -22,7 +22,7 @@ import {
   MenuSeparator,
   MenuTrigger,
 } from '../primitives/Menu';
-import { Tooltip } from '../primitives/Tooltip';
+import { Tooltip, TooltipProvider } from '../primitives/Tooltip';
 
 export type NavItem = {
   label: string;
@@ -64,7 +64,10 @@ export type AppShellLayout = 'auto' | 'sidebar' | 'rail' | 'sheet';
 
 export type AppShellProps = {
   nav: NavGroup[];
-  /** Href of the current page; its nav item gets aria-current="page". */
+  /**
+   * Href of the current page. The matching nav item gets aria-current="page": an exact match, else the longest
+   * item href that prefixes it at a path boundary (a record page keeps its list's item current).
+   */
   activeHref: string;
   /** Product name next to the logo mark. */
   brand?: { name: string; href?: string };
@@ -204,134 +207,136 @@ export function AppShell({
   };
 
   return (
-    <div className="min-h-screen bg-mist text-ink" data-layout={mode}>
-      <a
-        href="#main"
-        onClick={(e) => {
-          e.preventDefault();
-          mainRef.current?.focus();
-        }}
-        className="sr-only z-dialog rounded-control bg-surface px-3 py-2 text-body font-bold text-forest shadow-overlay focus:not-sr-only focus:fixed focus:left-2 focus:top-2"
-      >
-        Skip to content
-      </a>
-
-      {mode !== 'sheet' ? (
-        <nav
-          aria-label="Main"
-          data-surface="forest"
-          className={cx(
-            'fixed inset-y-0 left-0 z-shell flex flex-col gap-1 overflow-y-auto bg-forest py-3.5',
-            mode === 'sidebar' ? 'w-sidebar px-3' : 'w-rail items-center px-2',
-          )}
+    <TooltipProvider>
+      <div className="min-h-screen bg-mist text-ink" data-layout={mode}>
+        <a
+          href="#main"
+          onClick={(e) => {
+            e.preventDefault();
+            mainRef.current?.focus();
+          }}
+          className="sr-only z-dialog rounded-control bg-surface px-3 py-2 text-body font-bold text-forest shadow-overlay focus:not-sr-only focus:fixed focus:left-2 focus:top-2"
         >
-          <div className="mb-3">{logo(mode === 'rail')}</div>
-          {navContent(mode)}
-          {helpCard && mode === 'sidebar' ? (
-            <HelpCard {...helpCard} renderLink={renderLink} />
-          ) : null}
-        </nav>
-      ) : null}
+          Skip to content
+        </a>
 
-      <div className={cx(mode === 'sidebar' && 'pl-sidebar', mode === 'rail' && 'pl-rail')}>
-        <header
-          className={cx(
-            'sticky top-0 z-shell flex h-topbar items-center gap-2 border-b bg-mist px-4 sm:gap-3 sm:px-5.5',
-            scrolled ? 'border-line' : 'border-transparent',
-          )}
-        >
-          {mode === 'sheet' ? (
-            <Dialog.Root open={sheetOpen} onOpenChange={setSheetOpen}>
-              <Dialog.Trigger asChild>
-                <IconButton label="Open menu" icon={MenuIcon} hideTooltip />
-              </Dialog.Trigger>
-              <Dialog.Portal>
-                <Dialog.Overlay className="fixed inset-0 z-dialog bg-scrim" />
-                <Dialog.Content
-                  data-surface="forest"
-                  aria-describedby={undefined}
-                  className="fixed inset-x-0 bottom-0 z-dialog flex max-h-[85vh] flex-col gap-1 overflow-y-auto rounded-t-card bg-forest px-3 pb-5.5 pt-2 shadow-overlay"
-                >
-                  <span
-                    aria-hidden
-                    className="mx-auto mb-2 h-1 w-10 rounded-pill bg-on-forest-selected"
-                  />
-                  <div className="mb-2 flex items-center justify-between">
-                    <Dialog.Title className="text-section text-on-forest">Menu</Dialog.Title>
-                    <Dialog.Close asChild>
-                      <IconButton
-                        label="Close menu"
-                        icon={X}
-                        hideTooltip
-                        className="text-on-forest hover:bg-on-forest-hover"
-                      />
-                    </Dialog.Close>
-                  </div>
-                  <nav aria-label="Main">{navContent('sheet')}</nav>
-                  {helpCard ? <HelpCard {...helpCard} renderLink={renderLink} /> : null}
-                </Dialog.Content>
-              </Dialog.Portal>
-            </Dialog.Root>
+        {mode !== 'sheet' ? (
+          <nav
+            aria-label="Main"
+            data-surface="forest"
+            className={cx(
+              'fixed inset-y-0 left-0 z-shell flex flex-col gap-1 overflow-y-auto bg-forest py-3.5',
+              mode === 'sidebar' ? 'w-sidebar px-3' : 'w-rail items-center px-2',
+            )}
+          >
+            <div className="mb-3">{logo(mode === 'rail')}</div>
+            {navContent(mode)}
+            {helpCard && mode === 'sidebar' ? (
+              <HelpCard {...helpCard} renderLink={renderLink} />
+            ) : null}
+          </nav>
+        ) : null}
+
+        <div className={cx(mode === 'sidebar' && 'pl-sidebar', mode === 'rail' && 'pl-rail')}>
+          <header
+            className={cx(
+              'sticky top-0 z-shell flex h-topbar items-center gap-2 border-b bg-mist px-4 sm:gap-3 sm:px-5.5',
+              scrolled ? 'border-line' : 'border-transparent',
+            )}
+          >
+            {mode === 'sheet' ? (
+              <Dialog.Root open={sheetOpen} onOpenChange={setSheetOpen}>
+                <Dialog.Trigger asChild>
+                  <IconButton label="Open menu" icon={MenuIcon} hideTooltip />
+                </Dialog.Trigger>
+                <Dialog.Portal>
+                  <Dialog.Overlay className="fixed inset-0 z-dialog bg-scrim" />
+                  <Dialog.Content
+                    data-surface="forest"
+                    aria-describedby={undefined}
+                    className="fixed inset-x-0 bottom-0 z-dialog flex max-h-[85vh] flex-col gap-1 overflow-y-auto rounded-t-card bg-forest px-3 pb-5.5 pt-2 shadow-overlay"
+                  >
+                    <span
+                      aria-hidden
+                      className="mx-auto mb-2 h-1 w-10 rounded-pill bg-on-forest-selected"
+                    />
+                    <div className="mb-2 flex items-center justify-between">
+                      <Dialog.Title className="text-section text-on-forest">Menu</Dialog.Title>
+                      <Dialog.Close asChild>
+                        <IconButton
+                          label="Close menu"
+                          icon={X}
+                          hideTooltip
+                          className="text-on-forest hover:bg-on-forest-hover"
+                        />
+                      </Dialog.Close>
+                    </div>
+                    <nav aria-label="Main">{navContent('sheet')}</nav>
+                    {helpCard ? <HelpCard {...helpCard} renderLink={renderLink} /> : null}
+                  </Dialog.Content>
+                </Dialog.Portal>
+              </Dialog.Root>
+            ) : null}
+
+            {topBar.clientSwitcher ? (
+              <div className="min-w-0 shrink">{topBar.clientSwitcher}</div>
+            ) : null}
+            {topBar.periodPicker && mode !== 'sheet' ? (
+              <div className="shrink-0">{topBar.periodPicker}</div>
+            ) : null}
+
+            {topBar.search && mode !== 'sheet' ? (
+              <div ref={searchRef} className="ml-1 w-full max-w-80 min-w-0">
+                {topBar.search}
+              </div>
+            ) : null}
+
+            <div className="ml-auto flex shrink-0 items-center gap-2">
+              {topBar.search && mode === 'sheet' ? (
+                <IconButton
+                  label={searchOpen ? 'Close search' : 'Search'}
+                  icon={searchOpen ? X : Search}
+                  aria-expanded={searchOpen}
+                  onClick={() => setSearchOpen((o) => !o)}
+                />
+              ) : null}
+              {topBar.primaryAction ? (
+                <PrimaryActionButton
+                  action={topBar.primaryAction}
+                  compact={mode !== 'sidebar'}
+                  renderLink={renderLink}
+                />
+              ) : null}
+              <UserMenu {...topBar.user} renderLink={renderLink} />
+            </div>
+          </header>
+
+          {/* Under 640px the period picker gets its own row so the top bar keeps 44px touch targets. */}
+          {topBar.periodPicker && mode === 'sheet' ? (
+            <div className="flex items-center bg-mist px-4 pb-2">{topBar.periodPicker}</div>
           ) : null}
 
-          {topBar.clientSwitcher ? (
-            <div className="min-w-0 shrink">{topBar.clientSwitcher}</div>
-          ) : null}
-          {topBar.periodPicker && mode !== 'sheet' ? (
-            <div className="shrink-0">{topBar.periodPicker}</div>
-          ) : null}
-
-          {topBar.search && mode !== 'sheet' ? (
-            <div ref={searchRef} className="ml-1 w-full max-w-80 min-w-0">
+          {topBar.search && mode === 'sheet' && searchOpen ? (
+            <div ref={searchRef} className="border-b border-line bg-mist px-4 pb-3">
               {topBar.search}
             </div>
           ) : null}
 
-          <div className="ml-auto flex shrink-0 items-center gap-2">
-            {topBar.search && mode === 'sheet' ? (
-              <IconButton
-                label={searchOpen ? 'Close search' : 'Search'}
-                icon={searchOpen ? X : Search}
-                aria-expanded={searchOpen}
-                onClick={() => setSearchOpen((o) => !o)}
-              />
-            ) : null}
-            {topBar.primaryAction ? (
-              <PrimaryActionButton
-                action={topBar.primaryAction}
-                compact={mode !== 'sidebar'}
-                renderLink={renderLink}
-              />
-            ) : null}
-            <UserMenu {...topBar.user} renderLink={renderLink} />
-          </div>
-        </header>
+          <main
+            id="main"
+            ref={mainRef}
+            tabIndex={-1}
+            className="px-4 py-4 outline-none sm:px-5.5 sm:py-[18px]"
+          >
+            {children}
+          </main>
+        </div>
 
-        {/* Under 640px the period picker gets its own row so the top bar keeps 44px touch targets. */}
-        {topBar.periodPicker && mode === 'sheet' ? (
-          <div className="flex items-center bg-mist px-4 pb-2">{topBar.periodPicker}</div>
-        ) : null}
-
-        {topBar.search && mode === 'sheet' && searchOpen ? (
-          <div ref={searchRef} className="border-b border-line bg-mist px-4 pb-3">
-            {topBar.search}
-          </div>
-        ) : null}
-
-        <main
-          id="main"
-          ref={mainRef}
-          tabIndex={-1}
-          className="px-4 py-4 outline-none sm:px-5.5 sm:py-[18px]"
-        >
-          {children}
-        </main>
+        <div aria-live="polite" aria-atomic="true" className="sr-only">
+          {announcement}
+        </div>
       </div>
-
-      <div aria-live="polite" aria-atomic="true" className="sr-only">
-        {announcement}
-      </div>
-    </div>
+    </TooltipProvider>
   );
 }
 
@@ -340,6 +345,20 @@ function focusSearch(container: HTMLElement | null) {
     'input, [role="searchbox"], [role="combobox"], textarea',
   );
   field?.focus();
+}
+
+/**
+ * The nav item for the current page: an exact match, else the longest item href that prefixes it at a path
+ * boundary, so /c/x/register/123 keeps Register current.
+ */
+export function currentHref(nav: NavGroup[], activeHref: string): string | undefined {
+  const hrefs = nav.flatMap((g) => g.items.map((i) => i.href));
+  if (hrefs.includes(activeHref)) return activeHref;
+  return hrefs
+    .filter(
+      (h) => activeHref.startsWith(h) && ['/', '?', '#'].includes(activeHref.charAt(h.length)),
+    )
+    .sort((a, b) => b.length - a.length)[0];
 }
 
 type NavListProps = {
@@ -352,6 +371,7 @@ type NavListProps = {
 
 function NavList({ nav, activeHref, variant, renderLink, onNavigate }: NavListProps) {
   const rail = variant === 'rail';
+  const current = currentHref(nav, activeHref);
   return (
     <div className={cx('flex flex-col gap-1', rail && 'items-center')}>
       {nav.map((group, gi) => (
@@ -377,7 +397,7 @@ function NavList({ nav, activeHref, variant, renderLink, onNavigate }: NavListPr
               <li key={item.href}>
                 <NavLink
                   item={item}
-                  active={item.href === activeHref}
+                  active={item.href === current}
                   rail={rail}
                   renderLink={renderLink}
                   onNavigate={onNavigate}
