@@ -24,6 +24,9 @@ export interface DerivedStatusResult {
   submittedOverdue: boolean;
 }
 
+/** What planNotifications reads: the instance's status fields, its id and who to remind. */
+export type NotificationInput = InstanceStatusInput & { id: Id; ownerId: Id; approverId: Id };
+
 export interface EngineApi {
   generateInstances(
     rule: RecurrenceRule,
@@ -38,7 +41,7 @@ export interface EngineApi {
   ): DerivedStatusResult;
   computeScore(items: ScoreInput[], asOf: LocalDate, s: FirmSettings): ScoreResult;
   planNotifications(
-    i: InstanceStatusInput & { ownerId: Id; approverId: Id },
+    i: NotificationInput,
     s: ReminderSettings,
     asOf: LocalDate,
   ): PlannedNotification[];
