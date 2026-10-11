@@ -20,6 +20,12 @@ Next.js App Router, TypeScript, Tailwind with the Canopy preset from `packages/u
 ```
 The client switcher changes `[clientId]` and keeps the rest of the path. The period picker writes `?fy=2022-23&q=Q3` and every page respects it.
 
+Route groups (they don't change URLs): `/login` and `/invite/[token]` live in `app/(auth)`, which has no shell. Every
+signed-in route lives in `app/(shell)`, so its layout wraps it in the AppShell, and client routes sit under
+`app/(shell)/c/[clientId]`, whose layout checks access to the client. M11 owns those layouts and a `[...stub]` page at
+each level that shows a placeholder for a route whose module hasn't shipped it yet; a real `page.tsx` added by M12 or
+M13 takes precedence over the stub automatically.
+
 ## Data and state
 - Server Components fetch through the typed API client; Client Components only for interaction (grid, drawer, forms, uploads).
 - Mutations via Server Actions that call the API, then `revalidateTag` for the affected client. TanStack Query only inside the register grid for fast filter changes.
