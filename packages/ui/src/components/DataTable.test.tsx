@@ -440,4 +440,16 @@ describe('DataTable', () => {
     await user.click(screen.getByRole('button', { name: 'Export' }));
     expect(onExport).toHaveBeenCalled();
   });
+
+  it('hides the toolbar when asked but still shows the bulk bar', async () => {
+    const user = userEvent.setup();
+    renderTable({
+      toolbar: false,
+      selection: { bulkActions: [{ label: 'Approve', onClick: () => {} }] },
+    });
+    expect(screen.queryByText(/^50 /)).toBeNull();
+    expect(screen.queryByRole('button', { name: /columns/i })).toBeNull();
+    await user.click(screen.getAllByRole('checkbox')[1]!);
+    expect(screen.getByRole('button', { name: 'Approve' })).toBeTruthy();
+  });
 });

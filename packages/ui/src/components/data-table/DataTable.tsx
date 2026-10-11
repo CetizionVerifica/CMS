@@ -91,6 +91,8 @@ export type DataTableProps<T> = {
   countNoun?: { one: string; other: string };
   /** Toolbar slot before the count, for the saved-view menu. */
   toolbarStart?: ReactNode;
+  /** `false` hides the toolbar (small embedded tables, e.g. on the overview); the bulk bar still shows. */
+  toolbar?: boolean;
   onExport?: () => void;
   /** Height of the scroll area. */
   maxHeight?: number;
@@ -129,6 +131,7 @@ export function DataTable<T>({
   totalCount,
   countNoun = { one: 'row', other: 'rows' },
   toolbarStart,
+  toolbar: showToolbar = true,
   onExport,
   maxHeight = 600,
   className,
@@ -413,7 +416,7 @@ export function DataTable<T>({
         className,
       )}
     >
-      {toolbar}
+      {showToolbar || selectedIds.length > 0 ? toolbar : null}
       <div
         ref={scrollRef}
         // A keyboard user can scroll the area itself when it overflows sideways.

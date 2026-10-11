@@ -28,6 +28,7 @@ import {
 } from '../../src';
 import { demoClients, demoFys } from '../fixtures';
 import { Page, Section } from '../Page';
+import { OverviewContent } from './OverviewContent';
 import { useRoute } from '../router';
 import { shellVariants } from '../routes';
 
@@ -174,17 +175,15 @@ export function ShellFrame() {
         },
       }}
     >
-      <h1 className="text-page text-ink">{title}</h1>
-      <p className="mt-1 text-body text-muted">5 items are overdue, 2 are super critical.</p>
-      <div className="mt-3.5 grid gap-3.5 sm:grid-cols-2">
-        {['Compliance score', 'Open', 'Overdue', 'Awaiting approval'].map((k) => (
-          <div key={k} className="rounded-card border border-line bg-surface px-4 py-3.5">
-            <p className="text-card text-ink">{k}</p>
-            <p className="mt-2 text-kpi tabular text-ink">—</p>
-          </div>
-        ))}
-      </div>
-      <div aria-hidden className="h-[120vh]" />
+      {page === 'overview' ? (
+        <OverviewContent approvals={badge} />
+      ) : (
+        <>
+          <h1 className="text-page text-ink">{title}</h1>
+          <p className="mt-1 text-body text-muted">This page is a placeholder in the gallery.</p>
+          <div aria-hidden className="h-[120vh]" />
+        </>
+      )}
     </AppShell>
   );
 }
