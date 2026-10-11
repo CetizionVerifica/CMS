@@ -94,3 +94,30 @@ test('a row opens the drawer; J moves on, Esc returns focus to the row', async (
   await expect(drawer).toBeHidden();
   await expect(page).toHaveURL(/#\/data-table$/);
 });
+
+test('filters narrow the table and are axe-clean while open', async ({ page, isMobile }) => {
+  await page.goto('/#/data-table');
+  if (isMobile) {
+    await page.getByRole('button', { name: 'Filters' }).click();
+    const sheet = page.getByRole('dialog', { name: 'Filters' });
+    await sheet.getByRole('button', { name: /^Status/ }).click();
+    await sheet.getByRole('checkbox', { name: 'Overdue' }).click();
+    await expectNoA11yViolations(page, openPopup('[role="dialog"]'));
+    await sheet.getByRole('button', { name: 'Show 1,250 results' }).click();
+    await expect(page.getByRole('button', { name: 'Filters (1)' })).toBeVisible();
+  } else {
+    const chip = page.getByRole('button', { name: 'Status', exact: true });
+    await chip.focus();
+    await page.keyboard.press('ArrowDown');
+    const popover = page.getByRole('dialog', { name: 'Status filter' });
+    await popover.getByRole('checkbox', { name: 'Overdue' }).focus();
+    await page.keyboard.press('Space');
+    await expectNoA11yViolations(page, openPopup('[role="dialog"]'));
+    await page.keyboard.press('Escape');
+    await expect(
+      page.getByRole('button', { name: 'Status filter: Overdue. Change' }),
+    ).toBeFocused();
+  }
+  await expect(page.getByText('1,250 instances', { exact: true })).toBeVisible();
+  await expectNoPageOverflow(page);
+});

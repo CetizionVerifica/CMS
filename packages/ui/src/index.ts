@@ -76,7 +76,7 @@ export { ScoreRing } from './components/ScoreRing';
 export type { ScoreRingProps } from './components/ScoreRing';
 export { ProgressBar } from './components/ProgressBar';
 export type { ProgressBarProps, Segment, SegmentKey } from './components/ProgressBar';
-export { DERIVED_STATUSES, StatusPill, statusLabel } from './components/StatusPill';
+export { categoryLabel, DERIVED_STATUSES, StatusPill, statusLabel } from './components/StatusPill';
 export type { DerivedStatus, StatusPillProps } from './components/StatusPill';
 export { CRITICALITY_LABEL, CRITICALITY_ORDER, CriticalityTag } from './components/CriticalityTag';
 export type { Criticality, CriticalityTagProps } from './components/CriticalityTag';
@@ -93,6 +93,16 @@ export type {
   TitleValue,
 } from './components/data-table/cells';
 export type { TableContext } from './components/data-table/context';
+
+// 10 · FilterBar
+export { FilterBar, summarise as summariseFilter } from './components/FilterBar';
+export type {
+  DateRange,
+  FilterBarProps,
+  FilterDef,
+  FilterOption,
+  FilterValue,
+} from './components/FilterBar';
 
 // 11, 18 · Drawer and ConfirmDialog
 export { Drawer, DrawerSection } from './components/Drawer';

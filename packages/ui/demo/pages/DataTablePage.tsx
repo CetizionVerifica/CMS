@@ -9,6 +9,7 @@ import {
   DataTable,
   Drawer,
   DrawerSection,
+  FilterBar,
   EmptyState,
   IconButton,
   Menu,
@@ -23,6 +24,8 @@ import {
   type Criticality,
   type TableContext,
   type DerivedStatus,
+  type FilterDef,
+  type FilterValue,
 } from '../../src';
 import { Page, Section } from '../Page';
 import { useRoute } from '../router';
@@ -157,10 +160,66 @@ const columns = [
   }),
 ];
 
+const count = (key: keyof Instance, value: string, rows: Instance[]) =>
+  rows.filter((r) => r[key] === value).length;
+
+const demoRows = makeInstances(10_000);
+const filterDefs: FilterDef[] = [
+  {
+    key: 'status',
+    label: 'Status',
+    kind: 'multi',
+    display: 'status',
+    options: statuses.map((s) => ({ value: s, label: s, count: count('status', s, demoRows) })),
+  },
+  {
+    key: 'criticality',
+    label: 'Criticality',
+    kind: 'multi',
+    display: 'criticality',
+    options: levels.map((l) => ({ value: l, label: l, count: count('criticality', l, demoRows) })),
+  },
+  {
+    key: 'department',
+    label: 'Department',
+    kind: 'multi',
+    order: 'alpha',
+    options: departments.map((d) => ({
+      value: d,
+      label: d,
+      count: count('department', d, demoRows),
+    })),
+  },
+  {
+    key: 'due',
+    label: 'Due date',
+    kind: 'dateRange',
+    presets: [
+      { value: 'overdue', label: 'Overdue', range: { to: '2027-03-09' } },
+      { value: 'week', label: 'This week', range: { from: '2027-03-08', to: '2027-03-14' } },
+      { value: 'next30', label: 'Next 30 days', range: { from: '2027-03-10', to: '2027-04-08' } },
+    ],
+  },
+];
+
 type Mode = 'data' | 'loading' | 'refetching' | 'error' | 'empty';
 
 export function DataTablePage() {
   const data = useMemo(() => makeInstances(10_000), []);
+  const [filterValue, setFilterValue] = useState<Record<string, FilterValue>>({});
+  const [query, setQuery] = useState('');
+  // The API filters in the app; the demo filters in memory to show the bar and table together.
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    const pick = (key: string) => filterValue[key] as string[] | undefined;
+    return data.filter(
+      (r) =>
+        (!pick('status') || pick('status')!.includes(r.status)) &&
+        (!pick('criticality') || pick('criticality')!.includes(r.criticality)) &&
+        (!pick('department') || pick('department')!.includes(r.department)) &&
+        (!q || `${r.id} ${r.title} ${r.act}`.toLowerCase().includes(q)),
+    );
+  }, [data, filterValue, query]);
   const [mode, setMode] = useState<Mode>('data');
   const { params } = useRoute();
   const openId = params.get('open');
@@ -190,14 +249,23 @@ export function DataTablePage() {
           ]}
         />
       </Section>
+      <FilterBar
+        filters={filterDefs}
+        value={filterValue}
+        onChange={setFilterValue}
+        search={{ value: query, onChange: setQuery }}
+        resultText={`${filtered.length.toLocaleString('en-IN')} instances match`}
+        resultCount={filtered.length}
+        disabled={mode === 'error'}
+      />
       <DataTable<Instance>
         label="Register"
         columns={columns}
-        data={mode === 'empty' || mode === 'error' ? [] : data}
+        data={mode === 'empty' || mode === 'error' ? [] : filtered}
         rowId={(r) => r.id}
         rowLabel={(r) => `${r.id}, ${r.title}`}
         rowHref={(r) => `#/data-table?open=${r.id}`}
-        totalCount={mode === 'empty' ? 0 : 10_000}
+        totalCount={mode === 'empty' ? 0 : filtered.length}
         countNoun={{ one: 'instance', other: 'instances' }}
         loading={mode === 'loading'}
         refetching={mode === 'refetching'}
@@ -215,7 +283,14 @@ export function DataTablePage() {
             variant="no-results"
             title="No instances match these filters"
             body="Try removing a filter or widening the period."
-            action={{ label: 'Clear filters', onClick: () => setMode('data') }}
+            action={{
+              label: 'Clear filters',
+              onClick: () => {
+                setMode('data');
+                setFilterValue({});
+                setQuery('');
+              },
+            }}
           />
         }
         selection={{

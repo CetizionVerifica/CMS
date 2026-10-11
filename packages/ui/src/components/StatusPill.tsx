@@ -111,6 +111,13 @@ export function statusLabel(
 
 const same = (label: string) => ({ visible: label, full: label });
 
+/** The status as a category: "Overdue", "Due soon", otherwise the fixed label. */
+export function categoryLabel(status: DerivedStatus): { visible: string; full: string } {
+  if (status === 'OVERDUE') return same('Overdue');
+  if (status === 'DUE_SOON') return same('Due soon');
+  return statusLabel(status);
+}
+
 export type StatusPillProps = {
   status: DerivedStatus;
   /** Day count from the API (engine output), used by DUE_SOON and OVERDUE. */
@@ -121,6 +128,11 @@ export type StatusPillProps = {
   withIcon?: boolean;
   /** YYYY-MM-DD; adds a hover title "Due 31 Mar 2027". */
   dueDate?: string;
+  /**
+   * Name the status as a category, without a day count ("Overdue", "Due soon"), for filters and legends where no
+   * single instance is meant.
+   */
+  category?: boolean;
   className?: string;
 };
 
@@ -131,10 +143,11 @@ export function StatusPill({
   size = 'md',
   withIcon = false,
   dueDate,
+  category = false,
   className,
 }: StatusPillProps) {
   const def = STATUS[status];
-  const { visible, full } = statusLabel(status, days);
+  const { visible, full } = category ? categoryLabel(status) : statusLabel(status, days);
   const Icon = def.icon;
   const title = [visible !== full ? full : null, dueDate ? `Due ${formatDate(dueDate)}` : null]
     .filter(Boolean)
