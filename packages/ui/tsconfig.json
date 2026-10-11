@@ -1,4 +1,15 @@
 {
   "extends": "@canopy/tsconfig/react.json",
-  "include": ["src"]
+  "compilerOptions": {
+    "types": ["node"]
+  },
+  "include": [
+    "src",
+    "test",
+    "demo",
+    "e2e",
+    "tailwind.preset.ts",
+    "vite.config.ts",
+    "playwright.config.ts"
+  ]
 }
