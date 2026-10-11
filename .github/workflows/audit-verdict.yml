@@ -37,6 +37,8 @@ jobs:
           GH_REPO: ${{ github.repository }}
           PR: ${{ github.event.issue.number }}
           AUTHOR: ${{ github.event.comment.user.login }}
+          # See auto-merge.yml: a PR queued with GITHUB_TOKEN never gets its merge-queue CI run.
+          MERGE_TOKEN: ${{ secrets.AUTOMERGE_TOKEN }}
           BODY: ${{ github.event.comment.body }}
         run: |
           # Only a verdict from someone with write access can change the gate, so only they trigger a re-run.
@@ -85,6 +87,10 @@ jobs:
             --jq '.data.repository.pullRequest | "\(.mergeStateStatus) \(.isInMergeQueue) \(.autoMergeRequest != null) \(.isCrossRepository) \(any(.labels.nodes[]; .name == "no-automerge"))"')
           echo "PR #$PR is $STATE; queued $QUEUED, auto-merge $AUTO, fork $FORK, held $HELD."
           if [ "$STATE" = "CLEAN" ] && [ "$QUEUED" = "false" ] && [ "$AUTO" = "true" ] && [ "$FORK" = "false" ] && [ "$HELD" = "false" ]; then
-            gh pr merge "$PR" --disable-auto || true
-            gh pr merge "$PR" --auto --squash
+            if [ -z "$MERGE_TOKEN" ]; then
+              echo "::notice::AUTOMERGE_TOKEN is not set, so PR #$PR must be queued by hand (see auto-merge.yml)."
+            else
+              GH_TOKEN="$MERGE_TOKEN" gh pr merge "$PR" --disable-auto || true
+              GH_TOKEN="$MERGE_TOKEN" gh pr merge "$PR" --auto --squash
+            fi
           fi

@@ -7,6 +7,12 @@ name: Auto-merge
 #
 # Needs, in repo settings: "Allow auto-merge" on, and a `main` ruleset requiring `ci-ok` and a merge queue (squash).
 # Without a required check GitHub refuses to enable auto-merge, so this never merges a PR before its checks have run.
+#
+# Auto-merge must be turned on with the AUTOMERGE_TOKEN secret (a fine-grained token or GitHub App token with
+# Contents and Pull requests write on this repo), never GITHUB_TOKEN. GitHub queues the PR as whoever turned
+# auto-merge on, and a merge group queued as GITHUB_TOKEN starts no workflow run. Its ci-ok never reports, and it
+# blocks every PR behind it until the queue's 60-minute timeout. Without the secret this job only leaves a notice, and
+# the PR is queued by hand once it is audited and green.
 
 on:
   pull_request:
@@ -24,9 +30,14 @@ jobs:
       !contains(github.event.pull_request.labels.*.name, 'no-automerge')
     runs-on: ubuntu-latest
     steps:
-      - run: gh pr merge "$PR" --auto --squash --repo "$REPO"
+      - run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo "::notice::AUTOMERGE_TOKEN is not set; queue PR #$PR by hand once it is audited and green."
+            exit 0
+          fi
+          gh pr merge "$PR" --auto --squash --repo "$REPO"
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.AUTOMERGE_TOKEN }}
           PR: ${{ github.event.pull_request.number }}
           REPO: ${{ github.repository }}
 
