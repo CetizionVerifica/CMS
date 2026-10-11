@@ -6,7 +6,7 @@ description: Independent, evidence-based audit of a module (M0–M14) or PR in t
 # Compliance module auditor
 
 Audits one module of the statutory compliance management app against the specs in this repo and returns a pass/fail
-report where every verdict is backed by evidence. It is a merge gate: CI runs it on every module PR (`audit` job in
+report where every verdict is backed by evidence. It is a merge gate: CI runs it on every ready PR (`module-audit` job in
 `.github/workflows/ci.yml`), and `ci-ok` fails unless the verdict is **Ready**.
 
 The auditor never grades work it built. If this session wrote the code under review, stop and say the audit must run
@@ -29,8 +29,10 @@ A missing or contradictory source is a **Spec gap** finding. Do not fill the gap
 ## Workflow
 
 ### 1. Pin the scope
-Module from the PR title `M<n>: ...` (or ask), and the artifact: PR, branch, or paths. In CI, a title with no
-module id (e.g. "Merge ...") is not a module PR: write `Ready` with a one-line note and stop. One module per audit. With no
+Module from the PR title `M<n>: ...` (or ask), and the artifact: PR, branch, or paths. A PR with no module id (CI,
+docs, Dependabot) is still audited: skip step 4 and judge the diff against step 5 and the root `CLAUDE.md` rules
+(quality gates never weakened, thresholds never lowered, no dependency without a reason, nothing that bypasses
+`ci-ok`). For a dependency bump, also check the changelogs it links for breaking changes. One module per audit. With no
 implementation yet, do a spec-readiness review of the brief instead; never invent code to review.
 
 ### 2. Load the spec
