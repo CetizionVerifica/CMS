@@ -12,7 +12,7 @@
     "test:db": "vitest run --config vitest.db.config.mjs",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx src/cli/migrate.ts",
-    "db:seed": "echo \"db:seed: seed hook arrives in the next M3 PR\""
+    "db:seed": "tsx src/cli/seed.ts"
   },
   "dependencies": {
     "@canopy/contracts": "workspace:*",

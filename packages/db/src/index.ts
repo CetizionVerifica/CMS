@@ -20,3 +20,14 @@ export {
   type TenantContext,
   type TenantSettings,
 } from './tenant-context.js';
+export * from './repositories/index.js';
+export { DbError } from './errors.js';
+export {
+  SEED_FIRMS,
+  defineSeedHook,
+  findSeedModules,
+  loadSeedHooks,
+  runSeed,
+  type SeedContext,
+  type SeedHook,
+} from './seed.js';
