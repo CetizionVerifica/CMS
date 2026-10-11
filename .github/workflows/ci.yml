@@ -2,9 +2,13 @@ name: CI
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened, edited]
+    # ready_for_review: a draft skips the audit, so marking it ready must re-run CI with the audit.
+    types: [opened, synchronize, reopened, edited, ready_for_review]
   push:
     branches: [main]
+  # The merge queue on `main` tests each PR combined with main and the PRs queued ahead of it, so two PRs that pass
+  # alone but break together never both land.
+  merge_group:
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -86,6 +90,18 @@ jobs:
           path: e2e/playwright-report
           retention-days: 7
 
+  # Tooling tests (path guard, wave planner, no overlapping module paths). Also runs in the merge queue, so two
+  # queued PRs that each edit tooling/modules.json are checked together.
+  tooling:
+    name: tooling
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+      - run: node --test tooling/scripts/*.test.mjs
+
   # A PR titled "M<n>: ..." may only change the paths that module owns (tooling/modules.json).
   module-paths:
     name: module-paths
@@ -98,7 +114,6 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version-file: .nvmrc
-      - run: node --test tooling/scripts/*.test.mjs
       - run: node tooling/scripts/check-module-paths.mjs "$PR_TITLE" "origin/$BASE_REF"
         env:
           PR_TITLE: ${{ github.event.pull_request.title }}
@@ -130,64 +145,79 @@ jobs:
           queries: security-extended
       - uses: github/codeql-action/analyze@v4
 
-  # Independent module audit (.claude/skills/compliance-module-auditor) on every PR titled "M<n>: ...".
-  # Runs after the mechanical checks so it can rely on their results. Needs the ANTHROPIC_API_KEY repo secret;
-  # without it the job passes with a warning so CI is not blocked before the secret is set.
+  # Independent audit (.claude/skills/compliance-module-auditor) of every ready PR: module PRs ("M<n>: ...") against
+  # their MODULES.md acceptance list, any other PR (CI, docs, Dependabot) against the root CLAUDE.md rules. Runs after
+  # the mechanical checks so it can rely on their results. Fails closed: without the ANTHROPIC_API_KEY secret (and, for
+  # Dependabot PRs, the Dependabot secret of the same name) no PR can merge unaudited. Not run in the merge queue: the
+  # audit is of the PR's own change, which the queue does not alter.
   module-audit:
     name: module-audit
     needs: [checks, module-paths]
-    if: github.event_name == 'pull_request' && !github.event.pull_request.draft && startsWith(github.event.pull_request.title, 'M')
+    if: github.event_name == 'pull_request' && !github.event.pull_request.draft
     runs-on: ubuntu-latest
     permissions:
       contents: read
       pull-requests: write
       issues: write
       id-token: write
-    env:
-      HAS_KEY: ${{ secrets.ANTHROPIC_API_KEY != '' }}
     steps:
-      - if: env.HAS_KEY != 'true'
-        run: echo "::warning::ANTHROPIC_API_KEY is not set; module audit skipped."
-      - if: env.HAS_KEY == 'true'
-        uses: actions/checkout@v7
+      - name: Require the audit key
+        env:
+          HAS_KEY: ${{ secrets.ANTHROPIC_API_KEY != '' }}
+        run: |
+          if [ "$HAS_KEY" != "true" ]; then
+            echo "::error::ANTHROPIC_API_KEY is not set, so this PR cannot be audited. Add it under Settings > Secrets and variables (Actions, and Dependabot for dependency PRs)."
+            exit 1
+          fi
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
-      - if: env.HAS_KEY == 'true'
-        uses: pnpm/action-setup@v6
-      - if: env.HAS_KEY == 'true'
-        uses: actions/setup-node@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
         with:
           node-version-file: .nvmrc
           cache: pnpm
-      - if: env.HAS_KEY == 'true'
-        run: pnpm install --frozen-lockfile
-      - if: env.HAS_KEY == 'true'
+      # No install scripts in the job that holds the API key.
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - id: audit
         uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
+          allowed_bots: 'dependabot[bot]'
           prompt: |
             Use the compliance-module-auditor skill to audit PR #${{ github.event.pull_request.number }}
             at ${{ github.event.pull_request.head.sha }} against
             base ${{ github.base_ref }}. Lint, typecheck, unit tests with coverage and the path guard already passed.
-            Post the report as one PR comment with `gh pr comment`, then write the verdict to audit-verdict.txt.
+            If the title has no module id, audit the diff against the root CLAUDE.md non-negotiables and quality
+            gates instead of a MODULES.md acceptance list.
+            Post the report as one PR comment with `gh pr comment`, then return the verdict as the structured
+            output.
           claude_args: >-
-            --allowedTools "Read,Grep,Glob,Write(audit-verdict.txt),Bash(pnpm *),Bash(git diff *),Bash(git log *),Bash(git show *),Bash(gh pr view *),Bash(gh pr diff *),Bash(gh pr comment *)"
-      - if: env.HAS_KEY == 'true'
-        name: Require a Ready verdict
+            --json-schema '{"type":"object","properties":{"verdict":{"type":"string","enum":["Ready","Not ready"]}},"required":["verdict"]}'
+            --allowedTools "Read,Grep,Glob,Bash(pnpm lint*),Bash(pnpm typecheck*),Bash(pnpm test*),Bash(node --test tooling/scripts/*),Bash(git diff *),Bash(git log *),Bash(git show *),Bash(gh pr view *),Bash(gh pr diff *),Bash(gh pr comment *)"
+      # The verdict comes back as validated structured output, not a file the model has to write.
+      - name: Require a Ready verdict
+        env:
+          VERDICT: ${{ fromJSON(steps.audit.outputs.structured_output || '{}').verdict }}
         run: |
-          verdict="$(tr -d '[:space:]' < audit-verdict.txt 2>/dev/null || true)"
-          echo "Audit verdict: ${verdict:-missing}"
-          test "$verdict" = "Ready"
+          echo "Audit verdict: ${VERDICT:-missing}"
+          test "$VERDICT" = "Ready"
 
   # Single status to mark as required in branch protection, so new jobs don't need settings changes.
   ci-ok:
     name: ci-ok
     if: always()
-    needs: [checks, db, e2e, module-paths, audit, codeql, module-audit]
+    needs: [checks, tooling, db, e2e, module-paths, audit, codeql, module-audit]
     runs-on: ubuntu-latest
     steps:
-      # A skipped job (module-paths and module-audit on push or non-module PRs) is fine; a failed or cancelled one is not.
       - if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
         run: exit 1
+      # A PR's ci-ok is green only after a Ready audit. Drafts skip the audit, so their ci-ok is red: otherwise
+      # auto-merge could act on the draft's green check before the run started by ready_for_review reports.
+      # The merge queue and pushes to main skip module-paths and module-audit; the PR run already passed them.
+      - if: github.event_name == 'pull_request' && needs.module-audit.result != 'success'
+        run: |
+          echo "::error::No Ready audit for this commit. Drafts are not audited; mark the PR ready for review."
+          exit 1
       - run: echo "All CI jobs passed."
