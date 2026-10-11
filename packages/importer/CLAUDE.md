@@ -22,6 +22,20 @@ Root `CLAUDE.md` applies. Field mapping and data quirks: `docs/requirements/exce
 - **Recurrence inference**: from each obligation's due dates infer a `RecurrenceRule` via the engine (`inferRule`); low confidence → mark rule TO_REVIEW, still import the instances as given.
 - File names inside Form/Log Sheet ("Schedule.docx") become template placeholders flagged "file not attached".
 
+## How the package is built
+- Pure functions, no I/O: `readWorkbook` (bytes → sheets), `suggestMapping` / `validateMapping`,
+  `analyseImport` (rows, issues and an `ImportPlan` keyed by natural keys), `dryRun`, `stateAfterCommit`.
+  The API module (`apps/api/src/modules/imports`) stores batches and calls these; the commit writes the plan
+  through the M3 repositories.
+- `analyseImport` takes the engine's `inferRule` as an argument (`EngineApi['inferRule']`), so no recurrence
+  maths lives here. An existing obligation keeps its library rule and is not re-inferred.
+- Decisions are inputs: re-run `analyseImport` with the stored decisions after every review change. A PENDING
+  WARNING is previewed as its proposal (so duplicate periods appear while aliases are still pending); INFO
+  issues are always accepted; ERROR issues block their rows until edited (value supplied) or rejected (row
+  skipped). `checkDecision` says which decisions each issue type allows.
+- Issue `groupKey`s are hashes, so names never reach URLs or request logs.
+- The golden fixture is pseudonymised (`fixtures/README.md`, ADR 0001).
+
 ## Tests
 - Golden test on `fixtures/sample-register.xlsx` asserts the counts in excel-analysis.md §5.
 - Idempotency: import twice, second run creates nothing and reports every instance unchanged (422 under the recommended profile, see docs/contracts/fixtures.md).
