@@ -90,7 +90,7 @@ jobs:
           path: e2e/playwright-report
           retention-days: 7
 
-  # Tooling tests (path guard, wave planner, no overlapping module paths). Also runs in the merge queue, so two
+  # Tooling tests (path guard, wave planner, no overlapping module paths, audit verdict gate). Also runs in the merge queue, so two
   # queued PRs that each edit tooling/modules.json are checked together.
   tooling:
     name: tooling
@@ -100,7 +100,7 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version-file: .nvmrc
-      - run: node --test tooling/scripts/*.test.mjs
+      - run: node --test tooling/scripts/*.test.mjs .github/scripts/*.test.mjs
 
   # A PR titled "M<n>: ..." may only change the paths that module owns (tooling/modules.json).
   module-paths:
@@ -146,85 +146,29 @@ jobs:
       - uses: github/codeql-action/analyze@v4
 
   # Independent audit (.claude/skills/compliance-module-auditor) of every ready PR: module PRs ("M<n>: ...") against
-  # their MODULES.md acceptance list, any other PR (CI, docs, Dependabot) against the root CLAUDE.md rules. Runs after
-  # the mechanical checks so it can rely on their results. Fails closed: without the ANTHROPIC_API_KEY secret (and, for
-  # Dependabot PRs, the Dependabot secret of the same name) no PR can merge unaudited. Not run in the merge queue: the
-  # audit is of the PR's own change, which the queue does not alter.
+  # their MODULES.md acceptance list, any other PR (CI, docs, Dependabot) against the root CLAUDE.md rules. A session
+  # that did not build the PR runs the skill and posts its report as a PR comment ending in a verdict marker for the head
+  # SHA; this job only reads the comments (.github/scripts/audit-verdict.mjs), so CI calls no model API. Fails closed: no
+  # trusted Ready marker for the current head SHA, no merge. audit-verdict.yml re-runs this job when a marker is posted.
+  # Not run in the merge queue: the audit is of the PR's own change, which the queue does not alter.
   module-audit:
     name: module-audit
-    needs: [checks, module-paths]
     if: github.event_name == 'pull_request' && !github.event.pull_request.draft
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      pull-requests: write
-      issues: write
-      id-token: write
+      issues: read
+      pull-requests: read
     steps:
-      - name: Require the audit key
-        env:
-          HAS_KEY: ${{ secrets.ANTHROPIC_API_KEY != '' }}
-        run: |
-          if [ "$HAS_KEY" != "true" ]; then
-            echo "::error::ANTHROPIC_API_KEY is not set, so this PR cannot be audited. Add it under Settings > Secrets and variables (Actions, and Dependabot for dependency PRs)."
-            exit 1
-          fi
       - uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
-      - uses: pnpm/action-setup@v6
-      - uses: actions/setup-node@v7
-        with:
-          node-version-file: .nvmrc
-          cache: pnpm
-      # No install scripts in the job that holds the API key.
-      - run: pnpm install --frozen-lockfile --ignore-scripts
-      # The auditor only reads and runs checks; it returns its report and verdict as schema-validated structured
-      # output, and the steps below post the report and enforce the verdict. It has no tool that writes to the PR.
-      - id: audit
-        continue-on-error: true
-        uses: anthropics/claude-code-action@v1
-        with:
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          allowed_bots: 'dependabot[bot]'
-          prompt: |
-            Use the compliance-module-auditor skill to audit PR #${{ github.event.pull_request.number }}
-            at ${{ github.event.pull_request.head.sha }} against
-            base ${{ github.base_ref }}. Lint, typecheck, unit tests with coverage and the path guard already passed.
-            If the title has no module id, audit the diff against the root CLAUDE.md non-negotiables and quality
-            gates instead of a MODULES.md acceptance list.
-            The PR head is already checked out and dependencies are installed; do not fetch, check out or install.
-            Run each shell command on its own: no `;`, `&&`, `|`, `cd` or command substitution, or it is refused.
-            Use `pnpm --filter <package> <script>` for one package. Read the PR with `gh pr view` and `gh pr diff`.
-            Do not post anything to the PR yourself. Finish by returning the structured output: `report` is the
-            full markdown report from the skill's report format, `verdict` is Ready or Not ready.
-          claude_args: >-
-            --json-schema '{"type":"object","properties":{"verdict":{"type":"string","enum":["Ready","Not ready"]},"report":{"type":"string"}},"required":["verdict","report"]}'
-            --allowedTools "Skill,Read,Grep,Glob,Bash(pnpm lint*),Bash(pnpm typecheck*),Bash(pnpm test*),Bash(pnpm --filter * lint*),Bash(pnpm --filter * typecheck*),Bash(pnpm --filter * test*),Bash(node --test tooling/scripts/*),Bash(git diff *),Bash(git log *),Bash(git show *),Bash(git status*),Bash(ls *),Bash(wc *),Bash(gh pr view *),Bash(gh pr diff *),Bash(gh pr checks *)"
-      - name: Post the audit report
-        if: always() && steps.audit.outcome != 'skipped'
+      - name: Require a Ready audit of this commit
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR: ${{ github.event.pull_request.number }}
           SHA: ${{ github.event.pull_request.head.sha }}
-          REPORT: ${{ fromJSON(steps.audit.outputs.structured_output || '{}').report }}
         run: |
-          if [ -z "$REPORT" ]; then
-            # The action hides the run's output; when the run itself errored (not the audit), show just its error,
-            # e.g. "Credit balance is too low".
-            f="$RUNNER_TEMP/claude-execution-output.json"
-            err="$( [ -f "$f" ] && jq -r '[.[] | select(.type == "result" and .is_error == true)] | last | .result // empty' "$f" 2>/dev/null | head -c 500 || true)"
-            echo "Auditor error: ${err:-none reported}"
-            REPORT="Audit of $SHA returned no report, so this commit counts as **Not ready**.${err:+ The audit run failed with: \`$err\`.} Push again or re-run the module-audit job once that is fixed."
-          fi
-          printf '%s\n' "$REPORT" | head -c 60000 | gh pr comment "$PR" --repo "$GITHUB_REPOSITORY" --body-file -
-      - name: Require a Ready verdict
-        env:
-          VERDICT: ${{ fromJSON(steps.audit.outputs.structured_output || '{}').verdict }}
-        run: |
-          echo "Audit verdict: ${VERDICT:-missing}"
-          test "$VERDICT" = "Ready"
+          gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/issues/$PR/comments" | jq 'add // []' > "$RUNNER_TEMP/comments.json"
+          node .github/scripts/audit-verdict.mjs "$SHA" "$RUNNER_TEMP/comments.json"
 
   # Single status to mark as required in branch protection, so new jobs don't need settings changes.
   ci-ok:
@@ -240,6 +184,6 @@ jobs:
       # The merge queue and pushes to main skip module-paths and module-audit; the PR run already passed them.
       - if: github.event_name == 'pull_request' && needs.module-audit.result != 'success'
         run: |
-          echo "::error::No Ready audit for this commit. Drafts are not audited; mark the PR ready for review."
+          echo "::error::No Ready audit for this commit. Drafts are not audited; mark the PR ready, then post an audit of its head SHA from a separate session (module-audit log says why)."
           exit 1
       - run: echo "All CI jobs passed."

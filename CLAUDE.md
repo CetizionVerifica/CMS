@@ -83,13 +83,14 @@ audit events written for state changes; isolation test for new tables; docs or C
 | Module paths | `module-paths` | a PR titled `M<n>: ...` changing files outside that module's paths in `tooling/modules.json` |
 | Dependencies | `audit` | a known high or critical vulnerability (`pnpm audit`) |
 | Static security | `codeql` | a CodeQL security-extended finding |
-| Audit | `module-audit` | on every ready (non-draft) PR, an independent Claude run of `.claude/skills/compliance-module-auditor` returns anything but **Ready**: module PRs against their `MODULES.md` acceptance list, other PRs against these rules. Fails closed without the `ANTHROPIC_API_KEY` secret (Actions, plus Dependabot for dependency PRs) |
+| Audit | `module-audit` | on every ready (non-draft) PR, no **Ready** verdict for the current head SHA: an audit session that did not build the PR runs `.claude/skills/compliance-module-auditor` (module PRs against their `MODULES.md` acceptance list, other PRs against these rules) and posts its report with a `<!-- canopy-audit sha=... verdict=Ready -->` marker. Only markers from people with write access count; a push makes earlier verdicts stale. CI reads the comments and calls no model API |
 
 Gates owned by modules, added with their first code: contract tests against the OpenAPI spec (M0, consumed by M6, M7, M8, M10),
 golden counts from `docs/requirements/excel-analysis.md` §5 (M4, M8), and a test that every state-changing route writes an `AuditEvent` (M7).
 
-Title every module PR `M<n>: <what>` so the path guard and audit apply. Mark it ready for review only when you expect it to pass;
-the audit runs on every push after that. Read the audit comment and fix its findings.
+Title every module PR `M<n>: <what>` so the path guard and audit apply. Mark it ready for review only when you expect it to pass,
+then get it audited in a separate session (the builder never audits its own work), and again after every push. Read the
+audit comment and fix its findings.
 
 Merging is automatic (`.github/workflows/auto-merge.yml`): every ready PR gets GitHub auto-merge and joins the merge
 queue on `main` once `ci-ok` is green. The queue re-runs CI on the PR combined with `main` and the PRs ahead of it, then

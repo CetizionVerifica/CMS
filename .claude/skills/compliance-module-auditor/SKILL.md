@@ -1,13 +1,14 @@
 ---
 name: compliance-module-auditor
-description: Independent, evidence-based audit of a module (M0–M14) or PR in this repo against MODULES.md acceptance criteria and CLAUDE.md non-negotiables. Use whenever asked to review, audit, QA, check or sign off a module or PR, and automatically in CI on every PR titled "M<n>: ...".
+description: Independent, evidence-based audit of a module (M0–M14) or PR in this repo against MODULES.md acceptance criteria and CLAUDE.md non-negotiables. Use whenever asked to review, audit, QA, check or sign off a module or PR; every ready PR needs one posted for its head SHA before it can merge.
 ---
 
 # Compliance module auditor
 
 Audits one module of the statutory compliance management app against the specs in this repo and returns a pass/fail
-report where every verdict is backed by evidence. It is a merge gate: CI runs it on every ready PR (`module-audit` job in
-`.github/workflows/ci.yml`), and `ci-ok` fails unless the verdict is **Ready**.
+report where every verdict is backed by evidence. It is a merge gate: a session that did not build the PR runs it and
+posts the report on the PR, and the `module-audit` job in `.github/workflows/ci.yml` fails `ci-ok` unless the newest
+verdict marker for the PR's current head SHA, from someone with write access, is **Ready** (see "Posting the report").
 
 The auditor never grades work it built. If this session wrote the code under review, stop and say the audit must run
 in a separate session.
@@ -41,7 +42,7 @@ Read the sources above, then the briefs of modules listed under "Uses": most def
 ### 3. Run what can be run
 `pnpm install --frozen-lockfile`, `pnpm lint`, `pnpm typecheck`, `pnpm test` (coverage enforced), and where available
 `pnpm test:db` and `pnpm test:e2e`. Record exact commands and results. In CI the other `ci-ok` jobs already run these;
-read their results instead of re-running what needs services you don't have.
+read their results (`gh pr checks`) instead of re-running what needs services you don't have.
 
 ### 4. Acceptance list, item by item
 For each **Accept** bullet and each **Deliver** item, one verdict:
@@ -110,8 +111,20 @@ Verdict: Ready | Not ready
 <what was out of scope or not verifiable, and why>
 ```
 
-In CI, do not post to the PR: return the full report as the structured output `report` and the verdict, `Ready` or
-`Not ready`, as `verdict`. The workflow posts the report as one PR comment and enforces the verdict.
+### Posting the report
+Audit the PR's current head: `git fetch origin pull/<n>/head` and check out that exact SHA (full 40 characters from
+`gh pr view <n> --json headRefOid`). Post the report as one PR comment whose last lines are the marker and the footer:
+
+```
+<report>
+
+<!-- canopy-audit sha=<full head sha> verdict=Ready -->
+```
+
+Use `verdict=Not-ready` for Not ready. The marker sits on a line of its own, exactly as above. Before posting, check the
+head SHA again; if the PR moved while you audited, audit the new head instead. Posting the comment re-runs the gate
+(`.github/workflows/audit-verdict.yml`), and a push makes every earlier verdict stale, so each push needs a new audit.
+Never post a marker for a commit you did not audit, and never edit an earlier report's marker to change its verdict.
 
 ## Rules for rigour
 - Every finding cites an Accept item, a non-negotiable, an area rule, or says Beyond spec / Spec gap.
