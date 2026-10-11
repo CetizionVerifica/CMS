@@ -1,11 +1,12 @@
 name: Auto-merge
 
-# Turns on GitHub auto-merge for every ready (non-draft) PR from this repo. GitHub then merges it by itself once
-# the checks required on `main` pass (`ci-ok`, which includes the module audit) and any code owner review
-# (.github/CODEOWNERS) is approved. Add the `no-automerge` label to keep a PR open.
+# Turns on GitHub auto-merge for every ready (non-draft) PR from this repo. Once the checks required on `main` pass
+# (`ci-ok`, which includes the audit) and any code owner review (.github/CODEOWNERS) is approved, the PR joins the
+# merge queue, which re-runs `ci-ok` on it combined with `main` and squash-merges it. Add the `no-automerge` label to
+# keep a PR open.
 #
-# Needs, in repo settings: "Allow auto-merge" on, and a `main` rule requiring `ci-ok`. Without a required check
-# GitHub refuses to enable auto-merge, so this never merges a PR before its checks have run.
+# Needs, in repo settings: "Allow auto-merge" on, and a `main` ruleset requiring `ci-ok` and a merge queue (squash).
+# Without a required check GitHub refuses to enable auto-merge, so this never merges a PR before its checks have run.
 
 on:
   pull_request:
