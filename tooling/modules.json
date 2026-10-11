@@ -56,6 +56,9 @@
       "apps/web/app/not-found.tsx",
       "apps/web/app/global-error.tsx",
       "apps/web/app/globals.css",
+      "apps/web/app/icon.svg",
+      "apps/web/app/apple-icon.png",
+      "apps/web/public/",
       "apps/web/app/(auth)/",
       "apps/web/app/(shell)/layout.tsx",
       "apps/web/app/(shell)/loading.tsx",
@@ -70,6 +73,7 @@
       "apps/web/next.config.ts",
       "apps/web/postcss.config.mjs",
       "apps/web/proxy.ts",
+      "apps/web/tsconfig.json",
       "apps/web/vitest.config.mjs",
       "e2e/tests/shell/"
     ],
