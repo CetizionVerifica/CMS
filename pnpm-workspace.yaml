@@ -4,8 +4,9 @@ packages:
   - tooling/*
   - e2e
 
+# One version of each shared tool across the repo. Packages reference these with "catalog:".
 catalog:
-  '@axe-core/playwright': ^4.13.0
+  '@axe-core/playwright': ^4.11.0
   '@eslint/js': ^10.0.1
   '@playwright/test': 1.56.1
   '@types/node': ^22.20.0
