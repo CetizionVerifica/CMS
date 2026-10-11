@@ -68,6 +68,21 @@ describe('checkDecision', () => {
     expect(checkDecision(unknown, 'EDITED', 'Severe')).toMatch(/Super Critical/);
     const unknownPath = issue({ type: 'UNKNOWN_ENUM', severity: 'ERROR', field: 'locationPath' });
     expect(checkDecision(unknownPath, 'EDITED', 'India/ Goa')).toBe(null);
+    expect(checkDecision(unknownPath, 'EDITED', 'Still Narnia')).toMatch(/known country/);
+    const missingEnum = issue({
+      type: 'MISSING_REQUIRED',
+      severity: 'ERROR',
+      field: 'criticality',
+    });
+    expect(checkDecision(missingEnum, 'EDITED', 'banana')).toMatch(/Super Critical/);
+    expect(checkDecision(missingEnum, 'EDITED', 'Low')).toBe(null);
+    const missingOrg = issue({
+      type: 'MISSING_REQUIRED',
+      severity: 'ERROR',
+      field: 'organizationPath',
+    });
+    expect(checkDecision(missingOrg, 'EDITED', 'Plant only')).toMatch(/Company\/ Unit/);
+    expect(checkDecision(missingOrg, 'EDITED', 'Sample Co/ Plant')).toBe(null);
   });
 });
 

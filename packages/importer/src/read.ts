@@ -133,7 +133,9 @@ function toSheet(
   const nonEmpty = rows.filter((row) => !row.values.every(isBlank));
   const [headerRow, ...dataRows] = nonEmpty;
   if (!headerRow) return { name, headers: [], rows: [] };
-  const headers = uniqueHeaders(headerRow.values);
+  // Width = the last column holding a value in any row, so data under a blank header is kept, not dropped.
+  const width = nonEmpty.reduce((max, row) => Math.max(max, lastFilled(row.values)), 0);
+  const headers = uniqueHeaders(headerRow.values, width);
   return {
     name,
     headers,
@@ -144,12 +146,17 @@ function toSheet(
   };
 }
 
-/** Header text, trimmed; blanks become "Column N" and repeats get " (2)", " (3)". */
-function uniqueHeaders(values: RawCell[]): string[] {
-  const seen = new Map<string, number>();
+/** Number of cells up to and including the last non-blank one. */
+function lastFilled(values: RawCell[]): number {
   let last = values.length;
   while (last > 0 && isBlank(values[last - 1] ?? null)) last -= 1;
-  return values.slice(0, last).map((value, i) => {
+  return last;
+}
+
+/** Header text, trimmed; blanks become "Column N" and repeats get " (2)", " (3)". */
+function uniqueHeaders(values: RawCell[], width: number): string[] {
+  const seen = new Map<string, number>();
+  return Array.from({ length: width }, (_, i) => values[i] ?? null).map((value, i) => {
     const base = isBlank(value) ? `Column ${i + 1}` : String(value).trim().replace(/\s+/g, ' ');
     const count = (seen.get(base) ?? 0) + 1;
     seen.set(base, count);

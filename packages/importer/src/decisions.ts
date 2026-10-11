@@ -5,6 +5,7 @@ import {
   type IssueDecision,
 } from '@canopy/contracts';
 import { readDate } from './dates.js';
+import { splitLocation, splitOrganization } from './paths.js';
 import { CRITICALITY, enumKey, STATUS, TIMELINE, type EnumTable } from './reference.js';
 import type { Decision, Decisions, DraftIssue } from './types.js';
 
@@ -75,9 +76,16 @@ function checkEdit(issue: IssueShape, value: string): string | null {
   ) {
     return 'Expected a date';
   }
+  // An edit to a field with a fixed form must parse, or the row would still be unusable after review.
   const table = issue.field === null ? undefined : ENUM_TABLES[issue.field];
-  if (issue.type === 'UNKNOWN_ENUM' && table && !(enumKey(value) in table.byKey)) {
+  if (table && !(enumKey(value) in table.byKey)) {
     return `Expected one of: ${table.canonical.join(', ')}`;
+  }
+  if (issue.field === 'organizationPath' && splitOrganization(value) === null) {
+    return 'Expected a path ending in "Company/ Unit"';
+  }
+  if (issue.field === 'locationPath' && splitLocation(value) === null) {
+    return 'Expected "Country/ State/ City" with a known country';
   }
   return null;
 }

@@ -147,11 +147,42 @@ describe('required values', () => {
 });
 
 describe('status rules', () => {
-  it('drops a completion date on an open row', () => {
-    const analysis = analyse(
-      sheetOf({ 'Compliance Status': 'Pending', 'Activity Date': '2022-04-01' }),
+  it('asks a person about a pending row with an activity date instead of dropping the date', () => {
+    const sheet = sheetOf({ 'Compliance Status': 'Pending', 'Activity Date': '2022-04-01' });
+    const first = analyse(sheet);
+    const issue = only(first, 'UNKNOWN_ENUM');
+    expect(issue).toMatchObject({ field: 'status', proposal: null, rowNumbers: [2] });
+    expect(first.rows[0]?.outcome).toBe('ERROR');
+    expect(dryRun(first, EMPTY_STATE).report.blockingErrors).toBe(1);
+
+    const pending = analyse(sheet, { decisions: decide(issue, 'EDITED', 'Pending') });
+    expect(pending.plan.instances[0]).toMatchObject({ workflowState: 'OPEN', completedOn: null });
+    expect(pending.plan.instances[0]?.comments).toContain(
+      'The register gave an activity date of 2022-04-01 for this pending item; it was kept pending on review.',
     );
-    expect(analysis.plan.instances[0]).toMatchObject({ workflowState: 'OPEN', completedOn: null });
+    const complied = analyse(sheet, { decisions: decide(issue, 'EDITED', 'Complied') });
+    expect(complied.plan.instances[0]).toMatchObject({
+      workflowState: 'APPROVED',
+      completedOn: '2022-04-01',
+    });
+    const skipped = analyse(sheet, { decisions: decide(issue, 'REJECTED') });
+    expect(skipped.rows[0]?.outcome).toBe('SKIPPED');
+  });
+
+  it('never loses a row to an edit that does not parse', () => {
+    const sheet = sheetOf({ Criticality: null, Location: 'Narnia' });
+    const analysis = analyse(sheet);
+    const decisions: Decisions = {};
+    for (const issue of analysis.issues) {
+      decisions[issue.groupKey] = {
+        decision: 'EDITED',
+        editedValue: issue.field === 'criticality' ? 'banana' : 'Still Narnia',
+      };
+    }
+    const after = analyse(sheet, { decisions });
+    expect(after.rows[0]?.outcome).toBe('ERROR');
+    const { report } = dryRun(after, EMPTY_STATE);
+    expect(report.blockingErrors + report.skippedRows + report.create.instances).toBe(1);
   });
 
   it('lets a person enter or refuse the missing completion date', () => {

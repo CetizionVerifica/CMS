@@ -34,6 +34,13 @@ Root `CLAUDE.md` applies. Field mapping and data quirks: `docs/requirements/exce
   issues are always accepted; ERROR issues block their rows until edited (value supplied) or rejected (row
   skipped). `checkDecision` says which decisions each issue type allows.
 - Issue `groupKey`s are hashes, so names never reach URLs or request logs.
+- A Pending row with an Activity Date is an `UNKNOWN_ENUM` issue on `status` (ERROR, no proposal): the person
+  edits the status ("Pending" keeps the row open and moves the date into an IMPORT comment, "Complied" keeps it)
+  or skips the row. Dates outside 1950 to 2100 are `INVALID_DATE` (a year typed as a number is not a serial).
+- Every source row ends as an instance, SKIPPED or ERROR: a row that cannot be planned is never dropped.
+- Analysis stays near linear (20,000 rows in well under a second locally; `test/scale.test.ts`).
+- For the API and commit PRs: refuse commit unless `isReviewed(issues)`; cap the inflated xlsx size or parse in
+  a worker, because the 20 MB limit is on compressed bytes.
 - The golden fixture is pseudonymised (`fixtures/README.md`, ADR 0001).
 
 ## Tests

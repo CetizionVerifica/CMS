@@ -52,6 +52,30 @@ header.eachCell((cell, col) => {
   if (PERSON_HEADERS.has(String(cell.value).trim())) personCols.push(col);
 });
 const byName = new Map();
+// Each distinct source spelling keeps a distinct pseudonym spelling, so the spelling counts survive too.
+const spellingOf = new Map();
+const usedByName = new Map();
+function pseudonymFor(raw, key) {
+  if (spellingOf.has(raw)) return spellingOf.get(raw);
+  const base = byName.get(key);
+  const [first, word] = base.split(' ');
+  const used = usedByName.get(key) ?? new Set();
+  const options = [
+    withCaseOf(raw, base),
+    base,
+    base.toLowerCase(),
+    base.toUpperCase(),
+    `${first.toUpperCase()} ${word}`,
+    `${first.toLowerCase()} ${word}`,
+    `${first} ${word.toLowerCase()}`,
+  ];
+  const chosen = options.find((option) => !used.has(option));
+  if (!chosen) throw new Error('Too many spellings of one name');
+  used.add(chosen);
+  usedByName.set(key, used);
+  spellingOf.set(raw, chosen);
+  return chosen;
+}
 ws.eachRow((row, n) => {
   if (n === 1) return;
   for (const col of personCols) {
@@ -62,7 +86,7 @@ ws.eachRow((row, n) => {
       if (byName.size >= PSEUDONYMS.length) throw new Error('More people than pseudonyms');
       byName.set(key, PSEUDONYMS[byName.size]);
     }
-    cell.value = withCaseOf(cell.value, byName.get(key));
+    cell.value = pseudonymFor(cell.value, key);
   }
 });
 // Document properties carry the names of whoever saved the file.

@@ -11,7 +11,8 @@ every clone, CI log and test failure message.
 
 ## Decision
 The committed fixture is the original with every Owner and Approvers value replaced by a fixed pseudonym per
-person ("Person Alpha" ... ), preserving each spelling's case pattern, and the workbook author fields reset.
+person ("Person Alpha" ... ), with each distinct source spelling kept as a distinct spelling of the pseudonym
+(same case pattern where possible), and the workbook author fields reset.
 All other cells are unchanged. `packages/importer/scripts/pseudonymise-sample.mjs` rebuilds it from the original,
 which stays in the project files, outside the repository.
 

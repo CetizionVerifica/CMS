@@ -14,11 +14,12 @@ import {
 } from '@canopy/contracts';
 import { actKey, aliasKey, principalActKey, type AliasField } from './aliases.js';
 import { readDate } from './dates.js';
+import { splitLocation, splitOrganization } from './paths.js';
 import { decisionFor, ENUM_TABLES } from './decisions.js';
 import type { RawCell, SourceSheet } from './read.js';
 import {
-  countryCodeOf,
   enumKey,
+  STATUS,
   looksLikeFileName,
   NULL_PLACEHOLDERS,
   stateCodeForName,
@@ -27,10 +28,10 @@ import {
 } from './reference.js';
 import {
   collapse,
-  editDistance,
   groupKeyOf,
   looseKey,
   mostFrequent,
+  NearIndex,
   normaliseName,
   tidyMultiline,
   titleCaseName,
@@ -73,6 +74,8 @@ const DUPLICATE_COMMENT = (row: number, completedOn: string | null, comment: str
   (comment ? `; its comment: ${comment}` : '') +
   '.';
 
+const PENDING_DATE_COMMENT = (date: string) =>
+  `The register gave an activity date of ${date} for this pending item; it was kept pending on review.`;
 const ASSUMED_DATE_COMMENT = 'Completion date assumed on import: the register gave none.';
 const EDITED_DATE_COMMENT = 'Completion date entered on import: the register gave none.';
 
@@ -110,8 +113,16 @@ interface CleanRow {
   } | null;
 }
 
+interface IssueEntry {
+  issue: DraftIssue;
+  rows: Set<number>;
+  values: Set<string>;
+}
+
+/** Issue groups by groupKey. Rows and raw values are kept in Sets so large groups stay linear. */
 class IssueBook {
-  private readonly byKey = new Map<string, DraftIssue>();
+  private readonly byKey = new Map<string, IssueEntry>();
+  private readonly keyCache = new Map<string, string>();
 
   constructor(private readonly decisions: Decisions) {}
 
@@ -124,10 +135,15 @@ class IssueBook {
     rawValues: readonly string[],
     proposal: string | null,
   ): Decision {
-    const groupKey = groupKeyOf(type, field ?? '', ...parts);
-    let issue = this.byKey.get(groupKey);
-    if (!issue) {
-      issue = {
+    const cacheKey = JSON.stringify([type, field, ...parts]);
+    let groupKey = this.keyCache.get(cacheKey);
+    if (groupKey === undefined) {
+      groupKey = groupKeyOf(type, field ?? '', ...parts);
+      this.keyCache.set(cacheKey, groupKey);
+    }
+    let entry = this.byKey.get(groupKey);
+    if (!entry) {
+      const issue: DraftIssue = {
         groupKey,
         type,
         severity: IMPORT_ISSUE_SEVERITY[type],
@@ -141,20 +157,28 @@ class IssueBook {
       const inForce = decisionFor(issue, this.decisions);
       issue.decision = inForce.decision;
       issue.editedValue = inForce.editedValue;
-      this.byKey.set(groupKey, issue);
+      entry = { issue, rows: new Set(), values: new Set(issue.rawValues) };
+      this.byKey.set(groupKey, entry);
     }
-    for (const row of rowNumbers) if (!issue.rowNumbers.includes(row)) issue.rowNumbers.push(row);
-    for (const value of rawValues)
-      if (!issue.rawValues.includes(value)) issue.rawValues.push(value);
-    return { decision: issue.decision, editedValue: issue.editedValue };
+    for (const row of rowNumbers) entry.rows.add(row);
+    for (const value of rawValues) entry.values.add(value);
+    return { decision: entry.issue.decision, editedValue: entry.issue.editedValue };
   }
 
   all(): DraftIssue[] {
-    return [...this.byKey.values()].map((issue) => ({
+    return [...this.byKey.values()].map(({ issue, rows, values }) => ({
       ...issue,
-      rowNumbers: [...issue.rowNumbers].sort((a, b) => a - b),
+      rowNumbers: [...rows].sort((a, b) => a - b),
+      rawValues: [...values],
     }));
   }
+}
+
+/** Appends to the list under `key`, creating it on first use. */
+function pushTo<K, V>(map: Map<K, V[]>, key: K, value: V): void {
+  const list = map.get(key);
+  if (list) list.push(value);
+  else map.set(key, [value]);
 }
 
 function text(cell: RawCell): string | null {
@@ -211,6 +235,12 @@ export function analyseImport(input: AnalyseInput): ImportAnalysis {
     if (row.approver !== null) row.mapped.approver = people.display.get(row.approver) ?? null;
   }
 
+  // A row that is neither skipped nor complete can never be planned. Count it as an error so that the dry run
+  // accounts for every source row (checkDecision refuses the edits that could lead here).
+  for (const row of rows) {
+    if (!row.blocked && !row.skipped && !isComplete(row)) row.blocked = true;
+  }
+
   const plan = buildPlan(rows, input, issues, {
     acts: acts.entities,
     categories: categories.entities,
@@ -222,7 +252,7 @@ export function analyseImport(input: AnalyseInput): ImportAnalysis {
   const keysByRow = new Map<number, string[]>();
   for (const issue of allIssues) {
     for (const row of issue.rowNumbers) {
-      keysByRow.set(row, [...(keysByRow.get(row) ?? []), issue.groupKey]);
+      pushTo(keysByRow, row, issue.groupKey);
     }
   }
   const analysedRows: AnalysedRow[] = rows.map((row) => ({
@@ -426,35 +456,37 @@ function readTemplates(
   return [{ label, fileName: null, templateFileId: null }];
 }
 
-/** "Group/ Company/ Unit" → company and unit (the group is the client the import runs for). */
-function splitOrganization(value: string): { company: string; unit: string } | null {
-  const parts = value
-    .split('/')
-    .map((part) => collapse(part))
-    .filter((part) => part !== '');
-  if (parts.length < 2) return null;
-  return { company: parts[parts.length - 2] ?? '', unit: parts[parts.length - 1] ?? '' };
-}
-
-/** "Country/ State/ City"; null when the country is not recognised. */
-function splitLocation(
-  value: string,
-): { country: string; countryCode: string; state: string | null; city: string | null } | null {
-  const parts = value
-    .split('/')
-    .map((part) => collapse(part))
-    .filter((part) => part !== '');
-  const [country, state, city] = parts;
-  const countryCode = country === undefined ? null : countryCodeOf(country);
-  if (country === undefined || countryCode === null || parts.length > 3) return null;
-  return { country, countryCode, state: state ?? null, city: city ?? null };
-}
-
 /** Register status → workflow state, with the completion date and NA reason each state needs. */
 function applyStatusRules(row: CleanRow, issues: IssueBook): void {
-  if (row.status === 'OPEN') {
-    row.completedOn = null;
-  } else if (row.status === 'APPROVED' && row.completedOn === null && row.dueDate !== null) {
+  if (row.status === 'OPEN' && row.completedOn !== null) {
+    // A pending row with an activity date: either the status or the date is wrong, and only a person can say
+    // which. Edit the status ("Complied" keeps the date; "Pending" drops it into a comment) or skip the row.
+    const date = row.completedOn;
+    const decision = issues.add(
+      'UNKNOWN_ENUM',
+      'status',
+      ['pending with an activity date'],
+      [row.rowNumber],
+      ['Pending with an activity date'],
+      null,
+    );
+    const edited =
+      decision.decision === 'EDITED'
+        ? STATUS.byKey[enumKey(decision.editedValue ?? '')]
+        : undefined;
+    if (decision.decision === 'REJECTED') {
+      row.skipped = true;
+    } else if (edited === undefined) {
+      row.blocked = true;
+    } else {
+      row.status = edited;
+      if (edited === 'OPEN') {
+        row.completedOn = null;
+        row.extraComments.push(PENDING_DATE_COMMENT(date));
+      }
+    }
+  }
+  if (row.status === 'APPROVED' && row.completedOn === null && row.dueDate !== null) {
     const decision = issues.add(
       'COMPLIED_WITHOUT_DATE',
       'completedOn',
@@ -524,7 +556,7 @@ function resolveAliases(
   const rowsOf = new Map<string, number[]>();
   for (const row of rows) {
     const value = row[field];
-    if (value !== null) rowsOf.set(value, [...(rowsOf.get(value) ?? []), row.rowNumber]);
+    if (value !== null) pushTo(rowsOf, value, row.rowNumber);
   }
   const counts = new Map([...rowsOf].map(([value, list]) => [value, list.length]));
   const final = new Map<string, string>();
@@ -546,7 +578,7 @@ function resolveAliases(
       continue;
     }
     const key = aliasKey(field, value);
-    groups.set(key, [...(groups.get(key) ?? []), value]);
+    pushTo(groups, key, value);
   }
 
   for (const [key, spellings] of groups) {
@@ -631,9 +663,10 @@ function resolvePeople(rows: CleanRow[], existing: ExistingState, issues: IssueB
   for (const row of rows) {
     for (const value of [row.owner, row.approver]) {
       if (value !== null) {
-        const list = rowsOf.get(value) ?? [];
-        if (!list.includes(row.rowNumber)) list.push(row.rowNumber);
-        rowsOf.set(value, list);
+        // Rows arrive in order, so a repeat (owner = approver) can only be the last entry.
+        const list = rowsOf.get(value);
+        if (!list) rowsOf.set(value, [row.rowNumber]);
+        else if (list[list.length - 1] !== row.rowNumber) list.push(row.rowNumber);
       }
     }
   }
@@ -641,7 +674,7 @@ function resolvePeople(rows: CleanRow[], existing: ExistingState, issues: IssueB
   const spellingsByNorm = new Map<string, string[]>();
   for (const spelling of rowsOf.keys()) {
     const norm = normaliseName(spelling);
-    spellingsByNorm.set(norm, [...(spellingsByNorm.get(norm) ?? []), spelling]);
+    pushTo(spellingsByNorm, norm, spelling);
   }
 
   const display = new Map<string, string>();
@@ -675,11 +708,11 @@ function resolvePeople(rows: CleanRow[], existing: ExistingState, issues: IssueB
     return current;
   };
   const fresh = [...spellingsByNorm.keys()].filter((norm) => !knownDisplay.has(norm));
-  const candidates = [...new Set([...fresh, ...knownDisplay.keys()])];
+  const freshSet = new Set(fresh);
+  const index = new NearIndex(new Set([...fresh, ...knownDisplay.keys()]), 2);
   for (const a of fresh) {
-    for (const b of candidates) {
-      if (a === b || (fresh.includes(b) && b < a)) continue;
-      if (editDistance(a, b, 2) > 2) continue;
+    for (const b of index.near(a)) {
+      if (freshSet.has(b) && b < a) continue;
       const nameA = display.get(a) ?? knownDisplay.get(a) ?? a;
       const nameB = display.get(b) ?? knownDisplay.get(b) ?? b;
       const pair = [nameA, nameB].sort();
@@ -835,8 +868,7 @@ function buildPlan(
 
   // Instances: one per (assignment, due date); repeated periods fold into the first row.
   const rowsByInstance = new Map<string, Usable[]>();
-  for (const row of usable)
-    rowsByInstance.set(row.instanceKey, [...(rowsByInstance.get(row.instanceKey) ?? []), row]);
+  for (const row of usable) pushTo(rowsByInstance, row.instanceKey, row);
   const instances: PlanInstance[] = [];
   const instanceOfRow = new Map<number, string>();
   const foldedRows = new Set<number>();
@@ -881,10 +913,7 @@ function buildPlan(
   // Obligations: first row's values; differing values are listed, per-row values stay on instances.
   const rowsByObligation = new Map<string, Usable[]>();
   for (const row of keptRows) {
-    rowsByObligation.set(row.obligationKey, [
-      ...(rowsByObligation.get(row.obligationKey) ?? []),
-      row,
-    ]);
+    pushTo(rowsByObligation, row.obligationKey, row);
   }
   const obligations: PlanObligation[] = [];
   for (const [key, group] of rowsByObligation) {
@@ -961,10 +990,7 @@ function buildPlan(
   // Assignments: (unit, obligation, department); default owner and approver from the first row.
   const rowsByAssignment = new Map<string, Usable[]>();
   for (const row of keptRows) {
-    rowsByAssignment.set(row.assignmentKey, [
-      ...(rowsByAssignment.get(row.assignmentKey) ?? []),
-      row,
-    ]);
+    pushTo(rowsByAssignment, row.assignmentKey, row);
   }
   const assignments: PlanAssignment[] = [];
   for (const [key, group] of rowsByAssignment) {

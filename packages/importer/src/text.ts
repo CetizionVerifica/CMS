@@ -98,3 +98,54 @@ export function mostFrequent(counts: Map<string, number>): string {
   if (best === undefined) throw new Error('mostFrequent needs at least one value');
   return best;
 }
+
+/** `value` and every string made by deleting up to `k` characters from it. */
+export function deletionVariants(value: string, k: number): Set<string> {
+  const out = new Set([value]);
+  let frontier = [value];
+  for (let step = 0; step < k; step++) {
+    const next: string[] = [];
+    for (const word of frontier) {
+      for (let i = 0; i < word.length; i++) {
+        const variant = word.slice(0, i) + word.slice(i + 1);
+        if (!out.has(variant)) {
+          out.add(variant);
+          next.push(variant);
+        }
+      }
+    }
+    frontier = next;
+  }
+  return out;
+}
+
+/**
+ * Index for "which names are within `k` edits of this one". Two strings within edit distance k always share a
+ * string reachable by at most k deletions from each (the SymSpell property), so only those are compared.
+ */
+export class NearIndex {
+  private readonly byVariant = new Map<string, Set<string>>();
+
+  constructor(
+    names: Iterable<string>,
+    private readonly k: number,
+  ) {
+    for (const name of names) {
+      for (const variant of deletionVariants(name, k)) {
+        const set = this.byVariant.get(variant);
+        if (set) set.add(name);
+        else this.byVariant.set(variant, new Set([name]));
+      }
+    }
+  }
+
+  /** Indexed names within `k` edits of `name`, excluding `name` itself, sorted. */
+  near(name: string): string[] {
+    const candidates = new Set<string>();
+    for (const variant of deletionVariants(name, this.k)) {
+      for (const other of this.byVariant.get(variant) ?? []) candidates.add(other);
+    }
+    candidates.delete(name);
+    return [...candidates].filter((other) => editDistance(name, other, this.k) <= this.k).sort();
+  }
+}

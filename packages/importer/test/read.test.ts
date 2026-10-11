@@ -107,6 +107,13 @@ describe('readWorkbook', () => {
     });
   });
 
+  it('keeps data under blank trailing headers as "Column N"', async () => {
+    const csv = 'Owner,Due Date,,\nA,2022-04-07,,late note\n';
+    const wb = await readWorkbook(new TextEncoder().encode(csv), 'r.csv');
+    expect(wb.sheets[0]?.headers).toEqual(['Owner', 'Due Date', 'Column 3', 'Column 4']);
+    expect(wb.sheets[0]?.rows[0]?.cells['Column 4']).toBe('late note');
+  });
+
   it('returns null when every sheet is empty', () => {
     expect(
       firstNonEmptySheet({ format: 'csv', sheets: [{ name: null, headers: [], rows: [] }] }),

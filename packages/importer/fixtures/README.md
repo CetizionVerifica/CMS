@@ -4,8 +4,8 @@
 
 The golden import file: the client's register export (`ASPxGridView1 (15) (1).xlsx`, one sheet, 424 rows x 19
 columns) with one change. Every **Owner** and **Approvers** value is replaced by a pseudonym ("Person Alpha",
-"Person Bravo", ...), keyed by the case-insensitive name, keeping each spelling's case pattern ("person alpha"
-for an all lower-case original). The workbook's author fields are reset too. All other cells are byte-for-byte
+"Person Bravo", ...), keyed by the case-insensitive name. Each distinct source spelling maps to a distinct pseudonym spelling
+that keeps its case pattern ("person alpha" for an all lower-case original), so spelling counts survive. The workbook's author fields are reset too. All other cells are byte-for-byte
 the original values, so every count in `docs/contracts/fixtures.md` §2 and §3 still holds (14 owner spellings
 for 12 people, 11 approver spellings for 10, 21 people, one person who is both, no near-match names).
 

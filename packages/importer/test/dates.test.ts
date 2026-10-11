@@ -23,6 +23,15 @@ describe('readDate', () => {
     expect(readDate(-1)).toEqual({ kind: 'invalid' });
   });
 
+  it('refuses dates outside 1950 to 2100, such as a year typed as a number', () => {
+    expect(readDate(2022)).toEqual({ kind: 'invalid' });
+    expect(readDate('2022')).toEqual({ kind: 'invalid' });
+    expect(readDate('1949-12-31')).toEqual({ kind: 'invalid' });
+    expect(readDate('2101-01-01')).toEqual({ kind: 'invalid' });
+    expect(readDate('1950-01-01')).toEqual({ kind: 'date', value: '1950-01-01' });
+    expect(readDate('31/12/2100')).toEqual({ kind: 'date', value: '2100-12-31' });
+  });
+
   it('treats blanks as blank and refuses impossible or unknown dates', () => {
     expect(readDate(null)).toEqual({ kind: 'blank' });
     expect(readDate('  ')).toEqual({ kind: 'blank' });

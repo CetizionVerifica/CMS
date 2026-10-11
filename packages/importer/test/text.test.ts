@@ -8,6 +8,8 @@ import {
   stateNamedIn,
 } from '../src/reference.js';
 import {
+  NearIndex,
+  deletionVariants,
   collapse,
   editDistance,
   groupKeyOf,
@@ -58,6 +60,23 @@ describe('text helpers', () => {
       ),
     ).toBe('b');
     expect(() => mostFrequent(new Map())).toThrow();
+  });
+});
+
+describe('NearIndex', () => {
+  it('finds exactly the names within two edits', () => {
+    expect(deletionVariants('abc', 1)).toEqual(new Set(['abc', 'bc', 'ac', 'ab']));
+    const names = ['asha rao', 'asha raoo', 'asha r', 'vikram shah', 'asha rai', 'usha rao', 'ash'];
+    const index = new NearIndex(names, 2);
+    expect(index.near('asha rao')).toEqual(['asha r', 'asha rai', 'asha raoo', 'usha rao']);
+    expect(index.near('vikram shah')).toEqual([]);
+    // Brute force agrees for every name.
+    for (const name of names) {
+      const brute = names
+        .filter((other) => other !== name && editDistance(name, other) <= 2)
+        .sort();
+      expect(index.near(name)).toEqual(brute);
+    }
   });
 });
 

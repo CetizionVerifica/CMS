@@ -4,7 +4,8 @@ import type { RawCell } from './read.js';
 /**
  * Reading calendar dates from source cells. Only parsing lives here: due-date and status maths is the engine's.
  * Accepted: YYYY-MM-DD (also the date part of an ISO timestamp), Excel serial numbers (1900 date system),
- * day-first D/M/YYYY with "/", "-" or "." separators (Indian default), and D Mon YYYY / D-Mon-YYYY.
+ * day-first D/M/YYYY with "/", "-" or "." separators (Indian default), and D Mon YYYY / D-Mon-YYYY,
+ * all within PLAUSIBLE_FROM to PLAUSIBLE_TO.
  */
 
 const MONTH_NAMES = [
@@ -54,17 +55,25 @@ export function fromExcelSerial(serial: number): LocalDate | null {
 
 export type DateRead = { kind: 'blank' } | { kind: 'date'; value: LocalDate } | { kind: 'invalid' };
 
+/**
+ * Register dates outside this window are refused as INVALID_DATE. It catches numbers that are not dates at all
+ * (a year typed as 2022 reads as Excel serial 2022, i.e. 1905-07-14) and typos such as 2202.
+ */
+export const PLAUSIBLE_FROM = '1950-01-01';
+export const PLAUSIBLE_TO = '2100-12-31';
+
+function plausible(value: LocalDate | null): DateRead {
+  if (value === null || value < PLAUSIBLE_FROM || value > PLAUSIBLE_TO) return { kind: 'invalid' };
+  return { kind: 'date', value };
+}
+
 /** Reads one cell as a calendar date. */
 export function readDate(cell: RawCell): DateRead {
   if (cell === null) return { kind: 'blank' };
-  if (typeof cell === 'number') {
-    const value = fromExcelSerial(cell);
-    return value ? { kind: 'date', value } : { kind: 'invalid' };
-  }
+  if (typeof cell === 'number') return plausible(fromExcelSerial(cell));
   const text = cell.trim();
   if (text === '') return { kind: 'blank' };
-  const value = parseDateText(text);
-  return value ? { kind: 'date', value } : { kind: 'invalid' };
+  return plausible(parseDateText(text));
 }
 
 function parseDateText(text: string): LocalDate | null {
