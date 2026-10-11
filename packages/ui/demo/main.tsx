@@ -1,0 +1,13 @@
+import '@fontsource-variable/plus-jakarta-sans/wght.css';
+import './demo.css';
+
+import { StrictMode } from 'react';
+import { createRoot } from 'react-dom/client';
+
+import { App } from './App';
+
+createRoot(document.getElementById('root')!).render(
+  <StrictMode>
+    <App />
+  </StrictMode>,
+);

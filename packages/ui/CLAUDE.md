@@ -60,6 +60,7 @@ TaskList (state-marker circle, never a checkbox: completing needs evidence and a
 - Every component has a story or a demo page and a test for keyboard use.
 - Contrast: text 4.5:1 minimum, control boundaries 3:1; check `--muted` on `--mist`, `-ink` on `-soft`, and `--on-forest-muted` on `--forest` when tokens change.
 - Detailed component specs and the gallery live in `spec/` (owned by M2); this file sets the rules, the spec sets the anatomy.
+- Setup, the token-to-Tailwind mapping and the test commands are in `README.md`. A new component needs a demo page listed in `demo/routes.ts`; Playwright then checks it with axe at 1280px and 375px.
 - Visible focus ring: 2px `--forest` with 2px offset on every focusable element.
 - Icons: one icon set (Lucide), 16px in tables, 18px in nav. Icons never stand alone without a label or `aria-label`.
 - Charts: use the Canopy series order forest, leaf, moss; status charts use ok/warn/crit tokens. Every chart has a text summary or table alternative.
