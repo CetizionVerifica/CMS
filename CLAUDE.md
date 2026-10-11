@@ -66,3 +66,26 @@ pnpm db:seed        # seeds two firms and the sample client from the Excel fixtu
 ## Definition of done
 Lint, typecheck, unit and e2e tests green; new UI checked in light mode at 1280px and 375px and keyboard-only;
 audit events written for state changes; isolation test for new tables; docs or CLAUDE.md updated if a rule changed.
+
+## Quality gates (CI, all feed the required `ci-ok` check)
+| Gate | Job | What fails it |
+|---|---|---|
+| Lint, format, typecheck | `lint`, `typecheck` | ESLint, Prettier or `tsc` errors |
+| Unit tests + coverage | `test` | a failing test, or coverage under 80% (engine: 95%, and 100% on files named `*status*` / `*score*`). Thresholds live in each package's `vitest.config.mjs` via `@canopy/vitest-config`; never lower one to get green |
+| Database tests | `db` | a package's `test:db` script against Postgres 16 (`DATABASE_URL` is set). M3 puts tenant-isolation and migration tests here |
+| End to end + accessibility | `e2e` | a Playwright journey, or an axe WCAG 2.2 AA violation (`e2e/support/a11y.ts`; call it on every page a journey visits) |
+| Module paths | `module-paths` | a PR titled `M<n>: ...` changing files outside that module's paths in `tooling/modules.json` |
+| Dependencies | `audit` | a known high or critical vulnerability (`pnpm audit`) |
+| Static security | `codeql` | a CodeQL security-extended finding |
+| Module audit | `module-audit` | on PRs titled `M<n>: ...` (not drafts), an independent Claude run of `.claude/skills/compliance-module-auditor` against the module's `MODULES.md` acceptance list and these rules returns anything but **Ready**. Needs the `ANTHROPIC_API_KEY` repo secret |
+
+Gates owned by modules, added with their first code: contract tests against the OpenAPI spec (M0, consumed by M6, M7, M8, M10),
+golden counts from `docs/requirements/excel-analysis.md` §5 (M4, M8), and a test that every state-changing route writes an `AuditEvent` (M7).
+
+Title every module PR `M<n>: <what>` so the path guard and audit apply. Mark it ready for review only when you expect it to pass;
+the audit runs on every push after that. Read the audit comment and fix its findings.
+
+Merging is automatic (`.github/workflows/auto-merge.yml`): every ready PR gets GitHub auto-merge and squash-merges itself
+once `ci-ok` is green. Changes to contracts, `packages/db`, auth, `.github`, `tooling/modules.json` or `.claude/skills` also
+wait for Shyam's approval (`.github/CODEOWNERS`). Open PRs as drafts while work is in progress; add the `no-automerge` label to
+hold one. Do not merge by hand around a red check.

@@ -12,6 +12,8 @@
     "format": "prettier --write .",
     "typecheck": "turbo run typecheck",
     "test": "turbo run test",
+    "test:db": "turbo run test:db",
+    "test:tooling": "node --test tooling/scripts/*.test.mjs",
     "test:e2e": "turbo run test:e2e",
     "db:up": "docker compose -f docker/compose.yaml up -d --wait postgres s3 && docker compose -f docker/compose.yaml run --rm s3-init",
     "db:down": "docker compose -f docker/compose.yaml down",

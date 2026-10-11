@@ -15,7 +15,11 @@
       "dependsOn": ["^typecheck"]
     },
     "test": {
-      "outputs": []
+      "outputs": ["coverage/**"]
+    },
+    "test:db": {
+      "cache": false,
+      "env": ["DATABASE_URL"]
     },
     "test:e2e": {
       "dependsOn": ["^build"],

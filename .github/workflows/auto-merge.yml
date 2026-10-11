@@ -1,0 +1,40 @@
+name: Auto-merge
+
+# Turns on GitHub auto-merge for every ready (non-draft) PR from this repo. GitHub then merges it by itself once
+# the checks required on `main` pass (`ci-ok`, which includes the module audit) and any code owner review
+# (.github/CODEOWNERS) is approved. Add the `no-automerge` label to keep a PR open.
+#
+# Needs, in repo settings: "Allow auto-merge" on, and a `main` rule requiring `ci-ok`. Without a required check
+# GitHub refuses to enable auto-merge, so this never merges a PR before its checks have run.
+
+on:
+  pull_request:
+    types: [opened, reopened, ready_for_review, labeled, unlabeled]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  enable:
+    if: >-
+      !github.event.pull_request.draft &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      !contains(github.event.pull_request.labels.*.name, 'no-automerge')
+    runs-on: ubuntu-latest
+    steps:
+      - run: gh pr merge "$PR" --auto --squash --repo "$REPO"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+
+  disable:
+    if: github.event.action == 'labeled' && github.event.label.name == 'no-automerge'
+    runs-on: ubuntu-latest
+    steps:
+      - run: gh pr merge "$PR" --disable-auto --repo "$REPO"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}

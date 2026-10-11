@@ -8,13 +8,15 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "vitest run --passWithNoTests",
+    "test": "vitest run",
     "db:migrate": "echo \"db:migrate: no migrations yet (M3)\"",
     "db:seed": "echo \"db:seed: no seed yet (M3)\""
   },
   "devDependencies": {
     "@canopy/tsconfig": "workspace:*",
+    "@canopy/vitest-config": "workspace:*",
     "@types/node": "catalog:",
+    "@vitest/coverage-v8": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
   }
