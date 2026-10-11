@@ -86,6 +86,8 @@ export { defaultLink } from './lib/link';
 // 09 · DataTable
 export { DataTable } from './components/data-table/DataTable';
 export type { BulkAction, DataTableProps, Density } from './components/data-table/DataTable';
+export { SavedViews } from './components/data-table/SavedViews';
+export type { SavedView, SavedViewsProps } from './components/data-table/SavedViews';
 export type {
   ColumnType,
   PersonValue,

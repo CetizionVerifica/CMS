@@ -26,6 +26,7 @@ import {
   type DerivedStatus,
   type FilterDef,
   type FilterValue,
+  type SavedView,
 } from '../../src';
 import { Page, Section } from '../Page';
 import { useRoute } from '../router';
@@ -204,6 +205,57 @@ const filterDefs: FilterDef[] = [
 
 type Mode = 'data' | 'loading' | 'refetching' | 'error' | 'empty';
 
+/** What a saved view stores in this demo: the filter bar and search. The app also stores sort, columns and density. */
+type ViewState = { filters: Record<string, FilterValue>; query: string };
+const DEFAULT_STATE: ViewState = { filters: {}, query: '' };
+const sameState = (a: ViewState, b: ViewState) => JSON.stringify(a) === JSON.stringify(b);
+
+function useSavedViews(state: ViewState, apply: (s: ViewState) => void) {
+  const [views, setViews] = useState<(SavedView & ViewState)[]>([
+    {
+      id: 'v1',
+      name: 'Overdue super critical',
+      filters: { status: ['OVERDUE'], criticality: ['SUPER_CRITICAL'] },
+      query: '',
+    },
+  ]);
+  const [current, setCurrent] = useState<string | undefined>();
+  const [defaultId, setDefaultId] = useState<string | undefined>();
+  const saved = views.find((v) => v.id === current) ?? DEFAULT_STATE;
+  const pick = (v: ViewState): ViewState => ({ filters: v.filters, query: v.query });
+  return {
+    list: views.map(({ id, name }) => ({ id, name })),
+    current,
+    defaultId,
+    edited: !sameState(state, pick(saved)),
+    onSelect: (id: string | undefined) => {
+      setCurrent(id);
+      apply(pick(views.find((v) => v.id === id) ?? DEFAULT_STATE));
+    },
+    onSave: (name: string) => {
+      const id = `v${Date.now()}`;
+      setViews((vs) => [...vs, { id, name, ...state }]);
+      setCurrent(id);
+      toast({ tone: 'success', message: `Saved view "${name}".` });
+    },
+    onUpdate: (id: string) =>
+      setViews((vs) => vs.map((v) => (v.id === id ? { ...v, ...state } : v))),
+    onDiscard: () => apply(pick(saved)),
+    onRename: (id: string, name: string) =>
+      setViews((vs) => vs.map((v) => (v.id === id ? { ...v, name } : v))),
+    onDelete: (id: string) => {
+      setViews((vs) => vs.filter((v) => v.id !== id));
+      if (defaultId === id) setDefaultId(undefined);
+      setCurrent(undefined);
+      apply(DEFAULT_STATE);
+    },
+    onSetDefault: (id: string | undefined) => {
+      setDefaultId(id);
+      toast({ tone: 'info', message: 'The register now opens on this view.' });
+    },
+  };
+}
+
 export function DataTablePage() {
   const data = useMemo(() => makeInstances(10_000), []);
   const [filterValue, setFilterValue] = useState<Record<string, FilterValue>>({});
@@ -221,6 +273,10 @@ export function DataTablePage() {
     );
   }, [data, filterValue, query]);
   const [mode, setMode] = useState<Mode>('data');
+  const views = useSavedViews({ filters: filterValue, query }, (v) => {
+    setFilterValue(v.filters);
+    setQuery(v.query);
+  });
   const { params } = useRoute();
   const openId = params.get('open');
   const openIndex = openId ? data.findIndex((r) => r.id === openId) : -1;
@@ -311,11 +367,7 @@ export function DataTablePage() {
             },
           ],
         }}
-        toolbarStart={
-          <Button size="sm" variant="ghost">
-            View: Default
-          </Button>
-        }
+        views={views}
         onExport={() => toast({ tone: 'info', message: 'Export started' })}
         maxHeight={520}
       />

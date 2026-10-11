@@ -25,6 +25,8 @@ const DURATION: Record<ToastTone, number> = {
 /** Undo must be reachable before the toast goes. */
 const ACTION_MIN = 6000;
 const MAX_VISIBLE = 3;
+/** Errors wait for acknowledgement, but the queue never grows without bound. */
+const MAX_QUEUED = 10;
 
 let entries: Entry[] = [];
 let nextId = 1;
@@ -41,7 +43,11 @@ function emit(next: Entry[]) {
  */
 export function toast(options: ToastOptions): number {
   const id = nextId++;
-  emit([...entries, { ...options, id }]);
+  const next = [...entries, { ...options, id }];
+  // Older toasts collapse (spec 17): one pushed out of the newest three is gone, so it never comes back
+  // later with a fresh timer. Errors are the exception: they wait until a slot frees, since they need a read.
+  const waiting = next.slice(0, -MAX_VISIBLE).filter((e) => e.tone === 'error');
+  emit([...waiting, ...next.slice(-MAX_VISIBLE)].slice(-MAX_QUEUED));
   return id;
 }
 
@@ -73,7 +79,7 @@ const tones: Record<ToastTone, { bar: string; icon: LucideIcon }> = {
  */
 export function Toaster() {
   const all = useSyncExternalStore(subscribe, snapshot, snapshot);
-  // The newest three are visible; older ones wait until those close.
+  // The newest three are visible; only errors wait behind them (see `toast`).
   const visible = all.slice(-MAX_VISIBLE);
 
   return (

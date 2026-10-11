@@ -69,7 +69,11 @@ export function PeriodPicker({
   const descId = useId();
 
   const openWith = (o: boolean) => {
-    if (o) setView(viewOf(value));
+    if (o) {
+      setView(viewOf(value));
+      // Forget the cell focused last time so reopening lands on the selection.
+      setFocusIndex(-1);
+    }
     setOpen(o);
   };
 

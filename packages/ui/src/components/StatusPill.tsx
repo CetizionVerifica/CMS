@@ -92,6 +92,12 @@ export function statusLabel(
         devWarn('StatusPill: OVERDUE without `days`; showing "Overdue".');
         return same('Overdue');
       }
+      if (days <= 0) {
+        devWarn(
+          `StatusPill: OVERDUE with days=${days}; the engine should send 1 or more. Showing "Overdue".`,
+        );
+        return same('Overdue');
+      }
       return {
         visible: days > 99 ? 'Overdue 99+ days' : `Overdue ${days} ${plural(days)}`,
         full: `Overdue ${days} ${plural(days)}`,

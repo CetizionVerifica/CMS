@@ -1,9 +1,9 @@
 import { CalendarDays } from 'lucide-react';
-import type { ReactNode } from 'react';
+import { useEffect, type ReactNode } from 'react';
 
 import { addDays, parts, weekdayMon0 } from '../lib/calendarDate';
 import { cx } from '../lib/cx';
-import { formatDate, formatNumber, monthShort } from '../lib/format';
+import { devWarn, formatDate, formatNumber, monthShort } from '../lib/format';
 import { defaultLink, type LinkRenderer } from '../lib/link';
 import { Skeleton } from '../primitives/Skeleton';
 import { EmptyState } from './EmptyState';
@@ -26,7 +26,10 @@ export type DeadlineListProps = {
   items: DeadlineItem[];
   /** Default 5; the rest become "+ 12 more". */
   max?: number;
-  /** Group into This week, Next week and Later, from the API's `today` (never the browser clock). */
+  /**
+   * Group into Overdue, This week, Next week and Later, from the API's `today` (never the browser
+   * clock). Without `today` the list is not grouped.
+   */
   groupBy?: 'week' | 'none';
   today?: string;
   viewAllHref?: string;
@@ -40,9 +43,12 @@ export type DeadlineListProps = {
 /** Only due-soon and overdue items show a pill, so the list stays calm. */
 const showsPill = (s?: DerivedStatus): s is DerivedStatus => s === 'DUE_SOON' || s === 'OVERDUE';
 
-const WEEK_ORDER = ['This week', 'Next week', 'Later'];
+const WEEK_ORDER = ['Overdue', 'This week', 'Next week', 'Later'];
+type WeekLabel = 'Overdue' | 'This week' | 'Next week' | 'Later';
 
-function weekGroup(due: string, today: string): 'This week' | 'Next week' | 'Later' {
+function weekGroup(due: string, today: string): WeekLabel {
+  // Both are YYYY-MM-DD calendar dates, so string order is date order.
+  if (due < today) return 'Overdue';
   const thisMonday = addDays(today, -weekdayMon0(today));
   const nextMonday = addDays(thisMonday, 7);
   const after = addDays(nextMonday, 7);
@@ -66,6 +72,13 @@ export function DeadlineList({
   className,
 }: DeadlineListProps) {
   const Heading = `h${headingLevel}` as 'h2' | 'h3';
+  const ungrouped = groupBy === 'week' && !today;
+  useEffect(() => {
+    if (ungrouped)
+      devWarn(
+        'DeadlineList: groupBy="week" needs `today` from the API; showing the list ungrouped.',
+      );
+  }, [ungrouped]);
   const shown = items.slice(0, max);
   const more = items.length - shown.length;
 

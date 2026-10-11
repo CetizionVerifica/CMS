@@ -35,6 +35,13 @@ describe('statusLabel', () => {
     expect(statusLabel('OVERDUE').visible).toBe('Overdue');
     expect(warn).toHaveBeenCalledTimes(2);
   });
+  it('falls back and warns when an overdue count is zero or negative (audit #8d)', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    expect(statusLabel('OVERDUE', 0).full).toBe('Overdue');
+    expect(statusLabel('OVERDUE', -2).visible).toBe('Overdue');
+    expect(warn).toHaveBeenCalledTimes(2);
+    expect(warn.mock.calls[0]![0]).toContain('days=0');
+  });
 });
 
 describe('StatusPill', () => {

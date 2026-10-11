@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { cx } from '../lib/cx';
 import { useReturnFocus } from '../lib/useReturnFocus';
 import { Button } from '../primitives/Button';
-import { Textarea } from '../primitives/Field';
+import { Input, Textarea } from '../primitives/Field';
 
 export type ConfirmDialogProps = {
   open: boolean;
@@ -16,7 +16,24 @@ export type ConfirmDialogProps = {
   /** Repeats the verb: "Send back", never "OK" or "Yes". */
   confirmLabel: string;
   tone?: 'primary' | 'danger';
-  reason?: { label: string; required: boolean; minLength?: number; helper?: string };
+  /**
+   * A text the user types: a reason (multi-line, the default) or a short name (`multiline: false`, Enter confirms).
+   * `initialValue` pre-fills it, e.g. the current name when renaming.
+   */
+  reason?: {
+    label: string;
+    required: boolean;
+    minLength?: number;
+    maxLength?: number;
+    helper?: string;
+    multiline?: boolean;
+    initialValue?: string;
+  };
+  /**
+   * Where focus goes when the dialog closes, resolved at that moment. Use it when the action removes the element that
+   * opened the dialog (a file row's Remove button): return the next row's control, or a stable fallback.
+   */
+  returnFocusTo?: () => HTMLElement | null | undefined;
   /** The dialog shows a loading button until this settles; it closes on success and stays open on failure. */
   onConfirm: (reason?: string) => Promise<void> | void;
 };
@@ -31,18 +48,23 @@ export function ConfirmDialog({
   tone = 'primary',
   reason,
   onConfirm,
+  returnFocusTo,
 }: ConfirmDialogProps) {
   const [text, setText] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
   const [pending, setPending] = useState(false);
-  const reasonRef = useRef<HTMLTextAreaElement>(null);
+  const reasonRef = useRef<HTMLTextAreaElement & HTMLInputElement>(null);
+  const confirmRef = useRef<HTMLButtonElement>(null);
   const returnFocus = useReturnFocus(open);
+  // Read only when the dialog opens, so a new value while open never overwrites what the user typed.
+  const initialValue = useRef(reason?.initialValue);
+  initialValue.current = reason?.initialValue;
 
   // Start fresh each time it opens.
   useEffect(() => {
     if (open) {
-      setText('');
+      setText(initialValue.current ?? '');
       setError(null);
       setFailed(false);
       setPending(false);
@@ -56,7 +78,7 @@ export function ConfirmDialog({
     if (reason && trimmed.length < min) {
       setError(
         min > 1
-          ? `Enter a reason of at least ${min} characters.`
+          ? `Enter a ${reason.label.replace(/ \(required\)$/i, '').toLowerCase()} of at least ${min} characters.`
           : `Enter a ${reason.label.replace(/ \(required\)$/i, '').toLowerCase()}.`,
       );
       reasonRef.current?.focus();
@@ -79,11 +101,27 @@ export function ConfirmDialog({
       <AlertDialog.Portal>
         <AlertDialog.Overlay className="fixed inset-0 z-dialog bg-scrim" />
         <AlertDialog.Content
-          onCloseAutoFocus={returnFocus}
+          onCloseAutoFocus={(e) => {
+            const target = returnFocusTo?.();
+            if (target && target.isConnected) {
+              e.preventDefault();
+              target.focus();
+            } else returnFocus(e);
+          }}
           onOpenAutoFocus={(e) => {
+            // The text field first; otherwise Confirm for a primary action and Cancel (Radix's default) for danger.
             if (reason) {
               e.preventDefault();
               reasonRef.current?.focus();
+            } else if (tone === 'primary') {
+              e.preventDefault();
+              confirmRef.current?.focus();
+            }
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && !pending) {
+              e.preventDefault();
+              void confirm();
             }
           }}
           className={cx(
@@ -99,7 +137,27 @@ export function ConfirmDialog({
           ) : (
             <AlertDialog.Description className="sr-only">{title}</AlertDialog.Description>
           )}
-          {reason ? (
+          {reason && reason.multiline === false ? (
+            <Input
+              ref={reasonRef}
+              label={reason.label}
+              helper={reason.helper}
+              error={error ?? undefined}
+              required={reason.required}
+              maxLength={reason.maxLength}
+              value={text}
+              onChange={(e) => {
+                setText(e.target.value);
+                if (error) setError(null);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.nativeEvent.isComposing && !pending) {
+                  e.preventDefault();
+                  void confirm();
+                }
+              }}
+            />
+          ) : reason ? (
             <Textarea
               ref={reasonRef}
               label={reason.label}
@@ -107,6 +165,7 @@ export function ConfirmDialog({
               error={error ?? undefined}
               rows={3}
               required={reason.required}
+              maxLength={reason.maxLength}
               value={text}
               onChange={(e) => {
                 setText(e.target.value);
@@ -123,7 +182,12 @@ export function ConfirmDialog({
             <AlertDialog.Cancel asChild>
               <Button disabled={pending}>Cancel</Button>
             </AlertDialog.Cancel>
-            <Button variant={tone} loading={pending} onClick={() => void confirm()}>
+            <Button
+              ref={confirmRef}
+              variant={tone}
+              loading={pending}
+              onClick={() => void confirm()}
+            >
               {confirmLabel}
             </Button>
           </div>

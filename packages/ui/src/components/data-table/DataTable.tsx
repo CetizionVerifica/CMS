@@ -42,6 +42,7 @@ import { EmptyState } from '../EmptyState';
 import { rightAligned, typedCell } from './cells';
 import { ColumnChooser } from './ColumnChooser';
 import type { TableContext } from './context';
+import { SavedViews, type SavedViewsProps } from './SavedViews';
 
 export type Density = 'comfortable' | 'compact';
 
@@ -89,7 +90,9 @@ export type DataTableProps<T> = {
   totalCount?: number;
   /** Noun for the count: "424 instances". */
   countNoun?: { one: string; other: string };
-  /** Toolbar slot before the count, for the saved-view menu. */
+  /** The saved-view menu (spec 09 §Saved views), first in the toolbar. */
+  views?: SavedViewsProps;
+  /** Extra toolbar content before the count. */
   toolbarStart?: ReactNode;
   /** `false` hides the toolbar (small embedded tables, e.g. on the overview); the bulk bar still shows. */
   toolbar?: boolean;
@@ -130,6 +133,7 @@ export function DataTable<T>({
   empty,
   totalCount,
   countNoun = { one: 'row', other: 'rows' },
+  views,
   toolbarStart,
   toolbar: showToolbar = true,
   onExport,
@@ -164,7 +168,7 @@ export function DataTable<T>({
     (row, title, sub) => {
       const props = {
         'data-row-link': '',
-        tabIndex: row.index === activeIndexRef.current ? 0 : -1,
+        tabIndex: row.id === activeRowIdRef.current ? 0 : -1,
         className:
           'line-clamp-1 rounded-tag text-body-strong text-ink hover:underline focus-visible:underline',
         children: title,
@@ -186,8 +190,10 @@ export function DataTable<T>({
     [rowHref, renderLink],
   );
   // Read during render of the title cell; kept in a ref so cells stay pure functions of the row.
+  // activeIndex is a display position (after sorting); cells compare row ids, since row.index is the source position.
   const activeIndexRef = useRef(activeIndex);
   activeIndexRef.current = activeIndex;
+  const activeRowIdRef = useRef<string | undefined>(undefined);
 
   const table = useReactTable<T>({
     data,
@@ -197,6 +203,9 @@ export function DataTable<T>({
     state: { sorting, columnVisibility: visibility, columnOrder: order, rowSelection },
     onSortingChange: (updater) => {
       const next = typeof updater === 'function' ? updater(sorting) : updater;
+      // A new order: the Tab stop goes back to the first row and the Shift-select anchor no longer applies.
+      setActiveIndex(0);
+      anchor.current = null;
       if (!sortingProp) setSortingState(next);
       onSortingChange?.(next);
     },
@@ -216,11 +225,15 @@ export function DataTable<T>({
     getSortedRowModel: manualSorting ? undefined : getSortedRowModel(),
     meta: {
       renderTitle,
-      rowTabIndex: (row) => (row.index === activeIndexRef.current ? 0 : -1),
+      rowTabIndex: (row) => (row.id === activeRowIdRef.current ? 0 : -1),
     } satisfies TableContext<T>,
   });
 
   const rows = table.getRowModel().rows;
+  // Keep the active position inside the rows (data can shrink) and name the row that owns the Tab stop.
+  if (activeIndexRef.current > rows.length - 1)
+    activeIndexRef.current = Math.max(0, rows.length - 1);
+  activeRowIdRef.current = rows[activeIndexRef.current]?.id;
   const rowHeight = ROW_HEIGHT[density];
   const virtualizer = useVirtualizer({
     count: rows.length,
@@ -244,6 +257,24 @@ export function DataTable<T>({
   });
   useEffect(() => virtualizer.measure(), [virtualizer, rowHeight]);
 
+  // Selection only ever holds rows that are present: when the data changes (a filter, a refetch), drop the rest, so a
+  // bulk action can never reach a row the user can no longer see. "All matching" ends when the matching set changes.
+  const selectionRef = useRef(rowSelection);
+  selectionRef.current = rowSelection;
+  const rowIdRef = useRef(rowId);
+  rowIdRef.current = rowId;
+  useEffect(() => {
+    const present = new Set(data.map((d) => rowIdRef.current(d)));
+    const selected = Object.keys(selectionRef.current).filter((k) => selectionRef.current[k]);
+    const kept = selected.filter((k) => present.has(k));
+    if (kept.length !== selected.length)
+      table.setRowSelection(Object.fromEntries(kept.map((k) => [k, true])));
+  }, [data, table]);
+  const lastTotal = useRef(totalCount);
+  useEffect(() => {
+    if (lastTotal.current !== totalCount) setAllMatching(false);
+    lastTotal.current = totalCount;
+  }, [totalCount]);
   const selectedIds = Object.keys(rowSelection).filter((k) => rowSelection[k]);
   const total = totalCount ?? data.length;
   const visibleColumns = table.getVisibleLeafColumns();
@@ -347,6 +378,7 @@ export function DataTable<T>({
         />
       ) : (
         <>
+          {views ? <SavedViews {...views} /> : null}
           {toolbarStart}
           <span className="text-meta text-muted tabular">
             {loading

@@ -452,4 +452,86 @@ describe('DataTable', () => {
     await user.click(screen.getAllByRole('checkbox')[1]!);
     expect(screen.getByRole('button', { name: 'Approve' })).toBeTruthy();
   });
+
+  it('keeps the Tab stop on the first displayed row after a sort (audit #1)', async () => {
+    const user = userEvent.setup();
+    renderTable({}, 200);
+    rowLinks()[0]!.focus();
+    await user.keyboard('{ArrowDown}{ArrowDown}');
+    const header = screen.getByRole('columnheader', { name: 'Title' });
+    within(header).getByRole('button').focus();
+    await user.keyboard('{Enter}{Enter}');
+    expect(header.getAttribute('aria-sort')).toBe('descending');
+    const stops = rowLinks().filter((l) => l.tabIndex === 0);
+    expect(stops).toHaveLength(1);
+    expect(stops[0]).toBe(rowLinks()[0]);
+    expect(stops[0]!.textContent).toBe('Obligation 99');
+    // Tab on from the header row: the next stop inside the body is that link.
+    for (let i = 0; i < 12 && !document.activeElement?.hasAttribute('data-row-link'); i += 1)
+      await user.tab();
+    expect(document.activeElement).toBe(stops[0]);
+  });
+
+  it('drops selected rows that leave the data, so bulk actions never reach them (audit #3)', async () => {
+    const user = userEvent.setup();
+    const approve = vi.fn();
+    const onChange = vi.fn();
+    const rows = makeRows(5);
+    const props = {
+      label: 'Register',
+      columns,
+      rowId: (r: Instance) => r.id,
+      rowLabel: (r: Instance) => r.id,
+      selection: { bulkActions: [{ label: 'Approve', onClick: approve }], onChange },
+    };
+    const { rerender } = render(<DataTable<Instance> {...props} data={rows} totalCount={5} />);
+    await user.click(screen.getByRole('checkbox', { name: 'Select TAX-CL-004' }));
+    await user.click(screen.getByRole('checkbox', { name: 'Select TAX-CL-001' }));
+    expect(screen.getByRole('status').textContent).toBe('2 selected');
+    rerender(
+      <DataTable<Instance>
+        {...props}
+        data={rows.filter((r) => r.id !== 'TAX-CL-004')}
+        totalCount={4}
+      />,
+    );
+    expect(onChange).toHaveBeenLastCalledWith(['TAX-CL-001']);
+    expect(screen.getByRole('status').textContent).toBe('1 selected');
+    await user.click(screen.getByRole('button', { name: 'Approve' }));
+    expect(approve).toHaveBeenCalledWith(['TAX-CL-001']);
+  });
+
+  it('ends "all matching" when the matching count changes', async () => {
+    const user = userEvent.setup();
+    const approve = vi.fn();
+    const props = {
+      label: 'Register',
+      columns,
+      rowId: (r: Instance) => r.id,
+      rowLabel: (r: Instance) => r.id,
+      selection: { bulkActions: [{ label: 'Approve', onClick: approve }] },
+    };
+    const rows = makeRows(5);
+    const { rerender } = render(<DataTable<Instance> {...props} data={rows} totalCount={40} />);
+    await user.click(screen.getByRole('checkbox', { name: /Select all/ }));
+    await user.click(screen.getByRole('button', { name: /Select all 40/ }));
+    rerender(<DataTable<Instance> {...props} data={rows} totalCount={12} />);
+    await user.click(screen.getByRole('button', { name: 'Approve' }));
+    expect(approve).toHaveBeenCalledWith(rows.map((r) => r.id));
+  });
+
+  it('clears the Shift-select anchor when the order changes (audit #8a)', async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    renderTable({ selection: { bulkActions: [], onChange } }, 10);
+    rowLinks()[2]!.focus();
+    await user.keyboard(' ');
+    const header = screen.getByRole('columnheader', { name: 'Title' });
+    within(header).getByRole('button').focus();
+    await user.keyboard('{Enter}{Enter}');
+    rowLinks()[0]!.focus();
+    await user.keyboard('{ArrowDown}{Shift>} {/Shift}');
+    // Without a stale anchor, Shift+Space on the second row selects only that row (plus the earlier pick).
+    expect(onChange.mock.calls.at(-1)![0]).toHaveLength(2);
+  });
 });

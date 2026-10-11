@@ -244,6 +244,11 @@ function ClientPanel({
   const optionId = (i: number) => `${listId}-opt-${i}`;
   const last = rows.length - 1;
 
+  // Focus stays in the search field, so keep the highlighted option in view as it moves (WCAG 2.4.11).
+  useEffect(() => {
+    document.getElementById(`${listId}-opt-${active}`)?.scrollIntoView?.({ block: 'nearest' });
+  }, [active, rows, listId]);
+
   const onKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
     switch (e.key) {
       case 'ArrowDown':

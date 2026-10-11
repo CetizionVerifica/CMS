@@ -33,11 +33,12 @@ describe('ConfirmDialog', () => {
   it('asks, repeats the verb and returns focus on cancel', async () => {
     const user = userEvent.setup();
     const onConfirm = vi.fn();
-    render(<Confirm onConfirm={onConfirm} />);
+    render(<Confirm onConfirm={onConfirm} tone="danger" />);
     const opener = screen.getByRole('button', { name: 'Send back' });
     await user.click(opener);
     const dialog = screen.getByRole('alertdialog', { name: 'Send back to Priya Rane?' });
     expect(dialog.textContent).toContain("They'll be notified");
+    // Danger: Cancel first.
     expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Cancel' }));
     await expectNoAxeViolations(dialog);
     await user.keyboard('{Escape}');
@@ -165,6 +166,93 @@ function DrawerHarness(props: Partial<DrawerProps> & { withComment?: boolean }) 
     </>
   );
 }
+
+describe('ConfirmDialog keyboard and focus (audit #4)', () => {
+  it('focuses Confirm for a primary action and confirms with Ctrl/Cmd+Enter', async () => {
+    const user = userEvent.setup();
+    const onConfirm = vi.fn();
+    render(<Confirm onConfirm={onConfirm} confirmLabel="Approve" title="Approve 3 instances?" />);
+    await user.click(screen.getByRole('button', { name: 'Send back' }));
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Approve' }));
+    await user.keyboard('{Control>}{Enter}{/Control}');
+    expect(onConfirm).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull());
+
+    await user.click(screen.getByRole('button', { name: 'Send back' }));
+    await user.keyboard('{Meta>}{Enter}{/Meta}');
+    expect(onConfirm).toHaveBeenCalledTimes(2);
+  });
+
+  it('confirms a reason with Ctrl+Enter from the text area, after validating it', async () => {
+    const user = userEvent.setup();
+    const onConfirm = vi.fn();
+    render(
+      <Confirm onConfirm={onConfirm} reason={{ label: 'Reason', required: true, minLength: 5 }} />,
+    );
+    await user.click(screen.getByRole('button', { name: 'Send back' }));
+    await user.keyboard('{Control>}{Enter}{/Control}');
+    expect(onConfirm).not.toHaveBeenCalled();
+    expect(screen.getByText('Enter a reason of at least 5 characters.')).toBeTruthy();
+    await user.keyboard('Wrong month{Control>}{Enter}{/Control}');
+    expect(onConfirm).toHaveBeenCalledWith('Wrong month');
+  });
+
+  it('returns focus to returnFocusTo when the opener is gone', async () => {
+    const user = userEvent.setup();
+    function Removable() {
+      const [open, setOpen] = useState(false);
+      const [gone, setGone] = useState(false);
+      return (
+        <>
+          {gone ? null : <Button onClick={() => setOpen(true)}>Remove</Button>}
+          <Button>Choose files</Button>
+          <ConfirmDialog
+            open={open}
+            onOpenChange={setOpen}
+            title="Remove challan.pdf?"
+            confirmLabel="Remove"
+            tone="danger"
+            onConfirm={() => setGone(true)}
+            returnFocusTo={() => screen.getByRole('button', { name: 'Choose files' })}
+          />
+        </>
+      );
+    }
+    render(<Removable />);
+    await user.click(screen.getByRole('button', { name: 'Remove' }));
+    await user.click(screen.getByRole('button', { name: 'Remove' }));
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull());
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Choose files' }));
+  });
+
+  it('takes a short name with a pre-filled value and confirms with Enter', async () => {
+    const user = userEvent.setup();
+    const onConfirm = vi.fn();
+    render(
+      <Confirm
+        title="Rename view"
+        confirmLabel="Rename"
+        onConfirm={onConfirm}
+        reason={{
+          label: 'Name',
+          required: true,
+          multiline: false,
+          maxLength: 60,
+          initialValue: 'Overdue',
+        }}
+      />,
+    );
+    await user.click(screen.getByRole('button', { name: 'Send back' }));
+    const name = screen.getByRole('textbox', { name: /Name/ });
+    expect(document.activeElement).toBe(name);
+    expect((name as HTMLInputElement).value).toBe('Overdue');
+    await user.clear(name);
+    await user.keyboard('{Enter}');
+    expect(screen.getByText('Enter a name.')).toBeTruthy();
+    await user.keyboard('Overdue super critical{Enter}');
+    expect(onConfirm).toHaveBeenCalledWith('Overdue super critical');
+  });
+});
 
 describe('Drawer', () => {
   it('focuses the title, is described by the meta row and returns focus on close', async () => {

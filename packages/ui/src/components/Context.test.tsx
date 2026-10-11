@@ -208,6 +208,31 @@ function ControlledPeriod({
 
 const period = () => JSON.parse(screen.getByTestId('period').textContent!) as Period;
 
+describe('ClientSwitcher scrolling (audit #5)', () => {
+  it('scrolls the highlighted client into view in a long list', async () => {
+    const many: ClientSummary[] = Array.from({ length: 20 }, (_, i) => ({
+      id: `c${i}`,
+      name: `Client ${String(i).padStart(2, '0')}`,
+      meta: 'Metals · 1 unit',
+      overdueCount: 0,
+    }));
+    const scroll = vi.fn();
+    const original = HTMLElement.prototype.scrollIntoView;
+    HTMLElement.prototype.scrollIntoView = scroll;
+    try {
+      const user = userEvent.setup();
+      render(<ClientSwitcher current={many[0]} clients={many} hrefFor={(id) => `/c/${id}`} />);
+      await user.click(screen.getByRole('button', { name: /change client/ }));
+      await user.keyboard('{End}');
+      const last = scroll.mock.contexts.at(-1) as HTMLElement;
+      expect(last.getAttribute('aria-label')).toBe('Client 19, Metals · 1 unit');
+      expect(scroll).toHaveBeenLastCalledWith({ block: 'nearest' });
+    } finally {
+      HTMLElement.prototype.scrollIntoView = original;
+    }
+  });
+});
+
 describe('PeriodPicker', () => {
   it('names the chip and opens on the selected quarter', async () => {
     const user = userEvent.setup();
@@ -476,5 +501,21 @@ describe('DateInput', () => {
     await user.keyboard('{Alt>}{ArrowDown}{/Alt}');
     await act(async () => {});
     expect(screen.getByRole('grid', { name: 'April 2027' })).toBeTruthy();
+  });
+});
+
+describe('PeriodPicker reopen', () => {
+  it('reopens on the selected quarter, not the cell focused last time (audit #6)', async () => {
+    const user = userEvent.setup();
+    render(<ControlledPeriod initial={{ fy: '2022-23', quarter: 2 }} />);
+    const chip = screen.getByRole('button', { name: /change period/ });
+    await user.click(chip);
+    expect(document.activeElement?.textContent).toBe('Q2 Jul–Sep');
+    await user.keyboard('{End}');
+    expect(document.activeElement?.textContent).toBe('Q4 Jan–Mar');
+    await user.keyboard('{Escape}');
+    expect(screen.queryByRole('dialog')).toBeNull();
+    await user.click(chip);
+    expect(document.activeElement?.textContent).toBe('Q2 Jul–Sep');
   });
 });

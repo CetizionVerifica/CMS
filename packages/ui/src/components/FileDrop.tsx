@@ -100,6 +100,11 @@ export function FileDrop({
   className,
 }: FileDropProps) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const listRef = useRef<HTMLUListElement>(null);
+  const chooseRef = useRef<HTMLButtonElement>(null);
+  const replaceRef = useRef<HTMLButtonElement>(null);
+  const rejectSeq = useRef(0);
+  const allowed = accept.map((a) => a.toLowerCase().replace(/^\./, ''));
   const hintId = useId();
   const [dragging, setDragging] = useState(false);
   const [rejected, setRejected] = useState<Rejected[]>([]);
@@ -125,15 +130,15 @@ export function FileDrop({
     const bad: Rejected[] = [];
     for (const file of chosen) {
       const ext = extension(file.name);
-      if (!accept.includes(ext)) {
+      if (!allowed.includes(ext)) {
         bad.push({
-          id: `${file.name}-${file.lastModified}-${bad.length}`,
+          id: `rejected-${(rejectSeq.current += 1)}`,
           name: file.name,
-          message: `Wrong type (${ext ? ext.toUpperCase() : 'no extension'}). Use ${accept.map((a) => a.toUpperCase()).join(', ')}.`,
+          message: `Wrong type (${ext ? ext.toUpperCase() : 'no extension'}). Use ${allowed.map((a) => a.toUpperCase()).join(', ')}.`,
         });
       } else if (file.size > maxBytes) {
         bad.push({
-          id: `${file.name}-${file.lastModified}-${bad.length}`,
+          id: `rejected-${(rejectSeq.current += 1)}`,
           name: file.name,
           message: `Too large (${formatSize(file.size)}). Max ${formatSize(maxBytes)}.`,
         });
@@ -158,9 +163,21 @@ export function FileDrop({
     }
   };
 
-  const hint = `${accept.map((a) => a.toUpperCase()).join(', ')} up to ${formatSize(maxBytes)}${multiple ? ' each' : ''}`;
+  const hint = `${allowed.map((a) => a.toUpperCase()).join(', ')} up to ${formatSize(maxBytes)}${multiple ? ' each' : ''}`;
   const filled = !multiple && files.length > 0;
   const remove = (f: UploadItem) => (f.state === 'ready' ? setConfirmRemove(f) : onRemove(f.id));
+  // After a confirmed removal the row is gone: focus the row that took its place, else the way to add a file.
+  const removedIndex = useRef(0);
+  const focusAfterRemove = () => {
+    const rows = listRef.current?.querySelectorAll<HTMLElement>('li') ?? [];
+    const row = rows[Math.min(removedIndex.current, rows.length - 1)];
+    return (
+      row?.querySelector<HTMLElement>('button') ??
+      chooseRef.current ??
+      replaceRef.current ??
+      undefined
+    );
+  };
 
   return (
     <div className={cx('flex flex-col gap-2', className)} onPaste={onPaste}>
@@ -169,7 +186,7 @@ export function FileDrop({
         type="file"
         hidden
         multiple={multiple}
-        accept={accept.map((a) => `.${a}`).join(',')}
+        accept={allowed.map((a) => `.${a}`).join(',')}
         onChange={(e) => {
           take([...(e.target.files ?? [])]);
           e.target.value = '';
@@ -209,6 +226,7 @@ export function FileDrop({
               <>
                 Drag {multiple ? 'files' : 'a file'} here or{' '}
                 <button
+                  ref={chooseRef}
                   type="button"
                   onClick={() => inputRef.current?.click()}
                   className="font-bold text-forest underline underline-offset-2 outline-none"
@@ -225,13 +243,16 @@ export function FileDrop({
       )}
 
       {files.length || rejected.length ? (
-        <ul aria-label={`${label} list`} className="flex flex-col gap-1">
-          {files.map((f) => (
+        <ul ref={listRef} aria-label={`${label} list`} className="flex flex-col gap-1">
+          {files.map((f, i) => (
             <FileRow
               key={f.id}
               item={f}
               editable={!disabled}
-              onRemove={() => remove(f)}
+              onRemove={() => {
+                removedIndex.current = i;
+                remove(f);
+              }}
               onRetry={() => onRetry(f.id)}
               onCancel={() => onCancel(f.id)}
               onOpen={onOpen ? () => onOpen(f.id) : undefined}
@@ -262,6 +283,7 @@ export function FileDrop({
 
       {filled && !disabled ? (
         <Button
+          ref={replaceRef}
           size="sm"
           variant="ghost"
           className="self-start"
@@ -282,6 +304,7 @@ export function FileDrop({
         body="The file is removed from this instance and the removal is recorded in its activity."
         confirmLabel="Remove"
         tone="danger"
+        returnFocusTo={focusAfterRemove}
         onConfirm={() => {
           if (confirmRemove) onRemove(confirmRemove.id);
         }}

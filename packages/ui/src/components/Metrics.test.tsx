@@ -75,6 +75,15 @@ describe('ProgressBar', () => {
     const fill = bar.firstElementChild as HTMLElement;
     expect(fill.className).toContain('bg-warn');
     expect(fill.style.width).toBe('100%');
+    // aria-valuenow stays inside min and max (audit #8c); the text keeps the real count.
+    expect(bar.getAttribute('aria-valuenow')).toBe('208');
+  });
+
+  it('clamps a negative value and a negative max for assistive tech (audit #8c)', () => {
+    render(<ProgressBar label="Tax" value={-4} max={-1} />);
+    const bar = screen.getByRole('progressbar', { name: 'Tax' });
+    expect(bar.getAttribute('aria-valuenow')).toBe('0');
+    expect(bar.getAttribute('aria-valuemax')).toBe('0');
   });
 
   it('zero max shows 0% and an empty track; value can be hidden', () => {

@@ -86,6 +86,40 @@ describe('DeadlineList', () => {
     expect(within(nextWeek!).getAllByRole('link')).toHaveLength(1);
   });
 
+  it('puts items due before today under Overdue, first (audit #7)', () => {
+    const late: DeadlineItem = {
+      id: '0',
+      dueDate: '2027-03-08',
+      title: 'Shops act renewal',
+      status: 'OVERDUE',
+      days: 2,
+      href: '/i/0',
+    };
+    render(<DeadlineList items={[deadlines[0]!, late]} groupBy="week" today="2027-03-10" />);
+    expect(screen.getAllByText(/^(Overdue|This week)$/).map((e) => e.textContent)).toEqual([
+      'Overdue',
+      'This week',
+    ]);
+    const [overdue, thisWeek] = screen.getAllByRole('list');
+    expect(within(overdue!).getByRole('link').getAttribute('aria-label')).toBe(
+      'Shops act renewal, due 8 Mar 2027, Overdue 2 days',
+    );
+    expect(within(thisWeek!).getByRole('link').getAttribute('aria-label')).toMatch(
+      /^Monthly PF challan/,
+    );
+  });
+
+  it('warns once and does not group when week grouping has no today', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const { rerender } = render(<DeadlineList items={deadlines} groupBy="week" />);
+    rerender(<DeadlineList items={deadlines.slice(1)} groupBy="week" />);
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warn.mock.calls[0]![0]).toContain('needs `today`');
+    expect(screen.queryByText(/^(Overdue|This week|Next week|Later)$/)).toBeNull();
+    expect(screen.getAllByRole('list')).toHaveLength(1);
+    warn.mockRestore();
+  });
+
   it('shows loading and empty states', () => {
     const { rerender } = render(<DeadlineList items={[]} loading />);
     expect(screen.getByText('Loading upcoming')).toBeTruthy();

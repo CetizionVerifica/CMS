@@ -121,3 +121,33 @@ test('filters narrow the table and are axe-clean while open', async ({ page, isM
   await expect(page.getByText('1,250 instances', { exact: true })).toBeVisible();
   await expectNoPageOverflow(page);
 });
+
+test('saved views apply filters, show "Edited" and save under a new name', async ({ page }) => {
+  await page.goto('/#/data-table');
+  const trigger = page.getByRole('button', { name: /^View: / });
+  await expect(trigger).toHaveText('View: Default');
+  await trigger.focus();
+  await page.keyboard.press('Enter');
+  await expect(page.getByRole('menu')).toBeVisible();
+  await expectNoA11yViolations(page, openPopup('[role="menu"]'));
+  await page.keyboard.press('ArrowDown');
+  await page.keyboard.press('Enter');
+  await expect(trigger).toHaveText('View: Overdue super critical');
+  await expect(trigger).toBeFocused();
+  await expect(page.getByText(/^[\d,]+ instances match$/)).not.toHaveText('10,000 instances match');
+
+  // Search changes the state, so the view shows as edited; Discard puts it back.
+  await page.getByRole('searchbox').fill('PF');
+  await expect(page.getByText('• Edited')).toBeVisible();
+  await page.getByRole('button', { name: 'Discard' }).click();
+  await expect(page.getByText('• Edited')).toHaveCount(0);
+
+  await trigger.click();
+  await page.getByRole('menuitem', { name: 'Save current view…' }).click();
+  const dialog = page.getByRole('alertdialog', { name: 'Save current view?' });
+  await expectNoA11yViolations(page);
+  await dialog.getByRole('textbox').fill('Overdue copy');
+  await page.keyboard.press('Enter');
+  await expect(trigger).toHaveText('View: Overdue copy');
+  await expect(trigger).toBeFocused();
+});

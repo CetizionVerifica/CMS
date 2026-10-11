@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
@@ -176,6 +176,56 @@ describe('FileDrop', () => {
       within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Remove' }),
     );
     expect(h.onRemove).toHaveBeenCalledWith('r');
+  });
+
+  it('puts focus on the next row after a confirmed removal, then on "choose files" (audit #4)', async () => {
+    const user = userEvent.setup();
+    function Two() {
+      const [files, setFiles] = useState<UploadItem[]>([
+        { id: 'a', name: 'a.pdf', size: 10, state: 'ready' },
+        { id: 'b', name: 'b.pdf', size: 10, state: 'ready' },
+      ]);
+      return (
+        <FileDrop
+          accept={['pdf']}
+          files={files}
+          onAdd={() => {}}
+          onRemove={(id) => setFiles((fs) => fs.filter((f) => f.id !== id))}
+          onRetry={() => {}}
+          onCancel={() => {}}
+        />
+      );
+    }
+    render(<Two />);
+    await user.click(screen.getByRole('button', { name: 'Remove a.pdf' }));
+    await user.click(
+      within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Remove' }),
+    );
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull());
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Remove b.pdf' }));
+    await user.keyboard('{Enter}');
+    await user.click(
+      within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Remove' }),
+    );
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull());
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'choose files' }));
+  });
+
+  it('matches types without regard to case and keeps each rejection separate (audit #8e)', async () => {
+    const user = userEvent.setup({ applyAccept: false });
+    const h = handlers();
+    const { container } = render(<FileDrop accept={['PDF', '.jpg']} files={[]} {...h} />);
+    const input = container.querySelector<HTMLInputElement>('input[type=file]')!;
+    expect(input.accept).toBe('.pdf,.jpg');
+    expect(screen.getByText('PDF, JPG up to 25 MB each')).toBeTruthy();
+    await user.upload(input, [file('SCAN.PDF'), file('photo.JPG'), file('a.exe'), file('a.exe')]);
+    expect(h.onAdd).toHaveBeenCalledWith([
+      expect.objectContaining({ name: 'SCAN.PDF' }),
+      expect.objectContaining({ name: 'photo.JPG' }),
+    ]);
+    expect(screen.getAllByRole('button', { name: 'Dismiss a.exe' })).toHaveLength(2);
+    await user.click(screen.getAllByRole('button', { name: 'Dismiss a.exe' })[0]!);
+    expect(screen.getAllByRole('button', { name: 'Dismiss a.exe' })).toHaveLength(1);
   });
 
   it('replaces the file in single-file mode and keeps only the first of several', async () => {

@@ -109,7 +109,9 @@ export function ProgressBar(props: ProgressBarProps) {
   }
 
   const { value, max = 100, band, showValue = true, valueFormat = 'percent' } = props;
-  const pct = max > 0 ? (Math.min(Math.max(value, 0), max) / max) * 100 : 0;
+  // aria-valuenow must sit within min and max, so out-of-range input is clamped like the fill.
+  const clamped = max > 0 ? Math.min(Math.max(value, 0), max) : 0;
+  const pct = max > 0 ? (clamped / max) * 100 : 0;
   const valueText =
     valueFormat === 'count'
       ? `${formatNumber(value)} of ${formatNumber(max)}`
@@ -123,9 +125,9 @@ export function ProgressBar(props: ProgressBarProps) {
         <span
           role="progressbar"
           aria-label={label}
-          aria-valuenow={value}
+          aria-valuenow={clamped}
           aria-valuemin={0}
-          aria-valuemax={max}
+          aria-valuemax={Math.max(max, 0)}
           aria-valuetext={valueText}
           className="relative block h-[7px] min-w-0 flex-1 overflow-hidden rounded-pill bg-sage"
         >

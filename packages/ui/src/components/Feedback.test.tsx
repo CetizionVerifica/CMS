@@ -29,6 +29,26 @@ describe('EmptyState', () => {
     await expectNoAxeViolations();
   });
 
+  it('reaches the actions with Tab and runs the primary one with Enter or Space (audit #10)', async () => {
+    const user = userEvent.setup();
+    const onClick = vi.fn();
+    render(
+      <EmptyState
+        variant="no-results"
+        title="No instances match these filters"
+        action={{ label: 'Clear filters', onClick }}
+        secondary={{ label: 'Read the guide', href: '/help/filters' }}
+      />,
+    );
+    await user.tab();
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Clear filters' }));
+    await user.keyboard('{Enter}');
+    await user.keyboard(' ');
+    expect(onClick).toHaveBeenCalledTimes(2);
+    await user.tab();
+    expect(document.activeElement).toBe(screen.getByRole('link', { name: 'Read the guide' }));
+  });
+
   it('uses an h2 and page padding at page size, with link actions', () => {
     const { container } = render(
       <EmptyState
@@ -136,6 +156,52 @@ describe('Toast', () => {
     act(() => dismissToast(first + 3));
     expect(screen.getByText('One')).toBeTruthy();
     expect(screen.queryByText('Four')).toBeNull();
+  });
+
+  it('collapses older toasts for good, keeps waiting errors and caps the queue (audit #8b)', () => {
+    vi.useFakeTimers();
+    render(<Toaster />);
+    act(() => {
+      toast({ tone: 'success', message: 'Saved one' });
+      toast({ tone: 'error', message: 'Upload failed' });
+      toast({ tone: 'success', message: 'Saved two' });
+      toast({ tone: 'success', message: 'Saved three' });
+      toast({ tone: 'success', message: 'Saved four' });
+    });
+    expect(screen.queryByText('Saved one')).toBeNull();
+    expect(screen.queryByText('Upload failed')).toBeNull();
+    // The visible ones time out; the collapsed success never returns, the waiting error does.
+    act(() => vi.advanceTimersByTime(5100));
+    expect(screen.getByText('Upload failed')).toBeTruthy();
+    expect(screen.queryByText('Saved one')).toBeNull();
+
+    act(() => {
+      resetToasts();
+      for (let i = 1; i <= 15; i++) toast({ tone: 'error', message: `Error ${i}` });
+    });
+    // Ten queued at most, so the oldest five are dropped: dismissing every one shows exactly 6 to 15.
+    const seen = new Set<string>();
+    for (let round = 0; round < 6; round++) {
+      for (const el of screen.queryAllByText(/^Error \d+$/)) seen.add(el.textContent!);
+      act(() => {
+        for (const b of screen.queryAllByRole('button', { name: 'Dismiss' })) b.click();
+      });
+    }
+    expect([...seen].sort((a, b) => Number(a.slice(6)) - Number(b.slice(6)))).toEqual(
+      Array.from({ length: 10 }, (_, k) => `Error ${k + 6}`),
+    );
+  });
+
+  it('dismisses the focused toast with Escape (audit #10)', async () => {
+    const user = userEvent.setup();
+    render(<Toaster />);
+    act(() => {
+      toast({ tone: 'error', message: "Couldn't approve. Try again." });
+    });
+    await user.tab();
+    expect(document.activeElement?.textContent).toContain("Couldn't approve");
+    await user.keyboard('{Escape}');
+    expect(screen.queryByText("Couldn't approve. Try again.")).toBeNull();
   });
 
   it('closes info toasts after their time', () => {
