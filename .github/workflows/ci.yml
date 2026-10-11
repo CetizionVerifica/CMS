@@ -179,7 +179,10 @@ jobs:
           cache: pnpm
       # No install scripts in the job that holds the API key.
       - run: pnpm install --frozen-lockfile --ignore-scripts
+      # The auditor only reads and runs checks; it returns its report and verdict as schema-validated structured
+      # output, and the steps below post the report and enforce the verdict. It has no tool that writes to the PR.
       - id: audit
+        continue-on-error: true
         uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -191,12 +194,23 @@ jobs:
             base ${{ github.base_ref }}. Lint, typecheck, unit tests with coverage and the path guard already passed.
             If the title has no module id, audit the diff against the root CLAUDE.md non-negotiables and quality
             gates instead of a MODULES.md acceptance list.
-            Post the report as one PR comment with `gh pr comment`, then return the verdict as the structured
-            output.
+            Do not post anything to the PR yourself. Finish by returning the structured output: `report` is the
+            full markdown report from the skill's report format, `verdict` is Ready or Not ready.
           claude_args: >-
-            --json-schema '{"type":"object","properties":{"verdict":{"type":"string","enum":["Ready","Not ready"]}},"required":["verdict"]}'
-            --allowedTools "Read,Grep,Glob,Bash(pnpm lint*),Bash(pnpm typecheck*),Bash(pnpm test*),Bash(node --test tooling/scripts/*),Bash(git diff *),Bash(git log *),Bash(git show *),Bash(gh pr view *),Bash(gh pr diff *),Bash(gh pr comment *)"
-      # The verdict comes back as validated structured output, not a file the model has to write.
+            --json-schema '{"type":"object","properties":{"verdict":{"type":"string","enum":["Ready","Not ready"]},"report":{"type":"string"}},"required":["verdict","report"]}'
+            --allowedTools "Skill,Read,Grep,Glob,Bash(pnpm lint*),Bash(pnpm typecheck*),Bash(pnpm test*),Bash(pnpm --filter * lint*),Bash(pnpm --filter * typecheck*),Bash(pnpm --filter * test*),Bash(node --test tooling/scripts/*),Bash(git diff *),Bash(git log *),Bash(git show *),Bash(git status*),Bash(ls *),Bash(wc *),Bash(gh pr view *),Bash(gh pr diff *),Bash(gh pr checks *)"
+      - name: Post the audit report
+        if: always() && steps.audit.outcome != 'skipped'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR: ${{ github.event.pull_request.number }}
+          SHA: ${{ github.event.pull_request.head.sha }}
+          REPORT: ${{ fromJSON(steps.audit.outputs.structured_output || '{}').report }}
+        run: |
+          if [ -z "$REPORT" ]; then
+            REPORT="Audit of $SHA returned no report, so this commit counts as **Not ready**. See the module-audit job log; push again or re-run the job."
+          fi
+          printf '%s\n' "$REPORT" | head -c 60000 | gh pr comment "$PR" --repo "$GITHUB_REPOSITORY" --body-file -
       - name: Require a Ready verdict
         env:
           VERDICT: ${{ fromJSON(steps.audit.outputs.structured_output || '{}').verdict }}

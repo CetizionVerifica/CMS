@@ -110,7 +110,8 @@ Verdict: Ready | Not ready
 <what was out of scope or not verifiable, and why>
 ```
 
-In CI, also return the verdict, `Ready` or `Not ready`, as the run's structured output (`verdict`).
+In CI, do not post to the PR: return the full report as the structured output `report` and the verdict, `Ready` or
+`Not ready`, as `verdict`. The workflow posts the report as one PR comment and enforces the verdict.
 
 ## Rules for rigour
 - Every finding cites an Accept item, a non-negotiable, an area rule, or says Beyond spec / Spec gap.
