@@ -375,7 +375,9 @@ describe('Timeline', () => {
     }
     render(<Paged />);
     await user.click(screen.getByRole('button', { name: 'Show earlier activity' }));
-    expect(document.activeElement?.textContent).toContain('PlanetPulse Compliance created this instance');
+    expect(document.activeElement?.textContent).toContain(
+      'PlanetPulse Compliance created this instance',
+    );
   });
 
   it('shows loading and empty states', () => {
