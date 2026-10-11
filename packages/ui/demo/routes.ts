@@ -9,6 +9,7 @@ export const galleryRoutes = [
   { path: '/context', title: 'ClientSwitcher, PeriodPicker and DateInput', spec: '02-03' },
   { path: '/metrics', title: 'KpiCard, ScoreRing and ProgressBar', spec: '04-06' },
   { path: '/status', title: 'StatusPill and CriticalityTag', spec: '07-08' },
+  { path: '/feedback', title: 'EmptyState and Toast', spec: '14, 17' },
 ] as const;
 
 export type GalleryPath = (typeof galleryRoutes)[number]['path'];

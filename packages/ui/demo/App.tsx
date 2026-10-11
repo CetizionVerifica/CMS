@@ -4,6 +4,7 @@ import { Link } from '../src';
 import { ButtonsPage } from './pages/ButtonsPage';
 import { ContextPage } from './pages/ContextPage';
 import { DisplayPage } from './pages/DisplayPage';
+import { FeedbackPage } from './pages/FeedbackPage';
 import { FieldsPage } from './pages/FieldsPage';
 import { MetricsPage } from './pages/MetricsPage';
 import { OverlaysPage } from './pages/OverlaysPage';
@@ -23,6 +24,7 @@ const components: Record<GalleryPath, ComponentType> = {
   '/context': ContextPage,
   '/metrics': MetricsPage,
   '/status': StatusPage,
+  '/feedback': FeedbackPage,
 };
 
 function Home() {

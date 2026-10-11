@@ -81,3 +81,19 @@ test('the shell uses the real switcher and period chip at every width', async ({
   await expect(page.getByRole('dialog', { name: 'Choose period' })).toBeVisible();
   await expectNoPageOverflow(page);
 });
+
+test('toasts are axe-clean, reachable with F8 and placed by width', async ({ page }) => {
+  await page.goto('/#/feedback');
+  // Keyboard, because on a phone the first toast sits over the next button.
+  await page.getByRole('button', { name: 'Success with Undo' }).press('Enter');
+  await page.getByRole('button', { name: 'Error', exact: true }).press('Enter');
+  const region = page.getByRole('region', { name: /Notifications/ });
+  await expect(region.getByText('Approved. 3 left in your queue.')).toBeVisible();
+  await expect(region.getByText("Couldn't approve. Try again.")).toBeVisible();
+  await expectNoA11yViolations(page);
+  await expectNoPageOverflow(page);
+  await page.keyboard.press('F8');
+  await page.keyboard.press('Tab');
+  const focusedInRegion = await region.evaluate((r) => r.contains(document.activeElement));
+  expect(focusedInRegion).toBe(true);
+});
