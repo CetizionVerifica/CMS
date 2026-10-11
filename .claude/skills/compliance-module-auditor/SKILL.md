@@ -110,7 +110,7 @@ Verdict: Ready | Not ready
 <what was out of scope or not verifiable, and why>
 ```
 
-In CI, also write the single word `Ready` or `Not ready` to `audit-verdict.txt` at the repo root.
+In CI, also return the verdict, `Ready` or `Not ready`, as the run's structured output (`verdict`).
 
 ## Rules for rigour
 - Every finding cites an Accept item, a non-negotiable, an area rule, or says Beyond spec / Spec gap.

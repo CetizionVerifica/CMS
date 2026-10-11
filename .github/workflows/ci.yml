@@ -179,7 +179,8 @@ jobs:
           cache: pnpm
       # No install scripts in the job that holds the API key.
       - run: pnpm install --frozen-lockfile --ignore-scripts
-      - uses: anthropics/claude-code-action@v1
+      - id: audit
+        uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
@@ -190,14 +191,18 @@ jobs:
             base ${{ github.base_ref }}. Lint, typecheck, unit tests with coverage and the path guard already passed.
             If the title has no module id, audit the diff against the root CLAUDE.md non-negotiables and quality
             gates instead of a MODULES.md acceptance list.
-            Post the report as one PR comment with `gh pr comment`, then write the verdict to audit-verdict.txt.
+            Post the report as one PR comment with `gh pr comment`, then return the verdict as the structured
+            output.
           claude_args: >-
-            --allowedTools "Read,Grep,Glob,Write(audit-verdict.txt),Bash(pnpm lint*),Bash(pnpm typecheck*),Bash(pnpm test*),Bash(node --test tooling/scripts/*),Bash(git diff *),Bash(git log *),Bash(git show *),Bash(gh pr view *),Bash(gh pr diff *),Bash(gh pr comment *)"
+            --json-schema '{"type":"object","properties":{"verdict":{"type":"string","enum":["Ready","Not ready"]}},"required":["verdict"]}'
+            --allowedTools "Read,Grep,Glob,Bash(pnpm lint*),Bash(pnpm typecheck*),Bash(pnpm test*),Bash(node --test tooling/scripts/*),Bash(git diff *),Bash(git log *),Bash(git show *),Bash(gh pr view *),Bash(gh pr diff *),Bash(gh pr comment *)"
+      # The verdict comes back as validated structured output, not a file the model has to write.
       - name: Require a Ready verdict
+        env:
+          VERDICT: ${{ fromJSON(steps.audit.outputs.structured_output || '{}').verdict }}
         run: |
-          verdict="$(tr -d '[:space:]' < audit-verdict.txt 2>/dev/null || true)"
-          echo "Audit verdict: ${verdict:-missing}"
-          test "$verdict" = "Ready"
+          echo "Audit verdict: ${VERDICT:-missing}"
+          test "$VERDICT" = "Ready"
 
   # Single status to mark as required in branch protection, so new jobs don't need settings changes.
   ci-ok:
