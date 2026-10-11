@@ -33,8 +33,10 @@ with sign-off per "How to change a contract".
 5. Golden counts use two import profiles (`raw` 424 instances, `recommended` 422) because two Excel rows become duplicates once "HR" and "Human Resources" are merged.
 6. JSON fixtures pseudonymise the sample's employee names; the xlsx golden file is unchanged.
 7. Events go through a transactional outbox on pg-boss; consumers dedupe on event id.
-8. Entity schemas are strict (unknown keys rejected) so fixtures and seeds cannot carry typos. Response parsing on the
-   client should use the request/response schemas (PR 2), which tolerate added fields.
+8. Entity schemas are strict (unknown keys rejected, enums closed, enum-keyed records exhaustive) so fixtures, seeds and
+   server-side writes cannot carry typos. That is deliberately stricter than api-conventions.md §7, which lets the API
+   add fields and enum values without a version bump. Clients must not parse responses with these entity schemas: the
+   response schemas (M0 PR 2) accept unknown fields, unknown enum values (shown as "Unknown") and extra record keys.
 9. `jurisdiction: CENTRAL` has `stateCode: null`; `STATE` needs one. This holds for Acts and obligations.
 10. A person's email follows status: `UNCLAIMED` has none, `INVITED` and `ACTIVE` need one, `DISABLED` may have either.
 11. Membership shape follows role: firm roles have no `clientId`, client roles need one; only `CONSULTANT` has
@@ -44,5 +46,10 @@ with sign-off per "How to change a contract".
     `NOT_APPLICABLE` and a `COMPLETION` submission; `naReason` for `NOT_APPLICABLE` and an `NA` submission;
     `periodEnd >= periodStart`.
 13. `ScoreResult.onTimeRate` is a percentage with one decimal like `score` (0-100), not a 0-1 fraction.
+    `counts[s]` always equals `instanceIds[s].length`, and an `InstanceRow` has `overdueDays` exactly when its status is
+    `OVERDUE`. At least one criticality weight must be above zero.
 14. An `ImportIssue`'s severity is fixed by its type (the table in domain-model.md §6), and `editedValue` is set exactly
     when the decision is `EDITED`.
+15. `ImportRow` and `ImportIssue` carry no `firmId` in the API shape: they are always read through their batch, which
+    does. Their tables still need `firm_id` and an RLS policy like every other client-data table (root CLAUDE.md
+    non-negotiable 1); M3 adds the column.

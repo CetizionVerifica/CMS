@@ -32,17 +32,29 @@ const Percent = z
     message: 'Expected at most one decimal place',
   });
 
-export const ScoreResult = z.strictObject({
-  engineVersion: Text,
-  asOf: LocalDate,
-  /** Percentage with one decimal; null = "No items due". */
-  score: Percent.nullable(),
-  /** On-time complied / due, unweighted, as a percentage with one decimal; null when nothing is due. */
-  onTimeRate: Percent.nullable(),
-  counts: z.record(DerivedStatus, z.int().min(0)),
-  /** The instances behind each count, so every number links to exactly those rows. */
-  instanceIds: z.record(DerivedStatus, z.array(Id)),
-});
+export const ScoreResult = z
+  .strictObject({
+    engineVersion: Text,
+    asOf: LocalDate,
+    /** Percentage with one decimal; null = "No items due". */
+    score: Percent.nullable(),
+    /** On-time complied / due, unweighted, as a percentage with one decimal; null when nothing is due. */
+    onTimeRate: Percent.nullable(),
+    counts: z.record(DerivedStatus, z.int().min(0)),
+    /** The instances behind each count, so every number links to exactly those rows. */
+    instanceIds: z.record(DerivedStatus, z.array(Id)),
+  })
+  .superRefine((r, ctx) => {
+    for (const status of DerivedStatus.options) {
+      if (r.counts[status] !== r.instanceIds[status].length) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['counts', status],
+          message: `counts.${status} must equal the number of instanceIds.${status}`,
+        });
+      }
+    }
+  });
 export type ScoreResult = z.infer<typeof ScoreResult>;
 
 export const Breakdown = z.strictObject({

@@ -75,6 +75,19 @@ describe('firm and client', () => {
       }).success,
     ).toBe(false);
   });
+  it('reject weights that are all zero', () => {
+    const zero = { SUPER_CRITICAL: 0, CRITICAL: 0, HIGH: 0, MEDIUM: 0, LOW: 0 };
+    const settings = { ...DEFAULT_FIRM_SETTINGS, criticalityWeights: zero };
+    expect(Firm.safeParse({ ...versioned, name: 'F', settings }).success).toBe(false);
+    const oneWeight = { ...zero, SUPER_CRITICAL: 1 };
+    expect(
+      Firm.safeParse({
+        ...versioned,
+        name: 'F',
+        settings: { ...settings, criticalityWeights: oneWeight },
+      }).success,
+    ).toBe(true);
+  });
   it('reject a bad FY start month, time zone or digest weekday', () => {
     const bad = [
       { ...DEFAULT_CLIENT_SETTINGS, fyStartMonth: 13 },
@@ -151,6 +164,8 @@ describe('Person', () => {
       'Must be lower-case with whitespace collapsed',
     );
     expect(Person.safeParse({ ...person, nameNormalized: 'ravi  kumar' }).success).toBe(false);
+    expect(Person.safeParse({ ...person, nameNormalized: 'ravi\tkumar' }).success).toBe(false);
+    expect(Person.safeParse({ ...person, nameNormalized: 'ravi\nkumar' }).success).toBe(false);
   });
   it('ties email to status', () => {
     expect(Person.safeParse({ ...person, email: 'ravi@example.com' }).success).toBe(false);
@@ -333,6 +348,17 @@ describe('register rows', () => {
     };
     expect(InstanceDetail.safeParse(detail).success).toBe(true);
     expect(InstanceDetail.safeParse({ ...detail, allowedActions: ['DELETE'] }).success).toBe(false);
+  });
+  it('tie overdueDays to the OVERDUE status', () => {
+    expect(
+      InstanceRow.safeParse({ ...instanceRow, status: 'OVERDUE', overdueDays: 3 }).success,
+    ).toBe(true);
+    expect(
+      InstanceRow.safeParse({ ...instanceRow, status: 'OVERDUE', overdueDays: null }).success,
+    ).toBe(false);
+    expect(
+      InstanceRow.safeParse({ ...instanceRow, status: 'COMPLIED', overdueDays: 3 }).success,
+    ).toBe(false);
   });
   it('reject zero overdue days and unknown statuses', () => {
     expect(

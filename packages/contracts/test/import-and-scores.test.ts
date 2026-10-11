@@ -144,6 +144,12 @@ describe('scores', () => {
     expect(ScoreResult.safeParse(result).success).toBe(true);
     expect(ScoreResult.safeParse({ ...result, score: null, onTimeRate: null }).success).toBe(true);
   });
+  it('requires every count to match its instance ids', () => {
+    expect(
+      ScoreResult.safeParse({ ...result, counts: { ...zeroCounts, COMPLIED: 2 } }).success,
+    ).toBe(false);
+    expect(ScoreResult.safeParse({ ...result, counts: zeroCounts }).success).toBe(false);
+  });
   it('rejects more than one decimal, out-of-range scores and missing statuses', () => {
     expect(ScoreResult.safeParse({ ...result, score: 51.34 }).success).toBe(false);
     expect(ScoreResult.safeParse({ ...result, score: 100.1 }).success).toBe(false);

@@ -23,7 +23,11 @@ import {
 /** Tenancy, entities and people (docs/contracts/domain-model.md §3). */
 
 export const FirmSettings = z.strictObject({
-  criticalityWeights: z.record(Criticality, z.number().min(0).max(100)),
+  criticalityWeights: z
+    .record(Criticality, z.number().min(0).max(100))
+    .refine((w) => Object.values(w).some((n) => n > 0), {
+      message: 'At least one criticality weight must be above zero',
+    }),
   dueSoonDays: z.int().min(0).max(90),
   /** Fixed true in v1. */
   mfaRequiredForFirmRoles: z.literal(true),
@@ -118,7 +122,11 @@ export const Person = z
     status: PersonStatus,
   })
   .superRefine((p, ctx) => {
-    if (p.nameNormalized !== p.nameNormalized.toLowerCase() || /\s{2,}/.test(p.nameNormalized)) {
+    // Single spaces only: no tabs, newlines or runs of spaces.
+    if (
+      p.nameNormalized !== p.nameNormalized.toLowerCase() ||
+      /[^\S ]| {2}/.test(p.nameNormalized)
+    ) {
       ctx.addIssue({
         code: 'custom',
         path: ['nameNormalized'],

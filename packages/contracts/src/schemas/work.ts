@@ -182,21 +182,37 @@ const instanceRowShape = {
   logSheetLabels: z.array(Text),
 };
 
+/** `overdueDays` is set exactly when the derived status is OVERDUE. */
+function checkOverdueDays(
+  row: { status: DerivedStatus; overdueDays: number | null },
+  ctx: z.core.$RefinementCtx,
+): void {
+  if ((row.status === 'OVERDUE') !== (row.overdueDays !== null)) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['overdueDays'],
+      message: 'overdueDays is set exactly when OVERDUE',
+    });
+  }
+}
+
 /** Register row: what instance list endpoints return, flattened for the grid and export. */
-export const InstanceRow = z.strictObject(instanceRowShape);
+export const InstanceRow = z.strictObject(instanceRowShape).superRefine(checkOverdueDays);
 export type InstanceRow = z.infer<typeof InstanceRow>;
 
-export const InstanceDetail = z.strictObject({
-  ...instanceRowShape,
-  description: LongText,
-  applicabilityText: LongText.nullable(),
-  naReason: LongText.nullable(),
-  forms: z.array(TemplateRef),
-  logSheets: z.array(TemplateRef),
-  evidenceRequired: z.boolean(),
-  /** Computed by the API from can() and the state machine; the UI shows only these. */
-  allowedActions: z.array(InstanceAction),
-});
+export const InstanceDetail = z
+  .strictObject({
+    ...instanceRowShape,
+    description: LongText,
+    applicabilityText: LongText.nullable(),
+    naReason: LongText.nullable(),
+    forms: z.array(TemplateRef),
+    logSheets: z.array(TemplateRef),
+    evidenceRequired: z.boolean(),
+    /** Computed by the API from can() and the state machine; the UI shows only these. */
+    allowedActions: z.array(InstanceAction),
+  })
+  .superRefine(checkOverdueDays);
 export type InstanceDetail = z.infer<typeof InstanceDetail>;
 
 /** Largest evidence file accepted (api-conventions.md §6). */
