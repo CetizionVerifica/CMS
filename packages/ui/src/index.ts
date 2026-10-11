@@ -110,8 +110,20 @@ export type { DrawerProps } from './components/Drawer';
 export { ConfirmDialog } from './components/ConfirmDialog';
 export type { ConfirmDialogProps } from './components/ConfirmDialog';
 
+// 12-13 · Lists
+export { DeadlineList } from './components/DeadlineList';
+export type { DeadlineItem, DeadlineListProps } from './components/DeadlineList';
+export { TaskList } from './components/TaskList';
+export type { TaskItem, TaskListProps } from './components/TaskList';
+
 // 14, 17 · Feedback
 export { EmptyState } from './components/EmptyState';
 export type { EmptyStateProps, EmptyStateVariant } from './components/EmptyState';
 export { dismissToast, toast, Toaster } from './components/Toast';
 export type { ToastOptions, ToastTone } from './components/Toast';
+
+// 15-16 · Evidence and activity
+export { FileDrop, middleTruncate } from './components/FileDrop';
+export type { FileDropProps, UploadItem, UploadState } from './components/FileDrop';
+export { formatTimestamp, Timeline } from './components/Timeline';
+export type { AuditEventKind, TimelineEvent, TimelineProps } from './components/Timeline';

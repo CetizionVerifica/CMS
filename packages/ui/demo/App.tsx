@@ -5,8 +5,10 @@ import { ButtonsPage } from './pages/ButtonsPage';
 import { ContextPage } from './pages/ContextPage';
 import { DataTablePage } from './pages/DataTablePage';
 import { DisplayPage } from './pages/DisplayPage';
+import { EvidencePage } from './pages/EvidencePage';
 import { FeedbackPage } from './pages/FeedbackPage';
 import { FieldsPage } from './pages/FieldsPage';
+import { ListsPage } from './pages/ListsPage';
 import { MetricsPage } from './pages/MetricsPage';
 import { OverlaysPage } from './pages/OverlaysPage';
 import { ShellFrame, ShellPage } from './pages/ShellPage';
@@ -27,6 +29,8 @@ const components: Record<GalleryPath, ComponentType> = {
   '/status': StatusPage,
   '/feedback': FeedbackPage,
   '/data-table': DataTablePage,
+  '/lists': ListsPage,
+  '/evidence': EvidencePage,
 };
 
 function Home() {

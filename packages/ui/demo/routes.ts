@@ -10,7 +10,9 @@ export const galleryRoutes = [
   { path: '/metrics', title: 'KpiCard, ScoreRing and ProgressBar', spec: '04-06' },
   { path: '/status', title: 'StatusPill and CriticalityTag', spec: '07-08' },
   { path: '/data-table', title: 'DataTable', spec: '09, 11, 18' },
+  { path: '/lists', title: 'DeadlineList and TaskList', spec: '12-13' },
   { path: '/feedback', title: 'EmptyState and Toast', spec: '14, 17' },
+  { path: '/evidence', title: 'FileDrop and Timeline', spec: '15-16' },
 ] as const;
 
 export type GalleryPath = (typeof galleryRoutes)[number]['path'];
