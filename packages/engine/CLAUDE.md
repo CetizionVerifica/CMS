@@ -53,3 +53,5 @@ consultant digest weekly. Never return a notification for COMPLIED or NOT_APPLIC
 - Holiday policies skip Sundays and an optional `holidays` list on the calendar.
 - The sample-register golden fixture is `test/fixtures/sample-fy2022-23.json` (no names), produced by
   `test/fixtures/extract-sample.py`; low-confidence obligations are listed in `test/golden.test.ts`.
+- `inferRule` scores over the window the register covers (`options.coverage`); importers should pass it.
+- "Today" for a client is `localDateIn(now, timeZone)`; never compare a timestamp with a due date directly.

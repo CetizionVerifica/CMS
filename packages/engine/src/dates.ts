@@ -1,4 +1,4 @@
-import { isLocalDate, type LocalDate } from '@canopy/contracts';
+import { Instant, isLocalDate, type LocalDate } from '@canopy/contracts';
 
 /**
  * Calendar-date helpers. A LocalDate is an ISO "YYYY-MM-DD" string with no time zone.
@@ -142,4 +142,24 @@ export function fyRangeOf(label: string, fyStartMonth: number): { from: LocalDat
     throw new RangeError(`Not an FY label like 2022-23: ${label}`);
   }
   return fyBounds(Number(match[1]), fyStartMonth);
+}
+
+/**
+ * The calendar date an instant falls on in an IANA time zone: "today" for a client is
+ * `localDateIn(now, client.settings.timeZone)`, with `now` passed in by the caller (the engine reads no clock).
+ * Use it before comparing a timestamp with a due date. Throws a RangeError for a malformed instant or time zone.
+ */
+export function localDateIn(instant: string, timeZone: string): LocalDate {
+  if (!Instant.safeParse(instant).success) {
+    throw new RangeError(`Not a UTC instant like 2026-10-11T09:17:43Z: ${instant}`);
+  }
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(new Date(instant));
+  const part = (type: 'year' | 'month' | 'day'): number =>
+    Number(parts.find((p) => p.type === type)?.value);
+  return fromParts(part('year'), part('month'), part('day'));
 }

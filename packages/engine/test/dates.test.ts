@@ -15,6 +15,7 @@ import {
   fyStartYear,
   isLeapYear,
   isoWeekday,
+  localDateIn,
   toDayNumber,
   toParts,
 } from '../src/index.js';
@@ -150,5 +151,23 @@ describe('financial year', () => {
   it.each([0, 13, 4.5])('rejects fyStartMonth %d', (m) => {
     expect(() => fyStartYear(d('2022-04-01'), m)).toThrow(RangeError);
     expect(() => fyBounds(2022, m)).toThrow(RangeError);
+  });
+});
+
+describe('localDateIn', () => {
+  it('turns an instant into the client calendar date at the Asia/Kolkata FY boundary', () => {
+    // Asia/Kolkata is UTC+05:30: 18:30Z is midnight local time.
+    expect(localDateIn('2023-03-31T18:29:59Z', 'Asia/Kolkata')).toBe('2023-03-31');
+    expect(localDateIn('2023-03-31T18:30:00Z', 'Asia/Kolkata')).toBe('2023-04-01');
+    expect(localDateIn('2023-03-31T18:30:00.000Z', 'UTC')).toBe('2023-03-31');
+  });
+  it('handles zones behind UTC and leap days', () => {
+    expect(localDateIn('2024-03-01T04:00:00Z', 'America/New_York')).toBe('2024-02-29');
+    expect(localDateIn('2024-02-29T23:59:59Z', 'Asia/Kolkata')).toBe('2024-03-01');
+  });
+  it('rejects instants that are not UTC and unknown time zones', () => {
+    expect(() => localDateIn('2023-03-31T23:00:00+05:30', 'Asia/Kolkata')).toThrow(RangeError);
+    expect(() => localDateIn('2023-03-31', 'Asia/Kolkata')).toThrow(RangeError);
+    expect(() => localDateIn('2023-03-31T18:30:00Z', 'Mars/Olympus')).toThrow(RangeError);
   });
 });

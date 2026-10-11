@@ -37,16 +37,29 @@ see, so they are recorded here. Changing any of them bumps `ENGINE_VERSION`.
 `holidays` is an engine-side optional extension until one exists. `NONE` (the default) never moves a date.
 
 ### Rule inference (`inferRule`)
-1. Each candidate rule is generated over the FYs the dates span and compared with the dates as a multiset.
+1. Each candidate rule is generated over the window the register covers and compared with the dates as a multiset.
+   The window is `options.coverage` when the importer passes it (the span the register was exported for), else the
+   first to the last due date, so a client onboarded mid-year is not penalised for months the register never held.
    `confidence = matched / max(expected, generated)`; an unmatched expected date is paired with the nearest unused
    generated date, or `null` when none is left (duplicates).
-2. Highest confidence wins; ties go to the earlier candidate. ONGOING obligations try `ONGOING_REVIEW` first;
-   TIME_BASED ones try ANNUAL, QUARTERLY, HALF_YEARLY, MONTHLY, then ONGOING_REVIEW. FIXED_DATES comes last and only for
-   at most four distinct month/days, so drifting monthly dates come back as MONTHLY with mismatches. Quarter and half
-   offsets are tried up to 31 days before the period end and 60 days after it.
-3. A numeric monthly day prefers `offsetMonths: 1` (statutory deposits are for the previous month); `LAST` prefers 0.
-4. On the sample register 111 of 119 obligations regenerate exactly; the other 8 (drifting monthly dates and the two
-   duplicate periods) are listed with their mismatches in `packages/engine/test/golden.test.ts`.
+2. The best periodic rule wins: highest confidence, then the fewest periods a year, then the preference order.
+   ONGOING obligations try `ONGOING_REVIEW` first; TIME_BASED ones try ANNUAL, QUARTERLY, HALF_YEARLY, MONTHLY, then
+   ONGOING_REVIEW. Quarter and half offsets are tried up to 31 days before the period end and 60 days after it.
+3. If periodic rules of different frequencies all match every date (the window is too short to tell, e.g. one date
+   with no coverage), the result is ambiguous: the sparsest rule is returned at confidence 0.5 so import flags it
+   `TO_REVIEW`.
+4. FIXED_DATES is tried only when no periodic rule matches every date, for two to four distinct month/days, and wins
+   when it is at least as good. From a window shorter than a year its confidence is halved, because the register
+   says nothing about the rest of the year. Drifting monthly dates therefore come back as MONTHLY with mismatches.
+5. A numeric monthly day prefers `offsetMonths: 1` (statutory deposits are for the previous month); `LAST` prefers 0.
+6. On the sample register (coverage FY 2022-23) 111 of 119 obligations regenerate exactly; the other 8 (drifting
+   monthly dates and the two duplicate periods) are listed with their mismatches in
+   `packages/engine/test/golden.test.ts`.
+
+### Time zones
+Due dates are calendar dates; "today" for a client is `localDateIn(now, client.settings.timeZone)`, where the caller
+passes `now` as a UTC instant. Modules convert timestamps with this helper before comparing them with due dates or
+passing `asOf` to the engine.
 
 ### Status, score and reminders
 1. `deriveStatus` follows `packages/engine/CLAUDE.md`; `asOf == dueDate` is DUE_SOON, not overdue. APPROVED without
@@ -54,7 +67,10 @@ see, so they are recorded here. Changing any of them bumps `ENGINE_VERSION`.
 2. `computeScore` counts every item passed in; the score and on-time rate use items with `dueDate <= asOf`, excluding
    NOT_APPLICABLE. A SUBMITTED NA request still counts as due until it is approved. Percentages round half up to one
    decimal. A zero weighted denominator gives a `null` score. On the sample this gives fixtures.md §4 exactly.
-3. `planNotifications` reminds the owner only while the instance is OPEN or SENT_BACK, and escalates to the approver
+3. Status is derived from the instance as stored now, not as it stood on `asOf`: an item approved in January shows
+   COMPLIED at `asOf` 30 September of the year before. fixtures.md §4 expects this (209 COMPLIED at every `asOf`).
+   Point-in-time history would need the audit trail and is a contract decision for M0, not an engine change.
+4. `planNotifications` reminds the owner only while the instance is OPEN or SENT_BACK, and escalates to the approver
    while it is OPEN, SENT_BACK or SUBMITTED. APPROVED and NOT_APPLICABLE never notify. It needs the instance `id`
    (requested from M0 as an additive contract change).
 

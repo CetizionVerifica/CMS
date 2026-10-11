@@ -119,7 +119,7 @@ describe('golden: sample register FY 2022-23 due dates', () => {
     '%s: the inferred rule regenerates the Excel due dates',
     (ref) => {
       const o = obligations.get(ref) as { timelineType: TimelineType; dueDates: LocalDate[] };
-      const inferred = inferRule(o.dueDates, o.timelineType, cal);
+      const inferred = inferRule(o.dueDates, o.timelineType, cal, { coverage: fy });
       const expected = LOW_CONFIDENCE[ref];
       if (expected) {
         expect(inferred).toEqual({
@@ -142,7 +142,7 @@ describe('golden: sample register FY 2022-23 due dates', () => {
   it('infers the expected mix of rule kinds', () => {
     const kinds: Record<string, number> = {};
     for (const o of obligations.values()) {
-      const { kind } = inferRule(o.dueDates, o.timelineType, cal).rule;
+      const { kind } = inferRule(o.dueDates, o.timelineType, cal, { coverage: fy }).rule;
       kinds[kind] = (kinds[kind] ?? 0) + 1;
     }
     expect(kinds).toEqual({ ONGOING_REVIEW: 76, ANNUAL: 28, FIXED_DATES: 11, MONTHLY: 4 });

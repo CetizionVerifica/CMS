@@ -5,28 +5,30 @@ import type {
   RecurrenceRule,
   TimelineType,
 } from '@canopy/contracts';
-import {
-  addMonths,
-  clampedDate,
-  compareDates,
-  daysBetween,
-  fyBounds,
-  fyStartYear,
-  toParts,
-} from './dates.js';
+import { addMonths, clampedDate, compareDates, daysBetween, toParts } from './dates.js';
 import { generateInstances, type Calendar } from './recurrence.js';
 
 /**
  * Rule inference for import (docs/adr/0001): given the due dates a register holds for one obligation, find the
  * RecurrenceRule that regenerates them best.
  *
- * Every candidate is generated over the FYs the dates span and compared with the dates as a multiset.
- * `confidence` = matched dates / max(expected, generated). The highest confidence wins; ties go to the earlier
- * candidate in the preference order (ONGOING obligations prefer ONGOING_REVIEW, TIME_BASED ones prefer the named
- * periodic kinds; FIXED_DATES comes last and is only tried for at most four distinct dates a year, so drifting
- * monthly dates come back as MONTHLY with mismatches instead of a 12-date list). Quarter and half-year offsets are
- * tried up to 31 days before the period end and 60 days after it.
+ * Candidates are generated over the window the register covers (`coverage`, default: first to last due date) and
+ * compared with the dates as a multiset: `confidence` = matched dates / max(expected, generated), so a register that
+ * starts mid-year is not penalised for the months it does not hold.
+ *  1. The best periodic rule wins: highest confidence, then the fewest periods a year, then the preference order
+ *     (ONGOING obligations try ONGOING_REVIEW first; TIME_BASED ones ANNUAL, QUARTERLY, HALF_YEARLY, MONTHLY).
+ *  2. When periodic rules of different frequencies all match every date (a window too short to tell, such as one
+ *     date), the rule is ambiguous and its confidence is halved so import flags it TO_REVIEW.
+ *  3. FIXED_DATES is tried only when no periodic rule matches every date, for two to four distinct month/days, and
+ *     only wins when strictly better. From a window shorter than a year its confidence is halved too, because the
+ *     dates the register does not cover are unknown.
+ * Quarter and half-year offsets are tried up to 31 days before the period end and 60 days after it.
  */
+
+export interface InferOptions {
+  /** The span the register covers (e.g. the FY it was exported for). Defaults to the first and last due date. */
+  coverage?: { from: LocalDate; to: LocalDate };
+}
 
 const MAX_FIXED_DATES = 4;
 /** Statutory "within N days" windows rarely pass these; beyond them a fixed date list reads better. */
@@ -115,7 +117,7 @@ function candidates(
   dates: readonly LocalDate[],
   timelineType: TimelineType,
   fyStartMonth: number,
-): RecurrenceRule[] {
+): { periodic: RecurrenceRule[]; fixed: RecurrenceRule | null } {
   const monthDays = distinctMonthDays(dates, fyStartMonth);
   const ongoing: RecurrenceRule[] = (['QUARTER', 'MONTH', 'HALF_YEAR', 'YEAR'] as const).map(
     (every) => ({
@@ -140,11 +142,31 @@ function candidates(
     ...anchorRules('HALF_YEARLY', dates, fyStartMonth),
     ...monthly,
   ];
-  const fixed: RecurrenceRule[] =
-    monthDays.length <= MAX_FIXED_DATES ? [{ kind: 'FIXED_DATES', dates: monthDays }] : [];
-  return timelineType === 'ONGOING'
-    ? [...ongoing, ...periodic, ...fixed]
-    : [...periodic, ...ongoing, ...fixed];
+  return {
+    periodic: timelineType === 'ONGOING' ? [...ongoing, ...periodic] : [...periodic, ...ongoing],
+    // One month/day is ANNUAL already.
+    fixed:
+      monthDays.length > 1 && monthDays.length <= MAX_FIXED_DATES
+        ? { kind: 'FIXED_DATES', dates: monthDays }
+        : null,
+  };
+}
+
+/** Periods a year; lower means a sparser rule. */
+const PER_YEAR = { MONTH: 12, QUARTER: 4, HALF_YEAR: 2, YEAR: 1 } as const;
+function perYear(rule: RecurrenceRule): number {
+  switch (rule.kind) {
+    case 'MONTHLY':
+      return 12;
+    case 'QUARTERLY':
+      return 4;
+    case 'HALF_YEARLY':
+      return 2;
+    case 'ONGOING_REVIEW':
+      return PER_YEAR[rule.every];
+    default:
+      return 1;
+  }
 }
 
 /** Infers the recurrence rule behind a register's due dates for one obligation. */
@@ -152,18 +174,46 @@ export function inferRule(
   dueDates: readonly LocalDate[],
   timelineType: TimelineType,
   cal: Calendar,
+  options: InferOptions = {},
 ): InferredRule {
   if (dueDates.length === 0) throw new RangeError('inferRule needs at least one due date');
   const expected = [...dueDates].sort(compareDates);
-  const range = {
-    from: fyBounds(fyStartYear(expected[0] as LocalDate, cal.fyStartMonth), cal.fyStartMonth).from,
-    to: fyBounds(fyStartYear(expected.at(-1) as LocalDate, cal.fyStartMonth), cal.fyStartMonth).to,
+  const first = expected[0] as LocalDate;
+  const last = expected.at(-1) as LocalDate;
+  const coverage = options.coverage;
+  const window = {
+    from: coverage && compareDates(coverage.from, first) < 0 ? coverage.from : first,
+    to: coverage && compareDates(coverage.to, last) > 0 ? coverage.to : last,
   };
-  let best: Scored | null = null;
-  for (const rule of candidates(expected, timelineType, cal.fyStartMonth)) {
-    const generated = generateInstances(rule, range, cal).map((p) => p.dueDate);
-    const result = score(rule, expected, generated);
-    if (best === null || result.confidence > best.confidence) best = result;
+  const scoreRule = (rule: RecurrenceRule): Scored =>
+    score(
+      rule,
+      expected,
+      generateInstances(rule, window, cal).map((p) => p.dueDate),
+    );
+
+  const { periodic, fixed } = candidates(expected, timelineType, cal.fyStartMonth);
+  const scored = periodic.map(scoreRule);
+  let best = scored[0] as Scored;
+  for (const result of scored) {
+    if (
+      result.confidence > best.confidence ||
+      (result.confidence === best.confidence && perYear(result.rule) < perYear(best.rule))
+    ) {
+      best = result;
+    }
   }
-  return best as Scored;
+  const shortWindow = daysBetween(window.from, window.to) < 364;
+  if (best.confidence === 1) {
+    const exactFrequencies = new Set(
+      scored.filter((r) => r.confidence === 1).map((r) => perYear(r.rule)),
+    );
+    return exactFrequencies.size > 1 ? { ...best, confidence: 0.5 } : best;
+  }
+  if (fixed) {
+    const result = scoreRule(fixed);
+    const confidence = shortWindow ? result.confidence / 2 : result.confidence;
+    if (confidence >= best.confidence) return { ...result, confidence };
+  }
+  return best;
 }
