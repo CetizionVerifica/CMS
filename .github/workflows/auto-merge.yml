@@ -14,8 +14,10 @@ name: Auto-merge
 # blocks every PR behind it until the queue's 60-minute timeout. Without the secret this job only leaves a notice, and
 # the PR is queued by hand once it is audited and green.
 
+# pull_request_target, so main's copy of this file runs and a PR can't edit it to read AUTOMERGE_TOKEN. It checks out
+# no code and uses only event metadata.
 on:
-  pull_request:
+  pull_request_target:
     types: [opened, reopened, ready_for_review, labeled, unlabeled]
 
 permissions:
