@@ -199,6 +199,12 @@ jobs:
           claude_args: >-
             --json-schema '{"type":"object","properties":{"verdict":{"type":"string","enum":["Ready","Not ready"]},"report":{"type":"string"}},"required":["verdict","report"]}'
             --allowedTools "Skill,Read,Grep,Glob,Bash(pnpm lint*),Bash(pnpm typecheck*),Bash(pnpm test*),Bash(pnpm --filter * lint*),Bash(pnpm --filter * typecheck*),Bash(pnpm --filter * test*),Bash(node --test tooling/scripts/*),Bash(git diff *),Bash(git log *),Bash(git show *),Bash(git status*),Bash(ls *),Bash(wc *),Bash(gh pr view *),Bash(gh pr diff *),Bash(gh pr checks *)"
+      # The action hides the run's output; when the run itself errored (not the audit), print just its error.
+      - name: Show the auditor's error
+        if: always() && steps.audit.outcome == 'failure'
+        run: |
+          f="$RUNNER_TEMP/claude-execution-output.json"
+          [ -f "$f" ] && jq -r '[.[] | select(.type == "result" and .is_error == true)] | last | .result // empty' "$f" || true
       - name: Post the audit report
         if: always() && steps.audit.outcome != 'skipped'
         env:
