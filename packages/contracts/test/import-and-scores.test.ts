@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
   Action,
@@ -228,7 +229,11 @@ describe('request context', () => {
     ).toBe(true);
     expect(Resource.safeParse({ type: 'firm', clientId: null }).success).toBe(false);
   });
-  it('is version 1', () => {
-    expect(CONTRACTS_VERSION).toBe('1.0.0');
+  it('is version 1 and matches package.json', () => {
+    const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as {
+      version: string;
+    };
+    expect(CONTRACTS_VERSION).toBe(pkg.version);
+    expect(CONTRACTS_VERSION).toMatch(/^1\./);
   });
 });

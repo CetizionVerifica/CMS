@@ -165,7 +165,7 @@ generateInstances(rule: RecurrenceRule, range: { from: LocalDate; to: LocalDate 
 inferRule(dueDates: LocalDate[], timelineType: TimelineType, cal): InferredRule
 deriveStatus(i: InstanceStatusInput, asOf: LocalDate, s: { dueSoonDays: number }): { status: DerivedStatus; overdueDays: number | null; submittedOverdue: boolean }
 computeScore(items: ScoreInput[], asOf: LocalDate, s: FirmSettings): ScoreResult
-planNotifications(i: InstanceStatusInput & { ownerId: Id; approverId: Id }, s: ReminderSettings, asOf: LocalDate): PlannedNotification[]
+planNotifications(i: InstanceStatusInput & { id: Id; ownerId: Id; approverId: Id }, s: ReminderSettings, asOf: LocalDate): PlannedNotification[]
 ENGINE_VERSION: string
 ```
 
