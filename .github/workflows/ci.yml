@@ -130,14 +130,64 @@ jobs:
           queries: security-extended
       - uses: github/codeql-action/analyze@v3
 
+  # Independent module audit (.claude/skills/compliance-module-auditor) on every PR titled "M<n>: ...".
+  # Runs after the mechanical checks so it can rely on their results. Needs the ANTHROPIC_API_KEY repo secret;
+  # without it the job passes with a warning so CI is not blocked before the secret is set.
+  module-audit:
+    name: module-audit
+    needs: [checks, module-paths]
+    if: github.event_name == 'pull_request' && !github.event.pull_request.draft && startsWith(github.event.pull_request.title, 'M')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+      id-token: write
+    env:
+      HAS_KEY: ${{ secrets.ANTHROPIC_API_KEY != '' }}
+    steps:
+      - if: env.HAS_KEY != 'true'
+        run: echo "::warning::ANTHROPIC_API_KEY is not set; module audit skipped."
+      - if: env.HAS_KEY == 'true'
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - if: env.HAS_KEY == 'true'
+        uses: pnpm/action-setup@v4
+      - if: env.HAS_KEY == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - if: env.HAS_KEY == 'true'
+        run: pnpm install --frozen-lockfile
+      - if: env.HAS_KEY == 'true'
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          prompt: |
+            Use the compliance-module-auditor skill to audit PR #${{ github.event.pull_request.number }}
+            at ${{ github.event.pull_request.head.sha }} against
+            base ${{ github.base_ref }}. Lint, typecheck, unit tests with coverage and the path guard already passed.
+            Post the report as one PR comment with `gh pr comment`, then write the verdict to audit-verdict.txt.
+          claude_args: >-
+            --allowedTools "Read,Grep,Glob,Write(audit-verdict.txt),Bash(pnpm *),Bash(git diff *),Bash(git log *),Bash(git show *),Bash(gh pr view *),Bash(gh pr diff *),Bash(gh pr comment *)"
+      - if: env.HAS_KEY == 'true'
+        name: Require a Ready verdict
+        run: |
+          verdict="$(tr -d '[:space:]' < audit-verdict.txt 2>/dev/null || true)"
+          echo "Audit verdict: ${verdict:-missing}"
+          test "$verdict" = "Ready"
+
   # Single status to mark as required in branch protection, so new jobs don't need settings changes.
   ci-ok:
     name: ci-ok
     if: always()
-    needs: [checks, db, e2e, module-paths, audit, codeql]
+    needs: [checks, db, e2e, module-paths, audit, codeql, module-audit]
     runs-on: ubuntu-latest
     steps:
-      # A skipped job (module-paths on push) is fine; a failed or cancelled one is not.
+      # A skipped job (module-paths and module-audit on push or non-module PRs) is fine; a failed or cancelled one is not.
       - if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
         run: exit 1
       - run: echo "All CI jobs passed."
