@@ -66,3 +66,20 @@ pnpm db:seed        # seeds two firms and the sample client from the Excel fixtu
 ## Definition of done
 Lint, typecheck, unit and e2e tests green; new UI checked in light mode at 1280px and 375px and keyboard-only;
 audit events written for state changes; isolation test for new tables; docs or CLAUDE.md updated if a rule changed.
+
+## Quality gates (CI, all feed the required `ci-ok` check)
+| Gate | Job | What fails it |
+|---|---|---|
+| Lint, format, typecheck | `lint`, `typecheck` | ESLint, Prettier or `tsc` errors |
+| Unit tests + coverage | `test` | a failing test, or coverage under 80% (engine: 95%, and 100% on files named `*status*` / `*score*`). Thresholds live in each package's `vitest.config.mjs` via `@canopy/vitest-config`; never lower one to get green |
+| Database tests | `db` | a package's `test:db` script against Postgres 16 (`DATABASE_URL` is set). M3 puts tenant-isolation and migration tests here |
+| End to end + accessibility | `e2e` | a Playwright journey, or an axe WCAG 2.2 AA violation (`e2e/support/a11y.ts`; call it on every page a journey visits) |
+| Module paths | `module-paths` | a PR titled `M<n>: ...` changing files outside that module's paths in `tooling/modules.json` |
+| Dependencies | `audit` | a known high or critical vulnerability (`pnpm audit`) |
+| Static security | `codeql` | a CodeQL security-extended finding |
+
+Gates owned by modules, added with their first code: contract tests against the OpenAPI spec (M0, consumed by M6, M7, M8, M10),
+golden counts from `docs/requirements/excel-analysis.md` §5 (M4, M8), and a test that every state-changing route writes an `AuditEvent` (M7).
+
+Title every module PR `M<n>: <what>` so the path guard applies. Before merge, a separate thread audits the PR against its
+`MODULES.md` acceptance list and these rules; the builder thread does not grade its own module.

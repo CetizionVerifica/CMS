@@ -8,6 +8,7 @@
     "test:e2e": "playwright test"
   },
   "devDependencies": {
+    "@axe-core/playwright": "catalog:",
     "@canopy/api": "workspace:*",
     "@canopy/tsconfig": "workspace:*",
     "@canopy/web": "workspace:*",

@@ -1,0 +1,73 @@
+{
+  "$comment": "Paths each module may change, from the MODULES.md 'Owns' column. A path matches when it equals or starts with an entry. Keep in sync with MODULES.md and .github/CODEOWNERS. 'shared' lists files every module may touch: lockfile and catalog for new dependencies, app package.json files, the API route registration in server.ts, and ADRs.",
+  "shared": [
+    "pnpm-lock.yaml",
+    "pnpm-workspace.yaml",
+    "apps/api/package.json",
+    "apps/api/src/server.ts",
+    "apps/web/package.json",
+    "docs/adr/"
+  ],
+  "modules": {
+    "M0": ["packages/contracts/", "docs/contracts/"],
+    "M1": [
+      ".github/",
+      "docker/",
+      "tooling/",
+      "package.json",
+      "turbo.json",
+      "eslint.config.mjs",
+      ".prettierrc.json",
+      ".prettierignore",
+      ".editorconfig",
+      ".gitignore",
+      ".npmrc",
+      ".nvmrc",
+      ".env.example",
+      ".claude/",
+      "CLAUDE.md",
+      "README.md",
+      "PLAN.md",
+      "MODULES.md"
+    ],
+    "M2": ["packages/ui/"],
+    "M3": ["packages/db/"],
+    "M4": ["packages/engine/"],
+    "M5": ["apps/api/src/auth/"],
+    "M6": [
+      "apps/api/src/modules/clients/",
+      "apps/api/src/modules/entities/",
+      "apps/api/src/modules/people/",
+      "apps/api/src/modules/library/",
+      "apps/api/src/modules/assignments/"
+    ],
+    "M7": [
+      "apps/api/src/modules/instances/",
+      "apps/api/src/modules/evidence/",
+      "apps/api/src/modules/approvals/",
+      "apps/api/src/modules/audit/"
+    ],
+    "M8": ["packages/importer/", "apps/api/src/modules/imports/"],
+    "M9": ["apps/api/src/jobs/", "packages/notifications/"],
+    "M10": ["apps/api/src/modules/dashboard/", "apps/api/src/modules/reports/"],
+    "M11": ["apps/web/app/(shell)/", "apps/web/app/(auth)/", "apps/web/lib/", "e2e/tests/shell/"],
+    "M12": [
+      "apps/web/app/c/[clientId]/register/",
+      "apps/web/app/c/[clientId]/approvals/",
+      "apps/web/app/c/[clientId]/calendar/",
+      "apps/web/app/c/[clientId]/evidence/",
+      "e2e/tests/register/"
+    ],
+    "M13": [
+      "apps/web/app/portfolio/",
+      "apps/web/app/c/[clientId]/overview/",
+      "apps/web/app/c/[clientId]/import/",
+      "apps/web/app/c/[clientId]/setup/",
+      "apps/web/app/c/[clientId]/reports/",
+      "apps/web/app/c/[clientId]/audit/",
+      "apps/web/app/library/",
+      "e2e/tests/overview/"
+    ],
+    "M14": ["e2e/", "docs/security/", "perf/"]
+  }
+}

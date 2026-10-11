@@ -2,6 +2,7 @@ name: CI
 
 on:
   pull_request:
+    types: [opened, synchronize, reopened, edited]
   push:
     branches: [main]
 
@@ -22,13 +23,48 @@ jobs:
         task: [lint, typecheck, test]
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Full history so `turbo --affected` can diff against the PR base.
+          fetch-depth: 0
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm ${{ matrix.task }}
+      # On PRs, typecheck and test only the packages the PR changes (and their dependents).
+      # Root config or lockfile changes still run everything. main always runs everything.
+      - run: pnpm ${{ matrix.task }} ${{ github.event_name == 'pull_request' && matrix.task != 'lint' && '--affected' || '' }}
+
+  # Tests that need a real database (tenant isolation, migrations). Packages opt in with a `test:db` script.
+  db:
+    name: db
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: canopy
+          POSTGRES_PASSWORD: canopy
+          POSTGRES_DB: canopy
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U canopy -d canopy"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 30
+    env:
+      DATABASE_URL: postgres://canopy:canopy@localhost:5432/canopy
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test:db
 
   e2e:
     name: e2e
@@ -50,13 +86,58 @@ jobs:
           path: e2e/playwright-report
           retention-days: 7
 
+  # A PR titled "M<n>: ..." may only change the paths that module owns (tooling/modules.json).
+  module-paths:
+    name: module-paths
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+      - run: node --test tooling/scripts/*.test.mjs
+      - run: node tooling/scripts/check-module-paths.mjs "$PR_TITLE" "origin/$BASE_REF"
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          BASE_REF: ${{ github.base_ref }}
+
+  audit:
+    name: audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+      # Fails on any known high or critical vulnerability in the dependency tree.
+      - run: pnpm audit --audit-level=high
+
+  codeql:
+    name: codeql
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: github/codeql-action/init@v3
+        with:
+          languages: javascript-typescript
+          queries: security-extended
+      - uses: github/codeql-action/analyze@v3
+
   # Single status to mark as required in branch protection, so new jobs don't need settings changes.
   ci-ok:
     name: ci-ok
     if: always()
-    needs: [checks, e2e]
+    needs: [checks, db, e2e, module-paths, audit, codeql]
     runs-on: ubuntu-latest
     steps:
+      # A skipped job (module-paths on push) is fine; a failed or cancelled one is not.
       - if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
         run: exit 1
       - run: echo "All CI jobs passed."
