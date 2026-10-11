@@ -45,6 +45,8 @@ describe('RadioGroup', () => {
       />,
     );
     expect(screen.getByRole('radiogroup', { name: 'Density' })).toBeTruthy();
+    // Named once: no labelled wrapper group around the radiogroup.
+    expect(screen.queryByRole('group', { name: 'Density' })).toBeNull();
     await user.tab();
     expect(document.activeElement).toBe(screen.getByRole('radio', { name: 'Comfortable' }));
     await user.keyboard('{ArrowDown}');

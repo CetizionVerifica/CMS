@@ -1,3 +1,4 @@
+import { StrictMode } from 'react';
 import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import {
@@ -139,15 +140,33 @@ describe('AppShell at 1280px (sidebar)', () => {
   });
 
   it('on a title change sets document.title, focuses the h1 and announces it', async () => {
-    const { rerender } = render(<Shell title="Overview · Hindalco Belur · Canopy" />);
-    expect(document.title).toBe('Overview · Hindalco Belur · Canopy');
+    const { rerender } = render(
+      <Shell title="Overview · Hindalco Belur · PlanetPulse Compliance" />,
+    );
+    expect(document.title).toBe('Overview · Hindalco Belur · PlanetPulse Compliance');
     expect(document.activeElement).toBe(document.body);
-    rerender(<Shell title="Register · Hindalco Belur · Canopy" />);
-    expect(document.title).toBe('Register · Hindalco Belur · Canopy');
+    rerender(<Shell title="Register · Hindalco Belur · PlanetPulse Compliance" />);
+    expect(document.title).toBe('Register · Hindalco Belur · PlanetPulse Compliance');
     const h1 = screen.getByRole('heading', { level: 1, name: 'Register' });
     expect(document.activeElement).toBe(h1);
     expect(h1.getAttribute('tabindex')).toBe('-1');
     expect(screen.getByText('Register', { selector: '[aria-live] *, [aria-live]' })).toBeTruthy();
+  });
+
+  it('does not focus or announce on first load under StrictMode', () => {
+    render(
+      <StrictMode>
+        <Shell title="Overview · Hindalco Belur · PlanetPulse Compliance" />
+      </StrictMode>,
+    );
+    expect(document.activeElement).toBe(document.body);
+    expect(document.querySelector('[aria-live]')?.textContent).toBe('');
+  });
+
+  it('shows the client-facing product name by default', () => {
+    render(<Shell />);
+    expect(document.body.textContent).toContain('PlanetPulse Compliance');
+    expect(document.body.textContent).not.toContain('Canopy');
   });
 
   it('opens the account menu and runs an item', async () => {

@@ -107,7 +107,7 @@ export function ShellFrame() {
       activeHref={
         nav.flatMap((g) => g.items).find((i) => i.href.startsWith(`#/shell/${page}`))?.href ?? ''
       }
-      title={`${title} · ${noClient ? 'Firm' : clientName} · Canopy`}
+      title={`${title} · ${noClient ? 'Firm' : clientName} · PlanetPulse Compliance`}
       helpCard={{
         title: 'Need help?',
         body: 'Your consultant answers within one working day.',

@@ -93,7 +93,8 @@ export function RadioGroup({
   const labelId = useId();
   const base = useId();
   return (
-    <div role="group" aria-labelledby={labelId} className={cx('flex flex-col gap-1', className)}>
+    // The radiogroup itself carries the name; a labelled wrapper group would announce it twice.
+    <div className={cx('flex flex-col gap-1', className)}>
       <span id={labelId} className={hideLabel ? 'sr-only' : 'text-meta text-ink'}>
         {label}
       </span>

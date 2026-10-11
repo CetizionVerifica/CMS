@@ -33,7 +33,7 @@ test.describe('desktop', () => {
     await expect(page.getByRole('searchbox', { name: 'Search obligations' })).toBeFocused();
     await page.getByRole('link', { name: /^Approvals/ }).click();
     await expect(page.getByRole('heading', { level: 1, name: 'Approvals' })).toBeFocused();
-    await expect(page).toHaveTitle('Approvals · Hindalco Belur · Canopy');
+    await expect(page).toHaveTitle('Approvals · Hindalco Belur · PlanetPulse Compliance');
   });
 
   test('sidebar text is on-forest-muted, the selected item on-forest', async ({ page }) => {

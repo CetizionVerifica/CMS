@@ -69,7 +69,7 @@ export type AppShellProps = {
    * item href that prefixes it at a path boundary (a record page keeps its list's item current).
    */
   activeHref: string;
-  /** Product name next to the logo mark. */
+  /** Product name next to the logo mark. Client-facing, so it defaults to "PlanetPulse Compliance". */
   brand?: { name: string; href?: string };
   topBar: {
     clientSwitcher?: ReactNode;
@@ -82,7 +82,7 @@ export type AppShellProps = {
   };
   helpCard?: { title: string; body: string; href?: string; linkLabel?: string };
   /**
-   * Full document title ("Register · Hindalco Belur · Canopy"). When it changes, the shell sets document.title,
+   * Full document title ("Register · Hindalco Belur · PlanetPulse Compliance"). When it changes, the shell sets document.title,
    * moves focus to the page h1 and announces it.
    */
   title?: string;
@@ -119,7 +119,7 @@ function isTyping(target: EventTarget | null): boolean {
 export function AppShell({
   nav,
   activeHref,
-  brand = { name: 'Canopy' },
+  brand = { name: 'PlanetPulse Compliance' },
   topBar,
   helpCard,
   title,
@@ -134,16 +134,16 @@ export function AppShell({
   const [searchOpen, setSearchOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [announcement, setAnnouncement] = useState('');
-  const firstTitle = useRef(true);
+  // The last title applied. Compared, not flagged, so StrictMode's double effect on mount doesn't count as a route change.
+  const lastTitle = useRef<string | undefined>(undefined);
 
   // Title change = route change: update document.title, focus the page h1 and announce it.
   useEffect(() => {
     if (!title) return;
     document.title = title;
-    if (firstTitle.current) {
-      firstTitle.current = false;
-      return;
-    }
+    const previous = lastTitle.current;
+    lastTitle.current = title;
+    if (previous === undefined || previous === title) return;
     const h1 = mainRef.current?.querySelector('h1');
     if (h1) {
       if (!h1.hasAttribute('tabindex')) h1.setAttribute('tabindex', '-1');

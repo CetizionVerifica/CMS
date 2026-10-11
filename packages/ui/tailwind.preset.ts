@@ -61,7 +61,7 @@ const preset = {
     extend: {
       // The spacing tokens sit on Tailwind's own 4px scale, so numeric utilities stay standard:
       // space-1..7 (4, 8, 12, 14, 16, 22, 32, 48px) are `1`, `2`, `3`, `3.5`, `4`, `5.5`, `8`, `12`.
-      // `spacingScale` below is checked against src/tokens.ts by tailwind.preset.test.ts.
+      // `spacingScale` below is checked against src/tokens.ts by src/tokens.test.ts.
       spacing: sizeSpacing,
       borderRadius: fromKeys(keys(radius), 'radius-'),
       boxShadow: { overlay: v('shadow-overlay') },
