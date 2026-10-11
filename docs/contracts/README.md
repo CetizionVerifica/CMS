@@ -1,8 +1,9 @@
 # Canopy contracts v1 (module M0)
 
-The shared shapes every module builds against. Written as specs because no code is being written yet; when coding starts,
-M0 turns these into Zod schemas, an OpenAPI 3.1 spec, typed JSON fixtures and a mock server in `packages/contracts`,
-and those become the source of truth.
+The shared shapes every module builds against. These files describe them; the code in `packages/contracts` is the
+source of truth wherever it exists. Shipped in code so far: domain types, enums, entity Zod schemas and error codes
+(`packages/contracts/src`). Still spec only, coming in later M0 PRs: request/response schemas and the OpenAPI 3.1 spec,
+typed JSON fixtures, and the mock server.
 
 | File | What it fixes | Main readers |
 |---|---|---|
@@ -14,7 +15,10 @@ and those become the source of truth.
 | [CHANGELOG.md](CHANGELOG.md) | Contract versions | everyone |
 
 ## Status
-Version `1.0.0-draft`. Becomes `v1` when each consumer module owner has reviewed its part (MODULES.md M0 acceptance).
+Version `1.0.0` (`CONTRACTS_VERSION` in `packages/contracts/src/version.ts`). The domain model in §1-8 of
+[domain-model.md](domain-model.md) is published as v1 so wave 1 (M3, M4, M8, M11) can build against it. Each consumer
+module owner still reviews its part (MODULES.md M0 acceptance); review findings ship as additive changes or, if breaking,
+with sign-off per "How to change a contract".
 
 ## How to change a contract
 1. The module that needs a change asks M0 through the coordinator, naming the file, field or endpoint and why.
@@ -29,3 +33,16 @@ Version `1.0.0-draft`. Becomes `v1` when each consumer module owner has reviewed
 5. Golden counts use two import profiles (`raw` 424 instances, `recommended` 422) because two Excel rows become duplicates once "HR" and "Human Resources" are merged.
 6. JSON fixtures pseudonymise the sample's employee names; the xlsx golden file is unchanged.
 7. Events go through a transactional outbox on pg-boss; consumers dedupe on event id.
+8. Entity schemas are strict (unknown keys rejected) so fixtures and seeds cannot carry typos. Response parsing on the
+   client should use the request/response schemas (PR 2), which tolerate added fields.
+9. `jurisdiction: CENTRAL` has `stateCode: null`; `STATE` needs one. This holds for Acts and obligations.
+10. A person's email follows status: `UNCLAIMED` has none, `INVITED` and `ACTIVE` need one, `DISABLED` may have either.
+11. Membership shape follows role: firm roles have no `clientId`, client roles need one; only `CONSULTANT` has
+    `consultantClientIds` (required); only `OWNER`/`APPROVER` may have `unitIds` (non-empty, or null for all units);
+    `VIEWER` needs `expiresAt`.
+12. Instance consistency: `pendingKind` is set exactly while `SUBMITTED`; `completedOn` is required for `APPROVED`,
+    `NOT_APPLICABLE` and a `COMPLETION` submission; `naReason` for `NOT_APPLICABLE` and an `NA` submission;
+    `periodEnd >= periodStart`.
+13. `ScoreResult.onTimeRate` is a percentage with one decimal like `score` (0-100), not a 0-1 fraction.
+14. An `ImportIssue`'s severity is fixed by its type (the table in domain-model.md §6), and `editedValue` is set exactly
+    when the decision is `EDITED`.

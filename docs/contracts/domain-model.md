@@ -1,7 +1,7 @@
 # Domain model: types and enums (contracts v1)
 
-Owner: M0. Consumers: every module. Shapes are written in TypeScript notation as a **spec**; M0 turns them into
-Zod schemas in `packages/contracts` once coding starts, and the Zod schemas then become the source of truth.
+Owner: M0. Consumers: every module. Shapes are written in TypeScript notation here; the Zod schemas in
+`packages/contracts/src` implement them and are the source of truth (`import { ComplianceInstance } from '@canopy/contracts'`).
 Field names here are the API (camelCase) names; `packages/db` uses the snake_case equivalents.
 
 ## 1. Primitives
