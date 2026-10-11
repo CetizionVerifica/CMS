@@ -1,0 +1,21 @@
+{
+  "name": "@canopy/db",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests",
+    "db:migrate": "echo \"db:migrate: no migrations yet (M3)\"",
+    "db:seed": "echo \"db:seed: no seed yet (M3)\""
+  },
+  "devDependencies": {
+    "@canopy/tsconfig": "workspace:*",
+    "@types/node": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

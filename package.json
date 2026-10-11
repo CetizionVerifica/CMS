@@ -1,0 +1,30 @@
+{
+  "name": "canopy",
+  "private": true,
+  "packageManager": "pnpm@10.28.0",
+  "engines": {
+    "node": ">=22.12 <23"
+  },
+  "scripts": {
+    "dev": "pnpm db:up && turbo run dev",
+    "build": "turbo run build",
+    "lint": "eslint . && prettier --check .",
+    "format": "prettier --write .",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "test:e2e": "turbo run test:e2e",
+    "db:up": "docker compose -f docker/compose.yaml up -d --wait postgres s3 && docker compose -f docker/compose.yaml run --rm s3-init",
+    "db:down": "docker compose -f docker/compose.yaml down",
+    "db:migrate": "pnpm --filter @canopy/db run db:migrate",
+    "db:seed": "pnpm --filter @canopy/db run db:seed"
+  },
+  "devDependencies": {
+    "@eslint/js": "catalog:",
+    "eslint": "catalog:",
+    "globals": "catalog:",
+    "prettier": "catalog:",
+    "turbo": "catalog:",
+    "typescript": "catalog:",
+    "typescript-eslint": "catalog:"
+  }
+}

@@ -1,0 +1,4 @@
+{
+  "extends": "@canopy/tsconfig/react.json",
+  "include": ["src"]
+}

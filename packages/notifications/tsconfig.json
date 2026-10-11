@@ -1,0 +1,4 @@
+{
+  "extends": "@canopy/tsconfig/base.json",
+  "include": ["src"]
+}
