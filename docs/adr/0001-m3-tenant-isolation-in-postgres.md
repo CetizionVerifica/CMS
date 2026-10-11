@@ -11,13 +11,22 @@ to their own client. The details below were not fixed by the spec.
 1. **App role by `SET LOCAL ROLE`.** Migration 0000 creates `canopy_app` (NOLOGIN, no BYPASSRLS). `withTenant` opens a
    transaction, switches to `canopy_app` and sets `app.firm_id`, `app.person_id`, `app.client_ids`, `app.all_clients`
    and `app.request_id` with `set_config(..., true)`. RLS therefore holds even when the connecting user is a superuser
-   (local dev and CI). In production the connecting user should be a non-owner member of `canopy_app`.
+   (local dev and CI). In production the connecting user must be a non-owner member of `canopy_app`:
+   `createDatabase` refuses a login that is a superuser, has BYPASSRLS or owns tables in `public` when
+   `NODE_ENV=production` (option `privilegedLogin`), because such a login could `RESET ROLE` out of RLS inside
+   `withTenant`. A plain member stays inside RLS even after `RESET ROLE` (`test/login.db.test.ts`).
 2. **Policies bind owners too.** Every table has `FORCE ROW LEVEL SECURITY` and one `tenant_isolation` policy for all
    roles. Unset settings make `app_firm_id()` null, so a missing context sees and writes nothing.
 3. **Client scope in RLS, unit scope in `can()`.** Client-scoped tables check `app_can_see_client(client_id)`: true when
    the context is firm-wide (`clientIds: 'ALL'`, for firm admins and system jobs) or the client is in the list.
    `tenantFromRequest` maps a FIRM_ADMIN to `'ALL'` so a client created in the request is writable. Owner/approver unit
    limits stay in the M5 policy.
+   Firm-wide rows (`firm`, `act`, `category`, `obligation`, `location`) are readable by every context of the firm, but
+   only **firm staff** contexts change them (`app.firm_staff`: firm admins, consultants and system jobs;
+   `tenantFromRequest` sets it from the memberships). Client contexts may add a location. **People**: firm staff see
+   everyone; a client context sees itself and the people of its clients (a membership, assignment or instance there),
+   and cannot update anyone holding a firm role (`app_person_has_firm_role`, a yes/no SECURITY DEFINER function).
+   A client admin creating a person inserts it without `RETURNING`, then the membership, after which it is visible.
 4. **Null client rows.** `membership`, `mapping_template`, `audit_event` and `domain_event` allow a null `client_id`.
    Such rows are visible only to firm-wide contexts, except that a person always sees their own memberships (M5 builds
    the request context from them). Client contexts may insert null-client audit and outbox rows (a login, say) but
@@ -35,6 +44,15 @@ to their own client. The details below were not fixed by the spec.
 8. **Contract invariants as CHECK constraints.** README decisions 9-12 and 14 (jurisdiction/state code, person email
    by status, membership shape by role, instance consistency, issue severity by type) are also database constraints.
    They are shape rules, not status or due-date maths, which stays in `packages/engine`.
+
+## Limits other modules must know (audit of PR #16)
+- The tenant settings are ordinary GUCs: SQL running inside `withTenant` could call `set_config('app.firm_id', ...)`
+  and switch tenants. Request code must not build SQL itself: queries go through `packages/db` repositories, and
+  `sql.raw` stays inside `packages/db`. A lint rule banning `sql.raw` elsewhere is proposed for M1's ESLint config.
+- RLS has no notion of roles. Inside one client it does not stop an OWNER changing memberships, including their own
+  role; that rests on M5 `can()`, so M5 and M6 tests must cover membership writes for every role.
+- The populated-database migration test fills data after the last migration that exists. The first migration that
+  changes an existing table must add a populate step for the state before it (`test/migrations.db.test.ts`).
 
 ## Consequences
 - A new table needs, in its migration: `firm_id` with the composite keys above, a policy (schema helpers in

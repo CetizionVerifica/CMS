@@ -43,14 +43,23 @@ export function versionColumn() {
   return integer('version').notNull().default(1);
 }
 
-/** Firm-wide rows (library, people, locations): visible to every role of the firm. */
-export function firmPolicy() {
-  return pgPolicy('tenant_isolation', {
-    for: 'all',
-    to: 'public',
-    using: sql`firm_id = app_firm_id()`,
-    withCheck: sql`firm_id = app_firm_id()`,
-  });
+/**
+ * Firm-wide rows (library, locations): every context of the firm reads them; only firm staff contexts
+ * (firm admins, consultants, system jobs) change them. `insert: 'any'` lets client contexts add rows
+ * too (a client admin may add a location).
+ */
+export function firmWidePolicies({ insert }: { insert: 'staff' | 'any' }) {
+  const firm = sql`firm_id = app_firm_id()`;
+  const staff = sql`firm_id = app_firm_id() and app_firm_staff()`;
+  return [
+    pgPolicy('tenant_read', { for: 'select', to: 'public', using: firm }),
+    pgPolicy('tenant_insert', {
+      for: 'insert',
+      to: 'public',
+      withCheck: insert === 'any' ? firm : staff,
+    }),
+    pgPolicy('tenant_update', { for: 'update', to: 'public', using: staff, withCheck: staff }),
+  ];
 }
 
 /** Client rows: the firm, and a client the transaction may see (all clients for firm-wide contexts). */

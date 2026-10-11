@@ -30,6 +30,12 @@ export interface DatabaseOptions {
   connectionString: string;
   /** Pool size (default 10). */
   max?: number;
+  /**
+   * What to do when the login is a superuser, has BYPASSRLS or owns the tables. Such a login could step
+   * out of RLS with RESET ROLE. Default: 'refuse' when NODE_ENV is production, else 'allow' (local dev
+   * and CI connect as the owner).
+   */
+  privilegedLogin?: 'refuse' | 'allow';
 }
 
 export interface Database {
@@ -45,12 +51,43 @@ function createPool(options: DatabaseOptions): pg.Pool {
   return new pg.Pool({ connectionString: options.connectionString, max: options.max ?? 10 });
 }
 
+/** Why a login may not serve requests, or null when it is a plain member of the app role. */
+async function privilegedReason(db: Db): Promise<string | null> {
+  const { rows } = await db.execute<{ superuser: boolean; bypassrls: boolean; owner: boolean }>(sql`
+    SELECT r.rolsuper AS superuser, r.rolbypassrls AS bypassrls,
+           EXISTS (SELECT 1 FROM pg_catalog.pg_class c
+                   JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
+                   WHERE n.nspname = 'public' AND c.relowner = r.oid) AS owner
+    FROM pg_catalog.pg_roles r WHERE r.rolname = session_user`);
+  const role = rows[0];
+  if (!role) return 'the login role was not found';
+  if (role.superuser) return 'the login is a superuser';
+  if (role.bypassrls) return 'the login has BYPASSRLS';
+  if (role.owner) return 'the login owns tables in schema public';
+  return null;
+}
+
 export function createDatabase(options: DatabaseOptions): Database {
   const pool = createPool(options);
   const db = drizzle(pool, { schema });
+  const policy =
+    options.privilegedLogin ?? (process.env.NODE_ENV === 'production' ? 'refuse' : 'allow');
+  let loginChecked: Promise<void> | null = null;
+  const checkLogin = () => {
+    loginChecked ??= privilegedReason(db).then((reason) => {
+      if (reason) {
+        loginChecked = null;
+        throw new Error(
+          `Refusing tenant connections: ${reason}. Connect as a non-owner member of ${APP_ROLE} (ADR 0001).`,
+        );
+      }
+    });
+    return loginChecked;
+  };
   return {
     async withTenant(ctx, fn) {
       const settings = tenantSettings(ctx);
+      if (policy === 'refuse') await checkLogin();
       return db.transaction(async (tx) => {
         await tx.execute(sql.raw(`SET LOCAL ROLE ${APP_ROLE}`));
         await tx.execute(sql`
@@ -58,6 +95,7 @@ export function createDatabase(options: DatabaseOptions): Database {
                  set_config('app.person_id', ${settings['app.person_id']}, true),
                  set_config('app.client_ids', ${settings['app.client_ids']}, true),
                  set_config('app.all_clients', ${settings['app.all_clients']}, true),
+                 set_config('app.firm_staff', ${settings['app.firm_staff']}, true),
                  set_config('app.request_id', ${settings['app.request_id']}, true)`);
         return fn(tx as TenantTx);
       });

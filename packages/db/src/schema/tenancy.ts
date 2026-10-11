@@ -12,7 +12,7 @@ import {
   uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core';
-import { baseColumns, clientPolicy, firmPolicy, instant, versionColumn } from './columns.js';
+import { baseColumns, clientPolicy, firmWidePolicies, instant, versionColumn } from './columns.js';
 import { personStatusEnum, roleEnum } from './enums.js';
 
 /** Tenancy, entities and people (docs/contracts/domain-model.md §3). */
@@ -56,7 +56,7 @@ export const location = pgTable(
       .where(sql`archived_at is null`),
     check('location_country_code_check', sql`country_code ~ '^[A-Z]{2}$'`),
     check('location_state_code_check', sql`state_code is null or state_code ~ '^[A-Z]{2,3}$'`),
-    firmPolicy(),
+    ...firmWidePolicies({ insert: 'any' }),
   ],
 );
 
@@ -170,7 +170,24 @@ export const person = pgTable(
       sql`(status <> 'UNCLAIMED' or email is null) and (status not in ('INVITED', 'ACTIVE') or email is not null)`,
     ),
     check('person_version_check', sql`version >= 1`),
-    firmPolicy(),
+    // Firm staff see everyone. Client contexts see themselves and the people of their clients
+    // (a membership, assignment or instance there), and cannot change anyone holding a firm role.
+    pgPolicy('tenant_read', {
+      for: 'select',
+      to: 'public',
+      using: sql`firm_id = app_firm_id() and (app_firm_staff() or id = app_person_id() or app_person_visible(id))`,
+    }),
+    pgPolicy('tenant_insert', {
+      for: 'insert',
+      to: 'public',
+      withCheck: sql`firm_id = app_firm_id()`,
+    }),
+    pgPolicy('tenant_update', {
+      for: 'update',
+      to: 'public',
+      using: sql`firm_id = app_firm_id() and (app_firm_staff() or ((id = app_person_id() or app_person_visible(id)) and not app_person_has_firm_role(id)))`,
+      withCheck: sql`firm_id = app_firm_id()`,
+    }),
   ],
 );
 

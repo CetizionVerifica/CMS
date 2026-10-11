@@ -13,7 +13,7 @@ import {
   uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core';
-import { baseColumns, firmPolicy, versionColumn } from './columns.js';
+import { baseColumns, firmWidePolicies, versionColumn } from './columns.js';
 import {
   criticalityEnum,
   jurisdictionEnum,
@@ -48,7 +48,7 @@ export const act = pgTable(
       .where(sql`archived_at is null`),
     check('act_jurisdiction_check', jurisdictionCheck),
     check('act_version_check', sql`version >= 1`),
-    firmPolicy(),
+    ...firmWidePolicies({ insert: 'staff' }),
   ],
 );
 
@@ -69,7 +69,7 @@ export const category = pgTable(
       .on(t.firmId, t.name)
       .where(sql`archived_at is null`),
     check('category_version_check', sql`version >= 1`),
-    firmPolicy(),
+    ...firmWidePolicies({ insert: 'staff' }),
   ],
 );
 
@@ -130,6 +130,6 @@ export const obligation = pgTable(
     ),
     check('obligation_library_version_check', sql`library_version >= 1`),
     check('obligation_version_check', sql`version >= 1`),
-    firmPolicy(),
+    ...firmWidePolicies({ insert: 'staff' }),
   ],
 );

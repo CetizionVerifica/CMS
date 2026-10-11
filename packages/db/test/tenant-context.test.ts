@@ -46,6 +46,7 @@ describe('tenantSettings', () => {
       'app.person_id': PERSON,
       'app.client_ids': `{${C1},${C2}}`,
       'app.all_clients': 'off',
+      'app.firm_staff': 'off',
       'app.request_id': 'r',
     });
   });
@@ -56,6 +57,7 @@ describe('tenantSettings', () => {
       'app.person_id': '',
       'app.client_ids': '',
       'app.all_clients': 'on',
+      'app.firm_staff': 'on',
       'app.request_id': 'job:reminders',
     });
   });
@@ -87,14 +89,41 @@ describe('tenantFromRequest', () => {
       firmId: FIRM,
       personId: PERSON,
       clientIds: 'ALL',
+      firmStaff: true,
       requestId: 'req-1',
     });
+  });
+
+  it('marks consultants as firm staff, limited to their clients', () => {
+    expect(tenantFromRequest(request([membership('CONSULTANT')]))).toMatchObject({
+      clientIds: [C1, C2],
+      firmStaff: true,
+    });
+  });
+
+  it('lets a client context be marked firm staff explicitly', () => {
+    expect(
+      tenantSettings({
+        firmId: FIRM,
+        personId: null,
+        clientIds: [C1],
+        firmStaff: true,
+        requestId: 'r',
+      })['app.firm_staff'],
+    ).toBe('on');
   });
 
   it.each(['CONSULTANT', 'CLIENT_ADMIN', 'APPROVER', 'OWNER', 'VIEWER'] as const)(
     'limits a %s to the request’s clients',
     (role) => {
       expect(tenantFromRequest(request([membership(role)])).clientIds).toEqual([C1, C2]);
+    },
+  );
+
+  it.each(['CLIENT_ADMIN', 'APPROVER', 'OWNER', 'VIEWER'] as const)(
+    'a %s is not firm staff',
+    (role) => {
+      expect(tenantFromRequest(request([membership(role)])).firmStaff).toBe(false);
     },
   );
 

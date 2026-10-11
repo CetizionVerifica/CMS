@@ -30,11 +30,15 @@ export const firm = pgTable(
   },
   () => [
     check('firm_version_check', sql`version >= 1`),
-    pgPolicy('tenant_isolation', {
-      for: 'all',
+    // Read by every context of the firm; settings changed by firm staff only. The app role has no
+    // INSERT grant: createFirm inserts on the owner connection, acting as the new firm.
+    pgPolicy('tenant_read', { for: 'select', to: 'public', using: sql`id = app_firm_id()` }),
+    pgPolicy('tenant_insert', { for: 'insert', to: 'public', withCheck: sql`id = app_firm_id()` }),
+    pgPolicy('tenant_update', {
+      for: 'update',
       to: 'public',
-      using: sql`id = app_firm_id()`,
-      withCheck: sql`id = app_firm_id()`,
+      using: sql`id = app_firm_id() and app_firm_staff()`,
+      withCheck: sql`id = app_firm_id() and app_firm_staff()`,
     }),
   ],
 );

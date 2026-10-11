@@ -39,16 +39,29 @@ describe('every table', () => {
     }
   });
 
-  it('has a tenant policy on firm_id (firm: on id)', async () => {
-    const { rows } = await t.ownerQuery<{ table: string; qual: string; check: string }>(`
-      SELECT tablename AS table, qual, with_check AS check FROM pg_policies WHERE schemaname = 'public'`);
+  it('has tenant policies on firm_id (firm: on id) covering select, insert and update', async () => {
+    const { rows } = await t.ownerQuery<{
+      table: string;
+      cmd: string;
+      qual: string | null;
+      check: string | null;
+    }>(`
+      SELECT tablename AS table, cmd, qual, with_check AS check FROM pg_policies WHERE schemaname = 'public'`);
     for (const { name } of TABLES) {
       const policies = rows.filter((p) => p.table === name);
-      expect(policies.length, `${name} has no policy`).toBeGreaterThan(0);
+      const commands = new Set(policies.map((p) => p.cmd));
+      expect(
+        commands.has('ALL') || ['SELECT', 'INSERT', 'UPDATE'].every((c) => commands.has(c)),
+        `${name} policies: ${[...commands].join(', ')}`,
+      ).toBe(true);
+      const column = name === 'firm' ? 'id' : 'firm_id';
       for (const p of policies) {
-        const column = name === 'firm' ? 'id' : 'firm_id';
-        expect(p.qual, name).toContain(`${column} = app_firm_id()`);
-        expect(p.check, name).toContain(`${column} = app_firm_id()`);
+        for (const expression of [p.qual, p.check]) {
+          if (expression !== null)
+            expect(expression, `${name} ${p.cmd}`).toContain(`${column} = app_firm_id()`);
+        }
+        if (p.cmd !== 'INSERT') expect(p.qual, `${name} ${p.cmd}`).not.toBeNull();
+        if (p.cmd !== 'SELECT') expect(p.check, `${name} ${p.cmd}`).not.toBeNull();
       }
     }
   });

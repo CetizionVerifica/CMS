@@ -152,12 +152,111 @@ describe('client scope within a firm', () => {
     },
   );
 
-  it('firm-wide tables stay visible to client users', async () => {
+  it('firm-wide tables stay readable by client users', async () => {
     await t.db.withTenant(asClient0(), async (tx) => {
-      for (const table of ['firm', 'location', 'person', 'act', 'category', 'obligation']) {
+      for (const table of ['firm', 'location', 'act', 'category', 'obligation']) {
         expect(await count(tx, table), table).toBe(ids(a, table).length);
       }
     });
+  });
+
+  it.each(['firm', 'location', 'act', 'category', 'obligation'])(
+    '%s: client users cannot change firm-wide rows',
+    async (table) => {
+      const result = await t.db.withTenant(asClient0(), (tx) =>
+        tx.execute(sql.raw(`UPDATE "${table}" SET id = id`)),
+      );
+      expect(result.rowCount).toBe(0);
+    },
+  );
+
+  it('client users may add a location but not library rows', async () => {
+    await t.db.withTenant(asClient0(), (tx) =>
+      tx
+        .insert(s.location)
+        .values({ country: 'India', countryCode: 'IN', state: 'Kerala', stateCode: 'KL' }),
+    );
+    const error = await t.db
+      .withTenant(asClient0(), (tx) => tx.insert(s.category).values({ name: 'Client-made' }))
+      .catch((e) => e);
+    expect(errorCode(error)).toBe('42501');
+  });
+
+  it('firm staff limited to some clients (consultants) may change the library', async () => {
+    const result = await t.db.withTenant({ ...asClient0(), firmStaff: true }, (tx) =>
+      tx.execute(sql`UPDATE act SET aliases = '{}' WHERE firm_id = ${a.firmId}`),
+    );
+    expect(result.rowCount).toBe(ids(a, 'act').length);
+  });
+
+  it('client users see only the people of their clients, and themselves', async () => {
+    const [ownerId, approverId, adminId] = ids(a, 'person') as [string, string, string];
+    const visible = async (personId: string | null) =>
+      t.db.withTenant(asClient0(personId), async (tx) =>
+        (await tx.select({ id: s.person.id }).from(s.person)).map((p) => p.id).sort(),
+      );
+    expect(await visible(null)).toEqual([ownerId, approverId].sort());
+    expect(await visible(adminId)).toEqual([ownerId, approverId, adminId].sort());
+    const none = await t.db.withTenant({ ...asClient0(), clientIds: [] }, (tx) =>
+      tx.select({ id: s.person.id }).from(s.person),
+    );
+    expect(none).toEqual([]);
+  });
+
+  it('client users cannot change people holding a firm role, even ones they can see', async () => {
+    const [ownerId, , adminId] = ids(a, 'person') as [string, string, string];
+    // Give the firm admin a membership in client 0, so client 0 can see them.
+    const membershipId = await t.db.withTenant(asFirm(a), async (tx) => {
+      const [m] = await tx
+        .insert(s.membership)
+        .values({ personId: adminId, role: 'APPROVER', clientId: a.clientIds[0] })
+        .returning({ id: s.membership.id });
+      return m!.id;
+    });
+    try {
+      await t.db.withTenant(asClient0(), async (tx) => {
+        const seen = await tx
+          .select({ id: s.person.id })
+          .from(s.person)
+          .where(sql`id = ${adminId}`);
+        expect(seen).toHaveLength(1);
+        const admin = await tx.execute(
+          sql`UPDATE person SET email = 'evil@example.com' WHERE id = ${adminId}`,
+        );
+        expect(admin.rowCount).toBe(0);
+        const owner = await tx.execute(
+          sql`UPDATE person SET display_name = display_name WHERE id = ${ownerId}`,
+        );
+        expect(owner.rowCount).toBe(1);
+      });
+    } finally {
+      await t.db.withTenant(asFirm(a), (tx) =>
+        tx.execute(sql`UPDATE membership SET archived_at = now() WHERE id = ${membershipId}`),
+      );
+    }
+  });
+
+  it('a client user can create a person and their membership, then see them', async () => {
+    const created = await t.db.withTenant(asClient0(), async (tx) => {
+      const { rows } = await tx.execute<{ id: string }>(sql`SELECT canopy_uuid_v7() AS id`);
+      const id = rows[0]!.id;
+      // No RETURNING: the new person is not visible until their membership exists.
+      await tx.insert(s.person).values({
+        id,
+        displayName: 'New Owner',
+        nameNormalized: 'new owner',
+        email: null,
+        status: 'UNCLAIMED',
+      });
+      await tx
+        .insert(s.membership)
+        .values({ personId: id, role: 'OWNER', clientId: a.clientIds[0] });
+      return tx
+        .select({ id: s.person.id })
+        .from(s.person)
+        .where(sql`id = ${id}`);
+    });
+    expect(created).toHaveLength(1);
   });
 
   it('a context with no clients sees no client rows', async () => {
@@ -176,7 +275,9 @@ describe('client scope within a firm', () => {
       { ...asClient0(adminMembership!.person_id), clientIds: [] },
       async (tx) => {
         const rows = await tx.select().from(s.membership);
-        expect(rows.map((m) => m.role)).toEqual(['FIRM_ADMIN']);
+        expect(rows.filter((m) => m.archivedAt === null).map((m) => m.role)).toEqual([
+          'FIRM_ADMIN',
+        ]);
       },
     );
   });

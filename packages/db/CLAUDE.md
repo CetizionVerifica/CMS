@@ -43,5 +43,7 @@ Decisions and their reasons: `docs/adr/0001-m3-tenant-isolation-in-postgres.md`.
   (`pnpm --filter @canopy/db exec drizzle-kit generate --custom --name=<what>`).
 - Access: `createDatabase({ connectionString }).withTenant(ctx, async (tx) => ...)`. Build `ctx` with `tenantFromRequest(requestContext)`
   in the API and `systemContext(firmId, requestId)` in jobs and imports. `createAdminDatabase` (migrate, createFirm) is for deploy, seed and tests only.
+- Production login: a non-owner member of `canopy_app`. With `NODE_ENV=production`, `createDatabase` refuses a superuser, BYPASSRLS or table-owning login.
+- Never build SQL outside this package (no `sql.raw` in request code): the tenant settings are plain GUCs that raw SQL could change.
 - Tests: `pnpm test` (unit, includes a drift check that the migrations match the schema) and `pnpm test:db` (needs Postgres 16 at
   `DATABASE_URL`; each file creates and drops its own database). Adding a table: see the ADR's Consequences.
