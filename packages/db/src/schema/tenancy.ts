@@ -171,7 +171,8 @@ export const person = pgTable(
     ),
     check('person_version_check', sql`version >= 1`),
     // Firm staff see everyone. Client contexts see themselves and the people of their clients
-    // (a membership, assignment or instance there), and cannot change anyone holding a firm role.
+    // (a membership, assignment or instance there). They cannot change anyone holding a firm role or
+    // working for a client they cannot see.
     pgPolicy('tenant_read', {
       for: 'select',
       to: 'public',
@@ -185,7 +186,7 @@ export const person = pgTable(
     pgPolicy('tenant_update', {
       for: 'update',
       to: 'public',
-      using: sql`firm_id = app_firm_id() and (app_firm_staff() or ((id = app_person_id() or app_person_visible(id)) and not app_person_has_firm_role(id)))`,
+      using: sql`firm_id = app_firm_id() and (app_firm_staff() or ((id = app_person_id() or app_person_visible(id)) and not app_person_has_firm_role(id) and (app_all_clients() or not app_person_in_hidden_client(id))))`,
       withCheck: sql`firm_id = app_firm_id()`,
     }),
   ],

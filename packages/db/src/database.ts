@@ -51,19 +51,34 @@ function createPool(options: DatabaseOptions): pg.Pool {
   return new pg.Pool({ connectionString: options.connectionString, max: options.max ?? 10 });
 }
 
-/** Why a login may not serve requests, or null when it is a plain member of the app role. */
+/**
+ * Why a login may not serve requests, or null when it is a plain member of the app role. Checks every
+ * role the login can become (pg_has_role MEMBER includes itself), since SET ROLE inside withTenant
+ * could reach any of them.
+ */
 async function privilegedReason(db: Db): Promise<string | null> {
-  const { rows } = await db.execute<{ superuser: boolean; bypassrls: boolean; owner: boolean }>(sql`
-    SELECT r.rolsuper AS superuser, r.rolbypassrls AS bypassrls,
+  const { rows } = await db.execute<{
+    name: string;
+    self: boolean;
+    superuser: boolean;
+    bypassrls: boolean;
+    owner: boolean;
+  }>(sql`
+    SELECT r.rolname AS name, r.rolname = session_user AS self,
+           r.rolsuper AS superuser, r.rolbypassrls AS bypassrls,
            EXISTS (SELECT 1 FROM pg_catalog.pg_class c
                    JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
                    WHERE n.nspname = 'public' AND c.relowner = r.oid) AS owner
-    FROM pg_catalog.pg_roles r WHERE r.rolname = session_user`);
-  const role = rows[0];
-  if (!role) return 'the login role was not found';
-  if (role.superuser) return 'the login is a superuser';
-  if (role.bypassrls) return 'the login has BYPASSRLS';
-  if (role.owner) return 'the login owns tables in schema public';
+    FROM pg_catalog.pg_roles r
+    WHERE pg_catalog.pg_has_role(session_user, r.oid, 'MEMBER')
+    ORDER BY r.rolname = session_user DESC, r.rolname`);
+  if (!rows[0]?.self) return 'the login role was not found';
+  for (const role of rows) {
+    const who = role.self ? 'the login' : `the login is a member of ${role.name}, which`;
+    if (role.superuser) return `${who} is a superuser`;
+    if (role.bypassrls) return `${who} has BYPASSRLS`;
+    if (role.owner) return `${who} owns tables in schema public`;
+  }
   return null;
 }
 

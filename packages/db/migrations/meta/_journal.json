@@ -36,6 +36,20 @@
       "when": 1791751794969,
       "tag": "0004_firm_staff_policies",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1791761886169,
+      "tag": "0005_person_hidden_client",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1791761907086,
+      "tag": "0006_person_update_policy",
+      "breakpoints": true
     }
   ]
 }

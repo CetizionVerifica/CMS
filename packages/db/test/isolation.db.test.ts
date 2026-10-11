@@ -204,7 +204,7 @@ describe('client scope within a firm', () => {
   });
 
   it('client users cannot change people holding a firm role, even ones they can see', async () => {
-    const [ownerId, , adminId] = ids(a, 'person') as [string, string, string];
+    const adminId = ids(a, 'person')[2]!;
     // Give the firm admin a membership in client 0, so client 0 can see them.
     const membershipId = await t.db.withTenant(asFirm(a), async (tx) => {
       const [m] = await tx
@@ -224,16 +224,55 @@ describe('client scope within a firm', () => {
           sql`UPDATE person SET email = 'evil@example.com' WHERE id = ${adminId}`,
         );
         expect(admin.rowCount).toBe(0);
-        const owner = await tx.execute(
-          sql`UPDATE person SET display_name = display_name WHERE id = ${ownerId}`,
-        );
-        expect(owner.rowCount).toBe(1);
       });
     } finally {
       await t.db.withTenant(asFirm(a), (tx) =>
         tx.execute(sql`UPDATE membership SET archived_at = now() WHERE id = ${membershipId}`),
       );
     }
+  });
+
+  it('client users cannot change a person who also works for a client they cannot see', async () => {
+    // The fixture owner has memberships in both clients (re-audit finding A on PR #16).
+    const ownerId = ids(a, 'person')[0]!;
+    const touch = (ctx: TenantContext) =>
+      t.db.withTenant(ctx, (tx) =>
+        tx.execute(sql`UPDATE person SET email = 'evil@example.com' WHERE id = ${ownerId}`),
+      );
+    await t.db.withTenant(asClient0(), async (tx) => {
+      const seen = await tx
+        .select({ id: s.person.id })
+        .from(s.person)
+        .where(sql`id = ${ownerId}`);
+      expect(seen).toHaveLength(1);
+    });
+    expect((await touch(asClient0())).rowCount).toBe(0);
+    expect((await touch(asClient0(ownerId))).rowCount).toBe(0);
+    // A context that sees both of the owner's clients may change them.
+    const both = { ...asClient0(), clientIds: [...a.clientIds] };
+    const allowed = await t.db.withTenant(both, (tx) =>
+      tx.execute(sql`UPDATE person SET display_name = display_name WHERE id = ${ownerId}`),
+    );
+    expect(allowed.rowCount).toBe(1);
+  });
+
+  it('client users can change a person who works only for their clients', async () => {
+    const result = await t.db.withTenant(asClient0(), async (tx) => {
+      const { rows } = await tx.execute<{ id: string }>(sql`SELECT canopy_uuid_v7() AS id`);
+      const id = rows[0]!.id;
+      await tx.insert(s.person).values({
+        id,
+        displayName: 'Client Zero Only',
+        nameNormalized: 'client zero only',
+        email: null,
+        status: 'UNCLAIMED',
+      });
+      await tx
+        .insert(s.membership)
+        .values({ personId: id, role: 'OWNER', clientId: a.clientIds[0] });
+      return tx.execute(sql`UPDATE person SET display_name = 'Renamed' WHERE id = ${id}`);
+    });
+    expect(result.rowCount).toBe(1);
   });
 
   it('a client user can create a person and their membership, then see them', async () => {

@@ -16,6 +16,11 @@ let t: TestDatabase;
 let firmId: string;
 const login = `canopy_login_${randomBytes(4).toString('hex')}`;
 const password = randomBytes(12).toString('hex');
+const suMember = `${login}_su`;
+const bypass = `${login}_bypass`;
+const bypassMember = `${login}_bym`;
+const owner = `${login}_owner`;
+const ownerMember = `${login}_ownm`;
 
 function urlAs(user: string, pass: string): string {
   const url = new URL(t.url);
@@ -29,10 +34,28 @@ beforeAll(async () => {
   firmId = await t.admin.createFirm({ name: 'Demo Advisory' });
   await t.admin.createFirm({ name: 'Second Ledger Consulting' });
   await t.ownerQuery(`CREATE ROLE ${login} LOGIN PASSWORD '${password}' IN ROLE canopy_app`);
+  // Logins that are plain themselves but can SET ROLE to a privileged role (re-audit finding B).
+  const { rows } = await t.ownerQuery<{ me: string }>('SELECT current_user AS me');
+  await t.ownerQuery(
+    `CREATE ROLE ${suMember} LOGIN PASSWORD '${password}' IN ROLE canopy_app, "${rows[0]!.me}"`,
+  );
+  await t.ownerQuery(`CREATE ROLE ${bypass} NOLOGIN BYPASSRLS`);
+  await t.ownerQuery(
+    `CREATE ROLE ${bypassMember} LOGIN PASSWORD '${password}' IN ROLE canopy_app, ${bypass}`,
+  );
+  await t.ownerQuery(`CREATE ROLE ${owner} NOLOGIN`);
+  await t.ownerQuery(`CREATE TABLE public.login_probe (id int)`);
+  await t.ownerQuery(`ALTER TABLE public.login_probe OWNER TO ${owner}`);
+  await t.ownerQuery(
+    `CREATE ROLE ${ownerMember} LOGIN PASSWORD '${password}' IN ROLE canopy_app, ${owner}`,
+  );
 });
 
 afterAll(async () => {
-  await t?.ownerQuery(`DROP ROLE IF EXISTS ${login}`);
+  await t?.ownerQuery('DROP TABLE IF EXISTS public.login_probe');
+  for (const role of [login, suMember, bypassMember, bypass, ownerMember, owner]) {
+    await t?.ownerQuery(`DROP ROLE IF EXISTS ${role}`);
+  }
   await t?.drop();
 });
 
@@ -42,6 +65,24 @@ describe('privileged logins', () => {
     try {
       await expect(db.withTenant(systemContext(firmId, 'r'), async () => 1)).rejects.toThrow(
         /Refusing tenant connections: the login is a superuser/,
+      );
+    } finally {
+      await db.close();
+    }
+  });
+
+  it.each([
+    ['a superuser', () => suMember, /the login is a member of \w+, which is a superuser/],
+    ['a BYPASSRLS role', () => bypassMember, /the login is a member of \w+, which has BYPASSRLS/],
+    ['a table owner', () => ownerMember, /the login is a member of \w+, which owns tables/],
+  ])('are refused when the login is a member of %s', async (_label, user, reason) => {
+    const db = createDatabase({
+      connectionString: urlAs(user(), password),
+      privilegedLogin: 'refuse',
+    });
+    try {
+      await expect(db.withTenant(systemContext(firmId, 'r'), async () => 1)).rejects.toThrow(
+        reason,
       );
     } finally {
       await db.close();
