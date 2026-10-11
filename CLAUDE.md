@@ -85,5 +85,7 @@ golden counts from `docs/requirements/excel-analysis.md` §5 (M4, M8), and a tes
 Title every module PR `M<n>: <what>` so the path guard and audit apply. Mark it ready for review only when you expect it to pass;
 the audit runs on every push after that. Read the audit comment and fix its findings.
 
-Merging: a PR with green `ci-ok` merges without a human review, except changes to contracts, `packages/db`, auth, `.github`,
-`tooling/modules.json` or `.claude/skills`, which need Shyam's approval (`.github/CODEOWNERS`).
+Merging is automatic (`.github/workflows/auto-merge.yml`): every ready PR gets GitHub auto-merge and squash-merges itself
+once `ci-ok` is green. Changes to contracts, `packages/db`, auth, `.github`, `tooling/modules.json` or `.claude/skills` also
+wait for Shyam's approval (`.github/CODEOWNERS`). Open PRs as drafts while work is in progress; add the `no-automerge` label to
+hold one. Do not merge by hand around a red check.
