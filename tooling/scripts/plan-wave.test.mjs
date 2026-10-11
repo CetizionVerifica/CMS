@@ -16,6 +16,13 @@ test('every module has a needs entry that names known modules', () => {
   }
 });
 
+test('directory entries end in a slash', () => {
+  for (const paths of [...Object.values(config.modules), config.shared]) {
+    for (const path of paths)
+      assert.ok(path.endsWith('/') || /\.[a-z]+$/.test(path.split('/').pop()), path);
+  }
+});
+
 test('needs has no cycles', () => {
   for (const id of Object.keys(config.needs)) assert.ok(!allNeeds(id, config.needs).has(id), id);
 });

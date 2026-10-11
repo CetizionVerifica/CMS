@@ -25,6 +25,12 @@ No code is written until Shyam says to start a wave.
 
 Up to 5 threads run at once in waves 1 and 2.
 
+The start condition for each module is its `needs` list in `tooling/modules.json`, read by
+`node tooling/scripts/plan-wave.mjs`. Where the table and the diagram differ, `needs` follows the diagram and "Uses":
+M12 needs only M11 (it builds on the mock API, not M3); M8 needs only M0, because its parse, map and clean steps start
+alongside M4 and its commit step is added after M3 merges; "M0 merged" means M0's first PR (v1 domain types, enums and
+Zod schemas). The coordinator keeps to the 5-thread cap when starting what the planner lists.
+
 ```
 M0 ─┬─ M3 ─┬─ M5 ─┬─ M6 ───────────┐
     │      │      ├─ M7 ─┬─ M10 ───┤

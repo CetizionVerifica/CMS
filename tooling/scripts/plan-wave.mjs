@@ -8,6 +8,8 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 
+// Directory entries in modules.json end in `/` (root files are exact names), so a prefix never matches a sibling
+// directory with a longer name, such as `packages/ui-kit/` for `packages/ui/`.
 export function pathsOverlap(a, b) {
   return a.some((x) => b.some((y) => x === y || x.startsWith(y) || y.startsWith(x)));
 }
