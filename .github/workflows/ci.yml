@@ -22,12 +22,12 @@ jobs:
       matrix:
         task: [lint, typecheck, test]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           # Full history so `turbo --affected` can diff against the PR base.
           fetch-depth: 0
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
         with:
           node-version-file: .nvmrc
           cache: pnpm
@@ -57,9 +57,9 @@ jobs:
     env:
       DATABASE_URL: postgres://canopy:canopy@localhost:5432/canopy
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
         with:
           node-version-file: .nvmrc
           cache: pnpm
@@ -70,9 +70,9 @@ jobs:
     name: e2e
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
         with:
           node-version-file: .nvmrc
           cache: pnpm
@@ -80,7 +80,7 @@ jobs:
       - run: pnpm --filter @canopy/e2e exec playwright install --with-deps chromium
       - run: pnpm test:e2e
       - if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: playwright-report
           path: e2e/playwright-report
@@ -92,10 +92,10 @@ jobs:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version-file: .nvmrc
       - run: node --test tooling/scripts/*.test.mjs
@@ -108,9 +108,9 @@ jobs:
     name: audit
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
         with:
           node-version-file: .nvmrc
       # Fails on any known high or critical vulnerability in the dependency tree.
@@ -123,12 +123,12 @@ jobs:
       contents: read
       security-events: write
     steps:
-      - uses: actions/checkout@v4
-      - uses: github/codeql-action/init@v3
+      - uses: actions/checkout@v7
+      - uses: github/codeql-action/init@v4
         with:
           languages: javascript-typescript
           queries: security-extended
-      - uses: github/codeql-action/analyze@v3
+      - uses: github/codeql-action/analyze@v4
 
   # Independent module audit (.claude/skills/compliance-module-auditor) on every PR titled "M<n>: ...".
   # Runs after the mechanical checks so it can rely on their results. Needs the ANTHROPIC_API_KEY repo secret;
@@ -149,13 +149,13 @@ jobs:
       - if: env.HAS_KEY != 'true'
         run: echo "::warning::ANTHROPIC_API_KEY is not set; module audit skipped."
       - if: env.HAS_KEY == 'true'
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - if: env.HAS_KEY == 'true'
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v6
       - if: env.HAS_KEY == 'true'
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version-file: .nvmrc
           cache: pnpm
