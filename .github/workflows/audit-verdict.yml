@@ -12,8 +12,9 @@ on:
 permissions:
   contents: read
 
+# Per commenter, so someone without write access can't cancel a run started by someone with it.
 concurrency:
-  group: audit-verdict-${{ github.event.issue.number }}
+  group: audit-verdict-${{ github.event.issue.number }}-${{ github.event.comment.user.id }}
   cancel-in-progress: true
 
 jobs:

@@ -150,10 +150,10 @@ jobs:
   # that did not build the PR runs the skill and posts its report as a PR comment ending in a verdict marker for the head
   # SHA; this job only reads the comments (.github/scripts/audit-verdict.mjs), so CI calls no model API. Fails closed: no
   # Ready marker for the current head SHA from someone with write access, no merge. audit-verdict.yml re-runs this job when a marker is posted.
-  # Not run in the merge queue: the audit is of the PR's own change, which the queue does not alter.
+  # Also runs in the merge queue, so a Not-ready verdict posted after a PR was queued stops it from merging.
   module-audit:
     name: module-audit
-    if: github.event_name == 'pull_request' && !github.event.pull_request.draft
+    if: (github.event_name == 'pull_request' && !github.event.pull_request.draft) || github.event_name == 'merge_group'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -166,8 +166,15 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR: ${{ github.event.pull_request.number }}
           SHA: ${{ github.event.pull_request.head.sha }}
+          QUEUE_REF: ${{ github.event.merge_group.head_ref }}
         run: |
           cd "$RUNNER_TEMP"
+          if [ -n "$QUEUE_REF" ]; then
+            # Queue refs look like refs/heads/gh-readonly-queue/main/pr-<n>-<base sha>; judge that PR's current head.
+            PR=$(sed -nE 's#.*/pr-([0-9]+)-[0-9a-f]+$#\1#p' <<< "$QUEUE_REF")
+            if [ -z "$PR" ]; then echo "::error::Can't read the PR number from $QUEUE_REF."; exit 1; fi
+            SHA=$(gh pr view "$PR" --repo "$GITHUB_REPOSITORY" --json headRefOid --jq .headRefOid)
+          fi
           gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/issues/$PR/comments" | jq 'add // []' > comments.json
           # Repo permission of everyone who posted a marker; author_association can't tell write access from read.
           jq -r '[.[] | select(.body // "" | contains("<!-- canopy-audit sha=")) | .user.login] | unique[]' comments.json |
@@ -189,8 +196,8 @@ jobs:
         run: exit 1
       # A PR's ci-ok is green only after a Ready audit. Drafts skip the audit, so their ci-ok is red: otherwise
       # auto-merge could act on the draft's green check before the run started by ready_for_review reports.
-      # The merge queue and pushes to main skip module-paths and module-audit; the PR run already passed them.
-      - if: github.event_name == 'pull_request' && needs.module-audit.result != 'success'
+      # Pushes to main skip module-audit, and the merge queue skips module-paths; the PR run already passed them.
+      - if: github.event_name != 'push' && needs.module-audit.result != 'success'
         run: |
           echo "::error::No Ready audit for this commit. Drafts are not audited; mark the PR ready, then post an audit of its head SHA from a separate session (module-audit log says why)."
           exit 1
