@@ -1,5 +1,5 @@
 {
-  "$comment": "Paths each module may change, from the MODULES.md 'Owns' column. A path matches when it equals or starts with an entry. Keep in sync with MODULES.md and .github/CODEOWNERS. 'shared' lists files every module may touch: lockfile and catalog for new dependencies, app package.json files, the API route registration in server.ts, and ADRs.",
+  "$comment": "Paths each module may change, from the MODULES.md 'Owns' column. A path matches when it equals or starts with an entry. Keep in sync with MODULES.md and .github/CODEOWNERS. 'shared' lists files every module may touch: lockfile and catalog for new dependencies, app package.json files, the API route registration in server.ts, and ADRs. 'needs' lists the modules that must be merged before a module's thread starts (MODULES.md waves); `node tooling/scripts/plan-wave.mjs` reads it to say which modules can start in parallel, and a test checks that modules able to run at the same time never own overlapping paths.",
   "shared": [
     "pnpm-lock.yaml",
     "pnpm-workspace.yaml",
@@ -69,5 +69,22 @@
       "e2e/tests/overview/"
     ],
     "M14": ["e2e/", "docs/security/", "perf/"]
+  },
+  "needs": {
+    "M0": [],
+    "M1": [],
+    "M2": [],
+    "M3": ["M0", "M1"],
+    "M4": ["M0", "M1"],
+    "M8": ["M0", "M1"],
+    "M11": ["M0", "M1", "M2"],
+    "M5": ["M3"],
+    "M6": ["M3"],
+    "M7": ["M3", "M4"],
+    "M9": ["M3", "M4"],
+    "M12": ["M11"],
+    "M10": ["M4", "M7"],
+    "M13": ["M7", "M11"],
+    "M14": ["M5", "M6", "M7", "M8", "M9", "M10", "M12", "M13"]
   }
 }

@@ -45,6 +45,12 @@ pnpm db:seed        # seeds two firms and the sample client from the Excel fixtu
 - Modules depend on each other only through `packages/contracts` (M0). Never import another module's internals.
 - Need a contract change? Request it from M0; do not edit `packages/contracts` from another module.
 - Build against the M0 mock API and fixtures until the real dependency is merged.
+- A module's thread starts only when every module in its `needs` (`tooling/modules.json`) is merged.
+  `node tooling/scripts/plan-wave.mjs --merged <ids> --running <ids>` lists the modules that can start now; a tooling
+  test fails if two modules that can run at the same time own overlapping paths.
+- Shared files (`pnpm-lock.yaml`, `pnpm-workspace.yaml`, app `package.json`, `apps/api/src/server.ts`) are the only
+  places parallel PRs can collide. Add all of a module's dependencies in its first PR. On a conflict, merge `main` into
+  the branch and regenerate the lockfile with `pnpm install`; never hand-edit it, never rebase a pushed branch.
 
 ## Non-negotiables
 1. **Tenant isolation.** Every table holding client data has `firm_id` and an RLS policy. Every query runs inside a request-scoped tenant context. A cross-tenant read is a P0 bug; every new table gets an isolation test.
@@ -77,7 +83,7 @@ audit events written for state changes; isolation test for new tables; docs or C
 | Module paths | `module-paths` | a PR titled `M<n>: ...` changing files outside that module's paths in `tooling/modules.json` |
 | Dependencies | `audit` | a known high or critical vulnerability (`pnpm audit`) |
 | Static security | `codeql` | a CodeQL security-extended finding |
-| Module audit | `module-audit` | on PRs titled `M<n>: ...` (not drafts), an independent Claude run of `.claude/skills/compliance-module-auditor` against the module's `MODULES.md` acceptance list and these rules returns anything but **Ready**. Needs the `ANTHROPIC_API_KEY` repo secret |
+| Audit | `module-audit` | on every ready (non-draft) PR, an independent Claude run of `.claude/skills/compliance-module-auditor` returns anything but **Ready**: module PRs against their `MODULES.md` acceptance list, other PRs against these rules. Fails closed without the `ANTHROPIC_API_KEY` secret (Actions, plus Dependabot for dependency PRs) |
 
 Gates owned by modules, added with their first code: contract tests against the OpenAPI spec (M0, consumed by M6, M7, M8, M10),
 golden counts from `docs/requirements/excel-analysis.md` §5 (M4, M8), and a test that every state-changing route writes an `AuditEvent` (M7).
@@ -85,9 +91,10 @@ golden counts from `docs/requirements/excel-analysis.md` §5 (M4, M8), and a tes
 Title every module PR `M<n>: <what>` so the path guard and audit apply. Mark it ready for review only when you expect it to pass;
 the audit runs on every push after that. Read the audit comment and fix its findings.
 
-Merging is automatic (`.github/workflows/auto-merge.yml`): every ready PR gets GitHub auto-merge and squash-merges itself
-once `ci-ok` is green. Changes to contracts, `packages/db`, auth, `.github`, `tooling/modules.json` or `.claude/skills` also
-wait for Shyam's approval (`.github/CODEOWNERS`). Open PRs as drafts while work is in progress; add the `no-automerge` label to
+Merging is automatic (`.github/workflows/auto-merge.yml`): every ready PR gets GitHub auto-merge and joins the merge
+queue on `main` once `ci-ok` is green. The queue re-runs CI on the PR combined with `main` and the PRs ahead of it, then
+squash-merges, so two PRs that pass alone but break together never both land. Changes to contracts, `packages/db`,
+auth, `.github`, `tooling/modules.json` or `.claude/skills` also wait for Shyam's approval (`.github/CODEOWNERS`). Open PRs as drafts while work is in progress; add the `no-automerge` label to
 hold one. Do not merge by hand around a red check.
 
 After a merge, `cleanup.yml` deletes the PR's branch, and GitHub moves any PR stacked on it to `main`; push follow-up work
