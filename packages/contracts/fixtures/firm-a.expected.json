@@ -1,0 +1,4503 @@
+{
+  "profiles": {
+    "raw": {
+      "counts": {
+        "obligations": 119,
+        "acts": 36,
+        "categories": 12,
+        "departments": 10,
+        "people": 21,
+        "assignments": 121,
+        "instances": 424,
+        "workflowStates": {
+          "OPEN": 201,
+          "SUBMITTED": 0,
+          "SENT_BACK": 0,
+          "APPROVED": 211,
+          "NOT_APPLICABLE": 12
+        }
+      },
+      "scores": [
+        {
+          "asOf": "2022-09-30",
+          "counts": {
+            "UPCOMING": 201,
+            "DUE_SOON": 0,
+            "OVERDUE": 0,
+            "SUBMITTED": 0,
+            "COMPLIED": 211,
+            "COMPLIED_LATE": 0,
+            "NOT_APPLICABLE": 12
+          },
+          "due": 196,
+          "weightedNumerator": 529,
+          "weightedDenominator": 529,
+          "score": 100,
+          "onTimeRate": 100
+        },
+        {
+          "asOf": "2022-12-15",
+          "counts": {
+            "UPCOMING": 197,
+            "DUE_SOON": 1,
+            "OVERDUE": 3,
+            "SUBMITTED": 0,
+            "COMPLIED": 211,
+            "COMPLIED_LATE": 0,
+            "NOT_APPLICABLE": 12
+          },
+          "due": 214,
+          "weightedNumerator": 565,
+          "weightedDenominator": 577,
+          "score": 97.9,
+          "onTimeRate": 98.1
+        },
+        {
+          "asOf": "2023-03-31",
+          "counts": {
+            "UPCOMING": 0,
+            "DUE_SOON": 76,
+            "OVERDUE": 125,
+            "SUBMITTED": 0,
+            "COMPLIED": 211,
+            "COMPLIED_LATE": 0,
+            "NOT_APPLICABLE": 12
+          },
+          "due": 412,
+          "weightedNumerator": 566,
+          "weightedDenominator": 1100,
+          "score": 51.5,
+          "onTimeRate": 51.2
+        }
+      ]
+    },
+    "recommended": {
+      "counts": {
+        "obligations": 119,
+        "acts": 33,
+        "categories": 10,
+        "departments": 9,
+        "people": 21,
+        "assignments": 119,
+        "instances": 422,
+        "workflowStates": {
+          "OPEN": 201,
+          "SUBMITTED": 0,
+          "SENT_BACK": 0,
+          "APPROVED": 209,
+          "NOT_APPLICABLE": 12
+        }
+      },
+      "scores": [
+        {
+          "asOf": "2022-09-30",
+          "counts": {
+            "UPCOMING": 201,
+            "DUE_SOON": 0,
+            "OVERDUE": 0,
+            "SUBMITTED": 0,
+            "COMPLIED": 209,
+            "COMPLIED_LATE": 0,
+            "NOT_APPLICABLE": 12
+          },
+          "due": 194,
+          "weightedNumerator": 525,
+          "weightedDenominator": 525,
+          "score": 100,
+          "onTimeRate": 100
+        },
+        {
+          "asOf": "2022-12-15",
+          "counts": {
+            "UPCOMING": 197,
+            "DUE_SOON": 1,
+            "OVERDUE": 3,
+            "SUBMITTED": 0,
+            "COMPLIED": 209,
+            "COMPLIED_LATE": 0,
+            "NOT_APPLICABLE": 12
+          },
+          "due": 212,
+          "weightedNumerator": 561,
+          "weightedDenominator": 573,
+          "score": 97.9,
+          "onTimeRate": 98.1
+        },
+        {
+          "asOf": "2023-03-31",
+          "counts": {
+            "UPCOMING": 0,
+            "DUE_SOON": 76,
+            "OVERDUE": 125,
+            "SUBMITTED": 0,
+            "COMPLIED": 209,
+            "COMPLIED_LATE": 0,
+            "NOT_APPLICABLE": 12
+          },
+          "due": 410,
+          "weightedNumerator": 562,
+          "weightedDenominator": 1096,
+          "score": 51.3,
+          "onTimeRate": 51
+        }
+      ]
+    }
+  },
+  "instanceIds": [
+    {
+      "asOf": "2022-09-30",
+      "ids": {
+        "UPCOMING": [
+          "04cb203b-c633-5923-bb0a-9d5d0790a768",
+          "ba6a39fe-a800-500c-b8c9-28534ef34418",
+          "54341de8-b6a3-5baf-ac50-9dcc0946f294",
+          "c301a81a-1bef-51f4-8c0d-41954e0fad51",
+          "e743e8c9-45fc-5641-8458-b4806c00c1c3",
+          "ed936760-b95b-50f6-961c-c4a6151d0d8e",
+          "54525caa-d6fa-521c-9e7c-3c9d064b6b8a",
+          "7e85e610-de00-5a9a-b81e-11922e1f8e6a",
+          "383725dd-03d2-5309-86d2-22afb3b03a5a",
+          "0aaf2070-09e7-541b-b26e-9d9eb175e612",
+          "9196e087-98d8-54c0-bbd8-2d6a321d7f64",
+          "b1a81ff2-b0e0-519e-abff-6f4c7966b809",
+          "8f9bd680-5a20-5b7f-9a5c-f6b4787f5608",
+          "ec84f35c-9246-5f3b-a93e-c032ea0fb73f",
+          "4be1aa3d-45d3-5a5b-b8ae-8ba65c09a48b",
+          "b1b26a95-8658-5a39-a69e-a196ba5e8391",
+          "d9e908ec-7668-5dcf-a04b-23e494e413ec",
+          "e50c51bc-15df-5a96-9f5e-0dc2571c95fa",
+          "cec0e7c2-b5cf-55cf-b6f3-5606b569a755",
+          "b3eab331-dd28-5419-9635-c10bcc5aabf9",
+          "6a3367b6-cabc-52eb-a788-3c24d1cbb7ce",
+          "a0085fc2-4700-5317-9655-d8462e113fea",
+          "8b631fe0-3a3a-5e65-870d-42fe33694ab3",
+          "f53cc30d-6b76-5447-8889-77b3b0d279c4",
+          "9182a57f-a21d-5a2c-9ea5-cae2750aebd5",
+          "83484d04-3454-5f31-8018-75b03aae1373",
+          "642fffcc-a089-50a0-bf6a-e0ce71ec67da",
+          "0bdefb21-fa06-5f08-ac7d-873fd215e727",
+          "2bed633c-45cd-504d-b2ee-52baf21faf31",
+          "95c3e463-085f-5a41-a184-f0e9660b3ef1",
+          "d06a54f2-e07f-518c-b788-62980828b3f3",
+          "71712c8f-0ff9-58c5-895a-c428fdad0133",
+          "e360f059-14db-50f4-87ed-d21bb46cd378",
+          "f8fc9f11-29a6-5b58-bd8d-ae853eee2a0f",
+          "a0abc421-1ebd-5c18-b8c0-c8638b3603ee",
+          "967f8a1f-db15-59fa-a7e9-c5072e90759e",
+          "f3a30ffb-f48a-5b71-8217-84b66a7d106b",
+          "e7d48748-6702-507e-a3cb-1ecab224015a",
+          "db95a549-a1b7-58a5-b65e-cddd9aa8725a",
+          "8d04bef9-ab1c-5afe-a2be-54f41763237f",
+          "8d765a1b-1bf9-5825-ae02-719da2c336be",
+          "9caeea7b-8c9e-5e81-baa6-b06676939a51",
+          "72195dd6-1684-5801-ae9a-1706c06a15bc",
+          "e1bce401-54bf-51ec-a1d8-6e487f549740",
+          "a1031ce8-f8cf-57f6-96d3-540486381b85",
+          "31a81226-11f4-5a27-aefc-bfc776dfe8f2",
+          "7d9d948d-74e1-5756-a485-76694e4fce2a",
+          "bde6af33-e9b2-59e5-b407-8846f9266d13",
+          "6e2de963-41ca-5f19-9104-6537ab1fcd58",
+          "09af05be-7fdc-5cd9-afbb-487c8fffd97d",
+          "792cf5e0-984a-523c-842a-a4ee03715298",
+          "e3f4f2e6-5436-57d1-be24-918ae2396897",
+          "34360e4c-2fe1-564c-8b76-76dafa723f1f",
+          "cde5f343-eff4-5921-b8cf-ba38e16ed7e0",
+          "5bbce4f4-3f69-5e50-872c-6c1e83ca0143",
+          "a3b28686-d512-59d4-9dff-bb102835a294",
+          "ca8cc72e-196c-543e-9902-9caf56410213",
+          "5c7609e3-af09-52ca-a627-76bb09cb2c6d",
+          "01395b00-216f-526a-a0f9-14a7a1232d78",
+          "0c49db6a-c06f-5cb2-848a-211448bf1568",
+          "b1ea39f4-d9c1-58bc-8f41-2f18d8d03114",
+          "61ba31d2-ae1f-5447-add0-439a5dbc72d4",
+          "62d1e215-6e73-5adc-a153-fa63a2022acc",
+          "a2703c23-2c07-5783-a3dc-613e2ef193c2",
+          "50fb379c-b656-5aeb-b208-fcdc6b705d13",
+          "4ef91ec1-4aa0-579c-ad9a-8b2ba7f104d5",
+          "293811dc-6fa1-54f4-a267-69fc97d63564",
+          "a3cbe40e-f3ae-5a85-baa7-23bb6f497cf1",
+          "ec4a147f-faa7-52d0-9047-56c10498394f",
+          "0c13eb5b-8a6e-52e0-997a-c611fb3bf91b",
+          "d3f1127c-188f-50c2-a3f2-205b1ac6f60b",
+          "44af1d3c-d7a6-5426-b396-bf9f60f5540b",
+          "ad720bfc-4cb1-5d3f-8618-ac68f117e0d9",
+          "2010cf08-7b91-5a38-aacb-5dd2c05345da",
+          "7fbf2cba-b854-5d3c-a4ad-182fa033ff50",
+          "7c062a9c-c21c-572c-bccb-624204d8258f",
+          "1bae3334-83b7-54ca-a522-e699114363ab",
+          "87ed0627-2c47-5b0b-9696-7c6751a3ead0",
+          "763ef49a-3ecb-5eed-8207-3721eada9379",
+          "13d5069d-1981-5f26-86a5-ba2726981ed4",
+          "896d31e2-07d4-5802-ba88-cc1dbddc4c4a",
+          "11b6eeef-d28c-55a5-8adb-376eb4d2de20",
+          "fa9b6bec-4ad8-5576-9d6e-33f5370e144f",
+          "6f56b73b-2ad0-55b6-8982-afea02998d0a",
+          "21c7ab0e-2204-5767-ba7c-a340a9ddfe96",
+          "12d091d1-2d81-5559-b079-37ecc8c35631",
+          "aeaad5dd-403f-58bd-b66b-6a716378decf",
+          "fdd9244d-afb7-5a85-bfd4-ccd05af2559c",
+          "9f76c53e-f902-5a84-a4fc-cbc2a2ca087f",
+          "36f11ff3-47ff-5715-a89f-c4737124af96",
+          "e1309718-ae94-5a96-aff2-52889041f177",
+          "d5654779-63ce-5e40-8600-6734d9ca0e57",
+          "0e01c655-da5a-5cad-94bd-56d2844dfd07",
+          "88e2bd00-7549-53e2-ad17-644497a659ce",
+          "f5f0377b-5dac-58f1-9bcd-9b765400a2d9",
+          "461e7a7d-27d2-5a32-9f54-f053dc1ab32d",
+          "e604af04-40db-5eb9-a302-c1b9e9a278e8",
+          "f7b3f10c-973c-54d4-ba62-83948f68232e",
+          "2eeb1601-2f8f-5d49-910a-a4edf186915f",
+          "bfcee2e2-0c6c-5c65-a819-72b8be23332a",
+          "25c71f0d-4590-5b34-bace-ff9f3efc34a5",
+          "bf1094f8-d551-5635-a3a5-c5fa52e65900",
+          "88a308a0-eb06-5565-9d98-cd476b7704d1",
+          "47e81f0c-8fcc-5034-85fc-206bff7d13ed",
+          "89a5daa6-a089-59c8-80bf-b44098b0021f",
+          "94a82f71-905d-5225-96ae-3d91cc55e948",
+          "ec25d864-a9aa-53cc-9be8-787c46cbf8dc",
+          "9c5bf2f1-b55f-53d6-bab1-69129b17abf2",
+          "079524be-691f-5b73-aced-05aebc2f36fa",
+          "bde4619c-ad14-503c-95d1-43ef832f3cb4",
+          "e50739af-1697-5c59-ae85-136ae064ff9e",
+          "71a1045c-9d0f-514c-88a5-be77480136eb",
+          "9f4e3c91-8237-5d78-bb02-f3f78979ed56",
+          "7fe5be49-acf0-5891-ba5a-be9076219e9f",
+          "de117076-2dd0-5832-9dce-561233626c45",
+          "44bec08e-12af-50d3-9729-cde958690f3c",
+          "51674f61-1a5d-5259-a469-3e054227bfe2",
+          "2625139b-825f-5cfb-b26d-5e8705f02719",
+          "356a676c-61e4-5305-b498-fd4d4cb67a1b",
+          "d94e623e-4411-56d8-85b4-df8f20c680f0",
+          "736b3370-8554-5ed9-9871-20123edb942d",
+          "6080096a-00f3-5833-8df0-680b0a8e9874",
+          "0f1bb203-46cf-56d6-928a-91ac7e20120a",
+          "76e05efb-ddc7-51f8-ad24-1987f925f418",
+          "49617dfe-ed43-5916-a6e6-a35a3d4cc107",
+          "a77509f9-3751-59d9-a7d0-0927b7ac1559",
+          "c09e7dcd-817a-5a42-a218-6b66cbfd2949",
+          "91e41706-7a47-5d8e-8029-cff574d0a1d3",
+          "90803d54-82d5-594b-a2fd-ebd1f15a1b7e",
+          "92f00012-9cfa-570b-b256-662838328720",
+          "76496114-ef9e-577c-b8f3-c51a380ad67f",
+          "35dcaa35-5e13-5f99-a713-0f168794635d",
+          "dcd30db4-be82-59f9-ba45-a60fb53058aa",
+          "db63b7ff-e656-528c-989b-9f69a4a89005",
+          "2437ab23-c210-5f46-a381-ddc45e240b77",
+          "dbf97db8-0f95-5941-b4c1-ce2410ff40de",
+          "ec163e54-7945-5054-a8cd-a482f14e7a8c",
+          "4bb0cf43-703f-5da9-8efc-624280f662c9",
+          "27d56cf1-b615-593f-9f6e-04257d03e5c5",
+          "7164d0f7-ea2e-5413-8a92-8a9327c31d06",
+          "1e39d2d2-707f-5f82-870a-b99205e8e968",
+          "ff5ecbbe-35b0-5128-982e-a8be5e772387",
+          "bfb7c045-726b-54bc-a67f-9546f45dce7e",
+          "25e2ee24-9f4f-5fca-b7b3-c7b5e90f9607",
+          "256b4fbf-51cb-5c69-97f3-ea6dfdf10d4e",
+          "66bd6249-85cf-52f9-84e9-5b172215a6ab",
+          "b654d487-a359-5199-8003-a34972b4f16f",
+          "9f614c63-1859-5a29-a265-4846a587543a",
+          "a23fc19c-ff24-5db1-b633-d284bedc3ae7",
+          "e008c3d0-79da-5590-bfbc-0623255ab810",
+          "18527346-a97f-509e-b24a-10d63ea9549f",
+          "bd1c910d-2bb1-5ba1-b103-260206d6c6cc",
+          "fdbe1ac1-fe9b-54fe-b17b-03cbec35ceb9",
+          "91ffb192-2304-5e58-8a4d-8ef6b329f439",
+          "e5b03489-ec74-5365-aeb4-abbea96704da",
+          "a7148033-9015-5918-a225-dd5b5debb251",
+          "3f281020-c32e-5c4f-b272-df8142589003",
+          "d488862c-8033-5aae-82ea-307a92f249de",
+          "6420a635-aa35-5448-9b89-75c2be0a4cf7",
+          "713742e6-42e9-5001-81a6-a213b4141d4b",
+          "ad56df25-b7ef-59e3-9464-3f89690eeb24",
+          "6ffdd816-9c19-5405-990e-8d664163b802",
+          "3be38a04-77eb-5432-9d97-34274bd1dab1",
+          "6bac003f-4b13-5d20-9736-f764a7823f48",
+          "5374b4a9-8268-5a28-bd9b-72203d066f84",
+          "cb09d27a-2571-5f21-b57a-ee40e7d58d95",
+          "85fa0e47-5a32-55a9-8455-54004583ab61",
+          "d157dafd-491d-5ac9-8c37-f44c3fb53b53",
+          "1ebf95f0-6af2-56fd-a9b7-8ca4ac6cffd3",
+          "97fddec0-1ad7-50f7-847c-8391ae41955f",
+          "5b45e3fd-413c-522b-90fc-3790bc0adb47",
+          "889b3350-4cb7-5ed5-8239-582062f89ec3",
+          "cbd6aff2-5d45-5b47-a3c4-33a63ee3aa92",
+          "b936cbec-c94e-52a2-8013-a33dd4118651",
+          "b5cc32c1-5d38-5beb-920f-70040c56a59b",
+          "aac4a0f2-3412-5d9c-89f8-b06b161f7d7a",
+          "e67a77bc-1ba7-5c05-802d-494f24512b63",
+          "bf058ae3-bb67-5714-aae7-e1a94a05e53f",
+          "a5170980-c6fc-54d5-ad80-8d9e5597889a",
+          "8e125c94-3ef1-5224-ae9f-f9833e475aaa",
+          "b836aedd-25a0-5a40-a7c8-0f7c21c18a8d",
+          "a744b7d9-12d2-5d02-b3d7-fa205447fed3",
+          "a20e403a-06e7-5c67-8e34-34933eaace4d",
+          "76e07dbd-7938-5f4f-8e47-74e52851b9f8",
+          "d81e8eed-1962-5f3a-a386-d352cab3a64f",
+          "c3b39431-a6d5-51d5-8916-5492403484db",
+          "c6a23b8b-cca8-5278-ac0d-4d2ad86f8acc",
+          "6d9f436f-e314-5651-a968-950713281e90",
+          "069a2ed9-5cc9-522d-bd4f-525e963861c6",
+          "fe05fc45-c289-5407-9c65-48a43e831742",
+          "e1103c06-fc9c-56d3-af5e-7de73a8608c4",
+          "d5a851ad-4bd6-503f-8efa-a5e44bebe3fd",
+          "8a8b4f80-8d47-5ba6-997f-ca3bbb4a48ab",
+          "8e1820d1-1087-51f8-ae16-ab0566a03482",
+          "530a6570-6ae2-5e9a-8878-2ed7734d64a3",
+          "271e5df7-d367-5b90-b19d-8e0f65fe03a6",
+          "2ab25112-b01b-51fa-9aad-fcfe802744fd",
+          "0f9dd510-c01b-5c14-92a9-70f1af50a129",
+          "1dd8da99-d598-5998-b3bb-6cfe2920409c",
+          "ab494302-7f81-517b-a83f-5f44e4e147a7",
+          "473942c3-afd8-5d45-9fb2-d37ca538582b"
+        ],
+        "DUE_SOON": [],
+        "OVERDUE": [],
+        "SUBMITTED": [],
+        "COMPLIED": [
+          "d69c732d-7e1d-524b-a817-50c7985cd7a1",
+          "53b8141c-7be5-51e3-97c0-3a0577ea067e",
+          "552e8396-2cab-5b04-ba51-1b5ec9889692",
+          "d8c8bb24-e9cf-5505-92d7-e8ec3d73c8d9",
+          "8b9b2653-5ea3-59bd-91a9-8c8fe03fb08a",
+          "aeb3db43-2fd1-5a06-91f5-aa81e62678e4",
+          "28e9e0a0-6797-51d0-87a4-21b62829cc8c",
+          "3284a0b1-20bb-5a18-8cad-0c27a280312e",
+          "41931ef0-cc65-57fa-9266-15cadf23c650",
+          "59f92d43-fbfa-5b1a-9b5d-1f837ce438b9",
+          "b8d39f08-1aba-50a3-a30e-cce6003dc605",
+          "464f68c7-174c-5a9e-a977-40edc0e79a01",
+          "613f469d-652f-565a-af25-15f53a2bb59a",
+          "7739daff-738f-5488-ab76-a8093adf03bf",
+          "753ec944-ecce-55fc-a059-792257a00d76",
+          "db333566-7b77-50ab-bed6-e8dceeb4e61d",
+          "342abac9-e2f1-5940-aaac-04959a005b50",
+          "2d4e22be-6573-563b-85ad-16d2a00aa30c",
+          "7e9ae22b-2304-509e-b904-4198b6bbbe2c",
+          "e17e469a-3952-53d5-843c-d2ff40db9851",
+          "d551e687-754d-54ee-9fbf-be7889f912b9",
+          "0fc43236-f3c0-5fb9-b053-3c7feedc92c7",
+          "9bb453ed-566b-5c77-a13a-cff4461a7f26",
+          "97e73322-752a-5976-a951-c6f744848b26",
+          "ec557698-04c6-51be-800f-528690d255d4",
+          "2b8a29b3-b3e8-5d5a-95c7-5e2a84c376ab",
+          "d03fcb8e-e234-57db-a177-7c61565164a3",
+          "3bec17e1-60b1-55d6-a8f2-ee7f4f89a87c",
+          "bc334a77-18ec-5c17-830d-20318a2143f2",
+          "07f14ff9-7c32-5282-982b-4ebc98c86a4d",
+          "955c9ea7-8c68-5e62-a8bf-6d22b344bee6",
+          "b8d09b77-8cff-5ca9-8092-8b3d23344726",
+          "64a6737d-98be-5b98-bf21-d6aa6c5f3eb4",
+          "5ebaa235-6da1-5fda-a824-a220e1ba658c",
+          "983524b1-9258-5a7e-8c15-6412e09242a4",
+          "5b88605a-0697-5c49-b1d6-c5866d16c9f5",
+          "ce806385-6024-57a1-be5f-5a40c63a7ad9",
+          "3a31e367-a147-5e14-bffd-a4c1e4a85d7e",
+          "9f0ba4ff-2ac2-51f7-a263-48d976f7a3eb",
+          "046e6ec9-4fd0-5cbc-8eb6-663ad3e1ca1e",
+          "5eb1def7-9668-5554-b50b-170ac149cea9",
+          "7ee19265-d28c-5897-bf88-c5a84cf42a5e",
+          "3199da24-ab2e-5b2d-8d01-83b7ab240ad4",
+          "39e31ac1-6fa1-5863-ae7b-52bd51ea7ae0",
+          "dcf28571-d227-5ad9-a568-d56b62cb4082",
+          "10029c9f-bf6c-5d19-bed6-1a055baae50d",
+          "7dd4711f-129a-5184-b955-f0741d0f7baf",
+          "21ca0476-7252-502d-aa15-655b2ecaac39",
+          "314cb4c1-d50e-5d86-a5d1-a9c3bdd5c1bf",
+          "2f79d947-a58a-5112-a6fb-5ba1d027db51",
+          "f6cae8dd-6712-5eca-b6d3-2d57ef215008",
+          "c5c680bd-94d0-500c-b14d-2fc547ab2233",
+          "aefc9ea2-d0b2-578c-8afc-9447d675f2cb",
+          "f574806f-4986-5c27-a794-e25dd0800898",
+          "dda709ac-0d40-5243-aae9-58f73a4441a9",
+          "20f5a23f-f5a9-592c-a2db-b8d47f1188f3",
+          "d750f2ad-8691-534f-a8f2-1472e8e7647e",
+          "cf4885ba-54ca-50b2-9089-6993df9df2f2",
+          "c43214d4-bf1a-5014-80f8-53fdd5548c20",
+          "5569a1b5-f4d9-5cbc-9b34-a9ef6de880f9",
+          "bcf68ce3-7b0e-5b55-ab32-cf3d4d58734f",
+          "5e9b69c1-bc04-51a3-91ab-abc9d89b740b",
+          "dbda2b6a-cb3d-5f20-8e8c-854c6691bbe2",
+          "8684f7b5-504c-5698-a866-c417acc7c51c",
+          "0881eb41-6ffc-5fb5-8e93-ae6f81915e36",
+          "e60e751e-679b-5879-83bb-fccb9ae159a9",
+          "80068cf3-2a61-560e-8495-34ab15ad1c2e",
+          "9c5bea7b-8196-5ff5-b856-8946f11e6561",
+          "b71a5b36-3697-59a8-9450-4ec6340b9048",
+          "27fb83f5-37fe-5c94-a152-04cd15a50740",
+          "dcf86849-165f-560b-bdbe-cde385b1b044",
+          "f8b058b7-d91e-5edd-aea3-d7d1478e8876",
+          "0367cb75-39fb-5f21-826d-b512956d4587",
+          "33f26c48-8f98-5868-9e60-65cfd15768c7",
+          "a5af0435-5bb5-56b9-a1bc-a19b4dae84bb",
+          "13fdfe9b-5352-567b-949d-08c39f2c59de",
+          "e70c7532-fd42-51cb-a398-2179d154b330",
+          "7ef02839-cd38-5172-9639-9b2f364a5a88",
+          "488edc6f-b2fd-5ea6-8880-531c9453c086",
+          "218925b2-02b5-5f08-826b-a0d99855ffa8",
+          "938dcc63-857e-5cf7-98af-465c79b60180",
+          "41eeef1e-d1c3-5708-a81c-a9e38d1d44a0",
+          "8ef22189-a912-5a5d-ba33-99a5289ad3e8",
+          "049c9f37-dbb1-5581-a255-61ef77f188b6",
+          "3d9afc2a-3ad1-52c5-8d91-db42ec5b780b",
+          "f9a5bab6-a886-504b-a898-eadc7cc669a7",
+          "1e71758b-fdce-504f-9ad4-b46b11332492",
+          "e733224e-f53e-50a9-885b-c91e27283009",
+          "ae17436a-fb47-5fe7-b447-4985857224d0",
+          "5cab83d4-915e-52e4-8cde-982fe4bb0237",
+          "afba19a5-b05c-5a06-a472-bce7db957e88",
+          "191ca031-2c76-562d-9b53-9120ad950973",
+          "28d6fe20-cf88-584f-9ce0-e2387b7f42ae",
+          "92c02a1f-d662-507e-bd7b-e8b5595cd25a",
+          "48ea6190-e282-5839-b237-0f1039bbf1dc",
+          "f201f681-5787-5bb7-af7f-caccb763e883",
+          "8cda20f6-1a4b-5fb8-8b94-495a0d3e9234",
+          "32a97a76-acd1-5203-8fd3-e54b7290945a",
+          "661aef2d-3fd4-52f3-828e-ec63255a88aa",
+          "6f083386-bbe3-5c28-bb24-68fbfd68ec9e",
+          "c3e23815-bfa3-547f-be51-da80f9ca635d",
+          "5f9c0031-20e2-5ff5-8d71-4c2382215e8f",
+          "a610f5a0-96ae-56c5-a8be-f96911d062d8",
+          "5f2aa6ec-d964-578b-8b77-ac88ee0cd390",
+          "0bf46e52-67b3-5c7f-a94b-811bed8d141f",
+          "c16ce573-a921-5bf8-a591-5d1eb80f40fe",
+          "35f4ea70-2287-5264-921a-c13829d079d6",
+          "b024315b-4592-5dc3-8954-e748eb21176d",
+          "edca8969-6893-56a8-b933-50482440e5e6",
+          "03672175-f9fa-59bf-8a1c-bb98581115d7",
+          "c5da5d4e-6b4a-5ba2-91f9-0e372ec7ba42",
+          "18752aeb-0b9c-56b8-bc4d-53a5f9449690",
+          "20119e2c-7e1c-513f-8226-694c8a99ff02",
+          "da04157e-42d7-5911-948e-5e1399f0b3d5",
+          "7680053f-0d9c-5cfe-937d-f1319ad14e09",
+          "4822fb33-3464-523a-a698-9db31300888c",
+          "e3d19c78-248a-5415-8f28-a3eaf63a5d7b",
+          "2ac2f670-d330-5bf4-8ce2-8ed6f4c714c7",
+          "59b30c51-8b40-5529-81ff-8e054915b6e5",
+          "f171c6cd-5ec3-5671-b51e-a79ba8fc7b31",
+          "e44501f2-9619-5907-8ca9-462a267994bd",
+          "847d309a-4561-52b9-87aa-d001e39f8658",
+          "0cdca968-7283-5681-ac94-72d56ff53aa9",
+          "16c393bd-caf6-5aea-9c48-9917cd457f05",
+          "734d83d4-dcac-5ce5-970e-9668b1dce8f6",
+          "46d65133-39d3-5a2e-bf94-622827ff4424",
+          "9b00690d-2e31-5463-95b0-c3204c301c1b",
+          "c8bf5b81-1ca6-58ba-b2e3-a5321cb36404",
+          "bbcbfed9-6e6f-5196-ad22-4f9cf2bf77c8",
+          "f7aad454-f738-52b7-92dc-9bffb62becf1",
+          "1242af45-5fe0-5f53-a40f-61d0109de83d",
+          "d00c9d99-a83f-593f-956c-fc2efb866fd3",
+          "4ad4c661-f047-5574-83c0-6fd01983863a",
+          "95b5f08d-16b1-5992-862d-858c5909c3e5",
+          "fb2a17fb-d655-59bf-b4fd-948f18437df6",
+          "4fe8f135-9106-5927-a7fd-80e140c7ee9a",
+          "c32fda63-b2ab-568d-b8c3-d9cc49ca3178",
+          "93691e25-af21-5238-9c11-e3bb1840b25b",
+          "172e557a-ebb2-5a11-bdc6-801338d8ab63",
+          "511274b2-42fb-57c6-8890-31b7bc7261ec",
+          "4bfb8c24-fb3d-52b1-9421-a9529e27263e",
+          "6832e4c4-45fe-56e1-ae54-67c34d79f236",
+          "48db8c92-3821-505d-ba2b-75138fa9fff6",
+          "040f7a07-728d-5327-8773-b10fcd7b7869",
+          "0348e61a-28af-5719-9b58-94e023415c63",
+          "6fd7f00d-de91-5722-a093-2c36fbf34e0a",
+          "333105ca-63b5-51bd-a497-8fa16d244562",
+          "09dd62c9-607e-5b55-a25e-cc9e2e901444",
+          "05dcfdfc-b686-5130-958e-1189de8058ee",
+          "9de30a97-ae30-5ddd-83f2-338a4c90f408",
+          "85c28d5e-b292-5a16-a9e4-d8e1d33c1d62",
+          "97384057-c6ed-514e-bc85-ff44c1790ba8",
+          "a16bcff1-e15b-5f1e-97e9-6dadc6ef8401",
+          "23c38d7e-1d87-53b3-b6b2-01f956f8b544",
+          "9d924262-01de-5d46-9762-c51b6281b18a",
+          "84152bdc-8c12-5fb7-9498-da642aea9268",
+          "95b34a16-42d1-515a-bb53-f6f1aa41f91a",
+          "4650cf82-93e9-5572-94a8-853e1afd2a49",
+          "f8e9c2bb-92ee-5f3e-bf9e-9fdd5c13130d",
+          "f9c596b4-2eec-5da5-85bb-2a0d62606122",
+          "3bbe6d4e-2874-51b8-96e0-3ea9ca3dbdb6",
+          "fb11b0b7-5491-5015-9105-ddf35889390f",
+          "ebb09a2c-0e14-5e33-a27b-a6185c81f59e",
+          "3b3b86f9-83de-54ba-b67e-275e4eb66bbb",
+          "55057b3c-fb7c-5083-8bf8-12269a4755c5",
+          "d0fc452e-b6d7-521e-a80f-4bc1d3db4560",
+          "f4a03421-c23f-5e9e-94c6-670960319279",
+          "4b340781-355a-5ef5-a530-57142f03a9d8",
+          "383b4fa1-969f-56a9-9c8f-dc4b09815a1b",
+          "cc10e1a7-7160-52ef-9651-7b1c85d927a7",
+          "36137fc7-b076-5e9b-966d-eb96e287babb",
+          "1934b093-a9cf-5ebd-a139-a418d5beeae3",
+          "eff5d91e-ec82-592c-a5cb-5995d23d319e",
+          "f50eabd7-90a9-5f0d-a0d8-a2638f15bb6b",
+          "48ac51e1-ac48-52f8-a527-d2d28936f997",
+          "89c0ebd4-3285-5ef3-b166-93cdeb9ceb53",
+          "e81cd84f-abd3-5580-9e16-d2e3a7b201d8",
+          "6048b645-75e2-54ba-9b91-67e128ae6afc",
+          "5f1c6f68-f5cb-5f6f-82fc-c8a0dfdbb881",
+          "7feb22aa-e675-5ea6-bf89-5297db4af7bf",
+          "1ce55cbe-9ce8-579c-8b17-ebcb51f4a76d",
+          "cbfef1cd-4e2e-5816-9d18-cc6e16359e01",
+          "3f5940a3-ffc1-529f-838d-62b2affca6ee",
+          "0eb30b2f-5bdd-5e89-a63f-3a968ed7ec2c",
+          "b39c53d6-8267-5cdf-b84d-175c1a73b049",
+          "b8bcf190-1e6d-570a-b4a5-f99a9132954c",
+          "365f3335-1bb9-5ea2-9c4b-d10f55b915af",
+          "8f2d13f7-422c-50c9-b2d2-5b98d4acca0f",
+          "26609099-9046-5dd0-85b3-c85fb2ad5f12",
+          "d254e459-1b38-56a7-9376-7b2912db60d4",
+          "816d9b44-8828-5908-ae52-e5cdb04be99f",
+          "92ac5d35-d329-581e-88a1-e35c07b4cfbb",
+          "649e0979-455c-5187-85e5-50bb9cf784f0",
+          "3c8f5e31-c2a0-56e9-b40c-52ad8006a79a",
+          "0d92babe-6ee5-56aa-b1f3-07c23dffb3b8",
+          "03f32edf-8a64-561c-88f3-a95c94e7d285",
+          "3e1fbac0-2a81-5ea4-8f9d-ecf7459a28db",
+          "84dec753-62e4-5799-8543-068b9fe34bc2",
+          "169cc3a7-cd67-5d38-adca-b80e09214593",
+          "e5242f06-e574-5034-9b48-5c36184dd9e0",
+          "9c454a72-4392-57de-ac38-10147c32a11d",
+          "ed2f71e0-69f4-5592-8718-4fc761d2c2dd",
+          "200098df-d4e2-58b7-805c-8155258d06af",
+          "dcf39db7-9d1f-58b4-82d8-38c889629780",
+          "0227e5e1-ecca-541a-bec4-390260f3f37c",
+          "5e41a772-4b2a-502a-bd35-e21a72e71062",
+          "ade5e199-103b-5e31-82c6-ecc84e59564d",
+          "45db04f4-b056-54a5-a74e-4e03b3265c31",
+          "116651d3-366d-511f-b67d-2ef0a6d36aef"
+        ],
+        "COMPLIED_LATE": [],
+        "NOT_APPLICABLE": [
+          "675a23ef-9d14-5157-82dd-185d46ea50cd",
+          "17693f52-241f-53e4-956b-2a4ce864319b",
+          "33e8f105-1da8-5bd3-ace2-66aba54b99e3",
+          "13933f62-4e90-55b5-aba6-0a5590b6f892",
+          "b3ac5e46-5235-5ba2-9c14-6616ba643c48",
+          "66b372c0-6336-50c0-a5ee-982cd9760b61",
+          "e2400b08-5376-5422-a8b8-af5ec9e821be",
+          "9ccbff84-cc2a-5e08-9ac3-b3cf840d94a3",
+          "435164e6-69ab-5bbe-a7e8-831434437cf2",
+          "aa096327-2788-5bbf-adb5-291f82cb634d",
+          "27091b38-fcfd-57b8-b0ba-e21698659cbd",
+          "0079f3f2-c66c-55bf-b31b-a796d0ad7632"
+        ]
+      }
+    },
+    {
+      "asOf": "2022-12-15",
+      "ids": {
+        "UPCOMING": [
+          "ba6a39fe-a800-500c-b8c9-28534ef34418",
+          "54341de8-b6a3-5baf-ac50-9dcc0946f294",
+          "c301a81a-1bef-51f4-8c0d-41954e0fad51",
+          "54525caa-d6fa-521c-9e7c-3c9d064b6b8a",
+          "7e85e610-de00-5a9a-b81e-11922e1f8e6a",
+          "383725dd-03d2-5309-86d2-22afb3b03a5a",
+          "0aaf2070-09e7-541b-b26e-9d9eb175e612",
+          "b1a81ff2-b0e0-519e-abff-6f4c7966b809",
+          "8f9bd680-5a20-5b7f-9a5c-f6b4787f5608",
+          "ec84f35c-9246-5f3b-a93e-c032ea0fb73f",
+          "4be1aa3d-45d3-5a5b-b8ae-8ba65c09a48b",
+          "b1b26a95-8658-5a39-a69e-a196ba5e8391",
+          "d9e908ec-7668-5dcf-a04b-23e494e413ec",
+          "e50c51bc-15df-5a96-9f5e-0dc2571c95fa",
+          "cec0e7c2-b5cf-55cf-b6f3-5606b569a755",
+          "b3eab331-dd28-5419-9635-c10bcc5aabf9",
+          "6a3367b6-cabc-52eb-a788-3c24d1cbb7ce",
+          "a0085fc2-4700-5317-9655-d8462e113fea",
+          "8b631fe0-3a3a-5e65-870d-42fe33694ab3",
+          "f53cc30d-6b76-5447-8889-77b3b0d279c4",
+          "9182a57f-a21d-5a2c-9ea5-cae2750aebd5",
+          "83484d04-3454-5f31-8018-75b03aae1373",
+          "642fffcc-a089-50a0-bf6a-e0ce71ec67da",
+          "0bdefb21-fa06-5f08-ac7d-873fd215e727",
+          "2bed633c-45cd-504d-b2ee-52baf21faf31",
+          "95c3e463-085f-5a41-a184-f0e9660b3ef1",
+          "d06a54f2-e07f-518c-b788-62980828b3f3",
+          "71712c8f-0ff9-58c5-895a-c428fdad0133",
+          "e360f059-14db-50f4-87ed-d21bb46cd378",
+          "f8fc9f11-29a6-5b58-bd8d-ae853eee2a0f",
+          "a0abc421-1ebd-5c18-b8c0-c8638b3603ee",
+          "967f8a1f-db15-59fa-a7e9-c5072e90759e",
+          "f3a30ffb-f48a-5b71-8217-84b66a7d106b",
+          "e7d48748-6702-507e-a3cb-1ecab224015a",
+          "db95a549-a1b7-58a5-b65e-cddd9aa8725a",
+          "8d04bef9-ab1c-5afe-a2be-54f41763237f",
+          "8d765a1b-1bf9-5825-ae02-719da2c336be",
+          "9caeea7b-8c9e-5e81-baa6-b06676939a51",
+          "72195dd6-1684-5801-ae9a-1706c06a15bc",
+          "e1bce401-54bf-51ec-a1d8-6e487f549740",
+          "a1031ce8-f8cf-57f6-96d3-540486381b85",
+          "31a81226-11f4-5a27-aefc-bfc776dfe8f2",
+          "7d9d948d-74e1-5756-a485-76694e4fce2a",
+          "bde6af33-e9b2-59e5-b407-8846f9266d13",
+          "6e2de963-41ca-5f19-9104-6537ab1fcd58",
+          "09af05be-7fdc-5cd9-afbb-487c8fffd97d",
+          "792cf5e0-984a-523c-842a-a4ee03715298",
+          "e3f4f2e6-5436-57d1-be24-918ae2396897",
+          "34360e4c-2fe1-564c-8b76-76dafa723f1f",
+          "cde5f343-eff4-5921-b8cf-ba38e16ed7e0",
+          "5bbce4f4-3f69-5e50-872c-6c1e83ca0143",
+          "a3b28686-d512-59d4-9dff-bb102835a294",
+          "ca8cc72e-196c-543e-9902-9caf56410213",
+          "5c7609e3-af09-52ca-a627-76bb09cb2c6d",
+          "01395b00-216f-526a-a0f9-14a7a1232d78",
+          "0c49db6a-c06f-5cb2-848a-211448bf1568",
+          "b1ea39f4-d9c1-58bc-8f41-2f18d8d03114",
+          "61ba31d2-ae1f-5447-add0-439a5dbc72d4",
+          "62d1e215-6e73-5adc-a153-fa63a2022acc",
+          "a2703c23-2c07-5783-a3dc-613e2ef193c2",
+          "50fb379c-b656-5aeb-b208-fcdc6b705d13",
+          "4ef91ec1-4aa0-579c-ad9a-8b2ba7f104d5",
+          "293811dc-6fa1-54f4-a267-69fc97d63564",
+          "a3cbe40e-f3ae-5a85-baa7-23bb6f497cf1",
+          "ec4a147f-faa7-52d0-9047-56c10498394f",
+          "0c13eb5b-8a6e-52e0-997a-c611fb3bf91b",
+          "d3f1127c-188f-50c2-a3f2-205b1ac6f60b",
+          "44af1d3c-d7a6-5426-b396-bf9f60f5540b",
+          "ad720bfc-4cb1-5d3f-8618-ac68f117e0d9",
+          "2010cf08-7b91-5a38-aacb-5dd2c05345da",
+          "7fbf2cba-b854-5d3c-a4ad-182fa033ff50",
+          "7c062a9c-c21c-572c-bccb-624204d8258f",
+          "1bae3334-83b7-54ca-a522-e699114363ab",
+          "87ed0627-2c47-5b0b-9696-7c6751a3ead0",
+          "763ef49a-3ecb-5eed-8207-3721eada9379",
+          "13d5069d-1981-5f26-86a5-ba2726981ed4",
+          "896d31e2-07d4-5802-ba88-cc1dbddc4c4a",
+          "11b6eeef-d28c-55a5-8adb-376eb4d2de20",
+          "fa9b6bec-4ad8-5576-9d6e-33f5370e144f",
+          "6f56b73b-2ad0-55b6-8982-afea02998d0a",
+          "21c7ab0e-2204-5767-ba7c-a340a9ddfe96",
+          "12d091d1-2d81-5559-b079-37ecc8c35631",
+          "aeaad5dd-403f-58bd-b66b-6a716378decf",
+          "fdd9244d-afb7-5a85-bfd4-ccd05af2559c",
+          "9f76c53e-f902-5a84-a4fc-cbc2a2ca087f",
+          "36f11ff3-47ff-5715-a89f-c4737124af96",
+          "e1309718-ae94-5a96-aff2-52889041f177",
+          "d5654779-63ce-5e40-8600-6734d9ca0e57",
+          "0e01c655-da5a-5cad-94bd-56d2844dfd07",
+          "88e2bd00-7549-53e2-ad17-644497a659ce",
+          "f5f0377b-5dac-58f1-9bcd-9b765400a2d9",
+          "461e7a7d-27d2-5a32-9f54-f053dc1ab32d",
+          "e604af04-40db-5eb9-a302-c1b9e9a278e8",
+          "f7b3f10c-973c-54d4-ba62-83948f68232e",
+          "2eeb1601-2f8f-5d49-910a-a4edf186915f",
+          "bfcee2e2-0c6c-5c65-a819-72b8be23332a",
+          "25c71f0d-4590-5b34-bace-ff9f3efc34a5",
+          "bf1094f8-d551-5635-a3a5-c5fa52e65900",
+          "88a308a0-eb06-5565-9d98-cd476b7704d1",
+          "47e81f0c-8fcc-5034-85fc-206bff7d13ed",
+          "89a5daa6-a089-59c8-80bf-b44098b0021f",
+          "94a82f71-905d-5225-96ae-3d91cc55e948",
+          "ec25d864-a9aa-53cc-9be8-787c46cbf8dc",
+          "9c5bf2f1-b55f-53d6-bab1-69129b17abf2",
+          "079524be-691f-5b73-aced-05aebc2f36fa",
+          "bde4619c-ad14-503c-95d1-43ef832f3cb4",
+          "e50739af-1697-5c59-ae85-136ae064ff9e",
+          "71a1045c-9d0f-514c-88a5-be77480136eb",
+          "9f4e3c91-8237-5d78-bb02-f3f78979ed56",
+          "7fe5be49-acf0-5891-ba5a-be9076219e9f",
+          "de117076-2dd0-5832-9dce-561233626c45",
+          "44bec08e-12af-50d3-9729-cde958690f3c",
+          "51674f61-1a5d-5259-a469-3e054227bfe2",
+          "2625139b-825f-5cfb-b26d-5e8705f02719",
+          "356a676c-61e4-5305-b498-fd4d4cb67a1b",
+          "d94e623e-4411-56d8-85b4-df8f20c680f0",
+          "736b3370-8554-5ed9-9871-20123edb942d",
+          "6080096a-00f3-5833-8df0-680b0a8e9874",
+          "0f1bb203-46cf-56d6-928a-91ac7e20120a",
+          "76e05efb-ddc7-51f8-ad24-1987f925f418",
+          "49617dfe-ed43-5916-a6e6-a35a3d4cc107",
+          "a77509f9-3751-59d9-a7d0-0927b7ac1559",
+          "c09e7dcd-817a-5a42-a218-6b66cbfd2949",
+          "91e41706-7a47-5d8e-8029-cff574d0a1d3",
+          "90803d54-82d5-594b-a2fd-ebd1f15a1b7e",
+          "92f00012-9cfa-570b-b256-662838328720",
+          "76496114-ef9e-577c-b8f3-c51a380ad67f",
+          "35dcaa35-5e13-5f99-a713-0f168794635d",
+          "dcd30db4-be82-59f9-ba45-a60fb53058aa",
+          "db63b7ff-e656-528c-989b-9f69a4a89005",
+          "2437ab23-c210-5f46-a381-ddc45e240b77",
+          "dbf97db8-0f95-5941-b4c1-ce2410ff40de",
+          "ec163e54-7945-5054-a8cd-a482f14e7a8c",
+          "4bb0cf43-703f-5da9-8efc-624280f662c9",
+          "27d56cf1-b615-593f-9f6e-04257d03e5c5",
+          "7164d0f7-ea2e-5413-8a92-8a9327c31d06",
+          "1e39d2d2-707f-5f82-870a-b99205e8e968",
+          "ff5ecbbe-35b0-5128-982e-a8be5e772387",
+          "bfb7c045-726b-54bc-a67f-9546f45dce7e",
+          "25e2ee24-9f4f-5fca-b7b3-c7b5e90f9607",
+          "256b4fbf-51cb-5c69-97f3-ea6dfdf10d4e",
+          "66bd6249-85cf-52f9-84e9-5b172215a6ab",
+          "b654d487-a359-5199-8003-a34972b4f16f",
+          "9f614c63-1859-5a29-a265-4846a587543a",
+          "a23fc19c-ff24-5db1-b633-d284bedc3ae7",
+          "e008c3d0-79da-5590-bfbc-0623255ab810",
+          "18527346-a97f-509e-b24a-10d63ea9549f",
+          "bd1c910d-2bb1-5ba1-b103-260206d6c6cc",
+          "fdbe1ac1-fe9b-54fe-b17b-03cbec35ceb9",
+          "91ffb192-2304-5e58-8a4d-8ef6b329f439",
+          "e5b03489-ec74-5365-aeb4-abbea96704da",
+          "a7148033-9015-5918-a225-dd5b5debb251",
+          "3f281020-c32e-5c4f-b272-df8142589003",
+          "d488862c-8033-5aae-82ea-307a92f249de",
+          "6420a635-aa35-5448-9b89-75c2be0a4cf7",
+          "713742e6-42e9-5001-81a6-a213b4141d4b",
+          "ad56df25-b7ef-59e3-9464-3f89690eeb24",
+          "6ffdd816-9c19-5405-990e-8d664163b802",
+          "3be38a04-77eb-5432-9d97-34274bd1dab1",
+          "6bac003f-4b13-5d20-9736-f764a7823f48",
+          "5374b4a9-8268-5a28-bd9b-72203d066f84",
+          "cb09d27a-2571-5f21-b57a-ee40e7d58d95",
+          "85fa0e47-5a32-55a9-8455-54004583ab61",
+          "d157dafd-491d-5ac9-8c37-f44c3fb53b53",
+          "1ebf95f0-6af2-56fd-a9b7-8ca4ac6cffd3",
+          "97fddec0-1ad7-50f7-847c-8391ae41955f",
+          "5b45e3fd-413c-522b-90fc-3790bc0adb47",
+          "889b3350-4cb7-5ed5-8239-582062f89ec3",
+          "cbd6aff2-5d45-5b47-a3c4-33a63ee3aa92",
+          "b936cbec-c94e-52a2-8013-a33dd4118651",
+          "b5cc32c1-5d38-5beb-920f-70040c56a59b",
+          "aac4a0f2-3412-5d9c-89f8-b06b161f7d7a",
+          "e67a77bc-1ba7-5c05-802d-494f24512b63",
+          "bf058ae3-bb67-5714-aae7-e1a94a05e53f",
+          "a5170980-c6fc-54d5-ad80-8d9e5597889a",
+          "8e125c94-3ef1-5224-ae9f-f9833e475aaa",
+          "b836aedd-25a0-5a40-a7c8-0f7c21c18a8d",
+          "a744b7d9-12d2-5d02-b3d7-fa205447fed3",
+          "a20e403a-06e7-5c67-8e34-34933eaace4d",
+          "76e07dbd-7938-5f4f-8e47-74e52851b9f8",
+          "d81e8eed-1962-5f3a-a386-d352cab3a64f",
+          "c3b39431-a6d5-51d5-8916-5492403484db",
+          "c6a23b8b-cca8-5278-ac0d-4d2ad86f8acc",
+          "6d9f436f-e314-5651-a968-950713281e90",
+          "069a2ed9-5cc9-522d-bd4f-525e963861c6",
+          "fe05fc45-c289-5407-9c65-48a43e831742",
+          "e1103c06-fc9c-56d3-af5e-7de73a8608c4",
+          "d5a851ad-4bd6-503f-8efa-a5e44bebe3fd",
+          "8a8b4f80-8d47-5ba6-997f-ca3bbb4a48ab",
+          "8e1820d1-1087-51f8-ae16-ab0566a03482",
+          "530a6570-6ae2-5e9a-8878-2ed7734d64a3",
+          "271e5df7-d367-5b90-b19d-8e0f65fe03a6",
+          "2ab25112-b01b-51fa-9aad-fcfe802744fd",
+          "0f9dd510-c01b-5c14-92a9-70f1af50a129",
+          "1dd8da99-d598-5998-b3bb-6cfe2920409c",
+          "ab494302-7f81-517b-a83f-5f44e4e147a7",
+          "473942c3-afd8-5d45-9fb2-d37ca538582b"
+        ],
+        "DUE_SOON": ["9196e087-98d8-54c0-bbd8-2d6a321d7f64"],
+        "OVERDUE": [
+          "04cb203b-c633-5923-bb0a-9d5d0790a768",
+          "e743e8c9-45fc-5641-8458-b4806c00c1c3",
+          "ed936760-b95b-50f6-961c-c4a6151d0d8e"
+        ],
+        "SUBMITTED": [],
+        "COMPLIED": [
+          "d69c732d-7e1d-524b-a817-50c7985cd7a1",
+          "53b8141c-7be5-51e3-97c0-3a0577ea067e",
+          "552e8396-2cab-5b04-ba51-1b5ec9889692",
+          "d8c8bb24-e9cf-5505-92d7-e8ec3d73c8d9",
+          "8b9b2653-5ea3-59bd-91a9-8c8fe03fb08a",
+          "aeb3db43-2fd1-5a06-91f5-aa81e62678e4",
+          "28e9e0a0-6797-51d0-87a4-21b62829cc8c",
+          "3284a0b1-20bb-5a18-8cad-0c27a280312e",
+          "41931ef0-cc65-57fa-9266-15cadf23c650",
+          "59f92d43-fbfa-5b1a-9b5d-1f837ce438b9",
+          "b8d39f08-1aba-50a3-a30e-cce6003dc605",
+          "464f68c7-174c-5a9e-a977-40edc0e79a01",
+          "613f469d-652f-565a-af25-15f53a2bb59a",
+          "7739daff-738f-5488-ab76-a8093adf03bf",
+          "753ec944-ecce-55fc-a059-792257a00d76",
+          "db333566-7b77-50ab-bed6-e8dceeb4e61d",
+          "342abac9-e2f1-5940-aaac-04959a005b50",
+          "2d4e22be-6573-563b-85ad-16d2a00aa30c",
+          "7e9ae22b-2304-509e-b904-4198b6bbbe2c",
+          "e17e469a-3952-53d5-843c-d2ff40db9851",
+          "d551e687-754d-54ee-9fbf-be7889f912b9",
+          "0fc43236-f3c0-5fb9-b053-3c7feedc92c7",
+          "9bb453ed-566b-5c77-a13a-cff4461a7f26",
+          "97e73322-752a-5976-a951-c6f744848b26",
+          "ec557698-04c6-51be-800f-528690d255d4",
+          "2b8a29b3-b3e8-5d5a-95c7-5e2a84c376ab",
+          "d03fcb8e-e234-57db-a177-7c61565164a3",
+          "3bec17e1-60b1-55d6-a8f2-ee7f4f89a87c",
+          "bc334a77-18ec-5c17-830d-20318a2143f2",
+          "07f14ff9-7c32-5282-982b-4ebc98c86a4d",
+          "955c9ea7-8c68-5e62-a8bf-6d22b344bee6",
+          "b8d09b77-8cff-5ca9-8092-8b3d23344726",
+          "64a6737d-98be-5b98-bf21-d6aa6c5f3eb4",
+          "5ebaa235-6da1-5fda-a824-a220e1ba658c",
+          "983524b1-9258-5a7e-8c15-6412e09242a4",
+          "5b88605a-0697-5c49-b1d6-c5866d16c9f5",
+          "ce806385-6024-57a1-be5f-5a40c63a7ad9",
+          "3a31e367-a147-5e14-bffd-a4c1e4a85d7e",
+          "9f0ba4ff-2ac2-51f7-a263-48d976f7a3eb",
+          "046e6ec9-4fd0-5cbc-8eb6-663ad3e1ca1e",
+          "5eb1def7-9668-5554-b50b-170ac149cea9",
+          "7ee19265-d28c-5897-bf88-c5a84cf42a5e",
+          "3199da24-ab2e-5b2d-8d01-83b7ab240ad4",
+          "39e31ac1-6fa1-5863-ae7b-52bd51ea7ae0",
+          "dcf28571-d227-5ad9-a568-d56b62cb4082",
+          "10029c9f-bf6c-5d19-bed6-1a055baae50d",
+          "7dd4711f-129a-5184-b955-f0741d0f7baf",
+          "21ca0476-7252-502d-aa15-655b2ecaac39",
+          "314cb4c1-d50e-5d86-a5d1-a9c3bdd5c1bf",
+          "2f79d947-a58a-5112-a6fb-5ba1d027db51",
+          "f6cae8dd-6712-5eca-b6d3-2d57ef215008",
+          "c5c680bd-94d0-500c-b14d-2fc547ab2233",
+          "aefc9ea2-d0b2-578c-8afc-9447d675f2cb",
+          "f574806f-4986-5c27-a794-e25dd0800898",
+          "dda709ac-0d40-5243-aae9-58f73a4441a9",
+          "20f5a23f-f5a9-592c-a2db-b8d47f1188f3",
+          "d750f2ad-8691-534f-a8f2-1472e8e7647e",
+          "cf4885ba-54ca-50b2-9089-6993df9df2f2",
+          "c43214d4-bf1a-5014-80f8-53fdd5548c20",
+          "5569a1b5-f4d9-5cbc-9b34-a9ef6de880f9",
+          "bcf68ce3-7b0e-5b55-ab32-cf3d4d58734f",
+          "5e9b69c1-bc04-51a3-91ab-abc9d89b740b",
+          "dbda2b6a-cb3d-5f20-8e8c-854c6691bbe2",
+          "8684f7b5-504c-5698-a866-c417acc7c51c",
+          "0881eb41-6ffc-5fb5-8e93-ae6f81915e36",
+          "e60e751e-679b-5879-83bb-fccb9ae159a9",
+          "80068cf3-2a61-560e-8495-34ab15ad1c2e",
+          "9c5bea7b-8196-5ff5-b856-8946f11e6561",
+          "b71a5b36-3697-59a8-9450-4ec6340b9048",
+          "27fb83f5-37fe-5c94-a152-04cd15a50740",
+          "dcf86849-165f-560b-bdbe-cde385b1b044",
+          "f8b058b7-d91e-5edd-aea3-d7d1478e8876",
+          "0367cb75-39fb-5f21-826d-b512956d4587",
+          "33f26c48-8f98-5868-9e60-65cfd15768c7",
+          "a5af0435-5bb5-56b9-a1bc-a19b4dae84bb",
+          "13fdfe9b-5352-567b-949d-08c39f2c59de",
+          "e70c7532-fd42-51cb-a398-2179d154b330",
+          "7ef02839-cd38-5172-9639-9b2f364a5a88",
+          "488edc6f-b2fd-5ea6-8880-531c9453c086",
+          "218925b2-02b5-5f08-826b-a0d99855ffa8",
+          "938dcc63-857e-5cf7-98af-465c79b60180",
+          "41eeef1e-d1c3-5708-a81c-a9e38d1d44a0",
+          "8ef22189-a912-5a5d-ba33-99a5289ad3e8",
+          "049c9f37-dbb1-5581-a255-61ef77f188b6",
+          "3d9afc2a-3ad1-52c5-8d91-db42ec5b780b",
+          "f9a5bab6-a886-504b-a898-eadc7cc669a7",
+          "1e71758b-fdce-504f-9ad4-b46b11332492",
+          "e733224e-f53e-50a9-885b-c91e27283009",
+          "ae17436a-fb47-5fe7-b447-4985857224d0",
+          "5cab83d4-915e-52e4-8cde-982fe4bb0237",
+          "afba19a5-b05c-5a06-a472-bce7db957e88",
+          "191ca031-2c76-562d-9b53-9120ad950973",
+          "28d6fe20-cf88-584f-9ce0-e2387b7f42ae",
+          "92c02a1f-d662-507e-bd7b-e8b5595cd25a",
+          "48ea6190-e282-5839-b237-0f1039bbf1dc",
+          "f201f681-5787-5bb7-af7f-caccb763e883",
+          "8cda20f6-1a4b-5fb8-8b94-495a0d3e9234",
+          "32a97a76-acd1-5203-8fd3-e54b7290945a",
+          "661aef2d-3fd4-52f3-828e-ec63255a88aa",
+          "6f083386-bbe3-5c28-bb24-68fbfd68ec9e",
+          "c3e23815-bfa3-547f-be51-da80f9ca635d",
+          "5f9c0031-20e2-5ff5-8d71-4c2382215e8f",
+          "a610f5a0-96ae-56c5-a8be-f96911d062d8",
+          "5f2aa6ec-d964-578b-8b77-ac88ee0cd390",
+          "0bf46e52-67b3-5c7f-a94b-811bed8d141f",
+          "c16ce573-a921-5bf8-a591-5d1eb80f40fe",
+          "35f4ea70-2287-5264-921a-c13829d079d6",
+          "b024315b-4592-5dc3-8954-e748eb21176d",
+          "edca8969-6893-56a8-b933-50482440e5e6",
+          "03672175-f9fa-59bf-8a1c-bb98581115d7",
+          "c5da5d4e-6b4a-5ba2-91f9-0e372ec7ba42",
+          "18752aeb-0b9c-56b8-bc4d-53a5f9449690",
+          "20119e2c-7e1c-513f-8226-694c8a99ff02",
+          "da04157e-42d7-5911-948e-5e1399f0b3d5",
+          "7680053f-0d9c-5cfe-937d-f1319ad14e09",
+          "4822fb33-3464-523a-a698-9db31300888c",
+          "e3d19c78-248a-5415-8f28-a3eaf63a5d7b",
+          "2ac2f670-d330-5bf4-8ce2-8ed6f4c714c7",
+          "59b30c51-8b40-5529-81ff-8e054915b6e5",
+          "f171c6cd-5ec3-5671-b51e-a79ba8fc7b31",
+          "e44501f2-9619-5907-8ca9-462a267994bd",
+          "847d309a-4561-52b9-87aa-d001e39f8658",
+          "0cdca968-7283-5681-ac94-72d56ff53aa9",
+          "16c393bd-caf6-5aea-9c48-9917cd457f05",
+          "734d83d4-dcac-5ce5-970e-9668b1dce8f6",
+          "46d65133-39d3-5a2e-bf94-622827ff4424",
+          "9b00690d-2e31-5463-95b0-c3204c301c1b",
+          "c8bf5b81-1ca6-58ba-b2e3-a5321cb36404",
+          "bbcbfed9-6e6f-5196-ad22-4f9cf2bf77c8",
+          "f7aad454-f738-52b7-92dc-9bffb62becf1",
+          "1242af45-5fe0-5f53-a40f-61d0109de83d",
+          "d00c9d99-a83f-593f-956c-fc2efb866fd3",
+          "4ad4c661-f047-5574-83c0-6fd01983863a",
+          "95b5f08d-16b1-5992-862d-858c5909c3e5",
+          "fb2a17fb-d655-59bf-b4fd-948f18437df6",
+          "4fe8f135-9106-5927-a7fd-80e140c7ee9a",
+          "c32fda63-b2ab-568d-b8c3-d9cc49ca3178",
+          "93691e25-af21-5238-9c11-e3bb1840b25b",
+          "172e557a-ebb2-5a11-bdc6-801338d8ab63",
+          "511274b2-42fb-57c6-8890-31b7bc7261ec",
+          "4bfb8c24-fb3d-52b1-9421-a9529e27263e",
+          "6832e4c4-45fe-56e1-ae54-67c34d79f236",
+          "48db8c92-3821-505d-ba2b-75138fa9fff6",
+          "040f7a07-728d-5327-8773-b10fcd7b7869",
+          "0348e61a-28af-5719-9b58-94e023415c63",
+          "6fd7f00d-de91-5722-a093-2c36fbf34e0a",
+          "333105ca-63b5-51bd-a497-8fa16d244562",
+          "09dd62c9-607e-5b55-a25e-cc9e2e901444",
+          "05dcfdfc-b686-5130-958e-1189de8058ee",
+          "9de30a97-ae30-5ddd-83f2-338a4c90f408",
+          "85c28d5e-b292-5a16-a9e4-d8e1d33c1d62",
+          "97384057-c6ed-514e-bc85-ff44c1790ba8",
+          "a16bcff1-e15b-5f1e-97e9-6dadc6ef8401",
+          "23c38d7e-1d87-53b3-b6b2-01f956f8b544",
+          "9d924262-01de-5d46-9762-c51b6281b18a",
+          "84152bdc-8c12-5fb7-9498-da642aea9268",
+          "95b34a16-42d1-515a-bb53-f6f1aa41f91a",
+          "4650cf82-93e9-5572-94a8-853e1afd2a49",
+          "f8e9c2bb-92ee-5f3e-bf9e-9fdd5c13130d",
+          "f9c596b4-2eec-5da5-85bb-2a0d62606122",
+          "3bbe6d4e-2874-51b8-96e0-3ea9ca3dbdb6",
+          "fb11b0b7-5491-5015-9105-ddf35889390f",
+          "ebb09a2c-0e14-5e33-a27b-a6185c81f59e",
+          "3b3b86f9-83de-54ba-b67e-275e4eb66bbb",
+          "55057b3c-fb7c-5083-8bf8-12269a4755c5",
+          "d0fc452e-b6d7-521e-a80f-4bc1d3db4560",
+          "f4a03421-c23f-5e9e-94c6-670960319279",
+          "4b340781-355a-5ef5-a530-57142f03a9d8",
+          "383b4fa1-969f-56a9-9c8f-dc4b09815a1b",
+          "cc10e1a7-7160-52ef-9651-7b1c85d927a7",
+          "36137fc7-b076-5e9b-966d-eb96e287babb",
+          "1934b093-a9cf-5ebd-a139-a418d5beeae3",
+          "eff5d91e-ec82-592c-a5cb-5995d23d319e",
+          "f50eabd7-90a9-5f0d-a0d8-a2638f15bb6b",
+          "48ac51e1-ac48-52f8-a527-d2d28936f997",
+          "89c0ebd4-3285-5ef3-b166-93cdeb9ceb53",
+          "e81cd84f-abd3-5580-9e16-d2e3a7b201d8",
+          "6048b645-75e2-54ba-9b91-67e128ae6afc",
+          "5f1c6f68-f5cb-5f6f-82fc-c8a0dfdbb881",
+          "7feb22aa-e675-5ea6-bf89-5297db4af7bf",
+          "1ce55cbe-9ce8-579c-8b17-ebcb51f4a76d",
+          "cbfef1cd-4e2e-5816-9d18-cc6e16359e01",
+          "3f5940a3-ffc1-529f-838d-62b2affca6ee",
+          "0eb30b2f-5bdd-5e89-a63f-3a968ed7ec2c",
+          "b39c53d6-8267-5cdf-b84d-175c1a73b049",
+          "b8bcf190-1e6d-570a-b4a5-f99a9132954c",
+          "365f3335-1bb9-5ea2-9c4b-d10f55b915af",
+          "8f2d13f7-422c-50c9-b2d2-5b98d4acca0f",
+          "26609099-9046-5dd0-85b3-c85fb2ad5f12",
+          "d254e459-1b38-56a7-9376-7b2912db60d4",
+          "816d9b44-8828-5908-ae52-e5cdb04be99f",
+          "92ac5d35-d329-581e-88a1-e35c07b4cfbb",
+          "649e0979-455c-5187-85e5-50bb9cf784f0",
+          "3c8f5e31-c2a0-56e9-b40c-52ad8006a79a",
+          "0d92babe-6ee5-56aa-b1f3-07c23dffb3b8",
+          "03f32edf-8a64-561c-88f3-a95c94e7d285",
+          "3e1fbac0-2a81-5ea4-8f9d-ecf7459a28db",
+          "84dec753-62e4-5799-8543-068b9fe34bc2",
+          "169cc3a7-cd67-5d38-adca-b80e09214593",
+          "e5242f06-e574-5034-9b48-5c36184dd9e0",
+          "9c454a72-4392-57de-ac38-10147c32a11d",
+          "ed2f71e0-69f4-5592-8718-4fc761d2c2dd",
+          "200098df-d4e2-58b7-805c-8155258d06af",
+          "dcf39db7-9d1f-58b4-82d8-38c889629780",
+          "0227e5e1-ecca-541a-bec4-390260f3f37c",
+          "5e41a772-4b2a-502a-bd35-e21a72e71062",
+          "ade5e199-103b-5e31-82c6-ecc84e59564d",
+          "45db04f4-b056-54a5-a74e-4e03b3265c31",
+          "116651d3-366d-511f-b67d-2ef0a6d36aef"
+        ],
+        "COMPLIED_LATE": [],
+        "NOT_APPLICABLE": [
+          "675a23ef-9d14-5157-82dd-185d46ea50cd",
+          "17693f52-241f-53e4-956b-2a4ce864319b",
+          "33e8f105-1da8-5bd3-ace2-66aba54b99e3",
+          "13933f62-4e90-55b5-aba6-0a5590b6f892",
+          "b3ac5e46-5235-5ba2-9c14-6616ba643c48",
+          "66b372c0-6336-50c0-a5ee-982cd9760b61",
+          "e2400b08-5376-5422-a8b8-af5ec9e821be",
+          "9ccbff84-cc2a-5e08-9ac3-b3cf840d94a3",
+          "435164e6-69ab-5bbe-a7e8-831434437cf2",
+          "aa096327-2788-5bbf-adb5-291f82cb634d",
+          "27091b38-fcfd-57b8-b0ba-e21698659cbd",
+          "0079f3f2-c66c-55bf-b31b-a796d0ad7632"
+        ]
+      }
+    },
+    {
+      "asOf": "2023-03-31",
+      "ids": {
+        "UPCOMING": [],
+        "DUE_SOON": [
+          "cec0e7c2-b5cf-55cf-b6f3-5606b569a755",
+          "642fffcc-a089-50a0-bf6a-e0ce71ec67da",
+          "2bed633c-45cd-504d-b2ee-52baf21faf31",
+          "d06a54f2-e07f-518c-b788-62980828b3f3",
+          "f8fc9f11-29a6-5b58-bd8d-ae853eee2a0f",
+          "967f8a1f-db15-59fa-a7e9-c5072e90759e",
+          "db95a549-a1b7-58a5-b65e-cddd9aa8725a",
+          "9caeea7b-8c9e-5e81-baa6-b06676939a51",
+          "a1031ce8-f8cf-57f6-96d3-540486381b85",
+          "7d9d948d-74e1-5756-a485-76694e4fce2a",
+          "6e2de963-41ca-5f19-9104-6537ab1fcd58",
+          "792cf5e0-984a-523c-842a-a4ee03715298",
+          "34360e4c-2fe1-564c-8b76-76dafa723f1f",
+          "5bbce4f4-3f69-5e50-872c-6c1e83ca0143",
+          "ca8cc72e-196c-543e-9902-9caf56410213",
+          "01395b00-216f-526a-a0f9-14a7a1232d78",
+          "b1ea39f4-d9c1-58bc-8f41-2f18d8d03114",
+          "62d1e215-6e73-5adc-a153-fa63a2022acc",
+          "50fb379c-b656-5aeb-b208-fcdc6b705d13",
+          "293811dc-6fa1-54f4-a267-69fc97d63564",
+          "ec4a147f-faa7-52d0-9047-56c10498394f",
+          "d3f1127c-188f-50c2-a3f2-205b1ac6f60b",
+          "ad720bfc-4cb1-5d3f-8618-ac68f117e0d9",
+          "7fbf2cba-b854-5d3c-a4ad-182fa033ff50",
+          "1bae3334-83b7-54ca-a522-e699114363ab",
+          "763ef49a-3ecb-5eed-8207-3721eada9379",
+          "896d31e2-07d4-5802-ba88-cc1dbddc4c4a",
+          "fa9b6bec-4ad8-5576-9d6e-33f5370e144f",
+          "21c7ab0e-2204-5767-ba7c-a340a9ddfe96",
+          "aeaad5dd-403f-58bd-b66b-6a716378decf",
+          "9f76c53e-f902-5a84-a4fc-cbc2a2ca087f",
+          "d5654779-63ce-5e40-8600-6734d9ca0e57",
+          "88e2bd00-7549-53e2-ad17-644497a659ce",
+          "461e7a7d-27d2-5a32-9f54-f053dc1ab32d",
+          "f7b3f10c-973c-54d4-ba62-83948f68232e",
+          "bfcee2e2-0c6c-5c65-a819-72b8be23332a",
+          "bf1094f8-d551-5635-a3a5-c5fa52e65900",
+          "47e81f0c-8fcc-5034-85fc-206bff7d13ed",
+          "94a82f71-905d-5225-96ae-3d91cc55e948",
+          "9c5bf2f1-b55f-53d6-bab1-69129b17abf2",
+          "bde4619c-ad14-503c-95d1-43ef832f3cb4",
+          "71a1045c-9d0f-514c-88a5-be77480136eb",
+          "7fe5be49-acf0-5891-ba5a-be9076219e9f",
+          "44bec08e-12af-50d3-9729-cde958690f3c",
+          "2625139b-825f-5cfb-b26d-5e8705f02719",
+          "d94e623e-4411-56d8-85b4-df8f20c680f0",
+          "6080096a-00f3-5833-8df0-680b0a8e9874",
+          "76e05efb-ddc7-51f8-ad24-1987f925f418",
+          "a77509f9-3751-59d9-a7d0-0927b7ac1559",
+          "91e41706-7a47-5d8e-8029-cff574d0a1d3",
+          "92f00012-9cfa-570b-b256-662838328720",
+          "35dcaa35-5e13-5f99-a713-0f168794635d",
+          "db63b7ff-e656-528c-989b-9f69a4a89005",
+          "dbf97db8-0f95-5941-b4c1-ce2410ff40de",
+          "4bb0cf43-703f-5da9-8efc-624280f662c9",
+          "7164d0f7-ea2e-5413-8a92-8a9327c31d06",
+          "ff5ecbbe-35b0-5128-982e-a8be5e772387",
+          "25e2ee24-9f4f-5fca-b7b3-c7b5e90f9607",
+          "66bd6249-85cf-52f9-84e9-5b172215a6ab",
+          "a23fc19c-ff24-5db1-b633-d284bedc3ae7",
+          "18527346-a97f-509e-b24a-10d63ea9549f",
+          "fdbe1ac1-fe9b-54fe-b17b-03cbec35ceb9",
+          "e5b03489-ec74-5365-aeb4-abbea96704da",
+          "3f281020-c32e-5c4f-b272-df8142589003",
+          "6420a635-aa35-5448-9b89-75c2be0a4cf7",
+          "ad56df25-b7ef-59e3-9464-3f89690eeb24",
+          "3be38a04-77eb-5432-9d97-34274bd1dab1",
+          "5374b4a9-8268-5a28-bd9b-72203d066f84",
+          "d157dafd-491d-5ac9-8c37-f44c3fb53b53",
+          "97fddec0-1ad7-50f7-847c-8391ae41955f",
+          "889b3350-4cb7-5ed5-8239-582062f89ec3",
+          "b936cbec-c94e-52a2-8013-a33dd4118651",
+          "aac4a0f2-3412-5d9c-89f8-b06b161f7d7a",
+          "bf058ae3-bb67-5714-aae7-e1a94a05e53f",
+          "8e125c94-3ef1-5224-ae9f-f9833e475aaa",
+          "a744b7d9-12d2-5d02-b3d7-fa205447fed3"
+        ],
+        "OVERDUE": [
+          "04cb203b-c633-5923-bb0a-9d5d0790a768",
+          "ba6a39fe-a800-500c-b8c9-28534ef34418",
+          "54341de8-b6a3-5baf-ac50-9dcc0946f294",
+          "c301a81a-1bef-51f4-8c0d-41954e0fad51",
+          "e743e8c9-45fc-5641-8458-b4806c00c1c3",
+          "ed936760-b95b-50f6-961c-c4a6151d0d8e",
+          "54525caa-d6fa-521c-9e7c-3c9d064b6b8a",
+          "7e85e610-de00-5a9a-b81e-11922e1f8e6a",
+          "383725dd-03d2-5309-86d2-22afb3b03a5a",
+          "0aaf2070-09e7-541b-b26e-9d9eb175e612",
+          "9196e087-98d8-54c0-bbd8-2d6a321d7f64",
+          "b1a81ff2-b0e0-519e-abff-6f4c7966b809",
+          "8f9bd680-5a20-5b7f-9a5c-f6b4787f5608",
+          "ec84f35c-9246-5f3b-a93e-c032ea0fb73f",
+          "4be1aa3d-45d3-5a5b-b8ae-8ba65c09a48b",
+          "b1b26a95-8658-5a39-a69e-a196ba5e8391",
+          "d9e908ec-7668-5dcf-a04b-23e494e413ec",
+          "e50c51bc-15df-5a96-9f5e-0dc2571c95fa",
+          "b3eab331-dd28-5419-9635-c10bcc5aabf9",
+          "6a3367b6-cabc-52eb-a788-3c24d1cbb7ce",
+          "a0085fc2-4700-5317-9655-d8462e113fea",
+          "8b631fe0-3a3a-5e65-870d-42fe33694ab3",
+          "f53cc30d-6b76-5447-8889-77b3b0d279c4",
+          "9182a57f-a21d-5a2c-9ea5-cae2750aebd5",
+          "83484d04-3454-5f31-8018-75b03aae1373",
+          "0bdefb21-fa06-5f08-ac7d-873fd215e727",
+          "95c3e463-085f-5a41-a184-f0e9660b3ef1",
+          "71712c8f-0ff9-58c5-895a-c428fdad0133",
+          "e360f059-14db-50f4-87ed-d21bb46cd378",
+          "a0abc421-1ebd-5c18-b8c0-c8638b3603ee",
+          "f3a30ffb-f48a-5b71-8217-84b66a7d106b",
+          "e7d48748-6702-507e-a3cb-1ecab224015a",
+          "8d04bef9-ab1c-5afe-a2be-54f41763237f",
+          "8d765a1b-1bf9-5825-ae02-719da2c336be",
+          "72195dd6-1684-5801-ae9a-1706c06a15bc",
+          "e1bce401-54bf-51ec-a1d8-6e487f549740",
+          "31a81226-11f4-5a27-aefc-bfc776dfe8f2",
+          "bde6af33-e9b2-59e5-b407-8846f9266d13",
+          "09af05be-7fdc-5cd9-afbb-487c8fffd97d",
+          "e3f4f2e6-5436-57d1-be24-918ae2396897",
+          "cde5f343-eff4-5921-b8cf-ba38e16ed7e0",
+          "a3b28686-d512-59d4-9dff-bb102835a294",
+          "5c7609e3-af09-52ca-a627-76bb09cb2c6d",
+          "0c49db6a-c06f-5cb2-848a-211448bf1568",
+          "61ba31d2-ae1f-5447-add0-439a5dbc72d4",
+          "a2703c23-2c07-5783-a3dc-613e2ef193c2",
+          "4ef91ec1-4aa0-579c-ad9a-8b2ba7f104d5",
+          "a3cbe40e-f3ae-5a85-baa7-23bb6f497cf1",
+          "0c13eb5b-8a6e-52e0-997a-c611fb3bf91b",
+          "44af1d3c-d7a6-5426-b396-bf9f60f5540b",
+          "2010cf08-7b91-5a38-aacb-5dd2c05345da",
+          "7c062a9c-c21c-572c-bccb-624204d8258f",
+          "87ed0627-2c47-5b0b-9696-7c6751a3ead0",
+          "13d5069d-1981-5f26-86a5-ba2726981ed4",
+          "11b6eeef-d28c-55a5-8adb-376eb4d2de20",
+          "6f56b73b-2ad0-55b6-8982-afea02998d0a",
+          "12d091d1-2d81-5559-b079-37ecc8c35631",
+          "fdd9244d-afb7-5a85-bfd4-ccd05af2559c",
+          "36f11ff3-47ff-5715-a89f-c4737124af96",
+          "e1309718-ae94-5a96-aff2-52889041f177",
+          "0e01c655-da5a-5cad-94bd-56d2844dfd07",
+          "f5f0377b-5dac-58f1-9bcd-9b765400a2d9",
+          "e604af04-40db-5eb9-a302-c1b9e9a278e8",
+          "2eeb1601-2f8f-5d49-910a-a4edf186915f",
+          "25c71f0d-4590-5b34-bace-ff9f3efc34a5",
+          "88a308a0-eb06-5565-9d98-cd476b7704d1",
+          "89a5daa6-a089-59c8-80bf-b44098b0021f",
+          "ec25d864-a9aa-53cc-9be8-787c46cbf8dc",
+          "079524be-691f-5b73-aced-05aebc2f36fa",
+          "e50739af-1697-5c59-ae85-136ae064ff9e",
+          "9f4e3c91-8237-5d78-bb02-f3f78979ed56",
+          "de117076-2dd0-5832-9dce-561233626c45",
+          "51674f61-1a5d-5259-a469-3e054227bfe2",
+          "356a676c-61e4-5305-b498-fd4d4cb67a1b",
+          "736b3370-8554-5ed9-9871-20123edb942d",
+          "0f1bb203-46cf-56d6-928a-91ac7e20120a",
+          "49617dfe-ed43-5916-a6e6-a35a3d4cc107",
+          "c09e7dcd-817a-5a42-a218-6b66cbfd2949",
+          "90803d54-82d5-594b-a2fd-ebd1f15a1b7e",
+          "76496114-ef9e-577c-b8f3-c51a380ad67f",
+          "dcd30db4-be82-59f9-ba45-a60fb53058aa",
+          "2437ab23-c210-5f46-a381-ddc45e240b77",
+          "ec163e54-7945-5054-a8cd-a482f14e7a8c",
+          "27d56cf1-b615-593f-9f6e-04257d03e5c5",
+          "1e39d2d2-707f-5f82-870a-b99205e8e968",
+          "bfb7c045-726b-54bc-a67f-9546f45dce7e",
+          "256b4fbf-51cb-5c69-97f3-ea6dfdf10d4e",
+          "b654d487-a359-5199-8003-a34972b4f16f",
+          "9f614c63-1859-5a29-a265-4846a587543a",
+          "e008c3d0-79da-5590-bfbc-0623255ab810",
+          "bd1c910d-2bb1-5ba1-b103-260206d6c6cc",
+          "91ffb192-2304-5e58-8a4d-8ef6b329f439",
+          "a7148033-9015-5918-a225-dd5b5debb251",
+          "d488862c-8033-5aae-82ea-307a92f249de",
+          "713742e6-42e9-5001-81a6-a213b4141d4b",
+          "6ffdd816-9c19-5405-990e-8d664163b802",
+          "6bac003f-4b13-5d20-9736-f764a7823f48",
+          "cb09d27a-2571-5f21-b57a-ee40e7d58d95",
+          "85fa0e47-5a32-55a9-8455-54004583ab61",
+          "1ebf95f0-6af2-56fd-a9b7-8ca4ac6cffd3",
+          "5b45e3fd-413c-522b-90fc-3790bc0adb47",
+          "cbd6aff2-5d45-5b47-a3c4-33a63ee3aa92",
+          "b5cc32c1-5d38-5beb-920f-70040c56a59b",
+          "e67a77bc-1ba7-5c05-802d-494f24512b63",
+          "a5170980-c6fc-54d5-ad80-8d9e5597889a",
+          "b836aedd-25a0-5a40-a7c8-0f7c21c18a8d",
+          "a20e403a-06e7-5c67-8e34-34933eaace4d",
+          "76e07dbd-7938-5f4f-8e47-74e52851b9f8",
+          "d81e8eed-1962-5f3a-a386-d352cab3a64f",
+          "c3b39431-a6d5-51d5-8916-5492403484db",
+          "c6a23b8b-cca8-5278-ac0d-4d2ad86f8acc",
+          "6d9f436f-e314-5651-a968-950713281e90",
+          "069a2ed9-5cc9-522d-bd4f-525e963861c6",
+          "fe05fc45-c289-5407-9c65-48a43e831742",
+          "e1103c06-fc9c-56d3-af5e-7de73a8608c4",
+          "d5a851ad-4bd6-503f-8efa-a5e44bebe3fd",
+          "8a8b4f80-8d47-5ba6-997f-ca3bbb4a48ab",
+          "8e1820d1-1087-51f8-ae16-ab0566a03482",
+          "530a6570-6ae2-5e9a-8878-2ed7734d64a3",
+          "271e5df7-d367-5b90-b19d-8e0f65fe03a6",
+          "2ab25112-b01b-51fa-9aad-fcfe802744fd",
+          "0f9dd510-c01b-5c14-92a9-70f1af50a129",
+          "1dd8da99-d598-5998-b3bb-6cfe2920409c",
+          "ab494302-7f81-517b-a83f-5f44e4e147a7",
+          "473942c3-afd8-5d45-9fb2-d37ca538582b"
+        ],
+        "SUBMITTED": [],
+        "COMPLIED": [
+          "d69c732d-7e1d-524b-a817-50c7985cd7a1",
+          "53b8141c-7be5-51e3-97c0-3a0577ea067e",
+          "552e8396-2cab-5b04-ba51-1b5ec9889692",
+          "d8c8bb24-e9cf-5505-92d7-e8ec3d73c8d9",
+          "8b9b2653-5ea3-59bd-91a9-8c8fe03fb08a",
+          "aeb3db43-2fd1-5a06-91f5-aa81e62678e4",
+          "28e9e0a0-6797-51d0-87a4-21b62829cc8c",
+          "3284a0b1-20bb-5a18-8cad-0c27a280312e",
+          "41931ef0-cc65-57fa-9266-15cadf23c650",
+          "59f92d43-fbfa-5b1a-9b5d-1f837ce438b9",
+          "b8d39f08-1aba-50a3-a30e-cce6003dc605",
+          "464f68c7-174c-5a9e-a977-40edc0e79a01",
+          "613f469d-652f-565a-af25-15f53a2bb59a",
+          "7739daff-738f-5488-ab76-a8093adf03bf",
+          "753ec944-ecce-55fc-a059-792257a00d76",
+          "db333566-7b77-50ab-bed6-e8dceeb4e61d",
+          "342abac9-e2f1-5940-aaac-04959a005b50",
+          "2d4e22be-6573-563b-85ad-16d2a00aa30c",
+          "7e9ae22b-2304-509e-b904-4198b6bbbe2c",
+          "e17e469a-3952-53d5-843c-d2ff40db9851",
+          "d551e687-754d-54ee-9fbf-be7889f912b9",
+          "0fc43236-f3c0-5fb9-b053-3c7feedc92c7",
+          "9bb453ed-566b-5c77-a13a-cff4461a7f26",
+          "97e73322-752a-5976-a951-c6f744848b26",
+          "ec557698-04c6-51be-800f-528690d255d4",
+          "2b8a29b3-b3e8-5d5a-95c7-5e2a84c376ab",
+          "d03fcb8e-e234-57db-a177-7c61565164a3",
+          "3bec17e1-60b1-55d6-a8f2-ee7f4f89a87c",
+          "bc334a77-18ec-5c17-830d-20318a2143f2",
+          "07f14ff9-7c32-5282-982b-4ebc98c86a4d",
+          "955c9ea7-8c68-5e62-a8bf-6d22b344bee6",
+          "b8d09b77-8cff-5ca9-8092-8b3d23344726",
+          "64a6737d-98be-5b98-bf21-d6aa6c5f3eb4",
+          "5ebaa235-6da1-5fda-a824-a220e1ba658c",
+          "983524b1-9258-5a7e-8c15-6412e09242a4",
+          "5b88605a-0697-5c49-b1d6-c5866d16c9f5",
+          "ce806385-6024-57a1-be5f-5a40c63a7ad9",
+          "3a31e367-a147-5e14-bffd-a4c1e4a85d7e",
+          "9f0ba4ff-2ac2-51f7-a263-48d976f7a3eb",
+          "046e6ec9-4fd0-5cbc-8eb6-663ad3e1ca1e",
+          "5eb1def7-9668-5554-b50b-170ac149cea9",
+          "7ee19265-d28c-5897-bf88-c5a84cf42a5e",
+          "3199da24-ab2e-5b2d-8d01-83b7ab240ad4",
+          "39e31ac1-6fa1-5863-ae7b-52bd51ea7ae0",
+          "dcf28571-d227-5ad9-a568-d56b62cb4082",
+          "10029c9f-bf6c-5d19-bed6-1a055baae50d",
+          "7dd4711f-129a-5184-b955-f0741d0f7baf",
+          "21ca0476-7252-502d-aa15-655b2ecaac39",
+          "314cb4c1-d50e-5d86-a5d1-a9c3bdd5c1bf",
+          "2f79d947-a58a-5112-a6fb-5ba1d027db51",
+          "f6cae8dd-6712-5eca-b6d3-2d57ef215008",
+          "c5c680bd-94d0-500c-b14d-2fc547ab2233",
+          "aefc9ea2-d0b2-578c-8afc-9447d675f2cb",
+          "f574806f-4986-5c27-a794-e25dd0800898",
+          "dda709ac-0d40-5243-aae9-58f73a4441a9",
+          "20f5a23f-f5a9-592c-a2db-b8d47f1188f3",
+          "d750f2ad-8691-534f-a8f2-1472e8e7647e",
+          "cf4885ba-54ca-50b2-9089-6993df9df2f2",
+          "c43214d4-bf1a-5014-80f8-53fdd5548c20",
+          "5569a1b5-f4d9-5cbc-9b34-a9ef6de880f9",
+          "bcf68ce3-7b0e-5b55-ab32-cf3d4d58734f",
+          "5e9b69c1-bc04-51a3-91ab-abc9d89b740b",
+          "dbda2b6a-cb3d-5f20-8e8c-854c6691bbe2",
+          "8684f7b5-504c-5698-a866-c417acc7c51c",
+          "0881eb41-6ffc-5fb5-8e93-ae6f81915e36",
+          "e60e751e-679b-5879-83bb-fccb9ae159a9",
+          "80068cf3-2a61-560e-8495-34ab15ad1c2e",
+          "9c5bea7b-8196-5ff5-b856-8946f11e6561",
+          "b71a5b36-3697-59a8-9450-4ec6340b9048",
+          "27fb83f5-37fe-5c94-a152-04cd15a50740",
+          "dcf86849-165f-560b-bdbe-cde385b1b044",
+          "f8b058b7-d91e-5edd-aea3-d7d1478e8876",
+          "0367cb75-39fb-5f21-826d-b512956d4587",
+          "33f26c48-8f98-5868-9e60-65cfd15768c7",
+          "a5af0435-5bb5-56b9-a1bc-a19b4dae84bb",
+          "13fdfe9b-5352-567b-949d-08c39f2c59de",
+          "e70c7532-fd42-51cb-a398-2179d154b330",
+          "7ef02839-cd38-5172-9639-9b2f364a5a88",
+          "488edc6f-b2fd-5ea6-8880-531c9453c086",
+          "218925b2-02b5-5f08-826b-a0d99855ffa8",
+          "938dcc63-857e-5cf7-98af-465c79b60180",
+          "41eeef1e-d1c3-5708-a81c-a9e38d1d44a0",
+          "8ef22189-a912-5a5d-ba33-99a5289ad3e8",
+          "049c9f37-dbb1-5581-a255-61ef77f188b6",
+          "3d9afc2a-3ad1-52c5-8d91-db42ec5b780b",
+          "f9a5bab6-a886-504b-a898-eadc7cc669a7",
+          "1e71758b-fdce-504f-9ad4-b46b11332492",
+          "e733224e-f53e-50a9-885b-c91e27283009",
+          "ae17436a-fb47-5fe7-b447-4985857224d0",
+          "5cab83d4-915e-52e4-8cde-982fe4bb0237",
+          "afba19a5-b05c-5a06-a472-bce7db957e88",
+          "191ca031-2c76-562d-9b53-9120ad950973",
+          "28d6fe20-cf88-584f-9ce0-e2387b7f42ae",
+          "92c02a1f-d662-507e-bd7b-e8b5595cd25a",
+          "48ea6190-e282-5839-b237-0f1039bbf1dc",
+          "f201f681-5787-5bb7-af7f-caccb763e883",
+          "8cda20f6-1a4b-5fb8-8b94-495a0d3e9234",
+          "32a97a76-acd1-5203-8fd3-e54b7290945a",
+          "661aef2d-3fd4-52f3-828e-ec63255a88aa",
+          "6f083386-bbe3-5c28-bb24-68fbfd68ec9e",
+          "c3e23815-bfa3-547f-be51-da80f9ca635d",
+          "5f9c0031-20e2-5ff5-8d71-4c2382215e8f",
+          "a610f5a0-96ae-56c5-a8be-f96911d062d8",
+          "5f2aa6ec-d964-578b-8b77-ac88ee0cd390",
+          "0bf46e52-67b3-5c7f-a94b-811bed8d141f",
+          "c16ce573-a921-5bf8-a591-5d1eb80f40fe",
+          "35f4ea70-2287-5264-921a-c13829d079d6",
+          "b024315b-4592-5dc3-8954-e748eb21176d",
+          "edca8969-6893-56a8-b933-50482440e5e6",
+          "03672175-f9fa-59bf-8a1c-bb98581115d7",
+          "c5da5d4e-6b4a-5ba2-91f9-0e372ec7ba42",
+          "18752aeb-0b9c-56b8-bc4d-53a5f9449690",
+          "20119e2c-7e1c-513f-8226-694c8a99ff02",
+          "da04157e-42d7-5911-948e-5e1399f0b3d5",
+          "7680053f-0d9c-5cfe-937d-f1319ad14e09",
+          "4822fb33-3464-523a-a698-9db31300888c",
+          "e3d19c78-248a-5415-8f28-a3eaf63a5d7b",
+          "2ac2f670-d330-5bf4-8ce2-8ed6f4c714c7",
+          "59b30c51-8b40-5529-81ff-8e054915b6e5",
+          "f171c6cd-5ec3-5671-b51e-a79ba8fc7b31",
+          "e44501f2-9619-5907-8ca9-462a267994bd",
+          "847d309a-4561-52b9-87aa-d001e39f8658",
+          "0cdca968-7283-5681-ac94-72d56ff53aa9",
+          "16c393bd-caf6-5aea-9c48-9917cd457f05",
+          "734d83d4-dcac-5ce5-970e-9668b1dce8f6",
+          "46d65133-39d3-5a2e-bf94-622827ff4424",
+          "9b00690d-2e31-5463-95b0-c3204c301c1b",
+          "c8bf5b81-1ca6-58ba-b2e3-a5321cb36404",
+          "bbcbfed9-6e6f-5196-ad22-4f9cf2bf77c8",
+          "f7aad454-f738-52b7-92dc-9bffb62becf1",
+          "1242af45-5fe0-5f53-a40f-61d0109de83d",
+          "d00c9d99-a83f-593f-956c-fc2efb866fd3",
+          "4ad4c661-f047-5574-83c0-6fd01983863a",
+          "95b5f08d-16b1-5992-862d-858c5909c3e5",
+          "fb2a17fb-d655-59bf-b4fd-948f18437df6",
+          "4fe8f135-9106-5927-a7fd-80e140c7ee9a",
+          "c32fda63-b2ab-568d-b8c3-d9cc49ca3178",
+          "93691e25-af21-5238-9c11-e3bb1840b25b",
+          "172e557a-ebb2-5a11-bdc6-801338d8ab63",
+          "511274b2-42fb-57c6-8890-31b7bc7261ec",
+          "4bfb8c24-fb3d-52b1-9421-a9529e27263e",
+          "6832e4c4-45fe-56e1-ae54-67c34d79f236",
+          "48db8c92-3821-505d-ba2b-75138fa9fff6",
+          "040f7a07-728d-5327-8773-b10fcd7b7869",
+          "0348e61a-28af-5719-9b58-94e023415c63",
+          "6fd7f00d-de91-5722-a093-2c36fbf34e0a",
+          "333105ca-63b5-51bd-a497-8fa16d244562",
+          "09dd62c9-607e-5b55-a25e-cc9e2e901444",
+          "05dcfdfc-b686-5130-958e-1189de8058ee",
+          "9de30a97-ae30-5ddd-83f2-338a4c90f408",
+          "85c28d5e-b292-5a16-a9e4-d8e1d33c1d62",
+          "97384057-c6ed-514e-bc85-ff44c1790ba8",
+          "a16bcff1-e15b-5f1e-97e9-6dadc6ef8401",
+          "23c38d7e-1d87-53b3-b6b2-01f956f8b544",
+          "9d924262-01de-5d46-9762-c51b6281b18a",
+          "84152bdc-8c12-5fb7-9498-da642aea9268",
+          "95b34a16-42d1-515a-bb53-f6f1aa41f91a",
+          "4650cf82-93e9-5572-94a8-853e1afd2a49",
+          "f8e9c2bb-92ee-5f3e-bf9e-9fdd5c13130d",
+          "f9c596b4-2eec-5da5-85bb-2a0d62606122",
+          "3bbe6d4e-2874-51b8-96e0-3ea9ca3dbdb6",
+          "fb11b0b7-5491-5015-9105-ddf35889390f",
+          "ebb09a2c-0e14-5e33-a27b-a6185c81f59e",
+          "3b3b86f9-83de-54ba-b67e-275e4eb66bbb",
+          "55057b3c-fb7c-5083-8bf8-12269a4755c5",
+          "d0fc452e-b6d7-521e-a80f-4bc1d3db4560",
+          "f4a03421-c23f-5e9e-94c6-670960319279",
+          "4b340781-355a-5ef5-a530-57142f03a9d8",
+          "383b4fa1-969f-56a9-9c8f-dc4b09815a1b",
+          "cc10e1a7-7160-52ef-9651-7b1c85d927a7",
+          "36137fc7-b076-5e9b-966d-eb96e287babb",
+          "1934b093-a9cf-5ebd-a139-a418d5beeae3",
+          "eff5d91e-ec82-592c-a5cb-5995d23d319e",
+          "f50eabd7-90a9-5f0d-a0d8-a2638f15bb6b",
+          "48ac51e1-ac48-52f8-a527-d2d28936f997",
+          "89c0ebd4-3285-5ef3-b166-93cdeb9ceb53",
+          "e81cd84f-abd3-5580-9e16-d2e3a7b201d8",
+          "6048b645-75e2-54ba-9b91-67e128ae6afc",
+          "5f1c6f68-f5cb-5f6f-82fc-c8a0dfdbb881",
+          "7feb22aa-e675-5ea6-bf89-5297db4af7bf",
+          "1ce55cbe-9ce8-579c-8b17-ebcb51f4a76d",
+          "cbfef1cd-4e2e-5816-9d18-cc6e16359e01",
+          "3f5940a3-ffc1-529f-838d-62b2affca6ee",
+          "0eb30b2f-5bdd-5e89-a63f-3a968ed7ec2c",
+          "b39c53d6-8267-5cdf-b84d-175c1a73b049",
+          "b8bcf190-1e6d-570a-b4a5-f99a9132954c",
+          "365f3335-1bb9-5ea2-9c4b-d10f55b915af",
+          "8f2d13f7-422c-50c9-b2d2-5b98d4acca0f",
+          "26609099-9046-5dd0-85b3-c85fb2ad5f12",
+          "d254e459-1b38-56a7-9376-7b2912db60d4",
+          "816d9b44-8828-5908-ae52-e5cdb04be99f",
+          "92ac5d35-d329-581e-88a1-e35c07b4cfbb",
+          "649e0979-455c-5187-85e5-50bb9cf784f0",
+          "3c8f5e31-c2a0-56e9-b40c-52ad8006a79a",
+          "0d92babe-6ee5-56aa-b1f3-07c23dffb3b8",
+          "03f32edf-8a64-561c-88f3-a95c94e7d285",
+          "3e1fbac0-2a81-5ea4-8f9d-ecf7459a28db",
+          "84dec753-62e4-5799-8543-068b9fe34bc2",
+          "169cc3a7-cd67-5d38-adca-b80e09214593",
+          "e5242f06-e574-5034-9b48-5c36184dd9e0",
+          "9c454a72-4392-57de-ac38-10147c32a11d",
+          "ed2f71e0-69f4-5592-8718-4fc761d2c2dd",
+          "200098df-d4e2-58b7-805c-8155258d06af",
+          "dcf39db7-9d1f-58b4-82d8-38c889629780",
+          "0227e5e1-ecca-541a-bec4-390260f3f37c",
+          "5e41a772-4b2a-502a-bd35-e21a72e71062",
+          "ade5e199-103b-5e31-82c6-ecc84e59564d",
+          "45db04f4-b056-54a5-a74e-4e03b3265c31",
+          "116651d3-366d-511f-b67d-2ef0a6d36aef"
+        ],
+        "COMPLIED_LATE": [],
+        "NOT_APPLICABLE": [
+          "675a23ef-9d14-5157-82dd-185d46ea50cd",
+          "17693f52-241f-53e4-956b-2a4ce864319b",
+          "33e8f105-1da8-5bd3-ace2-66aba54b99e3",
+          "13933f62-4e90-55b5-aba6-0a5590b6f892",
+          "b3ac5e46-5235-5ba2-9c14-6616ba643c48",
+          "66b372c0-6336-50c0-a5ee-982cd9760b61",
+          "e2400b08-5376-5422-a8b8-af5ec9e821be",
+          "9ccbff84-cc2a-5e08-9ac3-b3cf840d94a3",
+          "435164e6-69ab-5bbe-a7e8-831434437cf2",
+          "aa096327-2788-5bbf-adb5-291f82cb634d",
+          "27091b38-fcfd-57b8-b0ba-e21698659cbd",
+          "0079f3f2-c66c-55bf-b31b-a796d0ad7632"
+        ]
+      }
+    }
+  ],
+  "breakdowns": [
+    {
+      "asOf": "2022-09-30",
+      "by": "department",
+      "rows": [
+        {
+          "key": "bff1d9e8-b68a-546f-bf42-88567feee0c5",
+          "label": "Electrical",
+          "result": {
+            "asOf": "2022-09-30",
+            "counts": {
+              "UPCOMING": 0,
+              "DUE_SOON": 0,
+              "OVERDUE": 0,
+              "SUBMITTED": 0,
+              "COMPLIED": 1,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 0
+            },
+            "due": 1,
+            "weightedNumerator": 3,
+            "weightedDenominator": 3,
+            "score": 100,
+            "onTimeRate": 100
+          }
+        },
+        {
+          "key": "d5cc2223-f61a-5722-8428-c5892c913808",
+          "label": "Energy",
+          "result": {
+            "asOf": "2022-09-30",
+            "counts": {
+              "UPCOMING": 2,
+              "DUE_SOON": 0,
+              "OVERDUE": 0,
+              "SUBMITTED": 0,
+              "COMPLIED": 2,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 0
+            },
+            "due": 2,
+            "weightedNumerator": 6,
+            "weightedDenominator": 6,
+            "score": 100,
+            "onTimeRate": 100
+          }
+        },
+        {
+          "key": "578e3665-874b-506f-8dbe-f895a2e1f9fa",
+          "label": "Environment Health and Safety",
+          "result": {
+            "asOf": "2022-09-30",
+            "counts": {
+              "UPCOMING": 19,
+              "DUE_SOON": 0,
+              "OVERDUE": 0,
+              "SUBMITTED": 0,
+              "COMPLIED": 15,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 0
+            },
+            "due": 15,
+            "weightedNumerator": 49,
+            "weightedDenominator": 49,
+            "score": 100,
+            "onTimeRate": 100
+          }
+        },
+        {
+          "key": "09e33e05-6e95-5caf-b21b-f4d80fa57ccf",
+          "label": "Factory License - Plant",
+          "result": {
+            "asOf": "2022-09-30",
+            "counts": {
+              "UPCOMING": 2,
+              "DUE_SOON": 0,
+              "OVERDUE": 0,
+              "SUBMITTED": 0,
+              "COMPLIED": 2,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 0
+            },
+            "due": 2,
+            "weightedNumerator": 10,
+            "weightedDenominator": 10,
+            "score": 100,
+            "onTimeRate": 100
+          }
+        },
+        {
+          "key": "03c64f1e-b7d0-52ae-b3eb-b342d540bd02",
+          "label": "Human Resources",
+          "result": {
+            "asOf": "2022-09-30",
+            "counts": {
+              "UPCOMING": 86,
+              "DUE_SOON": 0,
+              "OVERDUE": 0,
+              "SUBMITTED": 0,
+              "COMPLIED": 90,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 4
+            },
+            "due": 83,
+            "weightedNumerator": 220,
+            "weightedDenominator": 220,
+            "score": 100,
+            "onTimeRate": 100
+          }
+        },
+        {
+          "key": "cb753906-8d51-5d91-8fd7-2092c0a59e21",
+          "label": "IT",
+          "result": {
+            "asOf": "2022-09-30",
+            "counts": {
+              "UPCOMING": 7,
+              "DUE_SOON": 0,
+              "OVERDUE": 0,
+              "SUBMITTED": 0,
+              "COMPLIED": 6,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 0
+            },
+            "due": 6,
+            "weightedNumerator": 6,
+            "weightedDenominator": 6,
+            "score": 100,
+            "onTimeRate": 100
+          }
+        },
+        {
+          "key": "c7744c35-24d6-59b9-ad49-f1208a1a0f5a",
+          "label": "Remelt",
+          "result": {
+            "asOf": "2022-09-30",
+            "counts": {
+              "UPCOMING": 54,
+              "DUE_SOON": 0,
+              "OVERDUE": 0,
+              "SUBMITTED": 0,
+              "COMPLIED": 53,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 3
+            },
+            "due": 53,
+            "weightedNumerator": 159,
+            "weightedDenominator": 159,
+            "score": 100,
+            "onTimeRate": 100
+          }
+        },
+        {
+          "key": "c04ef51e-8c61-5bd1-a1e2-93dfd8cfa0e1",
+          "label": "Safety & Environment",
+          "result": {
+            "asOf": "2022-09-30",
+            "counts": {
+              "UPCOMING": 16,
+              "DUE_SOON": 0,
+              "OVERDUE": 0,
+              "SUBMITTED": 0,
+              "COMPLIED": 26,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 0
+            },
+            "due": 22,
+            "weightedNumerator": 46,
+            "weightedDenominator": 46,
+            "score": 100,
+            "onTimeRate": 100
+          }
+        },
+        {
+          "key": "006333e4-3422-5161-be3d-06e1be2cb6c1",
+          "label": "Tax",
+          "result": {
+            "asOf": "2022-09-30",
+            "counts": {
+              "UPCOMING": 15,
+              "DUE_SOON": 0,
+              "OVERDUE": 0,
+              "SUBMITTED": 0,
+              "COMPLIED": 14,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 5
+            },
+            "due": 10,
+            "weightedNumerator": 26,
+            "weightedDenominator": 26,
+            "score": 100,
+            "onTimeRate": 100
+          }
+        }
+      ]
+    },
+    {
+      "asOf": "2022-12-15",
+      "by": "department",
+      "rows": [
+        {
+          "key": "bff1d9e8-b68a-546f-bf42-88567feee0c5",
+          "label": "Electrical",
+          "result": {
+            "asOf": "2022-12-15",
+            "counts": {
+              "UPCOMING": 0,
+              "DUE_SOON": 0,
+              "OVERDUE": 0,
+              "SUBMITTED": 0,
+              "COMPLIED": 1,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 0
+            },
+            "due": 1,
+            "weightedNumerator": 3,
+            "weightedDenominator": 3,
+            "score": 100,
+            "onTimeRate": 100
+          }
+        },
+        {
+          "key": "d5cc2223-f61a-5722-8428-c5892c913808",
+          "label": "Energy",
+          "result": {
+            "asOf": "2022-12-15",
+            "counts": {
+              "UPCOMING": 2,
+              "DUE_SOON": 0,
+              "OVERDUE": 0,
+              "SUBMITTED": 0,
+              "COMPLIED": 2,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 0
+            },
+            "due": 2,
+            "weightedNumerator": 6,
+            "weightedDenominator": 6,
+            "score": 100,
+            "onTimeRate": 100
+          }
+        },
+        {
+          "key": "578e3665-874b-506f-8dbe-f895a2e1f9fa",
+          "label": "Environment Health and Safety",
+          "result": {
+            "asOf": "2022-12-15",
+            "counts": {
+              "UPCOMING": 19,
+              "DUE_SOON": 0,
+              "OVERDUE": 0,
+              "SUBMITTED": 0,
+              "COMPLIED": 15,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 0
+            },
+            "due": 15,
+            "weightedNumerator": 49,
+            "weightedDenominator": 49,
+            "score": 100,
+            "onTimeRate": 100
+          }
+        },
+        {
+          "key": "09e33e05-6e95-5caf-b21b-f4d80fa57ccf",
+          "label": "Factory License - Plant",
+          "result": {
+            "asOf": "2022-12-15",
+            "counts": {
+              "UPCOMING": 2,
+              "DUE_SOON": 0,
+              "OVERDUE": 0,
+              "SUBMITTED": 0,
+              "COMPLIED": 2,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 0
+            },
+            "due": 2,
+            "weightedNumerator": 10,
+            "weightedDenominator": 10,
+            "score": 100,
+            "onTimeRate": 100
+          }
+        },
+        {
+          "key": "03c64f1e-b7d0-52ae-b3eb-b342d540bd02",
+          "label": "Human Resources",
+          "result": {
+            "asOf": "2022-12-15",
+            "counts": {
+              "UPCOMING": 83,
+              "DUE_SOON": 1,
+              "OVERDUE": 2,
+              "SUBMITTED": 0,
+              "COMPLIED": 90,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 4
+            },
+            "due": 92,
+            "weightedNumerator": 236,
+            "weightedDenominator": 245,
+            "score": 96.3,
+            "onTimeRate": 96.7
+          }
+        },
+        {
+          "key": "cb753906-8d51-5d91-8fd7-2092c0a59e21",
+          "label": "IT",
+          "result": {
+            "asOf": "2022-12-15",
+            "counts": {
+              "UPCOMING": 7,
+              "DUE_SOON": 0,
+              "OVERDUE": 0,
+              "SUBMITTED": 0,
+              "COMPLIED": 6,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 0
+            },
+            "due": 6,
+            "weightedNumerator": 6,
+            "weightedDenominator": 6,
+            "score": 100,
+            "onTimeRate": 100
+          }
+        },
+        {
+          "key": "c7744c35-24d6-59b9-ad49-f1208a1a0f5a",
+          "label": "Remelt",
+          "result": {
+            "asOf": "2022-12-15",
+            "counts": {
+              "UPCOMING": 54,
+              "DUE_SOON": 0,
+              "OVERDUE": 0,
+              "SUBMITTED": 0,
+              "COMPLIED": 53,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 3
+            },
+            "due": 53,
+            "weightedNumerator": 159,
+            "weightedDenominator": 159,
+            "score": 100,
+            "onTimeRate": 100
+          }
+        },
+        {
+          "key": "c04ef51e-8c61-5bd1-a1e2-93dfd8cfa0e1",
+          "label": "Safety & Environment",
+          "result": {
+            "asOf": "2022-12-15",
+            "counts": {
+              "UPCOMING": 16,
+              "DUE_SOON": 0,
+              "OVERDUE": 0,
+              "SUBMITTED": 0,
+              "COMPLIED": 26,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 0
+            },
+            "due": 26,
+            "weightedNumerator": 56,
+            "weightedDenominator": 56,
+            "score": 100,
+            "onTimeRate": 100
+          }
+        },
+        {
+          "key": "006333e4-3422-5161-be3d-06e1be2cb6c1",
+          "label": "Tax",
+          "result": {
+            "asOf": "2022-12-15",
+            "counts": {
+              "UPCOMING": 14,
+              "DUE_SOON": 0,
+              "OVERDUE": 1,
+              "SUBMITTED": 0,
+              "COMPLIED": 14,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 5
+            },
+            "due": 15,
+            "weightedNumerator": 36,
+            "weightedDenominator": 39,
+            "score": 92.3,
+            "onTimeRate": 93.3
+          }
+        }
+      ]
+    },
+    {
+      "asOf": "2023-03-31",
+      "by": "department",
+      "rows": [
+        {
+          "key": "bff1d9e8-b68a-546f-bf42-88567feee0c5",
+          "label": "Electrical",
+          "result": {
+            "asOf": "2023-03-31",
+            "counts": {
+              "UPCOMING": 0,
+              "DUE_SOON": 0,
+              "OVERDUE": 0,
+              "SUBMITTED": 0,
+              "COMPLIED": 1,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 0
+            },
+            "due": 1,
+            "weightedNumerator": 3,
+            "weightedDenominator": 3,
+            "score": 100,
+            "onTimeRate": 100
+          }
+        },
+        {
+          "key": "d5cc2223-f61a-5722-8428-c5892c913808",
+          "label": "Energy",
+          "result": {
+            "asOf": "2023-03-31",
+            "counts": {
+              "UPCOMING": 0,
+              "DUE_SOON": 1,
+              "OVERDUE": 1,
+              "SUBMITTED": 0,
+              "COMPLIED": 2,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 0
+            },
+            "due": 4,
+            "weightedNumerator": 6,
+            "weightedDenominator": 12,
+            "score": 50,
+            "onTimeRate": 50
+          }
+        },
+        {
+          "key": "578e3665-874b-506f-8dbe-f895a2e1f9fa",
+          "label": "Environment Health and Safety",
+          "result": {
+            "asOf": "2023-03-31",
+            "counts": {
+              "UPCOMING": 0,
+              "DUE_SOON": 7,
+              "OVERDUE": 12,
+              "SUBMITTED": 0,
+              "COMPLIED": 15,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 0
+            },
+            "due": 34,
+            "weightedNumerator": 49,
+            "weightedDenominator": 110,
+            "score": 44.5,
+            "onTimeRate": 44.1
+          }
+        },
+        {
+          "key": "09e33e05-6e95-5caf-b21b-f4d80fa57ccf",
+          "label": "Factory License - Plant",
+          "result": {
+            "asOf": "2023-03-31",
+            "counts": {
+              "UPCOMING": 0,
+              "DUE_SOON": 1,
+              "OVERDUE": 1,
+              "SUBMITTED": 0,
+              "COMPLIED": 2,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 0
+            },
+            "due": 4,
+            "weightedNumerator": 10,
+            "weightedDenominator": 20,
+            "score": 50,
+            "onTimeRate": 50
+          }
+        },
+        {
+          "key": "03c64f1e-b7d0-52ae-b3eb-b342d540bd02",
+          "label": "Human Resources",
+          "result": {
+            "asOf": "2023-03-31",
+            "counts": {
+              "UPCOMING": 0,
+              "DUE_SOON": 30,
+              "OVERDUE": 56,
+              "SUBMITTED": 0,
+              "COMPLIED": 90,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 4
+            },
+            "due": 176,
+            "weightedNumerator": 237,
+            "weightedDenominator": 462,
+            "score": 51.3,
+            "onTimeRate": 51.1
+          }
+        },
+        {
+          "key": "cb753906-8d51-5d91-8fd7-2092c0a59e21",
+          "label": "IT",
+          "result": {
+            "asOf": "2023-03-31",
+            "counts": {
+              "UPCOMING": 0,
+              "DUE_SOON": 3,
+              "OVERDUE": 4,
+              "SUBMITTED": 0,
+              "COMPLIED": 6,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 0
+            },
+            "due": 13,
+            "weightedNumerator": 6,
+            "weightedDenominator": 13,
+            "score": 46.2,
+            "onTimeRate": 46.2
+          }
+        },
+        {
+          "key": "c7744c35-24d6-59b9-ad49-f1208a1a0f5a",
+          "label": "Remelt",
+          "result": {
+            "asOf": "2023-03-31",
+            "counts": {
+              "UPCOMING": 0,
+              "DUE_SOON": 27,
+              "OVERDUE": 27,
+              "SUBMITTED": 0,
+              "COMPLIED": 53,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 3
+            },
+            "due": 107,
+            "weightedNumerator": 159,
+            "weightedDenominator": 321,
+            "score": 49.5,
+            "onTimeRate": 49.5
+          }
+        },
+        {
+          "key": "c04ef51e-8c61-5bd1-a1e2-93dfd8cfa0e1",
+          "label": "Safety & Environment",
+          "result": {
+            "asOf": "2023-03-31",
+            "counts": {
+              "UPCOMING": 0,
+              "DUE_SOON": 6,
+              "OVERDUE": 10,
+              "SUBMITTED": 0,
+              "COMPLIED": 26,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 0
+            },
+            "due": 42,
+            "weightedNumerator": 56,
+            "weightedDenominator": 88,
+            "score": 63.6,
+            "onTimeRate": 61.9
+          }
+        },
+        {
+          "key": "006333e4-3422-5161-be3d-06e1be2cb6c1",
+          "label": "Tax",
+          "result": {
+            "asOf": "2023-03-31",
+            "counts": {
+              "UPCOMING": 0,
+              "DUE_SOON": 1,
+              "OVERDUE": 14,
+              "SUBMITTED": 0,
+              "COMPLIED": 14,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 5
+            },
+            "due": 29,
+            "weightedNumerator": 36,
+            "weightedDenominator": 67,
+            "score": 53.7,
+            "onTimeRate": 48.3
+          }
+        }
+      ]
+    },
+    {
+      "asOf": "2022-09-30",
+      "by": "act",
+      "rows": [
+        {
+          "key": "4ba3df71-cc3b-5d1e-a7b3-58347e218cb8",
+          "label": "Apprentices Act, 1961 read with Apprenticeship Rules, 1992",
+          "result": {
+            "asOf": "2022-09-30",
+            "counts": {
+              "UPCOMING": 10,
+              "DUE_SOON": 0,
+              "OVERDUE": 0,
+              "SUBMITTED": 0,
+              "COMPLIED": 10,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 0
+            },
+            "due": 10,
+            "weightedNumerator": 10,
+            "weightedDenominator": 10,
+            "score": 100,
+            "onTimeRate": 100
+          }
+        },
+        {
+          "key": "61faeda3-27be-53d3-9925-211367971508",
+          "label": "Child and Adolescent Labour (Prohibition and Regulation) Act, 1986 and West Bengal Child Labour (Prohibition and Regulation) Rules, 1995",
+          "result": {
+            "asOf": "2022-09-30",
+            "counts": {
+              "UPCOMING": 2,
+              "DUE_SOON": 0,
+              "OVERDUE": 0,
+              "SUBMITTED": 0,
+              "COMPLIED": 2,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 0
+            },
+            "due": 2,
+            "weightedNumerator": 6,
+            "weightedDenominator": 6,
+            "score": 100,
+            "onTimeRate": 100
+          }
+        },
+        {
+          "key": "fd46d77f-fd4e-58e1-90f5-e2faacafecff",
+          "label": "Contract Labour (Regulation and Abolition) Act, 1970 and West Bengal Contract Labour (Regulation and Abolition) Rules 1972",
+          "result": {
+            "asOf": "2022-09-30",
+            "counts": {
+              "UPCOMING": 15,
+              "DUE_SOON": 0,
+              "OVERDUE": 0,
+              "SUBMITTED": 0,
+              "COMPLIED": 14,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 0
+            },
+            "due": 14,
+            "weightedNumerator": 42,
+            "weightedDenominator": 42,
+            "score": 100,
+            "onTimeRate": 100
+          }
+        },
+        {
+          "key": "7c74f959-a13d-5193-b292-53e04a2bffdb",
+          "label": "Electricity Act, 2003 & Central Electricity Authority (Safety Requirements for Construction, Operation and Maintenance of Electrical Plants and Electric Lines) Regulations, 2011",
+          "result": {
+            "asOf": "2022-09-30",
+            "counts": {
+              "UPCOMING": 2,
+              "DUE_SOON": 0,
+              "OVERDUE": 0,
+              "SUBMITTED": 0,
+              "COMPLIED": 2,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 0
+            },
+            "due": 2,
+            "weightedNumerator": 6,
+            "weightedDenominator": 6,
+            "score": 100,
+            "onTimeRate": 100
+          }
+        },
+        {
+          "key": "a115c348-17c8-523a-ab9f-e0d036db90bb",
+          "label": "Employees' State Insurance Act, 1948 read with Employees' State Insurance (General) Regulations, 1950 and Employees’ State Insurance (Central) Rules, 1950",
+          "result": {
+            "asOf": "2022-09-30",
+            "counts": {
+              "UPCOMING": 4,
+              "DUE_SOON": 0,
+              "OVERDUE": 0,
+              "SUBMITTED": 0,
+              "COMPLIED": 8,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 0
+            },
+            "due": 6,
+            "weightedNumerator": 18,
+            "weightedDenominator": 18,
+            "score": 100,
+            "onTimeRate": 100
+          }
+        },
+        {
+          "key": "c625d108-aa0c-5da1-8ea3-2aa28e739d40",
+          "label": "Employment Exchanges (Compulsory Notification of Vacancies) Act, 1959 and Employment Exchanges (Compulsory Notification of Vacancies) Rules, 1960",
+          "result": {
+            "asOf": "2022-09-30",
+            "counts": {
+              "UPCOMING": 1,
+              "DUE_SOON": 0,
+              "OVERDUE": 0,
+              "SUBMITTED": 0,
+              "COMPLIED": 3,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 0
+            },
+            "due": 2,
+            "weightedNumerator": 2,
+            "weightedDenominator": 2,
+            "score": 100,
+            "onTimeRate": 100
+          }
+        },
+        {
+          "key": "7faea9f3-766f-5af1-9f76-9049e59141c3",
+          "label": "Environment (Protection) Act, 1986 and Environment (Protection) Rules, 1986",
+          "result": {
+            "asOf": "2022-09-30",
+            "counts": {
+              "UPCOMING": 2,
+              "DUE_SOON": 0,
+              "OVERDUE": 0,
+              "SUBMITTED": 0,
+              "COMPLIED": 2,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 0
+            },
+            "due": 2,
+            "weightedNumerator": 6,
+            "weightedDenominator": 6,
+            "score": 100,
+            "onTimeRate": 100
+          }
+        },
+        {
+          "key": "25311842-5ab2-5398-8177-5f9d9a0525b6",
+          "label": "Environment (Protection) Act, 1986 and Hazardous and Other Wastes (Management and Transboundary Movement) Rules, 2016",
+          "result": {
+            "asOf": "2022-09-30",
+            "counts": {
+              "UPCOMING": 6,
+              "DUE_SOON": 0,
+              "OVERDUE": 0,
+              "SUBMITTED": 0,
+              "COMPLIED": 7,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 0
+            },
+            "due": 7,
+            "weightedNumerator": 7,
+            "weightedDenominator": 7,
+            "score": 100,
+            "onTimeRate": 100
+          }
+        },
+        {
+          "key": "41e92bb3-f954-5861-8aa6-1504f94b65d3",
+          "label": "Environment (Protection) Act, 1986 and Plastic Waste (Management and Handling) Rules, 2016",
+          "result": {
+            "asOf": "2022-09-30",
+            "counts": {
+              "UPCOMING": 4,
+              "DUE_SOON": 0,
+              "OVERDUE": 0,
+              "SUBMITTED": 0,
+              "COMPLIED": 8,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 0
+            },
+            "due": 6,
+            "weightedNumerator": 18,
+            "weightedDenominator": 18,
+            "score": 100,
+            "onTimeRate": 100
+          }
+        },
+        {
+          "key": "3ef74569-dac9-517a-9913-5f59ce9319ab",
+          "label": "Environment (Protection) Act, 1986 and Solid Waste Management Rules, 2016",
+          "result": {
+            "asOf": "2022-09-30",
+            "counts": {
+              "UPCOMING": 4,
+              "DUE_SOON": 0,
+              "OVERDUE": 0,
+              "SUBMITTED": 0,
+              "COMPLIED": 4,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 0
+            },
+            "due": 4,
+            "weightedNumerator": 12,
+            "weightedDenominator": 12,
+            "score": 100,
+            "onTimeRate": 100
+          }
+        },
+        {
+          "key": "d089c2a9-aff6-559d-9fce-3741ca35c959",
+          "label": "Environment (Protection) Act, 1986 and The Manufacture, Storage and Import of Hazardous Chemicals Rules, 1989",
+          "result": {
+            "asOf": "2022-09-30",
+            "counts": {
+              "UPCOMING": 2,
+              "DUE_SOON": 0,
+              "OVERDUE": 0,
+              "SUBMITTED": 0,
+              "COMPLIED": 2,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 0
+            },
+            "due": 2,
+            "weightedNumerator": 6,
+            "weightedDenominator": 6,
+            "score": 100,
+            "onTimeRate": 100
+          }
+        },
+        {
+          "key": "c59fa3a6-b6f1-532d-bd3e-948f4e613e84",
+          "label": "Environment (Protection) Act, 1986 and The Noise Pollution (Regulation and Control) Rules, 2000",
+          "result": {
+            "asOf": "2022-09-30",
+            "counts": {
+              "UPCOMING": 4,
+              "DUE_SOON": 0,
+              "OVERDUE": 0,
+              "SUBMITTED": 0,
+              "COMPLIED": 8,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 0
+            },
+            "due": 6,
+            "weightedNumerator": 12,
+            "weightedDenominator": 12,
+            "score": 100,
+            "onTimeRate": 100
+          }
+        },
+        {
+          "key": "6b5a2b3e-388c-5f68-a146-15fccd7dd360",
+          "label": "Environment (Protection) Act, 1986 read with Bio-Medical Waste Management Rules, 2016",
+          "result": {
+            "asOf": "2022-09-30",
+            "counts": {
+              "UPCOMING": 2,
+              "DUE_SOON": 0,
+              "OVERDUE": 0,
+              "SUBMITTED": 0,
+              "COMPLIED": 3,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 0
+            },
+            "due": 3,
+            "weightedNumerator": 9,
+            "weightedDenominator": 9,
+            "score": 100,
+            "onTimeRate": 100
+          }
+        },
+        {
+          "key": "8170b13d-ce14-592d-8581-c2b099330ce1",
+          "label": "Environment Protection Act, 1986 & Ozone Depleting Substances (Regulation and Control) Rules, 2000",
+          "result": {
+            "asOf": "2022-09-30",
+            "counts": {
+              "UPCOMING": 0,
+              "DUE_SOON": 0,
+              "OVERDUE": 0,
+              "SUBMITTED": 0,
+              "COMPLIED": 1,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 0
+            },
+            "due": 1,
+            "weightedNumerator": 3,
+            "weightedDenominator": 3,
+            "score": 100,
+            "onTimeRate": 100
+          }
+        },
+        {
+          "key": "99e2dc81-4efb-5aca-a9f3-54401a71238f",
+          "label": "Environment Protection Act, 1986 and Batteries(Management and Handling) Rules,2001",
+          "result": {
+            "asOf": "2022-09-30",
+            "counts": {
+              "UPCOMING": 1,
+              "DUE_SOON": 0,
+              "OVERDUE": 0,
+              "SUBMITTED": 0,
+              "COMPLIED": 1,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 0
+            },
+            "due": 1,
+            "weightedNumerator": 3,
+            "weightedDenominator": 3,
+            "score": 100,
+            "onTimeRate": 100
+          }
+        },
+        {
+          "key": "350537d9-a137-56be-8c4c-32036e04b20a",
+          "label": "Explosives Act, 1884 and Gas Cylinders Rules, 2016",
+          "result": {
+            "asOf": "2022-09-30",
+            "counts": {
+              "UPCOMING": 2,
+              "DUE_SOON": 0,
+              "OVERDUE": 0,
+              "SUBMITTED": 0,
+              "COMPLIED": 2,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 0
+            },
+            "due": 2,
+            "weightedNumerator": 6,
+            "weightedDenominator": 6,
+            "score": 100,
+            "onTimeRate": 100
+          }
+        },
+        {
+          "key": "b0d586e9-e70b-561c-bffd-64e12fd10b22",
+          "label": "Factories Act , 1948",
+          "result": {
+            "asOf": "2022-09-30",
+            "counts": {
+              "UPCOMING": 2,
+              "DUE_SOON": 0,
+              "OVERDUE": 0,
+              "SUBMITTED": 0,
+              "COMPLIED": 2,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 0
+            },
+            "due": 2,
+            "weightedNumerator": 10,
+            "weightedDenominator": 10,
+            "score": 100,
+            "onTimeRate": 100
+          }
+        },
+        {
+          "key": "89f4b36b-4589-5bbd-bd51-33de3b2ca414",
+          "label": "Factories Act, 1948 and West Bengal Factories Rules, 1958",
+          "result": {
+            "asOf": "2022-09-30",
+            "counts": {
+              "UPCOMING": 33,
+              "DUE_SOON": 0,
+              "OVERDUE": 0,
+              "SUBMITTED": 0,
+              "COMPLIED": 31,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 2
+            },
+            "due": 30,
+            "weightedNumerator": 101,
+            "weightedDenominator": 101,
+            "score": 100,
+            "onTimeRate": 100
+          }
+        },
+        {
+          "key": "8e0e5955-bd9d-59cd-bf3c-8f944acacb3b",
+          "label": "Hindalco Industries Limited, Belur , Renewal of Consent to Operate under Water (Prevention and Control of Pollution) Act and Air (Prevention and Control of Pollution) Act",
+          "result": {
+            "asOf": "2022-09-30",
+            "counts": {
+              "UPCOMING": 2,
+              "DUE_SOON": 0,
+              "OVERDUE": 0,
+              "SUBMITTED": 0,
+              "COMPLIED": 2,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 0
+            },
+            "due": 2,
+            "weightedNumerator": 10,
+            "weightedDenominator": 10,
+            "score": 100,
+            "onTimeRate": 100
+          }
+        },
+        {
+          "key": "5af0a5dc-15ff-52ef-87c2-d936091bd868",
+          "label": "Income Tax Act, 1961 and Income Tax Rules, 1962",
+          "result": {
+            "asOf": "2022-09-30",
+            "counts": {
+              "UPCOMING": 15,
+              "DUE_SOON": 0,
+              "OVERDUE": 0,
+              "SUBMITTED": 0,
+              "COMPLIED": 14,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 5
+            },
+            "due": 10,
+            "weightedNumerator": 26,
+            "weightedDenominator": 26,
+            "score": 100,
+            "onTimeRate": 100
+          }
+        },
+        {
+          "key": "4b10160b-8c59-5846-9c37-0eac104b0f17",
+          "label": "Indian Explosives Act, 1884 and Static and Mobile Pressure Vessels (Unfired) Rules, 2016",
+          "result": {
+            "asOf": "2022-09-30",
+            "counts": {
+              "UPCOMING": 54,
+              "DUE_SOON": 0,
+              "OVERDUE": 0,
+              "SUBMITTED": 0,
+              "COMPLIED": 53,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 3
+            },
+            "due": 53,
+            "weightedNumerator": 159,
+            "weightedDenominator": 159,
+            "score": 100,
+            "onTimeRate": 100
+          }
+        },
+        {
+          "key": "26c3ed9b-4cc0-5082-b6aa-433b0b2e182e",
+          "label": "Information Technology Act, 2000 and Information Technology (Reasonable security practices and procedures and sensitive personal data or information) Rules, 2011",
+          "result": {
+            "asOf": "2022-09-30",
+            "counts": {
+              "UPCOMING": 7,
+              "DUE_SOON": 0,
+              "OVERDUE": 0,
+              "SUBMITTED": 0,
+              "COMPLIED": 6,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 0
+            },
+            "due": 6,
+            "weightedNumerator": 6,
+            "weightedDenominator": 6,
+            "score": 100,
+            "onTimeRate": 100
+          }
+        },
+        {
+          "key": "46c16bb5-6813-5980-84b3-427d0d1a5949",
+          "label": "Inter-State Migrant Workmen (Regulation of Employment and Conditions of Service) Act, 1979 and Inter-State Migrant Workmen (Regulation of Employment and Conditions of Service) Central Rules, 1980",
+          "result": {
+            "asOf": "2022-09-30",
+            "counts": {
+              "UPCOMING": 0,
+              "DUE_SOON": 0,
+              "OVERDUE": 0,
+              "SUBMITTED": 0,
+              "COMPLIED": 0,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 1
+            },
+            "due": 0,
+            "weightedNumerator": 0,
+            "weightedDenominator": 0,
+            "score": null,
+            "onTimeRate": null
+          }
+        },
+        {
+          "key": "fd819764-ec36-5946-9f45-edeb2517f12a",
+          "label": "Maternity Benefit Act, 1961 and West Bengal Maternity Benefit Rules, 1965",
+          "result": {
+            "asOf": "2022-09-30",
+            "counts": {
+              "UPCOMING": 1,
+              "DUE_SOON": 0,
+              "OVERDUE": 0,
+              "SUBMITTED": 0,
+              "COMPLIED": 0,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 0
+            },
+            "due": 0,
+            "weightedNumerator": 0,
+            "weightedDenominator": 0,
+            "score": null,
+            "onTimeRate": null
+          }
+        },
+        {
+          "key": "94d53b5f-5248-55a2-89b7-f43341602e3c",
+          "label": "Minimum Wages Act, 1948 and West Bengal Minimum Wages Rules, 1951",
+          "result": {
+            "asOf": "2022-09-30",
+            "counts": {
+              "UPCOMING": 5,
+              "DUE_SOON": 0,
+              "OVERDUE": 0,
+              "SUBMITTED": 0,
+              "COMPLIED": 4,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 0
+            },
+            "due": 4,
+            "weightedNumerator": 4,
+            "weightedDenominator": 4,
+            "score": 100,
+            "onTimeRate": 100
+          }
+        },
+        {
+          "key": "5746b303-508a-50f3-b425-43f945fb1cb8",
+          "label": "Payment of Bonus Act, 1965 and Payment of Bonus Rules, 1975",
+          "result": {
+            "asOf": "2022-09-30",
+            "counts": {
+              "UPCOMING": 0,
+              "DUE_SOON": 0,
+              "OVERDUE": 0,
+              "SUBMITTED": 0,
+              "COMPLIED": 2,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 0
+            },
+            "due": 1,
+            "weightedNumerator": 3,
+            "weightedDenominator": 3,
+            "score": 100,
+            "onTimeRate": 100
+          }
+        },
+        {
+          "key": "69be2e28-3114-5f00-a51a-bcd2a8c1564c",
+          "label": "Payment of Wages Act, 1936 and West Bengal Payment of Wages Rules, 1958",
+          "result": {
+            "asOf": "2022-09-30",
+            "counts": {
+              "UPCOMING": 3,
+              "DUE_SOON": 0,
+              "OVERDUE": 0,
+              "SUBMITTED": 0,
+              "COMPLIED": 2,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 0
+            },
+            "due": 2,
+            "weightedNumerator": 2,
+            "weightedDenominator": 2,
+            "score": 100,
+            "onTimeRate": 100
+          }
+        },
+        {
+          "key": "deee41f4-d152-546b-a6a3-927da853aca3",
+          "label": "Petroleum Act, 1934 read with Petroleum Rules 2002",
+          "result": {
+            "asOf": "2022-09-30",
+            "counts": {
+              "UPCOMING": 5,
+              "DUE_SOON": 0,
+              "OVERDUE": 0,
+              "SUBMITTED": 0,
+              "COMPLIED": 2,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 0
+            },
+            "due": 2,
+            "weightedNumerator": 6,
+            "weightedDenominator": 6,
+            "score": 100,
+            "onTimeRate": 100
+          }
+        },
+        {
+          "key": "a396ae85-b41f-54b3-b929-78a371a23866",
+          "label": "Rights of Persons with Disabilities Act, 2016 and Rights of Persons with Disabilities Rules, 2017",
+          "result": {
+            "asOf": "2022-09-30",
+            "counts": {
+              "UPCOMING": 4,
+              "DUE_SOON": 0,
+              "OVERDUE": 0,
+              "SUBMITTED": 0,
+              "COMPLIED": 3,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 0
+            },
+            "due": 3,
+            "weightedNumerator": 5,
+            "weightedDenominator": 5,
+            "score": 100,
+            "onTimeRate": 100
+          }
+        },
+        {
+          "key": "a3cfcffb-f632-5417-82d2-343f440580cc",
+          "label": "Sexual Harassment of Women at Workplace (Prevention, Prohibition and Redressal) Act, 2013 and Sexual Harassment of Women at Workplace (Prevention, Prohibition and Redressal) Rules, 2013",
+          "result": {
+            "asOf": "2022-09-30",
+            "counts": {
+              "UPCOMING": 0,
+              "DUE_SOON": 0,
+              "OVERDUE": 0,
+              "SUBMITTED": 0,
+              "COMPLIED": 1,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 0
+            },
+            "due": 0,
+            "weightedNumerator": 0,
+            "weightedDenominator": 0,
+            "score": null,
+            "onTimeRate": null
+          }
+        },
+        {
+          "key": "7ee2a69b-1f8a-59c8-9b56-ae4654bca858",
+          "label": "West Bengal Fire Services Act 1950 and Rules 2003",
+          "result": {
+            "asOf": "2022-09-30",
+            "counts": {
+              "UPCOMING": 1,
+              "DUE_SOON": 0,
+              "OVERDUE": 0,
+              "SUBMITTED": 0,
+              "COMPLIED": 0,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 0
+            },
+            "due": 0,
+            "weightedNumerator": 0,
+            "weightedDenominator": 0,
+            "score": null,
+            "onTimeRate": null
+          }
+        },
+        {
+          "key": "00e5e24b-c89f-5ca1-bf82-5cbb6c17939a",
+          "label": "West Bengal Labour Welfare Fund Act, 1974 and West Bengal Labour Welfare fund Rules, 1976",
+          "result": {
+            "asOf": "2022-09-30",
+            "counts": {
+              "UPCOMING": 3,
+              "DUE_SOON": 0,
+              "OVERDUE": 0,
+              "SUBMITTED": 0,
+              "COMPLIED": 3,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 1
+            },
+            "due": 3,
+            "weightedNumerator": 9,
+            "weightedDenominator": 9,
+            "score": 100,
+            "onTimeRate": 100
+          }
+        },
+        {
+          "key": "f28db9fd-8c4c-5258-abc2-70507a1b4bbc",
+          "label": "West Bengal Workmen's House Rent Allowance Act, 1974 and West Bengal Workmen’s House Rent Allowance Rules, 1975",
+          "result": {
+            "asOf": "2022-09-30",
+            "counts": {
+              "UPCOMING": 5,
+              "DUE_SOON": 0,
+              "OVERDUE": 0,
+              "SUBMITTED": 0,
+              "COMPLIED": 7,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 0
+            },
+            "due": 6,
+            "weightedNumerator": 18,
+            "weightedDenominator": 18,
+            "score": 100,
+            "onTimeRate": 100
+          }
+        }
+      ]
+    },
+    {
+      "asOf": "2022-12-15",
+      "by": "act",
+      "rows": [
+        {
+          "key": "4ba3df71-cc3b-5d1e-a7b3-58347e218cb8",
+          "label": "Apprentices Act, 1961 read with Apprenticeship Rules, 1992",
+          "result": {
+            "asOf": "2022-12-15",
+            "counts": {
+              "UPCOMING": 10,
+              "DUE_SOON": 0,
+              "OVERDUE": 0,
+              "SUBMITTED": 0,
+              "COMPLIED": 10,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 0
+            },
+            "due": 10,
+            "weightedNumerator": 10,
+            "weightedDenominator": 10,
+            "score": 100,
+            "onTimeRate": 100
+          }
+        },
+        {
+          "key": "61faeda3-27be-53d3-9925-211367971508",
+          "label": "Child and Adolescent Labour (Prohibition and Regulation) Act, 1986 and West Bengal Child Labour (Prohibition and Regulation) Rules, 1995",
+          "result": {
+            "asOf": "2022-12-15",
+            "counts": {
+              "UPCOMING": 2,
+              "DUE_SOON": 0,
+              "OVERDUE": 0,
+              "SUBMITTED": 0,
+              "COMPLIED": 2,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 0
+            },
+            "due": 2,
+            "weightedNumerator": 6,
+            "weightedDenominator": 6,
+            "score": 100,
+            "onTimeRate": 100
+          }
+        },
+        {
+          "key": "fd46d77f-fd4e-58e1-90f5-e2faacafecff",
+          "label": "Contract Labour (Regulation and Abolition) Act, 1970 and West Bengal Contract Labour (Regulation and Abolition) Rules 1972",
+          "result": {
+            "asOf": "2022-12-15",
+            "counts": {
+              "UPCOMING": 15,
+              "DUE_SOON": 0,
+              "OVERDUE": 0,
+              "SUBMITTED": 0,
+              "COMPLIED": 14,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 0
+            },
+            "due": 14,
+            "weightedNumerator": 42,
+            "weightedDenominator": 42,
+            "score": 100,
+            "onTimeRate": 100
+          }
+        },
+        {
+          "key": "7c74f959-a13d-5193-b292-53e04a2bffdb",
+          "label": "Electricity Act, 2003 & Central Electricity Authority (Safety Requirements for Construction, Operation and Maintenance of Electrical Plants and Electric Lines) Regulations, 2011",
+          "result": {
+            "asOf": "2022-12-15",
+            "counts": {
+              "UPCOMING": 2,
+              "DUE_SOON": 0,
+              "OVERDUE": 0,
+              "SUBMITTED": 0,
+              "COMPLIED": 2,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 0
+            },
+            "due": 2,
+            "weightedNumerator": 6,
+            "weightedDenominator": 6,
+            "score": 100,
+            "onTimeRate": 100
+          }
+        },
+        {
+          "key": "a115c348-17c8-523a-ab9f-e0d036db90bb",
+          "label": "Employees' State Insurance Act, 1948 read with Employees' State Insurance (General) Regulations, 1950 and Employees’ State Insurance (Central) Rules, 1950",
+          "result": {
+            "asOf": "2022-12-15",
+            "counts": {
+              "UPCOMING": 3,
+              "DUE_SOON": 1,
+              "OVERDUE": 0,
+              "SUBMITTED": 0,
+              "COMPLIED": 8,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 0
+            },
+            "due": 9,
+            "weightedNumerator": 24,
+            "weightedDenominator": 27,
+            "score": 88.9,
+            "onTimeRate": 88.9
+          }
+        },
+        {
+          "key": "c625d108-aa0c-5da1-8ea3-2aa28e739d40",
+          "label": "Employment Exchanges (Compulsory Notification of Vacancies) Act, 1959 and Employment Exchanges (Compulsory Notification of Vacancies) Rules, 1960",
+          "result": {
+            "asOf": "2022-12-15",
+            "counts": {
+              "UPCOMING": 1,
+              "DUE_SOON": 0,
+              "OVERDUE": 0,
+              "SUBMITTED": 0,
+              "COMPLIED": 3,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 0
+            },
+            "due": 3,
+            "weightedNumerator": 3,
+            "weightedDenominator": 3,
+            "score": 100,
+            "onTimeRate": 100
+          }
+        },
+        {
+          "key": "7faea9f3-766f-5af1-9f76-9049e59141c3",
+          "label": "Environment (Protection) Act, 1986 and Environment (Protection) Rules, 1986",
+          "result": {
+            "asOf": "2022-12-15",
+            "counts": {
+              "UPCOMING": 2,
+              "DUE_SOON": 0,
+              "OVERDUE": 0,
+              "SUBMITTED": 0,
+              "COMPLIED": 2,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 0
+            },
+            "due": 2,
+            "weightedNumerator": 6,
+            "weightedDenominator": 6,
+            "score": 100,
+            "onTimeRate": 100
+          }
+        },
+        {
+          "key": "25311842-5ab2-5398-8177-5f9d9a0525b6",
+          "label": "Environment (Protection) Act, 1986 and Hazardous and Other Wastes (Management and Transboundary Movement) Rules, 2016",
+          "result": {
+            "asOf": "2022-12-15",
+            "counts": {
+              "UPCOMING": 6,
+              "DUE_SOON": 0,
+              "OVERDUE": 0,
+              "SUBMITTED": 0,
+              "COMPLIED": 7,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 0
+            },
+            "due": 7,
+            "weightedNumerator": 7,
+            "weightedDenominator": 7,
+            "score": 100,
+            "onTimeRate": 100
+          }
+        },
+        {
+          "key": "41e92bb3-f954-5861-8aa6-1504f94b65d3",
+          "label": "Environment (Protection) Act, 1986 and Plastic Waste (Management and Handling) Rules, 2016",
+          "result": {
+            "asOf": "2022-12-15",
+            "counts": {
+              "UPCOMING": 4,
+              "DUE_SOON": 0,
+              "OVERDUE": 0,
+              "SUBMITTED": 0,
+              "COMPLIED": 8,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 0
+            },
+            "due": 8,
+            "weightedNumerator": 24,
+            "weightedDenominator": 24,
+            "score": 100,
+            "onTimeRate": 100
+          }
+        },
+        {
+          "key": "3ef74569-dac9-517a-9913-5f59ce9319ab",
+          "label": "Environment (Protection) Act, 1986 and Solid Waste Management Rules, 2016",
+          "result": {
+            "asOf": "2022-12-15",
+            "counts": {
+              "UPCOMING": 4,
+              "DUE_SOON": 0,
+              "OVERDUE": 0,
+              "SUBMITTED": 0,
+              "COMPLIED": 4,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 0
+            },
+            "due": 4,
+            "weightedNumerator": 12,
+            "weightedDenominator": 12,
+            "score": 100,
+            "onTimeRate": 100
+          }
+        },
+        {
+          "key": "d089c2a9-aff6-559d-9fce-3741ca35c959",
+          "label": "Environment (Protection) Act, 1986 and The Manufacture, Storage and Import of Hazardous Chemicals Rules, 1989",
+          "result": {
+            "asOf": "2022-12-15",
+            "counts": {
+              "UPCOMING": 2,
+              "DUE_SOON": 0,
+              "OVERDUE": 0,
+              "SUBMITTED": 0,
+              "COMPLIED": 2,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 0
+            },
+            "due": 2,
+            "weightedNumerator": 6,
+            "weightedDenominator": 6,
+            "score": 100,
+            "onTimeRate": 100
+          }
+        },
+        {
+          "key": "c59fa3a6-b6f1-532d-bd3e-948f4e613e84",
+          "label": "Environment (Protection) Act, 1986 and The Noise Pollution (Regulation and Control) Rules, 2000",
+          "result": {
+            "asOf": "2022-12-15",
+            "counts": {
+              "UPCOMING": 4,
+              "DUE_SOON": 0,
+              "OVERDUE": 0,
+              "SUBMITTED": 0,
+              "COMPLIED": 8,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 0
+            },
+            "due": 8,
+            "weightedNumerator": 16,
+            "weightedDenominator": 16,
+            "score": 100,
+            "onTimeRate": 100
+          }
+        },
+        {
+          "key": "6b5a2b3e-388c-5f68-a146-15fccd7dd360",
+          "label": "Environment (Protection) Act, 1986 read with Bio-Medical Waste Management Rules, 2016",
+          "result": {
+            "asOf": "2022-12-15",
+            "counts": {
+              "UPCOMING": 2,
+              "DUE_SOON": 0,
+              "OVERDUE": 0,
+              "SUBMITTED": 0,
+              "COMPLIED": 3,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 0
+            },
+            "due": 3,
+            "weightedNumerator": 9,
+            "weightedDenominator": 9,
+            "score": 100,
+            "onTimeRate": 100
+          }
+        },
+        {
+          "key": "8170b13d-ce14-592d-8581-c2b099330ce1",
+          "label": "Environment Protection Act, 1986 & Ozone Depleting Substances (Regulation and Control) Rules, 2000",
+          "result": {
+            "asOf": "2022-12-15",
+            "counts": {
+              "UPCOMING": 0,
+              "DUE_SOON": 0,
+              "OVERDUE": 0,
+              "SUBMITTED": 0,
+              "COMPLIED": 1,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 0
+            },
+            "due": 1,
+            "weightedNumerator": 3,
+            "weightedDenominator": 3,
+            "score": 100,
+            "onTimeRate": 100
+          }
+        },
+        {
+          "key": "99e2dc81-4efb-5aca-a9f3-54401a71238f",
+          "label": "Environment Protection Act, 1986 and Batteries(Management and Handling) Rules,2001",
+          "result": {
+            "asOf": "2022-12-15",
+            "counts": {
+              "UPCOMING": 1,
+              "DUE_SOON": 0,
+              "OVERDUE": 0,
+              "SUBMITTED": 0,
+              "COMPLIED": 1,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 0
+            },
+            "due": 1,
+            "weightedNumerator": 3,
+            "weightedDenominator": 3,
+            "score": 100,
+            "onTimeRate": 100
+          }
+        },
+        {
+          "key": "350537d9-a137-56be-8c4c-32036e04b20a",
+          "label": "Explosives Act, 1884 and Gas Cylinders Rules, 2016",
+          "result": {
+            "asOf": "2022-12-15",
+            "counts": {
+              "UPCOMING": 2,
+              "DUE_SOON": 0,
+              "OVERDUE": 0,
+              "SUBMITTED": 0,
+              "COMPLIED": 2,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 0
+            },
+            "due": 2,
+            "weightedNumerator": 6,
+            "weightedDenominator": 6,
+            "score": 100,
+            "onTimeRate": 100
+          }
+        },
+        {
+          "key": "b0d586e9-e70b-561c-bffd-64e12fd10b22",
+          "label": "Factories Act , 1948",
+          "result": {
+            "asOf": "2022-12-15",
+            "counts": {
+              "UPCOMING": 2,
+              "DUE_SOON": 0,
+              "OVERDUE": 0,
+              "SUBMITTED": 0,
+              "COMPLIED": 2,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 0
+            },
+            "due": 2,
+            "weightedNumerator": 10,
+            "weightedDenominator": 10,
+            "score": 100,
+            "onTimeRate": 100
+          }
+        },
+        {
+          "key": "89f4b36b-4589-5bbd-bd51-33de3b2ca414",
+          "label": "Factories Act, 1948 and West Bengal Factories Rules, 1958",
+          "result": {
+            "asOf": "2022-12-15",
+            "counts": {
+              "UPCOMING": 33,
+              "DUE_SOON": 0,
+              "OVERDUE": 0,
+              "SUBMITTED": 0,
+              "COMPLIED": 31,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 2
+            },
+            "due": 31,
+            "weightedNumerator": 104,
+            "weightedDenominator": 104,
+            "score": 100,
+            "onTimeRate": 100
+          }
+        },
+        {
+          "key": "8e0e5955-bd9d-59cd-bf3c-8f944acacb3b",
+          "label": "Hindalco Industries Limited, Belur , Renewal of Consent to Operate under Water (Prevention and Control of Pollution) Act and Air (Prevention and Control of Pollution) Act",
+          "result": {
+            "asOf": "2022-12-15",
+            "counts": {
+              "UPCOMING": 2,
+              "DUE_SOON": 0,
+              "OVERDUE": 0,
+              "SUBMITTED": 0,
+              "COMPLIED": 2,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 0
+            },
+            "due": 2,
+            "weightedNumerator": 10,
+            "weightedDenominator": 10,
+            "score": 100,
+            "onTimeRate": 100
+          }
+        },
+        {
+          "key": "5af0a5dc-15ff-52ef-87c2-d936091bd868",
+          "label": "Income Tax Act, 1961 and Income Tax Rules, 1962",
+          "result": {
+            "asOf": "2022-12-15",
+            "counts": {
+              "UPCOMING": 14,
+              "DUE_SOON": 0,
+              "OVERDUE": 1,
+              "SUBMITTED": 0,
+              "COMPLIED": 14,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 5
+            },
+            "due": 15,
+            "weightedNumerator": 36,
+            "weightedDenominator": 39,
+            "score": 92.3,
+            "onTimeRate": 93.3
+          }
+        },
+        {
+          "key": "4b10160b-8c59-5846-9c37-0eac104b0f17",
+          "label": "Indian Explosives Act, 1884 and Static and Mobile Pressure Vessels (Unfired) Rules, 2016",
+          "result": {
+            "asOf": "2022-12-15",
+            "counts": {
+              "UPCOMING": 54,
+              "DUE_SOON": 0,
+              "OVERDUE": 0,
+              "SUBMITTED": 0,
+              "COMPLIED": 53,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 3
+            },
+            "due": 53,
+            "weightedNumerator": 159,
+            "weightedDenominator": 159,
+            "score": 100,
+            "onTimeRate": 100
+          }
+        },
+        {
+          "key": "26c3ed9b-4cc0-5082-b6aa-433b0b2e182e",
+          "label": "Information Technology Act, 2000 and Information Technology (Reasonable security practices and procedures and sensitive personal data or information) Rules, 2011",
+          "result": {
+            "asOf": "2022-12-15",
+            "counts": {
+              "UPCOMING": 7,
+              "DUE_SOON": 0,
+              "OVERDUE": 0,
+              "SUBMITTED": 0,
+              "COMPLIED": 6,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 0
+            },
+            "due": 6,
+            "weightedNumerator": 6,
+            "weightedDenominator": 6,
+            "score": 100,
+            "onTimeRate": 100
+          }
+        },
+        {
+          "key": "46c16bb5-6813-5980-84b3-427d0d1a5949",
+          "label": "Inter-State Migrant Workmen (Regulation of Employment and Conditions of Service) Act, 1979 and Inter-State Migrant Workmen (Regulation of Employment and Conditions of Service) Central Rules, 1980",
+          "result": {
+            "asOf": "2022-12-15",
+            "counts": {
+              "UPCOMING": 0,
+              "DUE_SOON": 0,
+              "OVERDUE": 0,
+              "SUBMITTED": 0,
+              "COMPLIED": 0,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 1
+            },
+            "due": 0,
+            "weightedNumerator": 0,
+            "weightedDenominator": 0,
+            "score": null,
+            "onTimeRate": null
+          }
+        },
+        {
+          "key": "fd819764-ec36-5946-9f45-edeb2517f12a",
+          "label": "Maternity Benefit Act, 1961 and West Bengal Maternity Benefit Rules, 1965",
+          "result": {
+            "asOf": "2022-12-15",
+            "counts": {
+              "UPCOMING": 1,
+              "DUE_SOON": 0,
+              "OVERDUE": 0,
+              "SUBMITTED": 0,
+              "COMPLIED": 0,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 0
+            },
+            "due": 0,
+            "weightedNumerator": 0,
+            "weightedDenominator": 0,
+            "score": null,
+            "onTimeRate": null
+          }
+        },
+        {
+          "key": "94d53b5f-5248-55a2-89b7-f43341602e3c",
+          "label": "Minimum Wages Act, 1948 and West Bengal Minimum Wages Rules, 1951",
+          "result": {
+            "asOf": "2022-12-15",
+            "counts": {
+              "UPCOMING": 5,
+              "DUE_SOON": 0,
+              "OVERDUE": 0,
+              "SUBMITTED": 0,
+              "COMPLIED": 4,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 0
+            },
+            "due": 4,
+            "weightedNumerator": 4,
+            "weightedDenominator": 4,
+            "score": 100,
+            "onTimeRate": 100
+          }
+        },
+        {
+          "key": "5746b303-508a-50f3-b425-43f945fb1cb8",
+          "label": "Payment of Bonus Act, 1965 and Payment of Bonus Rules, 1975",
+          "result": {
+            "asOf": "2022-12-15",
+            "counts": {
+              "UPCOMING": 0,
+              "DUE_SOON": 0,
+              "OVERDUE": 0,
+              "SUBMITTED": 0,
+              "COMPLIED": 2,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 0
+            },
+            "due": 2,
+            "weightedNumerator": 6,
+            "weightedDenominator": 6,
+            "score": 100,
+            "onTimeRate": 100
+          }
+        },
+        {
+          "key": "69be2e28-3114-5f00-a51a-bcd2a8c1564c",
+          "label": "Payment of Wages Act, 1936 and West Bengal Payment of Wages Rules, 1958",
+          "result": {
+            "asOf": "2022-12-15",
+            "counts": {
+              "UPCOMING": 3,
+              "DUE_SOON": 0,
+              "OVERDUE": 0,
+              "SUBMITTED": 0,
+              "COMPLIED": 2,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 0
+            },
+            "due": 2,
+            "weightedNumerator": 2,
+            "weightedDenominator": 2,
+            "score": 100,
+            "onTimeRate": 100
+          }
+        },
+        {
+          "key": "deee41f4-d152-546b-a6a3-927da853aca3",
+          "label": "Petroleum Act, 1934 read with Petroleum Rules 2002",
+          "result": {
+            "asOf": "2022-12-15",
+            "counts": {
+              "UPCOMING": 5,
+              "DUE_SOON": 0,
+              "OVERDUE": 0,
+              "SUBMITTED": 0,
+              "COMPLIED": 2,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 0
+            },
+            "due": 2,
+            "weightedNumerator": 6,
+            "weightedDenominator": 6,
+            "score": 100,
+            "onTimeRate": 100
+          }
+        },
+        {
+          "key": "a396ae85-b41f-54b3-b929-78a371a23866",
+          "label": "Rights of Persons with Disabilities Act, 2016 and Rights of Persons with Disabilities Rules, 2017",
+          "result": {
+            "asOf": "2022-12-15",
+            "counts": {
+              "UPCOMING": 4,
+              "DUE_SOON": 0,
+              "OVERDUE": 0,
+              "SUBMITTED": 0,
+              "COMPLIED": 3,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 0
+            },
+            "due": 3,
+            "weightedNumerator": 5,
+            "weightedDenominator": 5,
+            "score": 100,
+            "onTimeRate": 100
+          }
+        },
+        {
+          "key": "a3cfcffb-f632-5417-82d2-343f440580cc",
+          "label": "Sexual Harassment of Women at Workplace (Prevention, Prohibition and Redressal) Act, 2013 and Sexual Harassment of Women at Workplace (Prevention, Prohibition and Redressal) Rules, 2013",
+          "result": {
+            "asOf": "2022-12-15",
+            "counts": {
+              "UPCOMING": 0,
+              "DUE_SOON": 0,
+              "OVERDUE": 0,
+              "SUBMITTED": 0,
+              "COMPLIED": 1,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 0
+            },
+            "due": 0,
+            "weightedNumerator": 0,
+            "weightedDenominator": 0,
+            "score": null,
+            "onTimeRate": null
+          }
+        },
+        {
+          "key": "7ee2a69b-1f8a-59c8-9b56-ae4654bca858",
+          "label": "West Bengal Fire Services Act 1950 and Rules 2003",
+          "result": {
+            "asOf": "2022-12-15",
+            "counts": {
+              "UPCOMING": 1,
+              "DUE_SOON": 0,
+              "OVERDUE": 0,
+              "SUBMITTED": 0,
+              "COMPLIED": 0,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 0
+            },
+            "due": 0,
+            "weightedNumerator": 0,
+            "weightedDenominator": 0,
+            "score": null,
+            "onTimeRate": null
+          }
+        },
+        {
+          "key": "00e5e24b-c89f-5ca1-bf82-5cbb6c17939a",
+          "label": "West Bengal Labour Welfare Fund Act, 1974 and West Bengal Labour Welfare fund Rules, 1976",
+          "result": {
+            "asOf": "2022-12-15",
+            "counts": {
+              "UPCOMING": 3,
+              "DUE_SOON": 0,
+              "OVERDUE": 0,
+              "SUBMITTED": 0,
+              "COMPLIED": 3,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 1
+            },
+            "due": 3,
+            "weightedNumerator": 9,
+            "weightedDenominator": 9,
+            "score": 100,
+            "onTimeRate": 100
+          }
+        },
+        {
+          "key": "f28db9fd-8c4c-5258-abc2-70507a1b4bbc",
+          "label": "West Bengal Workmen's House Rent Allowance Act, 1974 and West Bengal Workmen’s House Rent Allowance Rules, 1975",
+          "result": {
+            "asOf": "2022-12-15",
+            "counts": {
+              "UPCOMING": 3,
+              "DUE_SOON": 0,
+              "OVERDUE": 2,
+              "SUBMITTED": 0,
+              "COMPLIED": 7,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 0
+            },
+            "due": 9,
+            "weightedNumerator": 21,
+            "weightedDenominator": 27,
+            "score": 77.8,
+            "onTimeRate": 77.8
+          }
+        }
+      ]
+    },
+    {
+      "asOf": "2023-03-31",
+      "by": "act",
+      "rows": [
+        {
+          "key": "4ba3df71-cc3b-5d1e-a7b3-58347e218cb8",
+          "label": "Apprentices Act, 1961 read with Apprenticeship Rules, 1992",
+          "result": {
+            "asOf": "2023-03-31",
+            "counts": {
+              "UPCOMING": 0,
+              "DUE_SOON": 5,
+              "OVERDUE": 5,
+              "SUBMITTED": 0,
+              "COMPLIED": 10,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 0
+            },
+            "due": 20,
+            "weightedNumerator": 10,
+            "weightedDenominator": 20,
+            "score": 50,
+            "onTimeRate": 50
+          }
+        },
+        {
+          "key": "61faeda3-27be-53d3-9925-211367971508",
+          "label": "Child and Adolescent Labour (Prohibition and Regulation) Act, 1986 and West Bengal Child Labour (Prohibition and Regulation) Rules, 1995",
+          "result": {
+            "asOf": "2023-03-31",
+            "counts": {
+              "UPCOMING": 0,
+              "DUE_SOON": 1,
+              "OVERDUE": 1,
+              "SUBMITTED": 0,
+              "COMPLIED": 2,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 0
+            },
+            "due": 4,
+            "weightedNumerator": 6,
+            "weightedDenominator": 12,
+            "score": 50,
+            "onTimeRate": 50
+          }
+        },
+        {
+          "key": "fd46d77f-fd4e-58e1-90f5-e2faacafecff",
+          "label": "Contract Labour (Regulation and Abolition) Act, 1970 and West Bengal Contract Labour (Regulation and Abolition) Rules 1972",
+          "result": {
+            "asOf": "2023-03-31",
+            "counts": {
+              "UPCOMING": 0,
+              "DUE_SOON": 7,
+              "OVERDUE": 8,
+              "SUBMITTED": 0,
+              "COMPLIED": 14,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 0
+            },
+            "due": 29,
+            "weightedNumerator": 42,
+            "weightedDenominator": 87,
+            "score": 48.3,
+            "onTimeRate": 48.3
+          }
+        },
+        {
+          "key": "7c74f959-a13d-5193-b292-53e04a2bffdb",
+          "label": "Electricity Act, 2003 & Central Electricity Authority (Safety Requirements for Construction, Operation and Maintenance of Electrical Plants and Electric Lines) Regulations, 2011",
+          "result": {
+            "asOf": "2023-03-31",
+            "counts": {
+              "UPCOMING": 0,
+              "DUE_SOON": 1,
+              "OVERDUE": 1,
+              "SUBMITTED": 0,
+              "COMPLIED": 2,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 0
+            },
+            "due": 4,
+            "weightedNumerator": 6,
+            "weightedDenominator": 12,
+            "score": 50,
+            "onTimeRate": 50
+          }
+        },
+        {
+          "key": "a115c348-17c8-523a-ab9f-e0d036db90bb",
+          "label": "Employees' State Insurance Act, 1948 read with Employees' State Insurance (General) Regulations, 1950 and Employees’ State Insurance (Central) Rules, 1950",
+          "result": {
+            "asOf": "2023-03-31",
+            "counts": {
+              "UPCOMING": 0,
+              "DUE_SOON": 0,
+              "OVERDUE": 4,
+              "SUBMITTED": 0,
+              "COMPLIED": 8,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 0
+            },
+            "due": 12,
+            "weightedNumerator": 24,
+            "weightedDenominator": 36,
+            "score": 66.7,
+            "onTimeRate": 66.7
+          }
+        },
+        {
+          "key": "c625d108-aa0c-5da1-8ea3-2aa28e739d40",
+          "label": "Employment Exchanges (Compulsory Notification of Vacancies) Act, 1959 and Employment Exchanges (Compulsory Notification of Vacancies) Rules, 1960",
+          "result": {
+            "asOf": "2023-03-31",
+            "counts": {
+              "UPCOMING": 0,
+              "DUE_SOON": 0,
+              "OVERDUE": 1,
+              "SUBMITTED": 0,
+              "COMPLIED": 3,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 0
+            },
+            "due": 4,
+            "weightedNumerator": 3,
+            "weightedDenominator": 4,
+            "score": 75,
+            "onTimeRate": 75
+          }
+        },
+        {
+          "key": "7faea9f3-766f-5af1-9f76-9049e59141c3",
+          "label": "Environment (Protection) Act, 1986 and Environment (Protection) Rules, 1986",
+          "result": {
+            "asOf": "2023-03-31",
+            "counts": {
+              "UPCOMING": 0,
+              "DUE_SOON": 1,
+              "OVERDUE": 1,
+              "SUBMITTED": 0,
+              "COMPLIED": 2,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 0
+            },
+            "due": 4,
+            "weightedNumerator": 6,
+            "weightedDenominator": 12,
+            "score": 50,
+            "onTimeRate": 50
+          }
+        },
+        {
+          "key": "25311842-5ab2-5398-8177-5f9d9a0525b6",
+          "label": "Environment (Protection) Act, 1986 and Hazardous and Other Wastes (Management and Transboundary Movement) Rules, 2016",
+          "result": {
+            "asOf": "2023-03-31",
+            "counts": {
+              "UPCOMING": 0,
+              "DUE_SOON": 3,
+              "OVERDUE": 3,
+              "SUBMITTED": 0,
+              "COMPLIED": 7,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 0
+            },
+            "due": 13,
+            "weightedNumerator": 7,
+            "weightedDenominator": 13,
+            "score": 53.8,
+            "onTimeRate": 53.8
+          }
+        },
+        {
+          "key": "41e92bb3-f954-5861-8aa6-1504f94b65d3",
+          "label": "Environment (Protection) Act, 1986 and Plastic Waste (Management and Handling) Rules, 2016",
+          "result": {
+            "asOf": "2023-03-31",
+            "counts": {
+              "UPCOMING": 0,
+              "DUE_SOON": 1,
+              "OVERDUE": 3,
+              "SUBMITTED": 0,
+              "COMPLIED": 8,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 0
+            },
+            "due": 12,
+            "weightedNumerator": 24,
+            "weightedDenominator": 36,
+            "score": 66.7,
+            "onTimeRate": 66.7
+          }
+        },
+        {
+          "key": "3ef74569-dac9-517a-9913-5f59ce9319ab",
+          "label": "Environment (Protection) Act, 1986 and Solid Waste Management Rules, 2016",
+          "result": {
+            "asOf": "2023-03-31",
+            "counts": {
+              "UPCOMING": 0,
+              "DUE_SOON": 2,
+              "OVERDUE": 2,
+              "SUBMITTED": 0,
+              "COMPLIED": 4,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 0
+            },
+            "due": 8,
+            "weightedNumerator": 12,
+            "weightedDenominator": 24,
+            "score": 50,
+            "onTimeRate": 50
+          }
+        },
+        {
+          "key": "d089c2a9-aff6-559d-9fce-3741ca35c959",
+          "label": "Environment (Protection) Act, 1986 and The Manufacture, Storage and Import of Hazardous Chemicals Rules, 1989",
+          "result": {
+            "asOf": "2023-03-31",
+            "counts": {
+              "UPCOMING": 0,
+              "DUE_SOON": 1,
+              "OVERDUE": 1,
+              "SUBMITTED": 0,
+              "COMPLIED": 2,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 0
+            },
+            "due": 4,
+            "weightedNumerator": 6,
+            "weightedDenominator": 12,
+            "score": 50,
+            "onTimeRate": 50
+          }
+        },
+        {
+          "key": "c59fa3a6-b6f1-532d-bd3e-948f4e613e84",
+          "label": "Environment (Protection) Act, 1986 and The Noise Pollution (Regulation and Control) Rules, 2000",
+          "result": {
+            "asOf": "2023-03-31",
+            "counts": {
+              "UPCOMING": 0,
+              "DUE_SOON": 1,
+              "OVERDUE": 3,
+              "SUBMITTED": 0,
+              "COMPLIED": 8,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 0
+            },
+            "due": 12,
+            "weightedNumerator": 16,
+            "weightedDenominator": 24,
+            "score": 66.7,
+            "onTimeRate": 66.7
+          }
+        },
+        {
+          "key": "6b5a2b3e-388c-5f68-a146-15fccd7dd360",
+          "label": "Environment (Protection) Act, 1986 read with Bio-Medical Waste Management Rules, 2016",
+          "result": {
+            "asOf": "2023-03-31",
+            "counts": {
+              "UPCOMING": 0,
+              "DUE_SOON": 1,
+              "OVERDUE": 1,
+              "SUBMITTED": 0,
+              "COMPLIED": 3,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 0
+            },
+            "due": 5,
+            "weightedNumerator": 9,
+            "weightedDenominator": 15,
+            "score": 60,
+            "onTimeRate": 60
+          }
+        },
+        {
+          "key": "8170b13d-ce14-592d-8581-c2b099330ce1",
+          "label": "Environment Protection Act, 1986 & Ozone Depleting Substances (Regulation and Control) Rules, 2000",
+          "result": {
+            "asOf": "2023-03-31",
+            "counts": {
+              "UPCOMING": 0,
+              "DUE_SOON": 0,
+              "OVERDUE": 0,
+              "SUBMITTED": 0,
+              "COMPLIED": 1,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 0
+            },
+            "due": 1,
+            "weightedNumerator": 3,
+            "weightedDenominator": 3,
+            "score": 100,
+            "onTimeRate": 100
+          }
+        },
+        {
+          "key": "99e2dc81-4efb-5aca-a9f3-54401a71238f",
+          "label": "Environment Protection Act, 1986 and Batteries(Management and Handling) Rules,2001",
+          "result": {
+            "asOf": "2023-03-31",
+            "counts": {
+              "UPCOMING": 0,
+              "DUE_SOON": 0,
+              "OVERDUE": 1,
+              "SUBMITTED": 0,
+              "COMPLIED": 1,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 0
+            },
+            "due": 2,
+            "weightedNumerator": 3,
+            "weightedDenominator": 6,
+            "score": 50,
+            "onTimeRate": 50
+          }
+        },
+        {
+          "key": "350537d9-a137-56be-8c4c-32036e04b20a",
+          "label": "Explosives Act, 1884 and Gas Cylinders Rules, 2016",
+          "result": {
+            "asOf": "2023-03-31",
+            "counts": {
+              "UPCOMING": 0,
+              "DUE_SOON": 1,
+              "OVERDUE": 1,
+              "SUBMITTED": 0,
+              "COMPLIED": 2,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 0
+            },
+            "due": 4,
+            "weightedNumerator": 6,
+            "weightedDenominator": 12,
+            "score": 50,
+            "onTimeRate": 50
+          }
+        },
+        {
+          "key": "b0d586e9-e70b-561c-bffd-64e12fd10b22",
+          "label": "Factories Act , 1948",
+          "result": {
+            "asOf": "2023-03-31",
+            "counts": {
+              "UPCOMING": 0,
+              "DUE_SOON": 1,
+              "OVERDUE": 1,
+              "SUBMITTED": 0,
+              "COMPLIED": 2,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 0
+            },
+            "due": 4,
+            "weightedNumerator": 10,
+            "weightedDenominator": 20,
+            "score": 50,
+            "onTimeRate": 50
+          }
+        },
+        {
+          "key": "89f4b36b-4589-5bbd-bd51-33de3b2ca414",
+          "label": "Factories Act, 1948 and West Bengal Factories Rules, 1958",
+          "result": {
+            "asOf": "2023-03-31",
+            "counts": {
+              "UPCOMING": 0,
+              "DUE_SOON": 14,
+              "OVERDUE": 19,
+              "SUBMITTED": 0,
+              "COMPLIED": 31,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 2
+            },
+            "due": 64,
+            "weightedNumerator": 104,
+            "weightedDenominator": 214,
+            "score": 48.6,
+            "onTimeRate": 48.4
+          }
+        },
+        {
+          "key": "8e0e5955-bd9d-59cd-bf3c-8f944acacb3b",
+          "label": "Hindalco Industries Limited, Belur , Renewal of Consent to Operate under Water (Prevention and Control of Pollution) Act and Air (Prevention and Control of Pollution) Act",
+          "result": {
+            "asOf": "2023-03-31",
+            "counts": {
+              "UPCOMING": 0,
+              "DUE_SOON": 1,
+              "OVERDUE": 1,
+              "SUBMITTED": 0,
+              "COMPLIED": 2,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 0
+            },
+            "due": 4,
+            "weightedNumerator": 10,
+            "weightedDenominator": 20,
+            "score": 50,
+            "onTimeRate": 50
+          }
+        },
+        {
+          "key": "5af0a5dc-15ff-52ef-87c2-d936091bd868",
+          "label": "Income Tax Act, 1961 and Income Tax Rules, 1962",
+          "result": {
+            "asOf": "2023-03-31",
+            "counts": {
+              "UPCOMING": 0,
+              "DUE_SOON": 1,
+              "OVERDUE": 14,
+              "SUBMITTED": 0,
+              "COMPLIED": 14,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 5
+            },
+            "due": 29,
+            "weightedNumerator": 36,
+            "weightedDenominator": 67,
+            "score": 53.7,
+            "onTimeRate": 48.3
+          }
+        },
+        {
+          "key": "4b10160b-8c59-5846-9c37-0eac104b0f17",
+          "label": "Indian Explosives Act, 1884 and Static and Mobile Pressure Vessels (Unfired) Rules, 2016",
+          "result": {
+            "asOf": "2023-03-31",
+            "counts": {
+              "UPCOMING": 0,
+              "DUE_SOON": 27,
+              "OVERDUE": 27,
+              "SUBMITTED": 0,
+              "COMPLIED": 53,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 3
+            },
+            "due": 107,
+            "weightedNumerator": 159,
+            "weightedDenominator": 321,
+            "score": 49.5,
+            "onTimeRate": 49.5
+          }
+        },
+        {
+          "key": "26c3ed9b-4cc0-5082-b6aa-433b0b2e182e",
+          "label": "Information Technology Act, 2000 and Information Technology (Reasonable security practices and procedures and sensitive personal data or information) Rules, 2011",
+          "result": {
+            "asOf": "2023-03-31",
+            "counts": {
+              "UPCOMING": 0,
+              "DUE_SOON": 3,
+              "OVERDUE": 4,
+              "SUBMITTED": 0,
+              "COMPLIED": 6,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 0
+            },
+            "due": 13,
+            "weightedNumerator": 6,
+            "weightedDenominator": 13,
+            "score": 46.2,
+            "onTimeRate": 46.2
+          }
+        },
+        {
+          "key": "46c16bb5-6813-5980-84b3-427d0d1a5949",
+          "label": "Inter-State Migrant Workmen (Regulation of Employment and Conditions of Service) Act, 1979 and Inter-State Migrant Workmen (Regulation of Employment and Conditions of Service) Central Rules, 1980",
+          "result": {
+            "asOf": "2023-03-31",
+            "counts": {
+              "UPCOMING": 0,
+              "DUE_SOON": 0,
+              "OVERDUE": 0,
+              "SUBMITTED": 0,
+              "COMPLIED": 0,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 1
+            },
+            "due": 0,
+            "weightedNumerator": 0,
+            "weightedDenominator": 0,
+            "score": null,
+            "onTimeRate": null
+          }
+        },
+        {
+          "key": "fd819764-ec36-5946-9f45-edeb2517f12a",
+          "label": "Maternity Benefit Act, 1961 and West Bengal Maternity Benefit Rules, 1965",
+          "result": {
+            "asOf": "2023-03-31",
+            "counts": {
+              "UPCOMING": 0,
+              "DUE_SOON": 0,
+              "OVERDUE": 1,
+              "SUBMITTED": 0,
+              "COMPLIED": 0,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 0
+            },
+            "due": 1,
+            "weightedNumerator": 0,
+            "weightedDenominator": 3,
+            "score": 0,
+            "onTimeRate": 0
+          }
+        },
+        {
+          "key": "94d53b5f-5248-55a2-89b7-f43341602e3c",
+          "label": "Minimum Wages Act, 1948 and West Bengal Minimum Wages Rules, 1951",
+          "result": {
+            "asOf": "2023-03-31",
+            "counts": {
+              "UPCOMING": 0,
+              "DUE_SOON": 2,
+              "OVERDUE": 3,
+              "SUBMITTED": 0,
+              "COMPLIED": 4,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 0
+            },
+            "due": 9,
+            "weightedNumerator": 4,
+            "weightedDenominator": 9,
+            "score": 44.4,
+            "onTimeRate": 44.4
+          }
+        },
+        {
+          "key": "5746b303-508a-50f3-b425-43f945fb1cb8",
+          "label": "Payment of Bonus Act, 1965 and Payment of Bonus Rules, 1975",
+          "result": {
+            "asOf": "2023-03-31",
+            "counts": {
+              "UPCOMING": 0,
+              "DUE_SOON": 0,
+              "OVERDUE": 0,
+              "SUBMITTED": 0,
+              "COMPLIED": 2,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 0
+            },
+            "due": 2,
+            "weightedNumerator": 6,
+            "weightedDenominator": 6,
+            "score": 100,
+            "onTimeRate": 100
+          }
+        },
+        {
+          "key": "69be2e28-3114-5f00-a51a-bcd2a8c1564c",
+          "label": "Payment of Wages Act, 1936 and West Bengal Payment of Wages Rules, 1958",
+          "result": {
+            "asOf": "2023-03-31",
+            "counts": {
+              "UPCOMING": 0,
+              "DUE_SOON": 1,
+              "OVERDUE": 2,
+              "SUBMITTED": 0,
+              "COMPLIED": 2,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 0
+            },
+            "due": 5,
+            "weightedNumerator": 2,
+            "weightedDenominator": 5,
+            "score": 40,
+            "onTimeRate": 40
+          }
+        },
+        {
+          "key": "deee41f4-d152-546b-a6a3-927da853aca3",
+          "label": "Petroleum Act, 1934 read with Petroleum Rules 2002",
+          "result": {
+            "asOf": "2023-03-31",
+            "counts": {
+              "UPCOMING": 0,
+              "DUE_SOON": 1,
+              "OVERDUE": 4,
+              "SUBMITTED": 0,
+              "COMPLIED": 2,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 0
+            },
+            "due": 7,
+            "weightedNumerator": 6,
+            "weightedDenominator": 21,
+            "score": 28.6,
+            "onTimeRate": 28.6
+          }
+        },
+        {
+          "key": "a396ae85-b41f-54b3-b929-78a371a23866",
+          "label": "Rights of Persons with Disabilities Act, 2016 and Rights of Persons with Disabilities Rules, 2017",
+          "result": {
+            "asOf": "2023-03-31",
+            "counts": {
+              "UPCOMING": 0,
+              "DUE_SOON": 0,
+              "OVERDUE": 4,
+              "SUBMITTED": 0,
+              "COMPLIED": 3,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 0
+            },
+            "due": 7,
+            "weightedNumerator": 5,
+            "weightedDenominator": 11,
+            "score": 45.5,
+            "onTimeRate": 42.9
+          }
+        },
+        {
+          "key": "a3cfcffb-f632-5417-82d2-343f440580cc",
+          "label": "Sexual Harassment of Women at Workplace (Prevention, Prohibition and Redressal) Act, 2013 and Sexual Harassment of Women at Workplace (Prevention, Prohibition and Redressal) Rules, 2013",
+          "result": {
+            "asOf": "2023-03-31",
+            "counts": {
+              "UPCOMING": 0,
+              "DUE_SOON": 0,
+              "OVERDUE": 0,
+              "SUBMITTED": 0,
+              "COMPLIED": 1,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 0
+            },
+            "due": 1,
+            "weightedNumerator": 1,
+            "weightedDenominator": 1,
+            "score": 100,
+            "onTimeRate": 100
+          }
+        },
+        {
+          "key": "7ee2a69b-1f8a-59c8-9b56-ae4654bca858",
+          "label": "West Bengal Fire Services Act 1950 and Rules 2003",
+          "result": {
+            "asOf": "2023-03-31",
+            "counts": {
+              "UPCOMING": 0,
+              "DUE_SOON": 0,
+              "OVERDUE": 1,
+              "SUBMITTED": 0,
+              "COMPLIED": 0,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 0
+            },
+            "due": 1,
+            "weightedNumerator": 0,
+            "weightedDenominator": 3,
+            "score": 0,
+            "onTimeRate": 0
+          }
+        },
+        {
+          "key": "00e5e24b-c89f-5ca1-bf82-5cbb6c17939a",
+          "label": "West Bengal Labour Welfare Fund Act, 1974 and West Bengal Labour Welfare fund Rules, 1976",
+          "result": {
+            "asOf": "2023-03-31",
+            "counts": {
+              "UPCOMING": 0,
+              "DUE_SOON": 0,
+              "OVERDUE": 3,
+              "SUBMITTED": 0,
+              "COMPLIED": 3,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 1
+            },
+            "due": 6,
+            "weightedNumerator": 9,
+            "weightedDenominator": 18,
+            "score": 50,
+            "onTimeRate": 50
+          }
+        },
+        {
+          "key": "f28db9fd-8c4c-5258-abc2-70507a1b4bbc",
+          "label": "West Bengal Workmen's House Rent Allowance Act, 1974 and West Bengal Workmen’s House Rent Allowance Rules, 1975",
+          "result": {
+            "asOf": "2023-03-31",
+            "counts": {
+              "UPCOMING": 0,
+              "DUE_SOON": 0,
+              "OVERDUE": 5,
+              "SUBMITTED": 0,
+              "COMPLIED": 7,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 0
+            },
+            "due": 12,
+            "weightedNumerator": 21,
+            "weightedDenominator": 36,
+            "score": 58.3,
+            "onTimeRate": 58.3
+          }
+        }
+      ]
+    },
+    {
+      "asOf": "2022-09-30",
+      "by": "criticality",
+      "rows": [
+        {
+          "key": "CRITICAL",
+          "label": "CRITICAL",
+          "result": {
+            "asOf": "2022-09-30",
+            "counts": {
+              "UPCOMING": 11,
+              "DUE_SOON": 0,
+              "OVERDUE": 0,
+              "SUBMITTED": 0,
+              "COMPLIED": 11,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 0
+            },
+            "due": 11,
+            "weightedNumerator": 44,
+            "weightedDenominator": 44,
+            "score": 100,
+            "onTimeRate": 100
+          }
+        },
+        {
+          "key": "HIGH",
+          "label": "HIGH",
+          "result": {
+            "asOf": "2022-09-30",
+            "counts": {
+              "UPCOMING": 139,
+              "DUE_SOON": 0,
+              "OVERDUE": 0,
+              "SUBMITTED": 0,
+              "COMPLIED": 147,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 11
+            },
+            "due": 137,
+            "weightedNumerator": 411,
+            "weightedDenominator": 411,
+            "score": 100,
+            "onTimeRate": 100
+          }
+        },
+        {
+          "key": "LOW",
+          "label": "LOW",
+          "result": {
+            "asOf": "2022-09-30",
+            "counts": {
+              "UPCOMING": 41,
+              "DUE_SOON": 0,
+              "OVERDUE": 0,
+              "SUBMITTED": 0,
+              "COMPLIED": 37,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 0
+            },
+            "due": 34,
+            "weightedNumerator": 34,
+            "weightedDenominator": 34,
+            "score": 100,
+            "onTimeRate": 100
+          }
+        },
+        {
+          "key": "MEDIUM",
+          "label": "MEDIUM",
+          "result": {
+            "asOf": "2022-09-30",
+            "counts": {
+              "UPCOMING": 6,
+              "DUE_SOON": 0,
+              "OVERDUE": 0,
+              "SUBMITTED": 0,
+              "COMPLIED": 10,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 1
+            },
+            "due": 8,
+            "weightedNumerator": 16,
+            "weightedDenominator": 16,
+            "score": 100,
+            "onTimeRate": 100
+          }
+        },
+        {
+          "key": "SUPER_CRITICAL",
+          "label": "SUPER_CRITICAL",
+          "result": {
+            "asOf": "2022-09-30",
+            "counts": {
+              "UPCOMING": 4,
+              "DUE_SOON": 0,
+              "OVERDUE": 0,
+              "SUBMITTED": 0,
+              "COMPLIED": 4,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 0
+            },
+            "due": 4,
+            "weightedNumerator": 20,
+            "weightedDenominator": 20,
+            "score": 100,
+            "onTimeRate": 100
+          }
+        }
+      ]
+    },
+    {
+      "asOf": "2022-12-15",
+      "by": "criticality",
+      "rows": [
+        {
+          "key": "CRITICAL",
+          "label": "CRITICAL",
+          "result": {
+            "asOf": "2022-12-15",
+            "counts": {
+              "UPCOMING": 11,
+              "DUE_SOON": 0,
+              "OVERDUE": 0,
+              "SUBMITTED": 0,
+              "COMPLIED": 11,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 0
+            },
+            "due": 11,
+            "weightedNumerator": 44,
+            "weightedDenominator": 44,
+            "score": 100,
+            "onTimeRate": 100
+          }
+        },
+        {
+          "key": "HIGH",
+          "label": "HIGH",
+          "result": {
+            "asOf": "2022-12-15",
+            "counts": {
+              "UPCOMING": 135,
+              "DUE_SOON": 1,
+              "OVERDUE": 3,
+              "SUBMITTED": 0,
+              "COMPLIED": 147,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 11
+            },
+            "due": 151,
+            "weightedNumerator": 441,
+            "weightedDenominator": 453,
+            "score": 97.4,
+            "onTimeRate": 97.4
+          }
+        },
+        {
+          "key": "LOW",
+          "label": "LOW",
+          "result": {
+            "asOf": "2022-12-15",
+            "counts": {
+              "UPCOMING": 41,
+              "DUE_SOON": 0,
+              "OVERDUE": 0,
+              "SUBMITTED": 0,
+              "COMPLIED": 37,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 0
+            },
+            "due": 36,
+            "weightedNumerator": 36,
+            "weightedDenominator": 36,
+            "score": 100,
+            "onTimeRate": 100
+          }
+        },
+        {
+          "key": "MEDIUM",
+          "label": "MEDIUM",
+          "result": {
+            "asOf": "2022-12-15",
+            "counts": {
+              "UPCOMING": 6,
+              "DUE_SOON": 0,
+              "OVERDUE": 0,
+              "SUBMITTED": 0,
+              "COMPLIED": 10,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 1
+            },
+            "due": 10,
+            "weightedNumerator": 20,
+            "weightedDenominator": 20,
+            "score": 100,
+            "onTimeRate": 100
+          }
+        },
+        {
+          "key": "SUPER_CRITICAL",
+          "label": "SUPER_CRITICAL",
+          "result": {
+            "asOf": "2022-12-15",
+            "counts": {
+              "UPCOMING": 4,
+              "DUE_SOON": 0,
+              "OVERDUE": 0,
+              "SUBMITTED": 0,
+              "COMPLIED": 4,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 0
+            },
+            "due": 4,
+            "weightedNumerator": 20,
+            "weightedDenominator": 20,
+            "score": 100,
+            "onTimeRate": 100
+          }
+        }
+      ]
+    },
+    {
+      "asOf": "2023-03-31",
+      "by": "criticality",
+      "rows": [
+        {
+          "key": "CRITICAL",
+          "label": "CRITICAL",
+          "result": {
+            "asOf": "2023-03-31",
+            "counts": {
+              "UPCOMING": 0,
+              "DUE_SOON": 5,
+              "OVERDUE": 6,
+              "SUBMITTED": 0,
+              "COMPLIED": 11,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 0
+            },
+            "due": 22,
+            "weightedNumerator": 44,
+            "weightedDenominator": 88,
+            "score": 50,
+            "onTimeRate": 50
+          }
+        },
+        {
+          "key": "HIGH",
+          "label": "HIGH",
+          "result": {
+            "asOf": "2023-03-31",
+            "counts": {
+              "UPCOMING": 0,
+              "DUE_SOON": 53,
+              "OVERDUE": 86,
+              "SUBMITTED": 0,
+              "COMPLIED": 147,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 11
+            },
+            "due": 286,
+            "weightedNumerator": 441,
+            "weightedDenominator": 858,
+            "score": 51.4,
+            "onTimeRate": 51.4
+          }
+        },
+        {
+          "key": "LOW",
+          "label": "LOW",
+          "result": {
+            "asOf": "2023-03-31",
+            "counts": {
+              "UPCOMING": 0,
+              "DUE_SOON": 15,
+              "OVERDUE": 26,
+              "SUBMITTED": 0,
+              "COMPLIED": 37,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 0
+            },
+            "due": 78,
+            "weightedNumerator": 37,
+            "weightedDenominator": 78,
+            "score": 47.4,
+            "onTimeRate": 47.4
+          }
+        },
+        {
+          "key": "MEDIUM",
+          "label": "MEDIUM",
+          "result": {
+            "asOf": "2023-03-31",
+            "counts": {
+              "UPCOMING": 0,
+              "DUE_SOON": 1,
+              "OVERDUE": 5,
+              "SUBMITTED": 0,
+              "COMPLIED": 10,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 1
+            },
+            "due": 16,
+            "weightedNumerator": 20,
+            "weightedDenominator": 32,
+            "score": 62.5,
+            "onTimeRate": 62.5
+          }
+        },
+        {
+          "key": "SUPER_CRITICAL",
+          "label": "SUPER_CRITICAL",
+          "result": {
+            "asOf": "2023-03-31",
+            "counts": {
+              "UPCOMING": 0,
+              "DUE_SOON": 2,
+              "OVERDUE": 2,
+              "SUBMITTED": 0,
+              "COMPLIED": 4,
+              "COMPLIED_LATE": 0,
+              "NOT_APPLICABLE": 0
+            },
+            "due": 8,
+            "weightedNumerator": 20,
+            "weightedDenominator": 40,
+            "score": 50,
+            "onTimeRate": 50
+          }
+        }
+      ]
+    }
+  ],
+  "findings": {
+    "duplicatePeriods": [
+      {
+        "externalRef": "HRS-CL-014-3059-30387",
+        "dueDate": "2022-04-30"
+      },
+      {
+        "externalRef": "HRS-CL-005-3174-30354",
+        "dueDate": "2022-04-30"
+      }
+    ],
+    "compliedWithoutDate": [
+      {
+        "externalRef": "ENV-117-0031",
+        "dueDate": "2022-09-30"
+      }
+    ],
+    "unparsedExternalRefs": [
+      "ENV-117-0031",
+      "INT-FA-1-1",
+      "INT-H-048-0002",
+      "INT-H-056-0001",
+      "INT-H-047-0016",
+      "INT-H-050-0002"
+    ]
+  }
+}

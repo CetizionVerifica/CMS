@@ -1,0 +1,1239 @@
+[
+  {
+    "externalRef": "TAX-CL-033-6067-60218",
+    "timelineType": "TIME_BASED",
+    "dueDates": [
+      "2022-04-07",
+      "2022-05-07",
+      "2022-06-07",
+      "2022-07-07",
+      "2022-08-06",
+      "2022-09-07",
+      "2022-10-07",
+      "2022-11-07",
+      "2022-12-07",
+      "2023-01-07",
+      "2023-02-07",
+      "2023-03-07"
+    ],
+    "expectedRule": {
+      "kind": "MONTHLY",
+      "day": 7,
+      "offsetMonths": 1
+    },
+    "exact": false
+  },
+  {
+    "externalRef": "HRS-WB-032-3238-32430",
+    "timelineType": "TIME_BASED",
+    "dueDates": [
+      "2022-04-09",
+      "2022-05-10",
+      "2022-06-10",
+      "2022-07-09",
+      "2022-08-10",
+      "2022-09-10",
+      "2022-10-10",
+      "2022-11-10",
+      "2022-12-10",
+      "2023-01-10",
+      "2023-02-10",
+      "2023-03-10"
+    ],
+    "expectedRule": {
+      "kind": "MONTHLY",
+      "day": 10,
+      "offsetMonths": 1
+    },
+    "exact": false
+  },
+  {
+    "externalRef": "HRS-WB-040-3235-32433",
+    "timelineType": "TIME_BASED",
+    "dueDates": ["2022-04-15", "2022-07-15", "2022-10-15", "2023-01-14"],
+    "expectedRule": null,
+    "exact": false
+  },
+  {
+    "externalRef": "HRS-CL-019-3058-30396",
+    "timelineType": "TIME_BASED",
+    "dueDates": [
+      "2022-04-15",
+      "2022-05-14",
+      "2022-06-15",
+      "2022-07-15",
+      "2022-08-15",
+      "2022-09-15",
+      "2022-10-15",
+      "2022-11-15",
+      "2022-12-15",
+      "2023-01-14",
+      "2023-02-15",
+      "2023-03-15"
+    ],
+    "expectedRule": {
+      "kind": "MONTHLY",
+      "day": 15,
+      "offsetMonths": 1
+    },
+    "exact": false
+  },
+  {
+    "externalRef": "HRS-CL-038-3104-30445",
+    "timelineType": "TIME_BASED",
+    "dueDates": ["2022-04-30"],
+    "expectedRule": {
+      "kind": "ANNUAL",
+      "month": 4,
+      "day": 30
+    },
+    "exact": true
+  },
+  {
+    "externalRef": "HRS-CL-014-3059-30387",
+    "timelineType": "TIME_BASED",
+    "dueDates": ["2022-04-30", "2022-07-30", "2022-10-29", "2023-01-30"],
+    "expectedRule": null,
+    "exact": false
+  },
+  {
+    "externalRef": "HRS-CL-005-3174-30354",
+    "timelineType": "TIME_BASED",
+    "dueDates": ["2022-04-30"],
+    "expectedRule": {
+      "kind": "ANNUAL",
+      "month": 4,
+      "day": 30
+    },
+    "exact": true
+  },
+  {
+    "externalRef": "EHS-CL-017-2317-22813",
+    "timelineType": "ONGOING",
+    "dueDates": [
+      "2022-04-30",
+      "2022-05-31",
+      "2022-06-30",
+      "2022-07-30",
+      "2022-08-31",
+      "2022-09-30",
+      "2022-10-31",
+      "2022-11-30",
+      "2022-12-31",
+      "2023-01-31",
+      "2023-02-28",
+      "2023-03-31"
+    ],
+    "expectedRule": null,
+    "exact": false
+  },
+  {
+    "externalRef": "TAX-CL-033-6067-61259",
+    "timelineType": "TIME_BASED",
+    "dueDates": [
+      "2022-04-30",
+      "2022-05-30",
+      "2022-06-30",
+      "2022-07-30",
+      "2022-08-30",
+      "2022-09-30",
+      "2022-10-29",
+      "2022-11-30",
+      "2022-12-30",
+      "2023-01-30",
+      "2023-02-28",
+      "2023-03-30"
+    ],
+    "expectedRule": {
+      "kind": "MONTHLY",
+      "day": 30,
+      "offsetMonths": 1
+    },
+    "exact": false
+  },
+  {
+    "externalRef": "EHS-CL-017-2025-20452",
+    "timelineType": "ONGOING",
+    "dueDates": [
+      "2022-04-30",
+      "2022-05-31",
+      "2022-06-30",
+      "2022-07-30",
+      "2022-08-31",
+      "2022-09-30",
+      "2022-10-31",
+      "2022-11-30",
+      "2022-12-31",
+      "2023-01-31",
+      "2023-02-28",
+      "2023-03-31"
+    ],
+    "expectedRule": null,
+    "exact": false
+  },
+  {
+    "externalRef": "HRS-WB-071-3286-34085",
+    "timelineType": "TIME_BASED",
+    "dueDates": ["2022-05-10", "2022-11-10"],
+    "expectedRule": null,
+    "exact": false
+  },
+  {
+    "externalRef": "TAX-CL-033-6067-63430",
+    "timelineType": "ONGOING",
+    "dueDates": ["2022-06-30", "2022-09-30", "2022-12-31", "2023-03-31"],
+    "expectedRule": {
+      "kind": "ONGOING_REVIEW",
+      "every": "QUARTER"
+    },
+    "exact": true
+  },
+  {
+    "externalRef": "HRS-WB-048-3214-32453",
+    "timelineType": "ONGOING",
+    "dueDates": ["2022-06-30", "2022-09-30", "2022-12-31", "2023-03-31"],
+    "expectedRule": {
+      "kind": "ONGOING_REVIEW",
+      "every": "QUARTER"
+    },
+    "exact": true
+  },
+  {
+    "externalRef": "HRS-WB-071-3286-34046",
+    "timelineType": "TIME_BASED",
+    "dueDates": ["2022-06-30", "2022-12-31"],
+    "expectedRule": null,
+    "exact": false
+  },
+  {
+    "externalRef": "EHS-CL-022-2330-23059",
+    "timelineType": "ONGOING",
+    "dueDates": ["2022-06-30", "2022-09-30", "2022-12-31", "2023-03-31"],
+    "expectedRule": {
+      "kind": "ONGOING_REVIEW",
+      "every": "QUARTER"
+    },
+    "exact": true
+  },
+  {
+    "externalRef": "EHS-CL-017-2315-22780",
+    "timelineType": "ONGOING",
+    "dueDates": ["2022-06-30", "2022-09-30", "2022-12-31", "2023-03-31"],
+    "expectedRule": {
+      "kind": "ONGOING_REVIEW",
+      "every": "QUARTER"
+    },
+    "exact": true
+  },
+  {
+    "externalRef": "HRS-WB-071-3286-34072",
+    "timelineType": "TIME_BASED",
+    "dueDates": ["2022-06-30", "2022-12-31"],
+    "expectedRule": null,
+    "exact": false
+  },
+  {
+    "externalRef": "EHS-CL-022-2330-23057",
+    "timelineType": "ONGOING",
+    "dueDates": ["2022-06-30", "2022-09-30", "2022-12-31", "2023-03-31"],
+    "expectedRule": {
+      "kind": "ONGOING_REVIEW",
+      "every": "QUARTER"
+    },
+    "exact": true
+  },
+  {
+    "externalRef": "HRS-CL-046-3345-37112",
+    "timelineType": "ONGOING",
+    "dueDates": ["2022-06-30", "2022-12-31"],
+    "expectedRule": null,
+    "exact": false
+  },
+  {
+    "externalRef": "HRS-WB-071-3286-34060",
+    "timelineType": "ONGOING",
+    "dueDates": ["2022-06-30", "2022-09-30", "2022-12-31", "2023-03-31"],
+    "expectedRule": {
+      "kind": "ONGOING_REVIEW",
+      "every": "QUARTER"
+    },
+    "exact": true
+  },
+  {
+    "externalRef": "HRS-CL-046-3345-37111",
+    "timelineType": "ONGOING",
+    "dueDates": ["2022-06-30", "2022-12-31"],
+    "expectedRule": null,
+    "exact": false
+  },
+  {
+    "externalRef": "EHS-CL-022-2330-23065",
+    "timelineType": "ONGOING",
+    "dueDates": ["2022-06-30", "2022-09-30", "2022-12-31", "2023-03-31"],
+    "expectedRule": {
+      "kind": "ONGOING_REVIEW",
+      "every": "QUARTER"
+    },
+    "exact": true
+  },
+  {
+    "externalRef": "EHS-CL-017-2318-22838",
+    "timelineType": "ONGOING",
+    "dueDates": ["2022-06-30", "2022-09-30", "2022-12-31", "2023-03-31"],
+    "expectedRule": {
+      "kind": "ONGOING_REVIEW",
+      "every": "QUARTER"
+    },
+    "exact": true
+  },
+  {
+    "externalRef": "EHS-CL-022-2330-23053",
+    "timelineType": "ONGOING",
+    "dueDates": ["2022-06-30", "2022-09-30", "2022-12-31", "2023-03-31"],
+    "expectedRule": {
+      "kind": "ONGOING_REVIEW",
+      "every": "QUARTER"
+    },
+    "exact": true
+  },
+  {
+    "externalRef": "EHS-CL-022-2330-23054",
+    "timelineType": "ONGOING",
+    "dueDates": ["2022-06-30", "2022-09-30", "2022-12-31", "2023-03-31"],
+    "expectedRule": {
+      "kind": "ONGOING_REVIEW",
+      "every": "QUARTER"
+    },
+    "exact": true
+  },
+  {
+    "externalRef": "HRS-WB-044-3171-32446",
+    "timelineType": "ONGOING",
+    "dueDates": ["2022-06-30", "2022-09-30", "2022-12-31", "2023-03-31"],
+    "expectedRule": {
+      "kind": "ONGOING_REVIEW",
+      "every": "QUARTER"
+    },
+    "exact": true
+  },
+  {
+    "externalRef": "EHS-CL-022-2330-23073",
+    "timelineType": "ONGOING",
+    "dueDates": ["2022-06-30", "2022-09-30", "2022-12-31", "2023-03-31"],
+    "expectedRule": {
+      "kind": "ONGOING_REVIEW",
+      "every": "QUARTER"
+    },
+    "exact": true
+  },
+  {
+    "externalRef": "EHS-CL-022-2330-23038",
+    "timelineType": "ONGOING",
+    "dueDates": ["2022-06-30", "2022-09-30", "2022-12-31", "2023-03-31"],
+    "expectedRule": {
+      "kind": "ONGOING_REVIEW",
+      "every": "QUARTER"
+    },
+    "exact": true
+  },
+  {
+    "externalRef": "EHS-CL-017-2023-20436",
+    "timelineType": "ONGOING",
+    "dueDates": ["2022-06-30", "2022-09-30", "2022-12-31", "2023-03-31"],
+    "expectedRule": {
+      "kind": "ONGOING_REVIEW",
+      "every": "QUARTER"
+    },
+    "exact": true
+  },
+  {
+    "externalRef": "EHS-CL-049-2095-20647",
+    "timelineType": "ONGOING",
+    "dueDates": ["2022-06-30", "2022-09-30", "2022-12-31", "2023-03-31"],
+    "expectedRule": {
+      "kind": "ONGOING_REVIEW",
+      "every": "QUARTER"
+    },
+    "exact": true
+  },
+  {
+    "externalRef": "HRS-WB-071-3286-34076",
+    "timelineType": "ONGOING",
+    "dueDates": ["2022-06-30", "2022-09-30", "2022-12-31", "2023-03-31"],
+    "expectedRule": {
+      "kind": "ONGOING_REVIEW",
+      "every": "QUARTER"
+    },
+    "exact": true
+  },
+  {
+    "externalRef": "EHS-CL-017-2318-22825",
+    "timelineType": "ONGOING",
+    "dueDates": ["2022-06-30", "2022-09-30", "2022-12-31", "2023-03-31"],
+    "expectedRule": {
+      "kind": "ONGOING_REVIEW",
+      "every": "QUARTER"
+    },
+    "exact": true
+  },
+  {
+    "externalRef": "EHS-CL-022-2330-23064",
+    "timelineType": "ONGOING",
+    "dueDates": ["2022-06-30", "2022-09-30", "2022-12-31", "2023-03-31"],
+    "expectedRule": {
+      "kind": "ONGOING_REVIEW",
+      "every": "QUARTER"
+    },
+    "exact": true
+  },
+  {
+    "externalRef": "EHS-CL-017-2319-22857",
+    "timelineType": "ONGOING",
+    "dueDates": ["2022-06-30", "2022-09-30", "2022-12-31", "2023-03-31"],
+    "expectedRule": {
+      "kind": "ONGOING_REVIEW",
+      "every": "QUARTER"
+    },
+    "exact": true
+  },
+  {
+    "externalRef": "EHS-CL-022-2330-23044",
+    "timelineType": "ONGOING",
+    "dueDates": ["2022-06-30", "2022-09-30", "2022-12-31", "2023-03-31"],
+    "expectedRule": {
+      "kind": "ONGOING_REVIEW",
+      "every": "QUARTER"
+    },
+    "exact": true
+  },
+  {
+    "externalRef": "EHS-CL-022-2330-23069",
+    "timelineType": "ONGOING",
+    "dueDates": ["2022-06-30", "2022-09-30", "2022-12-31", "2023-03-31"],
+    "expectedRule": {
+      "kind": "ONGOING_REVIEW",
+      "every": "QUARTER"
+    },
+    "exact": true
+  },
+  {
+    "externalRef": "EHS-CL-022-2330-23043",
+    "timelineType": "ONGOING",
+    "dueDates": ["2022-06-30", "2022-09-30", "2022-12-31", "2023-03-31"],
+    "expectedRule": {
+      "kind": "ONGOING_REVIEW",
+      "every": "QUARTER"
+    },
+    "exact": true
+  },
+  {
+    "externalRef": "HRS-CL-001-3004-35373",
+    "timelineType": "ONGOING",
+    "dueDates": ["2022-06-30", "2022-09-30", "2022-12-31", "2023-03-31"],
+    "expectedRule": {
+      "kind": "ONGOING_REVIEW",
+      "every": "QUARTER"
+    },
+    "exact": true
+  },
+  {
+    "externalRef": "HRS-WB-071-3286-34093",
+    "timelineType": "ONGOING",
+    "dueDates": ["2022-06-30", "2022-09-30", "2022-12-31", "2023-03-31"],
+    "expectedRule": {
+      "kind": "ONGOING_REVIEW",
+      "every": "QUARTER"
+    },
+    "exact": true
+  },
+  {
+    "externalRef": "HRS-WB-071-3286-34034",
+    "timelineType": "ONGOING",
+    "dueDates": ["2022-06-30", "2022-09-30", "2022-12-31", "2023-03-31"],
+    "expectedRule": {
+      "kind": "ONGOING_REVIEW",
+      "every": "QUARTER"
+    },
+    "exact": true
+  },
+  {
+    "externalRef": "EHS-CL-022-2330-23056",
+    "timelineType": "ONGOING",
+    "dueDates": ["2022-06-30", "2022-09-30", "2022-12-31", "2023-03-31"],
+    "expectedRule": {
+      "kind": "ONGOING_REVIEW",
+      "every": "QUARTER"
+    },
+    "exact": true
+  },
+  {
+    "externalRef": "IT-CL-039-9001-90032",
+    "timelineType": "ONGOING",
+    "dueDates": ["2022-06-30", "2022-09-30", "2022-12-31", "2023-03-31"],
+    "expectedRule": {
+      "kind": "ONGOING_REVIEW",
+      "every": "QUARTER"
+    },
+    "exact": true
+  },
+  {
+    "externalRef": "HRS-WB-008-3044-32413",
+    "timelineType": "ONGOING",
+    "dueDates": ["2022-06-30", "2022-09-30", "2022-12-31", "2023-03-31"],
+    "expectedRule": {
+      "kind": "ONGOING_REVIEW",
+      "every": "QUARTER"
+    },
+    "exact": true
+  },
+  {
+    "externalRef": "HRS-WB-071-3286-34057",
+    "timelineType": "ONGOING",
+    "dueDates": ["2022-06-30", "2022-09-30", "2022-12-31", "2023-03-31"],
+    "expectedRule": {
+      "kind": "ONGOING_REVIEW",
+      "every": "QUARTER"
+    },
+    "exact": true
+  },
+  {
+    "externalRef": "HRS-WB-071-3286-34054",
+    "timelineType": "TIME_BASED",
+    "dueDates": ["2022-06-30", "2022-12-31"],
+    "expectedRule": null,
+    "exact": false
+  },
+  {
+    "externalRef": "EHS-CL-017-2024-20445",
+    "timelineType": "ONGOING",
+    "dueDates": ["2022-06-30", "2022-09-30", "2022-12-31", "2023-03-31"],
+    "expectedRule": {
+      "kind": "ONGOING_REVIEW",
+      "every": "QUARTER"
+    },
+    "exact": true
+  },
+  {
+    "externalRef": "ENG-CL-012-8004-80016",
+    "timelineType": "ONGOING",
+    "dueDates": ["2022-06-30", "2022-09-30", "2022-12-31", "2023-03-31"],
+    "expectedRule": {
+      "kind": "ONGOING_REVIEW",
+      "every": "QUARTER"
+    },
+    "exact": true
+  },
+  {
+    "externalRef": "EHS-CL-017-2315-22797",
+    "timelineType": "TIME_BASED",
+    "dueDates": ["2022-06-30"],
+    "expectedRule": {
+      "kind": "ANNUAL",
+      "month": 6,
+      "day": 30
+    },
+    "exact": true
+  },
+  {
+    "externalRef": "IT-CL-039-9001-90006",
+    "timelineType": "ONGOING",
+    "dueDates": ["2022-06-30", "2022-09-30", "2022-12-31", "2023-03-31"],
+    "expectedRule": {
+      "kind": "ONGOING_REVIEW",
+      "every": "QUARTER"
+    },
+    "exact": true
+  },
+  {
+    "externalRef": "ENV-117-0031",
+    "timelineType": "ONGOING",
+    "dueDates": ["2022-06-30", "2022-09-30", "2022-12-31", "2023-03-31"],
+    "expectedRule": {
+      "kind": "ONGOING_REVIEW",
+      "every": "QUARTER"
+    },
+    "exact": true
+  },
+  {
+    "externalRef": "EHS-CL-022-2330-23066",
+    "timelineType": "ONGOING",
+    "dueDates": ["2022-06-30", "2022-09-30", "2022-12-31", "2023-03-31"],
+    "expectedRule": {
+      "kind": "ONGOING_REVIEW",
+      "every": "QUARTER"
+    },
+    "exact": true
+  },
+  {
+    "externalRef": "HRS-CL-001-3004-36902",
+    "timelineType": "ONGOING",
+    "dueDates": ["2022-06-30", "2022-09-30", "2022-12-31", "2023-03-31"],
+    "expectedRule": {
+      "kind": "ONGOING_REVIEW",
+      "every": "QUARTER"
+    },
+    "exact": true
+  },
+  {
+    "externalRef": "HRS-WB-071-3286-34061",
+    "timelineType": "ONGOING",
+    "dueDates": ["2022-06-30", "2022-09-30", "2022-12-31", "2023-03-31"],
+    "expectedRule": {
+      "kind": "ONGOING_REVIEW",
+      "every": "QUARTER"
+    },
+    "exact": true
+  },
+  {
+    "externalRef": "EHS-CL-022-2330-23072",
+    "timelineType": "ONGOING",
+    "dueDates": ["2022-06-30", "2022-09-30", "2022-12-31", "2023-03-31"],
+    "expectedRule": {
+      "kind": "ONGOING_REVIEW",
+      "every": "QUARTER"
+    },
+    "exact": true
+  },
+  {
+    "externalRef": "EHS-CL-022-2330-23061",
+    "timelineType": "ONGOING",
+    "dueDates": ["2022-06-30", "2022-09-30", "2022-12-31", "2023-03-31"],
+    "expectedRule": {
+      "kind": "ONGOING_REVIEW",
+      "every": "QUARTER"
+    },
+    "exact": true
+  },
+  {
+    "externalRef": "INT-FA-1-1",
+    "timelineType": "ONGOING",
+    "dueDates": ["2022-06-30", "2022-09-30", "2022-12-31", "2023-03-31"],
+    "expectedRule": {
+      "kind": "ONGOING_REVIEW",
+      "every": "QUARTER"
+    },
+    "exact": true
+  },
+  {
+    "externalRef": "IT-CL-039-9001-90034",
+    "timelineType": "ONGOING",
+    "dueDates": ["2022-06-30", "2022-09-30", "2022-12-31", "2023-03-31"],
+    "expectedRule": {
+      "kind": "ONGOING_REVIEW",
+      "every": "QUARTER"
+    },
+    "exact": true
+  },
+  {
+    "externalRef": "EHS-CL-022-2330-23048",
+    "timelineType": "ONGOING",
+    "dueDates": ["2022-06-30", "2022-09-30", "2022-12-31", "2023-03-31"],
+    "expectedRule": {
+      "kind": "ONGOING_REVIEW",
+      "every": "QUARTER"
+    },
+    "exact": true
+  },
+  {
+    "externalRef": "EHS-CL-022-2330-23046",
+    "timelineType": "ONGOING",
+    "dueDates": ["2022-06-30", "2022-09-30", "2022-12-31", "2023-03-31"],
+    "expectedRule": {
+      "kind": "ONGOING_REVIEW",
+      "every": "QUARTER"
+    },
+    "exact": true
+  },
+  {
+    "externalRef": "HRS-WB-008-3044-32406",
+    "timelineType": "ONGOING",
+    "dueDates": ["2022-06-30", "2022-09-30", "2022-12-31", "2023-03-31"],
+    "expectedRule": {
+      "kind": "ONGOING_REVIEW",
+      "every": "QUARTER"
+    },
+    "exact": true
+  },
+  {
+    "externalRef": "HRS-WB-071-3286-35149",
+    "timelineType": "ONGOING",
+    "dueDates": ["2022-06-30", "2022-09-30", "2022-12-31", "2023-03-31"],
+    "expectedRule": {
+      "kind": "ONGOING_REVIEW",
+      "every": "QUARTER"
+    },
+    "exact": true
+  },
+  {
+    "externalRef": "HRS-WB-071-3286-34044",
+    "timelineType": "ONGOING",
+    "dueDates": ["2022-06-30", "2022-09-30", "2022-12-31", "2023-03-31"],
+    "expectedRule": {
+      "kind": "ONGOING_REVIEW",
+      "every": "QUARTER"
+    },
+    "exact": true
+  },
+  {
+    "externalRef": "HRS-WB-071-3286-34059",
+    "timelineType": "ONGOING",
+    "dueDates": ["2022-06-30", "2022-09-30", "2022-12-31", "2023-03-31"],
+    "expectedRule": {
+      "kind": "ONGOING_REVIEW",
+      "every": "QUARTER"
+    },
+    "exact": true
+  },
+  {
+    "externalRef": "HRS-WB-008-3044-32411",
+    "timelineType": "ONGOING",
+    "dueDates": ["2022-06-30", "2022-09-30", "2022-12-31", "2023-03-31"],
+    "expectedRule": {
+      "kind": "ONGOING_REVIEW",
+      "every": "QUARTER"
+    },
+    "exact": true
+  },
+  {
+    "externalRef": "HRS-WB-008-3044-32412",
+    "timelineType": "ONGOING",
+    "dueDates": ["2022-06-30", "2022-09-30", "2022-12-31", "2023-03-31"],
+    "expectedRule": {
+      "kind": "ONGOING_REVIEW",
+      "every": "QUARTER"
+    },
+    "exact": true
+  },
+  {
+    "externalRef": "EHS-CL-022-2330-23058",
+    "timelineType": "ONGOING",
+    "dueDates": ["2022-06-30", "2022-09-30", "2022-12-31", "2023-03-31"],
+    "expectedRule": {
+      "kind": "ONGOING_REVIEW",
+      "every": "QUARTER"
+    },
+    "exact": true
+  },
+  {
+    "externalRef": "HRS-WB-008-3044-32408",
+    "timelineType": "ONGOING",
+    "dueDates": ["2022-06-30", "2022-09-30", "2022-12-31", "2023-03-31"],
+    "expectedRule": {
+      "kind": "ONGOING_REVIEW",
+      "every": "QUARTER"
+    },
+    "exact": true
+  },
+  {
+    "externalRef": "HRS-WB-071-3286-34037",
+    "timelineType": "ONGOING",
+    "dueDates": ["2022-06-30", "2022-09-30", "2022-12-31", "2023-03-31"],
+    "expectedRule": {
+      "kind": "ONGOING_REVIEW",
+      "every": "QUARTER"
+    },
+    "exact": true
+  },
+  {
+    "externalRef": "EHS-CL-022-2330-23062",
+    "timelineType": "ONGOING",
+    "dueDates": ["2022-06-30", "2022-09-30", "2022-12-31", "2023-03-31"],
+    "expectedRule": {
+      "kind": "ONGOING_REVIEW",
+      "every": "QUARTER"
+    },
+    "exact": true
+  },
+  {
+    "externalRef": "HRS-WB-008-3044-32417",
+    "timelineType": "ONGOING",
+    "dueDates": ["2022-06-30", "2022-09-30", "2022-12-31", "2023-03-31"],
+    "expectedRule": {
+      "kind": "ONGOING_REVIEW",
+      "every": "QUARTER"
+    },
+    "exact": true
+  },
+  {
+    "externalRef": "HRS-WB-071-3286-34070",
+    "timelineType": "ONGOING",
+    "dueDates": ["2022-06-30", "2022-09-30", "2022-12-31", "2023-03-31"],
+    "expectedRule": {
+      "kind": "ONGOING_REVIEW",
+      "every": "QUARTER"
+    },
+    "exact": true
+  },
+  {
+    "externalRef": "EHS-CL-017-2319-22841",
+    "timelineType": "ONGOING",
+    "dueDates": ["2022-06-30", "2022-09-30", "2022-12-31", "2023-03-31"],
+    "expectedRule": {
+      "kind": "ONGOING_REVIEW",
+      "every": "QUARTER"
+    },
+    "exact": true
+  },
+  {
+    "externalRef": "HRS-WB-071-3286-34069",
+    "timelineType": "ONGOING",
+    "dueDates": ["2022-06-30", "2022-09-30", "2022-12-31", "2023-03-31"],
+    "expectedRule": {
+      "kind": "ONGOING_REVIEW",
+      "every": "QUARTER"
+    },
+    "exact": true
+  },
+  {
+    "externalRef": "HRS-CL-001-3004-35381",
+    "timelineType": "ONGOING",
+    "dueDates": ["2022-06-30", "2022-09-30", "2022-12-31", "2023-03-31"],
+    "expectedRule": {
+      "kind": "ONGOING_REVIEW",
+      "every": "QUARTER"
+    },
+    "exact": true
+  },
+  {
+    "externalRef": "HRS-CL-046-3345-36662",
+    "timelineType": "ONGOING",
+    "dueDates": ["2022-06-30", "2022-12-31"],
+    "expectedRule": null,
+    "exact": false
+  },
+  {
+    "externalRef": "HRS-CL-001-3004-35372",
+    "timelineType": "ONGOING",
+    "dueDates": ["2022-06-30", "2022-09-30", "2022-12-31", "2023-03-31"],
+    "expectedRule": {
+      "kind": "ONGOING_REVIEW",
+      "every": "QUARTER"
+    },
+    "exact": true
+  },
+  {
+    "externalRef": "HRS-CL-001-3004-35382",
+    "timelineType": "ONGOING",
+    "dueDates": ["2022-06-30", "2022-09-30", "2022-12-31", "2023-03-31"],
+    "expectedRule": {
+      "kind": "ONGOING_REVIEW",
+      "every": "QUARTER"
+    },
+    "exact": true
+  },
+  {
+    "externalRef": "HRS-WB-044-3171-36812",
+    "timelineType": "ONGOING",
+    "dueDates": ["2022-06-30", "2022-09-30", "2022-12-31", "2023-03-31"],
+    "expectedRule": {
+      "kind": "ONGOING_REVIEW",
+      "every": "QUARTER"
+    },
+    "exact": true
+  },
+  {
+    "externalRef": "EHS-CL-022-2330-23045",
+    "timelineType": "ONGOING",
+    "dueDates": ["2022-06-30", "2022-09-30", "2022-12-31", "2023-03-31"],
+    "expectedRule": {
+      "kind": "ONGOING_REVIEW",
+      "every": "QUARTER"
+    },
+    "exact": true
+  },
+  {
+    "externalRef": "EHS-CL-022-2330-23063",
+    "timelineType": "ONGOING",
+    "dueDates": ["2022-06-30", "2022-09-30", "2022-12-31", "2023-03-31"],
+    "expectedRule": {
+      "kind": "ONGOING_REVIEW",
+      "every": "QUARTER"
+    },
+    "exact": true
+  },
+  {
+    "externalRef": "EHS-CL-017-2319-22858",
+    "timelineType": "ONGOING",
+    "dueDates": ["2022-06-30", "2022-09-30", "2022-12-31", "2023-03-31"],
+    "expectedRule": {
+      "kind": "ONGOING_REVIEW",
+      "every": "QUARTER"
+    },
+    "exact": true
+  },
+  {
+    "externalRef": "EHS-CL-022-2330-23068",
+    "timelineType": "ONGOING",
+    "dueDates": ["2022-06-30", "2022-09-30", "2022-12-31", "2023-03-31"],
+    "expectedRule": {
+      "kind": "ONGOING_REVIEW",
+      "every": "QUARTER"
+    },
+    "exact": true
+  },
+  {
+    "externalRef": "HRS-WB-071-3286-34096",
+    "timelineType": "ONGOING",
+    "dueDates": ["2022-06-30", "2022-09-30", "2022-12-31", "2023-03-31"],
+    "expectedRule": {
+      "kind": "ONGOING_REVIEW",
+      "every": "QUARTER"
+    },
+    "exact": true
+  },
+  {
+    "externalRef": "EHS-CL-022-2330-23047",
+    "timelineType": "ONGOING",
+    "dueDates": ["2022-06-30", "2022-09-30", "2022-12-31", "2023-03-31"],
+    "expectedRule": {
+      "kind": "ONGOING_REVIEW",
+      "every": "QUARTER"
+    },
+    "exact": true
+  },
+  {
+    "externalRef": "EHS-CL-017-2028-20500",
+    "timelineType": "TIME_BASED",
+    "dueDates": ["2022-06-30", "2022-12-31"],
+    "expectedRule": null,
+    "exact": false
+  },
+  {
+    "externalRef": "HRS-WB-008-3044-32414",
+    "timelineType": "ONGOING",
+    "dueDates": ["2022-06-30", "2022-09-30", "2022-12-31", "2023-03-31"],
+    "expectedRule": {
+      "kind": "ONGOING_REVIEW",
+      "every": "QUARTER"
+    },
+    "exact": true
+  },
+  {
+    "externalRef": "HRS-WB-006-3239-36694",
+    "timelineType": "ONGOING",
+    "dueDates": ["2022-06-30", "2022-09-30", "2022-12-31", "2023-03-31"],
+    "expectedRule": {
+      "kind": "ONGOING_REVIEW",
+      "every": "QUARTER"
+    },
+    "exact": true
+  },
+  {
+    "externalRef": "EHS-CL-022-2330-23060",
+    "timelineType": "ONGOING",
+    "dueDates": ["2022-06-30", "2022-09-30", "2022-12-31", "2023-03-31"],
+    "expectedRule": {
+      "kind": "ONGOING_REVIEW",
+      "every": "QUARTER"
+    },
+    "exact": true
+  },
+  {
+    "externalRef": "HRS-WB-071-3286-34074",
+    "timelineType": "ONGOING",
+    "dueDates": ["2022-06-30", "2022-09-30", "2022-12-31", "2023-03-31"],
+    "expectedRule": {
+      "kind": "ONGOING_REVIEW",
+      "every": "QUARTER"
+    },
+    "exact": true
+  },
+  {
+    "externalRef": "EHS-CL-022-2330-23052",
+    "timelineType": "ONGOING",
+    "dueDates": ["2022-06-30", "2022-09-30", "2022-12-31", "2023-03-31"],
+    "expectedRule": {
+      "kind": "ONGOING_REVIEW",
+      "every": "QUARTER"
+    },
+    "exact": true
+  },
+  {
+    "externalRef": "EHS-CL-022-2330-23055",
+    "timelineType": "ONGOING",
+    "dueDates": ["2022-06-30", "2022-09-30", "2022-12-31", "2023-03-31"],
+    "expectedRule": {
+      "kind": "ONGOING_REVIEW",
+      "every": "QUARTER"
+    },
+    "exact": true
+  },
+  {
+    "externalRef": "EHS-CL-022-2329-22994",
+    "timelineType": "ONGOING",
+    "dueDates": ["2022-06-30", "2022-09-30", "2022-12-31", "2023-03-31"],
+    "expectedRule": {
+      "kind": "ONGOING_REVIEW",
+      "every": "QUARTER"
+    },
+    "exact": true
+  },
+  {
+    "externalRef": "EHS-CL-022-2330-23085",
+    "timelineType": "ONGOING",
+    "dueDates": ["2022-06-30", "2022-09-30", "2022-12-31", "2023-03-31"],
+    "expectedRule": {
+      "kind": "ONGOING_REVIEW",
+      "every": "QUARTER"
+    },
+    "exact": true
+  },
+  {
+    "externalRef": "HRS-WB-040-3235-32434",
+    "timelineType": "TIME_BASED",
+    "dueDates": ["2022-07-15", "2023-01-14"],
+    "expectedRule": null,
+    "exact": false
+  },
+  {
+    "externalRef": "EHS-CL-022-2330-23084",
+    "timelineType": "ONGOING",
+    "dueDates": ["2022-09-30"],
+    "expectedRule": null,
+    "exact": false
+  },
+  {
+    "externalRef": "EHS-CL-022-2330-23086",
+    "timelineType": "ONGOING",
+    "dueDates": ["2022-09-30"],
+    "expectedRule": null,
+    "exact": false
+  },
+  {
+    "externalRef": "EHS-CL-017-2027-20489",
+    "timelineType": "ONGOING",
+    "dueDates": ["2022-09-30"],
+    "expectedRule": null,
+    "exact": false
+  },
+  {
+    "externalRef": "EHS-CL-017-2319-22846",
+    "timelineType": "ONGOING",
+    "dueDates": ["2022-09-30"],
+    "expectedRule": null,
+    "exact": false
+  },
+  {
+    "externalRef": "TAX-CL-033-6067-60206",
+    "timelineType": "TIME_BASED",
+    "dueDates": ["2022-11-15"],
+    "expectedRule": {
+      "kind": "ANNUAL",
+      "month": 11,
+      "day": 15
+    },
+    "exact": true
+  },
+  {
+    "externalRef": "HRS-CL-005-3174-30351",
+    "timelineType": "TIME_BASED",
+    "dueDates": ["2022-11-30"],
+    "expectedRule": {
+      "kind": "ANNUAL",
+      "month": 11,
+      "day": 30
+    },
+    "exact": true
+  },
+  {
+    "externalRef": "IT-CL-039-9001-90033",
+    "timelineType": "ONGOING",
+    "dueDates": ["2022-12-31"],
+    "expectedRule": null,
+    "exact": false
+  },
+  {
+    "externalRef": "INT-H-048-0002",
+    "timelineType": "TIME_BASED",
+    "dueDates": ["2022-12-31"],
+    "expectedRule": {
+      "kind": "ANNUAL",
+      "month": 12,
+      "day": 31
+    },
+    "exact": true
+  },
+  {
+    "externalRef": "HRS-CL-046-3345-37113",
+    "timelineType": "ONGOING",
+    "dueDates": ["2022-12-31"],
+    "expectedRule": null,
+    "exact": false
+  },
+  {
+    "externalRef": "INT-H-056-0001",
+    "timelineType": "TIME_BASED",
+    "dueDates": ["2022-12-31"],
+    "expectedRule": {
+      "kind": "ANNUAL",
+      "month": 12,
+      "day": 31
+    },
+    "exact": true
+  },
+  {
+    "externalRef": "HRS-WB-071-3286-34047",
+    "timelineType": "TIME_BASED",
+    "dueDates": ["2022-12-31"],
+    "expectedRule": {
+      "kind": "ANNUAL",
+      "month": 12,
+      "day": 31
+    },
+    "exact": true
+  },
+  {
+    "externalRef": "HRS-CL-057-3222-30484",
+    "timelineType": "TIME_BASED",
+    "dueDates": ["2022-12-31"],
+    "expectedRule": {
+      "kind": "ANNUAL",
+      "month": 12,
+      "day": 31
+    },
+    "exact": true
+  },
+  {
+    "externalRef": "INT-H-047-0016",
+    "timelineType": "TIME_BASED",
+    "dueDates": ["2022-12-31"],
+    "expectedRule": {
+      "kind": "ANNUAL",
+      "month": 12,
+      "day": 31
+    },
+    "exact": true
+  },
+  {
+    "externalRef": "INT-H-050-0002",
+    "timelineType": "TIME_BASED",
+    "dueDates": ["2022-12-31"],
+    "expectedRule": {
+      "kind": "ANNUAL",
+      "month": 12,
+      "day": 31
+    },
+    "exact": true
+  },
+  {
+    "externalRef": "TAX-CL-033-6067-60221",
+    "timelineType": "TIME_BASED",
+    "dueDates": ["2023-01-14"],
+    "expectedRule": {
+      "kind": "ANNUAL",
+      "month": 1,
+      "day": 14
+    },
+    "exact": true
+  },
+  {
+    "externalRef": "HRS-WB-042-3149-32442",
+    "timelineType": "TIME_BASED",
+    "dueDates": ["2023-01-21"],
+    "expectedRule": {
+      "kind": "ANNUAL",
+      "month": 1,
+      "day": 21
+    },
+    "exact": true
+  },
+  {
+    "externalRef": "TAX-CL-033-6067-60232",
+    "timelineType": "TIME_BASED",
+    "dueDates": ["2023-01-30"],
+    "expectedRule": {
+      "kind": "ANNUAL",
+      "month": 1,
+      "day": 30
+    },
+    "exact": true
+  },
+  {
+    "externalRef": "HRS-WB-071-3286-34106",
+    "timelineType": "TIME_BASED",
+    "dueDates": ["2023-01-31"],
+    "expectedRule": {
+      "kind": "ANNUAL",
+      "month": 1,
+      "day": 31
+    },
+    "exact": true
+  },
+  {
+    "externalRef": "HRS-WB-040-3235-32436",
+    "timelineType": "TIME_BASED",
+    "dueDates": ["2023-01-31"],
+    "expectedRule": {
+      "kind": "ANNUAL",
+      "month": 1,
+      "day": 31
+    },
+    "exact": true
+  },
+  {
+    "externalRef": "TAX-CL-033-6067-60200",
+    "timelineType": "TIME_BASED",
+    "dueDates": ["2023-01-31"],
+    "expectedRule": {
+      "kind": "ANNUAL",
+      "month": 1,
+      "day": 31
+    },
+    "exact": true
+  },
+  {
+    "externalRef": "TAX-CL-033-6067-61688",
+    "timelineType": "TIME_BASED",
+    "dueDates": ["2023-01-31"],
+    "expectedRule": {
+      "kind": "ANNUAL",
+      "month": 1,
+      "day": 31
+    },
+    "exact": true
+  },
+  {
+    "externalRef": "HRS-WB-048-3214-32457",
+    "timelineType": "TIME_BASED",
+    "dueDates": ["2023-01-31"],
+    "expectedRule": {
+      "kind": "ANNUAL",
+      "month": 1,
+      "day": 31
+    },
+    "exact": true
+  },
+  {
+    "externalRef": "HRS-WB-044-3171-32450",
+    "timelineType": "TIME_BASED",
+    "dueDates": ["2023-02-01"],
+    "expectedRule": {
+      "kind": "ANNUAL",
+      "month": 2,
+      "day": 1
+    },
+    "exact": true
+  },
+  {
+    "externalRef": "HRS-WB-008-3044-32421",
+    "timelineType": "TIME_BASED",
+    "dueDates": ["2023-02-15"],
+    "expectedRule": {
+      "kind": "ANNUAL",
+      "month": 2,
+      "day": 15
+    },
+    "exact": true
+  },
+  {
+    "externalRef": "TAX-CL-033-6067-60207",
+    "timelineType": "TIME_BASED",
+    "dueDates": ["2023-02-15"],
+    "expectedRule": {
+      "kind": "ANNUAL",
+      "month": 2,
+      "day": 15
+    },
+    "exact": true
+  }
+]

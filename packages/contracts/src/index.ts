@@ -13,3 +13,4 @@ export * from './schemas/scores.js';
 export * from './schemas/context.js';
 export type * from './engine-api.js';
 export * from './api/index.js';
+export * from './fixtures/schema.js';
