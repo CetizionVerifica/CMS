@@ -1,0 +1,27 @@
+# Weekly dependency updates, grouped so there is one PR per ecosystem per week. Each PR goes through the full CI
+# (`ci-ok`) and merges itself via auto-merge.yml when green; majors come as separate PRs so a breaking upgrade
+# fails CI on its own instead of blocking the routine ones.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      timezone: Asia/Kolkata
+    commit-message:
+      prefix: deps
+    groups:
+      minor-and-patch:
+        update-types: [minor, patch]
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    commit-message:
+      prefix: ci
+    groups:
+      actions:
+        patterns: ['*']
