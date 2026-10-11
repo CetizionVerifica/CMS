@@ -258,6 +258,46 @@ describe('inferRule on part-year registers (client onboarded mid-year)', () => {
     expect(covered.rule).toEqual({ kind: 'MONTHLY', day: 'LAST', offsetMonths: 0 });
     expect(covered.confidence).toBe(0.5);
   });
+  it('a drifted deposit in a mid-year register still keeps MONTHLY, with the mismatch, below confidence 1', () => {
+    const r = inferRule(
+      ds('2022-12-07', '2023-01-06', '2023-02-07', '2023-03-07'),
+      'TIME_BASED',
+      india,
+      {
+        coverage: fy2223,
+      },
+    );
+    expect(r.rule).toEqual({ kind: 'MONTHLY', day: 7, offsetMonths: 1 });
+    expect(r.confidence).toBeCloseTo(3 / 12);
+    expect(r.mismatches).toEqual([{ expected: '2023-01-06', generated: '2023-01-07' }]);
+    expect(generateInstances(r.rule, fy2324, india)).toHaveLength(12);
+  });
+  it('a mid-year register with an interior row missing is flagged, not certain', () => {
+    const r = inferRule(ds('2022-12-07', '2023-02-07', '2023-03-07'), 'TIME_BASED', india, {
+      coverage: fy2223,
+    });
+    expect(r.rule).toEqual({
+      kind: 'FIXED_DATES',
+      dates: [
+        { month: 12, day: 7 },
+        { month: 2, day: 7 },
+        { month: 3, day: 7 },
+      ],
+    });
+    expect(r.confidence).toBe(0.5);
+  });
+  it('evenly spaced fixed dates over a full year stay certain', () => {
+    const r = inferRule(
+      ds('2022-04-15', '2022-07-15', '2022-10-15', '2023-01-14'),
+      'TIME_BASED',
+      india,
+      {
+        coverage: fy2223,
+      },
+    );
+    expect(r.rule.kind).toBe('FIXED_DATES');
+    expect(r.confidence).toBe(1);
+  });
   it('four quarters across the FY boundary give the right rule at full confidence', () => {
     expect(
       inferRule(ds('2022-07-15', '2022-10-15', '2023-01-15', '2023-04-15'), 'TIME_BASED', india),

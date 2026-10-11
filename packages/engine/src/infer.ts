@@ -19,11 +19,12 @@ import { generateInstances, type Calendar } from './recurrence.js';
  *     (ONGOING obligations try ONGOING_REVIEW first; TIME_BASED ones ANNUAL, QUARTERLY, HALF_YEARLY, MONTHLY).
  *  2. When periodic rules of different frequencies all match every date (a window too short to tell, such as one
  *     date), the rule is ambiguous and its confidence is halved so import flags it TO_REVIEW.
- *  3. If no periodic rule matches the whole window but one matches every date between the first and the last (the
- *     register starts or stops mid-way through the window), that rule is returned at its window confidence, below 1.
+ *  3. If no periodic rule matches the whole window but one matches every date between the first and the last within
+ *     three days, adds nothing between them and adds dates only at the window's edges (the register starts or stops
+ *     mid-way through the window), that rule is returned at its window confidence, below 1, with its mismatches.
  *  4. FIXED_DATES is tried only when no periodic rule matches every date, for two to four distinct month/days, and
- *     only wins when strictly better. From a window shorter than a year its confidence is halved too, because the
- *     dates the register does not cover are unknown.
+ *     wins when it is at least as good. Its confidence is halved from a window shorter than a year, or when its
+ *     dates are unevenly spaced (largest gap, including the wrap to next year, over twice the smallest).
  * Without coverage, fewer than three dates never give confidence above 0.5.
  * Quarter and half-year offsets are tried up to 31 days before the period end and 60 days after it.
  */
@@ -120,7 +121,10 @@ function candidates(
   dates: readonly LocalDate[],
   timelineType: TimelineType,
   fyStartMonth: number,
-): { periodic: RecurrenceRule[]; fixed: RecurrenceRule | null } {
+): {
+  periodic: RecurrenceRule[];
+  fixed: Extract<RecurrenceRule, { kind: 'FIXED_DATES' }> | null;
+} {
   const monthDays = distinctMonthDays(dates, fyStartMonth);
   const ongoing: RecurrenceRule[] = (['QUARTER', 'MONTH', 'HALF_YEAR', 'YEAR'] as const).map(
     (every) => ({
@@ -170,6 +174,44 @@ function perYear(rule: RecurrenceRule): number {
     default:
       return 1;
   }
+}
+
+/** Days a register date may drift from the rule and still count as the same period. */
+const DRIFT_DAYS = 3;
+
+/**
+ * True when `rule` explains every expected date within DRIFT_DAYS, generates nothing unmatched between the first and
+ * the last expected date, and does generate dates in the window outside that span (the register's missing edge).
+ */
+function fitsSpanWithEdgeGap(
+  rule: RecurrenceRule,
+  expected: readonly LocalDate[],
+  window: { from: LocalDate; to: LocalDate },
+  cal: Calendar,
+): boolean {
+  const first = expected[0] as LocalDate;
+  const last = expected.at(-1) as LocalDate;
+  const generated = generateInstances(rule, window, cal).map((p) => p.dueDate);
+  const outside = generated.filter(
+    (d) => daysBetween(d, first) > DRIFT_DAYS || daysBetween(last, d) > DRIFT_DAYS,
+  );
+  if (outside.length === 0) return false;
+  const inside = generated.filter((d) => !outside.includes(d));
+  if (inside.length !== expected.length) return false;
+  return expected.every((d, i) => Math.abs(daysBetween(d, inside[i] as LocalDate)) <= DRIFT_DAYS);
+}
+
+/** True when the gaps between a FIXED_DATES rule's dates, including the wrap to next year, are within 2x of each other. */
+function evenlySpaced(rule: Extract<RecurrenceRule, { kind: 'FIXED_DATES' }>): boolean {
+  // Day of year in a common year, in the rule's (FY) order.
+  const days = rule.dates.map((md) =>
+    daysBetween(clampedDate(2001, 1, 1), clampedDate(2001, md.month, md.day)),
+  );
+  const ordered = days.map((d, i) => (i > 0 && d < (days[0] as number) ? d + 365 : d));
+  const gaps = ordered.map((d, i) =>
+    i + 1 < ordered.length ? (ordered[i + 1] as number) - d : (ordered[0] as number) + 365 - d,
+  );
+  return Math.max(...gaps) <= 2 * Math.min(...gaps);
 }
 
 /** Highest confidence, then the fewest periods a year, then candidate order. */
@@ -228,17 +270,21 @@ export function inferRule(
     );
     return cap(exactFrequencies.size > 1 ? { ...best, confidence: 0.5 } : best);
   }
-  // Onboarding gap: a periodic rule fits every date between the first and the last, and the dates it adds lie only
-  // before or after them. The register most likely starts or stops mid-year, so keep the periodic rule (FIXED_DATES
-  // would drop the missing periods for good) at its coverage confidence, below 1, for review.
-  const edgeFit = pickBest(periodic.map(scoreIn(span)));
-  if (edgeFit.confidence === 1) {
-    return scored.find((r) => r.rule === edgeFit.rule) as Scored;
-  }
+  // Onboarding gap: a periodic rule fits every date between the first and the last (each within a few days, to allow
+  // for drift), adds nothing between them, and adds dates only before or after them inside the window. The register
+  // most likely starts or stops mid-way, so keep the periodic rule (FIXED_DATES would drop the missing periods for
+  // good) at its window confidence, below 1, for review.
+  const edgeFits = scored.filter((_, i) =>
+    fitsSpanWithEdgeGap(periodic[i] as RecurrenceRule, expected, window, cal),
+  );
+  if (edgeFits.length > 0) return pickBest(edgeFits);
   if (fixed) {
     const result = scoreIn(window)(fixed);
+    // A part-year window, or a date list whose gaps are uneven (Dec, Jan, Feb, Mar then nine empty months), says
+    // little about the rest of the year: flag it rather than publish it as certain.
     const shortWindow = daysBetween(window.from, window.to) < 364;
-    const confidence = shortWindow ? result.confidence / 2 : result.confidence;
+    const uneven = !evenlySpaced(fixed);
+    const confidence = shortWindow || uneven ? result.confidence / 2 : result.confidence;
     if (confidence >= best.confidence) return { ...result, confidence };
   }
   return best;
