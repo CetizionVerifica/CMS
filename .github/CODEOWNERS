@@ -1,5 +1,6 @@
 # Human review is required only where a mistake is expensive to undo: shared contracts, the database schema and
-# tenancy, auth, and CI itself. Everything else merges on a green `ci-ok`, which includes the automatic module audit.
+# tenancy, auth, and CI itself. Everything else merges on a green `ci-ok`, which includes a Ready module audit
+# of the PR's head commit.
 # Which module may change which paths is enforced by the `module-paths` CI job (tooling/modules.json), not here.
 
 /packages/contracts/                                @shyamsharma23
