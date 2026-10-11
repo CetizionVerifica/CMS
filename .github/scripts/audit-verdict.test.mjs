@@ -5,6 +5,10 @@ import { decide, markers } from './audit-verdict.mjs';
 const HEAD = 'a'.repeat(40);
 const OLD = 'b'.repeat(40);
 let clock = 0;
+// Permissions as the collaborator permission API reports them. `reader` is an org member with read-only access, whose
+// author_association would still say MEMBER.
+const PERMS = { shyam: 'write', owner: 'admin', reader: 'read', 'github-actions[bot]': 'none' };
+const decideFor = (comments) => decide(comments, HEAD, PERMS);
 const comment = (body, { login = 'shyam', type = 'User', association = 'MEMBER' } = {}) => ({
   body,
   user: { login, type },
@@ -16,39 +20,42 @@ const verdict = (sha, v) =>
   `## Audit\n\n<!-- canopy-audit sha=${sha} verdict=${v} -->\n\n---\n_footer_`;
 
 test('a Ready verdict for the head sha from a member passes', () => {
-  assert.equal(decide([comment(verdict(HEAD, 'Ready'))], HEAD).ok, true);
+  assert.equal(decideFor([comment(verdict(HEAD, 'Ready'))]).ok, true);
 });
 
 test('no verdict, or only one for an older sha, fails', () => {
-  assert.equal(decide([], HEAD).ok, false);
-  assert.equal(decide([comment(verdict(OLD, 'Ready'))], HEAD).ok, false);
+  assert.equal(decideFor([]).ok, false);
+  assert.equal(decideFor([comment(verdict(OLD, 'Ready'))]).ok, false);
 });
 
 test('the newest verdict wins, whatever order the API returns', () => {
   const ready = comment(verdict(HEAD, 'Ready'));
   const notReady = comment(verdict(HEAD, 'Not-ready'));
-  assert.equal(decide([notReady, ready], HEAD).ok, false);
+  assert.equal(decideFor([notReady, ready]).ok, false);
   const readyAgain = comment(verdict(HEAD, 'Ready'));
-  assert.equal(decide([readyAgain, notReady, ready], HEAD).ok, true);
+  assert.equal(decideFor([readyAgain, notReady, ready]).ok, true);
 });
 
-test('bots and outside commenters cannot pass the gate', () => {
+test('only people with write access count, whatever author_association says', () => {
   const forged = verdict(HEAD, 'Ready');
-  assert.equal(
-    decide([comment(forged, { login: 'github-actions[bot]', type: 'Bot' })], HEAD).ok,
-    false,
-  );
-  assert.equal(decide([comment(forged, { association: 'CONTRIBUTOR' })], HEAD).ok, false);
-  assert.equal(decide([comment(forged, { association: 'NONE' })], HEAD).ok, false);
-  assert.match(decide([comment(forged, { association: 'NONE' })], HEAD).reason, /1 from untrusted/);
+  const by = (login, extra = {}) => decideFor([comment(forged, { login, ...extra })]);
+  assert.equal(by('owner', { association: 'CONTRIBUTOR' }).ok, true);
+  assert.equal(by('github-actions[bot]', { type: 'Bot' }).ok, false);
+  assert.equal(by('reader').ok, false);
+  assert.equal(by('stranger', { association: 'NONE' }).ok, false);
+  assert.match(by('reader').reason, /1 from authors without write access/);
+});
+
+test('a bot never counts, even one listed with write access', () => {
+  assert.equal(decideFor([comment(verdict(HEAD, 'Ready'), { type: 'Bot' })]).ok, false);
 });
 
 test('an untrusted Ready does not override a trusted Not-ready', () => {
   const comments = [
     comment(verdict(HEAD, 'Not-ready')),
-    comment(verdict(HEAD, 'Ready'), { association: 'NONE' }),
+    comment(verdict(HEAD, 'Ready'), { login: 'stranger' }),
   ];
-  assert.equal(decide(comments, HEAD).ok, false);
+  assert.equal(decideFor(comments).ok, false);
 });
 
 test('the marker must be exact and on its own line', () => {

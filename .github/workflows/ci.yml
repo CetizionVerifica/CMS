@@ -149,7 +149,7 @@ jobs:
   # their MODULES.md acceptance list, any other PR (CI, docs, Dependabot) against the root CLAUDE.md rules. A session
   # that did not build the PR runs the skill and posts its report as a PR comment ending in a verdict marker for the head
   # SHA; this job only reads the comments (.github/scripts/audit-verdict.mjs), so CI calls no model API. Fails closed: no
-  # trusted Ready marker for the current head SHA, no merge. audit-verdict.yml re-runs this job when a marker is posted.
+  # Ready marker for the current head SHA from someone with write access, no merge. audit-verdict.yml re-runs this job when a marker is posted.
   # Not run in the merge queue: the audit is of the PR's own change, which the queue does not alter.
   module-audit:
     name: module-audit
@@ -167,8 +167,16 @@ jobs:
           PR: ${{ github.event.pull_request.number }}
           SHA: ${{ github.event.pull_request.head.sha }}
         run: |
-          gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/issues/$PR/comments" | jq 'add // []' > "$RUNNER_TEMP/comments.json"
-          node .github/scripts/audit-verdict.mjs "$SHA" "$RUNNER_TEMP/comments.json"
+          cd "$RUNNER_TEMP"
+          gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/issues/$PR/comments" | jq 'add // []' > comments.json
+          # Repo permission of everyone who posted a marker; author_association can't tell write access from read.
+          jq -r '[.[] | select(.body // "" | contains("<!-- canopy-audit sha=")) | .user.login] | unique[]' comments.json |
+            while read -r login; do
+              perm=$(gh api "repos/$GITHUB_REPOSITORY/collaborators/$login/permission" --jq .permission 2>/dev/null || echo none)
+              echo "$login: $perm" >&2
+              jq -n --arg l "$login" --arg p "$perm" '{($l): $p}'
+            done | jq -s 'add // {}' > permissions.json
+          node "$GITHUB_WORKSPACE/.github/scripts/audit-verdict.mjs" "$SHA" comments.json permissions.json
 
   # Single status to mark as required in branch protection, so new jobs don't need settings changes.
   ci-ok:

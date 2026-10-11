@@ -1,6 +1,6 @@
 name: Audit verdict
 
-# When someone with write access posts or edits an audit report carrying a verdict marker (see
+# When someone posts or edits an audit report carrying a verdict marker (see
 # .github/scripts/audit-verdict.mjs), re-run the PR's `module-audit` job on its latest CI run, and with it `ci-ok`,
 # so the new verdict counts without a push. The gate itself lives in ci.yml; this only re-evaluates it.
 # Runs from main and checks out no code, so a PR cannot change what it does.
@@ -21,8 +21,7 @@ jobs:
     if: >-
       github.event.issue.pull_request &&
       contains(github.event.comment.body, '<!-- canopy-audit sha=') &&
-      github.event.comment.user.type == 'User' &&
-      contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association)
+      github.event.comment.user.type == 'User'
     runs-on: ubuntu-latest
     timeout-minutes: 60
     permissions:
@@ -34,8 +33,13 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
           PR: ${{ github.event.issue.number }}
+          AUTHOR: ${{ github.event.comment.user.login }}
         run: |
+          # Only a verdict from someone with write access can change the gate, so only they trigger a re-run.
+          PERM=$(gh api "repos/$GH_REPO/collaborators/$AUTHOR/permission" --jq .permission 2>/dev/null || echo none)
+          case "$PERM" in admin|maintain|write) ;; *) echo "$AUTHOR has $PERM access; ignoring."; exit 0 ;; esac
           read -r SHA DRAFT < <(gh pr view "$PR" --json headRefOid,isDraft --jq '"\(.headRefOid) \(.isDraft)"')
+          if [ -z "$SHA" ]; then echo "::error::Could not read PR #$PR."; exit 1; fi
           if [ "$DRAFT" = "true" ]; then echo "PR is a draft; marking it ready runs the gate."; exit 0; fi
           RUN=$(gh run list --workflow ci.yml --event pull_request --commit "$SHA" --limit 1 --json databaseId --jq '.[0].databaseId // empty')
           if [ -z "$RUN" ]; then echo "No CI run for $SHA yet; it will read the verdict when it runs."; exit 0; fi

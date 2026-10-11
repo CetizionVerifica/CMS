@@ -95,7 +95,9 @@ audit comment and fix its findings.
 Merging is automatic (`.github/workflows/auto-merge.yml`): every ready PR gets GitHub auto-merge and joins the merge
 queue on `main` once `ci-ok` is green. The queue re-runs CI on the PR combined with `main` and the PRs ahead of it, then
 squash-merges, so two PRs that pass alone but break together never both land. Changes to contracts, `packages/db`,
-auth, `.github`, `tooling/modules.json` or `.claude/skills` also wait for Shyam's approval (`.github/CODEOWNERS`). Open PRs as drafts while work is in progress; add the `no-automerge` label to
+auth, `.github`, `tooling/modules.json` or `.claude/skills` request Shyam's review (`.github/CODEOWNERS`), but merging
+needs no approval, so the audit is their gate too. A PR runs its own copy of `ci.yml` and `.github/scripts`, so the
+audit of a PR that touches them must check it doesn't weaken the gate. Open PRs as drafts while work is in progress; add the `no-automerge` label to
 hold one. Do not merge by hand around a red check.
 
 After a merge, `cleanup.yml` deletes the PR's branch, and GitHub moves any PR stacked on it to `main`; push follow-up work
