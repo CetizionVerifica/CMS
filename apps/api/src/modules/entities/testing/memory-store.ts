@@ -468,6 +468,10 @@ export class MemoryStore implements Store {
           .filter((p) => this.personClients(p.id, scope.firmId).has(clientId))
           .map((p) => p.id);
       },
+      personReach: async (personId) => ({
+        clientIds: [...this.personClients(personId, scope.firmId)],
+        firmStaff: this.hasFirmRole(personId, scope.firmId),
+      }),
       firmStaffIds: async () =>
         [...this.data.tables.people.values()]
           .filter((p) => p.firmId === scope.firmId && this.hasFirmRole(p.id, scope.firmId))

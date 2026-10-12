@@ -125,6 +125,13 @@ export interface Tx {
   clientPersonIds(clientId: Id): Promise<Id[]>;
   /** People with an active FIRM_ADMIN or CONSULTANT membership. */
   firmStaffIds(): Promise<Id[]>;
+  /**
+   * Where a person belongs across the whole firm, whatever the caller's context: every client where they have a live
+   * membership, assignment or instance, and whether they hold a firm role. M6 uses it to refuse person writes that
+   * would reach past the actor's clients; on Postgres it needs a narrow security-definer function from M3, since
+   * a client context cannot see the other clients' rows.
+   */
+  personReach(personId: Id): Promise<{ clientIds: Id[]; firmStaff: boolean }>;
   /** Obligations with an active assignment in a client the context can see. */
   assignedObligationIds(): Promise<Id[]>;
   /** Appends an audit row in this transaction (root CLAUDE.md non-negotiable 2). */

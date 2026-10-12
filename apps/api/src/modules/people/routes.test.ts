@@ -344,3 +344,139 @@ describe('memberships', () => {
     expect(store.events.at(-1)).toMatchObject({ data: { change: 'REVOKED', role: 'FIRM_ADMIN' } });
   });
 });
+
+describe('who may change a person', () => {
+  it('keeps a consultant to the clients they are assigned to', async () => {
+    const { call, store } = testApp();
+    // consultantB works in client B only.
+    const takeover = await call('consultantB', 'PATCH', `/people/${ACTORS.firmAdmin.person}`, {
+      version: 1,
+      email: 'attacker@example.com',
+    });
+    expect(takeover.status).toBe(403);
+    const edit = await call('consultantB', 'PATCH', `/people/${ACTORS.owner.person}`, {
+      version: 1,
+      displayName: 'X',
+    });
+    expect(edit.status).toBe(404);
+    const merge = await call('consultantB', 'POST', `/people/${ACTORS.owner.person}/merge`, {
+      version: 1,
+      sourceIds: [ids.duplicate],
+    });
+    expect(merge.status).toBe(404);
+    const steal = await call('consultantB', 'POST', `/people/${ids.unclaimed}/merge`, {
+      version: 1,
+      sourceIds: [ids.duplicate],
+    });
+    expect(steal.status).toBe(404);
+    const read = await call('consultantB', 'GET', `/people/${ACTORS.owner.person}/memberships`);
+    expect(read.status).toBe(404);
+    expect(store.audits).toEqual([]);
+  });
+
+  it('lets only a firm admin change firm staff', async () => {
+    const { call } = testApp();
+    const res = await call('consultant', 'PATCH', `/people/${ACTORS.firmAdmin.person}`, {
+      version: 1,
+      displayName: 'X',
+    });
+    expect(res.status).toBe(403);
+    const own = await call('firmAdmin', 'PATCH', `/people/${ACTORS.consultant.person}`, {
+      version: 1,
+      displayName: 'Chitra C',
+    });
+    expect(own.status).toBe(200);
+  });
+
+  it('lets only a firm admin change the email of a person who has signed in', async () => {
+    const { call } = testApp();
+    for (const actor of ['clientAdmin', 'consultant'] as const) {
+      const res = await call(actor, 'PATCH', `/people/${ACTORS.owner.person}`, {
+        version: 1,
+        email: 'someone.else@example.com',
+      });
+      expect(res.status, actor).toBe(403);
+    }
+    const rename = await call('clientAdmin', 'PATCH', `/people/${ACTORS.owner.person}`, {
+      version: 1,
+      displayName: 'Omar O',
+    });
+    expect(rename.status).toBe(200);
+    const admin = await call('firmAdmin', 'PATCH', `/people/${ACTORS.owner.person}`, {
+      version: 2,
+      email: 'omar.new@example.com',
+    });
+    expect(Person.parse(admin.body)).toMatchObject({
+      email: 'omar.new@example.com',
+      status: 'ACTIVE',
+    });
+  });
+
+  it('refuses a merge that reaches a client the actor does not manage, and changes nothing', async () => {
+    const { call, store } = testApp();
+    await call('firmAdmin', 'POST', `/people/${ids.duplicate}/memberships`, {
+      role: 'OWNER',
+      clientId: ids.clientB,
+      consultantClientIds: null,
+      unitIds: null,
+      expiresAt: null,
+    });
+    const before = store.audits.length;
+    const res = await call('clientAdmin', 'POST', `/people/${ACTORS.owner.person}/merge`, {
+      version: 1,
+      sourceIds: [ids.duplicate],
+    });
+    expect(res.status).toBe(403);
+    expect(store.raw('people', ids.duplicate)?.archivedAt).toBeNull();
+    expect(store.audits).toHaveLength(before);
+    const firm = await call('firmAdmin', 'POST', `/people/${ACTORS.owner.person}/merge`, {
+      version: 1,
+      sourceIds: [ids.duplicate],
+    });
+    expect(firm.status).toBe(200);
+  });
+});
+
+describe('adding a person to a client', () => {
+  it('invites a person created with an email, in the role asked for', async () => {
+    const { call, store } = testApp();
+    const res = await call('clientAdmin', 'POST', `/clients/${ids.clientA}/people`, {
+      displayName: 'Neha Nair',
+      email: 'neha@example.com',
+      role: 'APPROVER',
+    });
+    expect(res.status).toBe(201);
+    const person = Person.parse(res.body);
+    expect(person).toMatchObject({ status: 'INVITED', email: 'neha@example.com' });
+    const [membership] = (
+      (await call('clientAdmin', 'GET', `/people/${person.id}/memberships`)).body as {
+        items: Membership[];
+      }
+    ).items;
+    expect(membership).toMatchObject({ role: 'APPROVER', clientId: ids.clientA, unitIds: null });
+    expect(store.events.find((e) => e.type === 'membership.changed')?.data).toMatchObject({
+      role: 'APPROVER',
+      change: 'GRANTED',
+    });
+  });
+
+  it('defaults to OWNER and leaves a person without an email unclaimed', async () => {
+    const { call } = testApp();
+    const res = await call('consultant', 'POST', `/clients/${ids.clientA}/people`, {
+      displayName: 'Ravi Rao',
+    });
+    const person = Person.parse(res.body);
+    expect(person.status).toBe('UNCLAIMED');
+    const list = await call('consultant', 'GET', `/people/${person.id}/memberships`);
+    expect((list.body as { items: Membership[] }).items.map((m) => m.role)).toEqual(['OWNER']);
+  });
+
+  it('refuses a role the actor may not grant', async () => {
+    const { call } = testApp();
+    const res = await call('clientAdmin', 'POST', `/clients/${ids.clientA}/people`, {
+      displayName: 'Ravi Rao',
+      role: 'FIRM_ADMIN',
+    });
+    expect(res.status).toBe(400);
+  });
+});
