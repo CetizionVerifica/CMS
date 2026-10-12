@@ -232,16 +232,44 @@ describe('ShellFrame', () => {
 });
 
 describe('useSettledTitle', () => {
-  function Probe({ title, h1, busy }: { title: string; h1?: string; busy?: boolean }) {
-    const settled = useSettledTitle(title, 50);
+  function Probe({
+    title,
+    h1,
+    busy,
+    maxWaitMs,
+  }: {
+    title: string;
+    h1?: string;
+    busy?: boolean;
+    maxWaitMs?: number;
+  }) {
+    const settled = useSettledTitle(title, 50, maxWaitMs);
     return (
       <main>
-        {busy ? <div aria-busy="true">Loading</div> : null}
+        <div aria-busy={busy ? 'true' : undefined}>Content</div>
         {h1 ? <h1>{h1}</h1> : null}
         <p data-testid="settled">{settled}</p>
       </main>
     );
   }
+
+  it('applies the title when the loading state ends by dropping aria-busy alone', async () => {
+    const { rerender } = render(<Probe title="A" h1="Overview" />);
+    rerender(<Probe title="B" h1="Register" busy />);
+    await new Promise((resolve) => setTimeout(resolve, 80));
+    expect(screen.getByTestId('settled').textContent).toBe('A');
+    // Same tree, only the attribute changes.
+    rerender(<Probe title="B" h1="Register" />);
+    await vi.waitFor(() => expect(screen.getByTestId('settled').textContent).toBe('B'));
+  });
+
+  it('gives up waiting after the cap, for a page that never renders an h1', async () => {
+    const { rerender } = render(<Probe title="A" h1="Overview" maxWaitMs={150} />);
+    rerender(<Probe title="B" busy maxWaitMs={150} />);
+    await new Promise((resolve) => setTimeout(resolve, 80));
+    expect(screen.getByTestId('settled').textContent).toBe('A');
+    await vi.waitFor(() => expect(screen.getByTestId('settled').textContent).toBe('B'));
+  });
 
   it('waits past the timeout for a slow page’s h1, then applies the title', async () => {
     const { rerender } = render(<Probe title="A" h1="Overview" />);
