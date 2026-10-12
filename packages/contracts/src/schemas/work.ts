@@ -158,7 +158,7 @@ const instanceRowShape = {
   companyName: Name,
   unitId: Id,
   unitName: Name,
-  /** e.g. "India / West Bengal / Belur". */
+  /** e.g. "India / West Bengal / Kestrelganj". */
   locationLabel: Name,
   departmentId: Id,
   departmentName: Name,
