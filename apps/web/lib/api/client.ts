@@ -57,12 +57,22 @@ export type CallRequest<N extends EndpointName> = {
 
 export type CallResponse<N extends EndpointName> = z.output<EndpointOf<N>['response']>;
 
-/** `?a=1&status=OVERDUE,DUE_SOON`: arrays comma-separated, undefined and null left out (api-conventions.md §3). */
+type QueryScalar = string | number | boolean;
+const isScalar = (value: unknown): value is QueryScalar =>
+  ['string', 'number', 'boolean'].includes(typeof value);
+
+/**
+ * `?a=1&status=OVERDUE,DUE_SOON`: arrays comma-separated, undefined and null left out (api-conventions.md §3). The
+ * filter language has no nested values, so an object throws rather than being sent as "[object Object]".
+ */
 export function queryString(query: Record<string, unknown> | undefined): string {
   const search = new URLSearchParams();
   for (const [key, value] of Object.entries(query ?? {})) {
     if (value === undefined || value === null) continue;
-    search.set(key, Array.isArray(value) ? value.map(String).join(',') : String(value));
+    const values = Array.isArray(value) ? value : [value];
+    if (!values.every(isScalar))
+      throw new TypeError(`Query parameter ${key} must be a scalar or a list`);
+    search.set(key, values.map(String).join(','));
   }
   const text = search.toString();
   return text ? `?${text}` : '';

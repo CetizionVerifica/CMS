@@ -25,7 +25,8 @@ Shared code for every web screen. M12 and M13 import from here; they don't chang
   never `fetch` directly: `api.call('listInstances', { params: { clientId }, query: { status: 'OVERDUE', limit: '50' } })`.
   `query` and `body` are typed as the contract's input, the query is serialised as api-conventions.md §3 says (arrays
   comma-separated) and the response is parsed with the endpoint's schema.
-- The sidebar's Approvals item shows the count from `GET /me/approvals` for approvers and client admins.
+- The sidebar's Approvals item shows the count from `GET /me/approvals` for approvers and client admins. That count
+  covers every client the user approves in (the endpoint has no client filter), and its label says so.
 - Unit tests next to a route (`app/**/*.test.{ts,tsx}`) run with the web tests; non-page files under `app/`
   count for coverage (pages, layouts, `loading`, `error` and `not-found` are covered by Playwright).
 - `Me.clients` carries each client's FY start, time zone, unit count and period context (contracts 1.1), which the

@@ -199,6 +199,8 @@ describe('API client transport', () => {
     expect(queryString({ status: ['OVERDUE', 'DUE_SOON'], limit: 5, q: 'a b&c' })).toBe(
       '?status=OVERDUE%2CDUE_SOON&limit=5&q=a+b%26c',
     );
+    expect(() => queryString({ filter: { a: 1 } })).toThrow('Query parameter filter');
+    expect(() => queryString({ ids: ['a', { b: 1 }] })).toThrow('Query parameter ids');
   });
 
   it('matches any code when none is given', () => {
