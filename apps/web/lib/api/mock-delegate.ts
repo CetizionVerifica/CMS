@@ -46,7 +46,9 @@ export const PERSON_MAP: Readonly<Record<string, string>> = {
 const TODAY: MockServerOptions['today'] = '2023-03-15';
 
 type MockServer = Awaited<ReturnType<typeof startServer>>;
-let server: Promise<MockServer> | undefined;
+// One server per process, on globalThis: Next.js loads this module once for page renders and again for Server
+// Actions, and a module-level variable would give each its own store (an approve in one, a stale row in the other).
+const shared = globalThis as typeof globalThis & { __ppMockServer?: Promise<MockServer> };
 
 async function startServer() {
   // Loaded on first use: Fastify stays out of every path that never reaches the mock.
@@ -77,7 +79,7 @@ export async function delegateToM0(
   body: string | undefined,
 ): Promise<Response> {
   const person = PERSON_MAP[email];
-  const app = await (server ??= startServer());
+  const app = await (shared.__ppMockServer ??= startServer());
   const res = await app.inject({
     method: method as 'GET',
     url: replaceAll(`${url.pathname}${url.search}`, toTheirs),

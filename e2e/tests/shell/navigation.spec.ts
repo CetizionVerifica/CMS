@@ -88,7 +88,9 @@ test.describe('shell navigation at 1280px', () => {
     // "/" works once the page is interactive.
     await page.waitForLoadState('networkidle');
     await page.keyboard.press('/');
-    await expect(page.getByRole('searchbox')).toBeFocused();
+    await expect(
+      page.getByRole('searchbox', { name: 'Search this client’s register' }),
+    ).toBeFocused();
     await page.keyboard.type('factories');
     await page.keyboard.press('Enter');
     await expect(page).toHaveURL(`/c/${DEMO_METALS}/register?q=factories`);
@@ -125,11 +127,12 @@ test.describe('shell navigation at 1280px', () => {
     await page.keyboard.press('Tab'); // brand
     await page.keyboard.press('Tab'); // Overview
     await page.keyboard.press('Tab'); // Register
-    await expect(page.getByRole('link', { name: 'Register', exact: true })).toBeFocused();
+    await page.keyboard.press('Tab'); // Calendar, still a placeholder page, so the Tab after its h1 is predictable
+    await expect(page.getByRole('link', { name: 'Calendar', exact: true })).toBeFocused();
     await page.keyboard.press('Enter');
-    await expect(page).toHaveURL(`/c/${DEMO_METALS}/register`);
+    await expect(page).toHaveURL(`/c/${DEMO_METALS}/calendar`);
     // The route change moves focus to the new page's h1 once it renders, however long that takes under CI load.
-    await expect(page.getByRole('heading', { level: 1, name: 'Register' })).toBeFocused({
+    await expect(page.getByRole('heading', { level: 1, name: 'Calendar' })).toBeFocused({
       timeout: 15_000,
     });
     await page.keyboard.press('Tab');
