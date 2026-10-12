@@ -2,6 +2,7 @@
 // Server Actions behind the auth pages and the user menu. Input is validated with the contracts' request schemas, the
 // same ones the API uses (root rule 7); the API sets the session cookie and these actions relay it to the browser.
 import {
+  ERROR_DETAILS,
   InviteAcceptBody,
   LoginBody,
   MagicLinkBody,
@@ -13,7 +14,7 @@ import { redirect } from 'next/navigation';
 import { isApiError } from '../api/client';
 import { relayCookies, serverApi, sessionApi } from '../api/server';
 import { safeNextPath } from '../routes';
-import { fieldErrors, type FormState } from './form-state';
+import { fieldErrors, type FirmChoice, type FormState } from './form-state';
 
 const text = (form: FormData, name: string) => String(form.get(name) ?? '');
 
@@ -27,35 +28,68 @@ const FIELD_MESSAGES: Record<string, string> = {
   displayName: 'Enter your name',
 };
 
-export async function signIn(_prev: FormState, form: FormData): Promise<FormState> {
+export async function signIn(prev: FormState, form: FormData): Promise<FormState> {
   const password = text(form, 'password');
-  const input = LoginBody.safeParse({ email: text(form, 'email').trim(), password });
+  const email = text(form, 'email');
   const next = safeNextPath(text(form, 'next'));
-  const values = { email: text(form, 'email') };
-  if (!input.success) {
-    const errors = fieldErrors(input.error, FIELD_MESSAGES);
+  // The firm list from an earlier attempt stays while the email does; another email may belong to other firms.
+  const firms = prev.firms && prev.values?.email === email ? prev.firms : undefined;
+  const firmId = firms ? text(form, 'firmId') : '';
+  const values = { email };
+  const keep = (state: FormState): FormState => (firms ? { ...state, firms } : state);
+  const input = LoginBody.safeParse({
+    email: email.trim(),
+    password,
+    ...(firmId ? { firmId } : {}),
+  });
+  if (!input.success || (firms && !firmId)) {
+    const errors = input.success ? {} : fieldErrors(input.error, FIELD_MESSAGES);
     if (!password) errors.password = 'Enter your password';
     // A password the contract rejects can't belong to an account: say so, as for a wrong one.
-    else if (errors.password && !errors.email) return wrongPassword(values);
+    else if (errors.password && !errors.email) return keep(wrongPassword(values));
     else delete errors.password;
-    return { status: 'invalid', fieldErrors: errors, values };
+    // Only the options sent with the form are offered, so a missing or malformed id means none was picked.
+    if (firms && (!firmId || errors.firmId)) errors.firmId = 'Choose the firm to sign in to';
+    return keep({ status: 'invalid', fieldErrors: errors, values });
   }
   try {
     const { setCookies } = await (await serverApi()).login(input.data);
     await relayCookies(setCookies);
   } catch (error) {
-    if (isApiError(error, 'UNAUTHENTICATED')) return wrongPassword(values);
+    if (isApiError(error, 'FIRM_CHOICE_REQUIRED')) {
+      const choice = firmChoice(error.details);
+      if (choice) {
+        return {
+          status: 'choose-firm',
+          message:
+            'This email signs in to more than one firm. Choose one and enter your password again.',
+          values,
+          firms: choice,
+        };
+      }
+    }
+    if (isApiError(error, 'UNAUTHENTICATED')) return keep(wrongPassword(values));
     if (isApiError(error, 'RATE_LIMITED')) {
-      return {
+      return keep({
         status: 'error',
         message: 'Too many attempts. Wait a few minutes and try again.',
         values,
-      };
+      });
     }
-    return { status: 'error', message: 'We couldn’t sign you in. Try again in a moment.', values };
+    return keep({
+      status: 'error',
+      message: 'We couldn’t sign you in. Try again in a moment.',
+      values,
+    });
   }
   // The shell checks MFA and sends firm users to the verify step.
   redirect(next ?? '/');
+}
+
+/** The firms a FIRM_CHOICE_REQUIRED error lists, or undefined when its details don't match the contract. */
+function firmChoice(details: unknown): FirmChoice[] | undefined {
+  const parsed = ERROR_DETAILS.FIRM_CHOICE_REQUIRED.safeParse(details);
+  return parsed.success ? parsed.data.firms : undefined;
 }
 
 function wrongPassword(values: Record<string, string>): FormState {

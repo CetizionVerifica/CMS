@@ -28,6 +28,15 @@ export const SESSION_COOKIE = 'pp_session';
 export const MOCK_APPROVALS_WAITING = 3;
 
 const FIRM_ID = '00000000-0000-5000-8000-0000000000f1';
+/**
+ * Firms `MOCK_TWO_FIRM_EMAIL` signs in to, so the sign-in form's firm choice can be tried. The demo has one firm's
+ * data, so either choice opens the same demo firm.
+ */
+export const MOCK_FIRMS = [
+  { id: FIRM_ID, name: 'Demo Advisory' },
+  { id: '00000000-0000-5000-8000-0000000000f2', name: 'Demo Partners' },
+] as const;
+export const MOCK_TWO_FIRM_EMAIL = 'twofirms@demo.test';
 const T = '2026-01-01T00:00:00.000Z';
 const base = { firmId: FIRM_ID, createdAt: T, updatedAt: T, archivedAt: null, version: 1 };
 const uid = (n: number) => `00000000-0000-5000-8000-${n.toString(16).padStart(12, '0')}`;
@@ -115,6 +124,7 @@ export const MOCK_USERS: MockUser[] = [
   user(2, 'Firm Admin 01', 'admin@demo.test', [['FIRM_ADMIN', null]]),
   user(3, 'Owner 01', 'owner@demo.test', [['OWNER', MOCK_CLIENTS.demoMetals]]),
   user(4, 'Approver 01', 'approver@demo.test', [['APPROVER', MOCK_CLIENTS.demoMetals]]),
+  user(5, 'Consultant 02', MOCK_TWO_FIRM_EMAIL, [['CONSULTANT', null]]),
 ];
 
 function visibleClientIds(u: MockUser): string[] {
@@ -220,6 +230,17 @@ export const mockFetch: typeof fetch = async (input, init) => {
     if (!found || body.password !== MOCK_PASSWORD) {
       return fail(401, 'UNAUTHENTICATED', 'Email or password is incorrect.');
     }
+    // Like the real API: the password matched in every firm listed, so naming one is all that's left.
+    if (found.person.email === MOCK_TWO_FIRM_EMAIL) {
+      if (body.firmId === undefined) {
+        return fail(409, 'FIRM_CHOICE_REQUIRED', 'Choose the firm to sign in to.', {
+          firms: MOCK_FIRMS,
+        });
+      }
+      if (!MOCK_FIRMS.some((f) => f.id === body.firmId)) {
+        return fail(401, 'UNAUTHENTICATED', 'Email or password is incorrect.');
+      }
+    }
     const mfa = !isFirmUser(found);
     return json(200, meBody(found, mfa), sessionCookie(`${found.person.id}.${mfa ? 1 : 0}`));
   }
@@ -235,7 +256,7 @@ export const mockFetch: typeof fetch = async (input, init) => {
       const preview: InvitePreview = {
         email: 'owner02@demo.test',
         displayName: 'Owner 02',
-        firmName: 'Demo Advisory',
+        firmName: MOCK_FIRMS[0].name,
         clientName: 'Demo Metals',
         role: 'OWNER',
         linkExpiresAt: '2099-01-01T00:00:00.000Z',

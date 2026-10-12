@@ -43,6 +43,36 @@ test.describe('auth pages', () => {
     await expect(page).toHaveURL('/portfolio');
   });
 
+  test('an email in two firms picks the firm before signing in', async ({ page }) => {
+    await page.goto('/login');
+    await page.getByLabel('Work email').fill('twofirms@demo.test');
+    await page.getByLabel('Password').fill(PASSWORD);
+    await page.getByRole('button', { name: 'Sign in' }).click();
+    await expect(page.getByRole('status')).toHaveText(
+      'This email signs in to more than one firm. Choose one and enter your password again.',
+    );
+    const firms = page.getByRole('group', { name: 'Firm' });
+    await expect(firms.getByRole('radio')).toHaveCount(2);
+    await checkPage(page);
+
+    // Nothing is picked for them.
+    await page.getByLabel('Password').fill(PASSWORD);
+    await page.getByRole('button', { name: 'Sign in' }).click();
+    await expect(page.getByText('Choose the firm to sign in to')).toBeVisible();
+    await checkPage(page);
+
+    // Keyboard only: tab into the group and pick with the arrow keys.
+    await page.getByLabel('Work email').focus();
+    await page.keyboard.press('Tab');
+    await expect(firms.getByRole('radio', { name: 'Demo Advisory' })).toBeFocused();
+    await page.keyboard.press('ArrowDown');
+    await expect(firms.getByRole('radio', { name: 'Demo Partners' })).toBeChecked();
+    await page.keyboard.press('Tab');
+    await page.keyboard.type(PASSWORD);
+    await page.keyboard.press('Enter');
+    await expect(page).toHaveURL(/\/login\/verify/);
+  });
+
   test('magic link request never reveals whether an account exists', async ({ page }) => {
     await page.goto('/login');
     await page.getByRole('button', { name: 'Email me a sign-in link instead' }).click();
