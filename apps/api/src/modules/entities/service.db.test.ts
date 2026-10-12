@@ -139,9 +139,9 @@ describe.skipIf(!url)('M6 on the Postgres store', () => {
       });
       const fa = await person(tx, 'Asha Admin', 'asha@demo.example');
       const consultant = await person(tx, 'Cyrus Consultant', 'cyrus@demo.example');
-      const clientAdmin = await person(tx, 'Kiran Clientadmin', 'kiran@aditya.example');
+      const clientAdmin = await person(tx, 'Kiran Clientadmin', 'kiran@kestrel.example');
       const owner = await person(tx, 'Omar Owner', null);
-      const approver = await person(tx, 'Arun Approver', 'arun@aditya.example');
+      const approver = await person(tx, 'Arun Approver', 'arun@kestrel.example');
       const bina = await person(tx, 'Bina Owner', 'bina@bharat.example');
       await grant(tx, fa.id, 'FIRM_ADMIN', null);
       await grant(tx, consultant.id, 'CONSULTANT', null, [clientA.id]);
@@ -392,7 +392,7 @@ describe.skipIf(!url)('M6 on the Postgres store', () => {
     it('lets a client admin add a person to their client, membership and audit included', async () => {
       const res = await call('clientAdmin', 'POST', `/clients/${w.clientA}/people`, {
         displayName: 'Priya  Plant',
-        email: 'priya@aditya.example',
+        email: 'priya@kestrel.example',
         role: 'APPROVER',
       });
       expect(res.status).toBe(201);
