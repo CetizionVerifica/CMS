@@ -39,3 +39,10 @@ Typed fixtures (fixtures.md): `firm-a.sample.json` (the sample register, recomme
 department, Act and criticality), `firm-a.due-dates.json` and `firm-b.synthetic.json`. New schemas `FixtureSet`,
 `DueDatesFixture` and `ExpectedFixture`; the Node entry `@canopy/contracts/fixtures` adds `fixtureId`, `uuidV5` and
 loaders. `mock-large.json` and the `import-edge/*.xlsx` sheets are not built yet. README decisions 30-32.
+
+## 1.3.0 · 2026-10-12
+Mock API server (`@canopy/contracts/mock`, `pnpm --filter @canopy/contracts mock`): every endpoint in `ENDPOINTS`,
+served from the firm A and firm B fixtures under `/api/v1`, with the same input validation, role checks, error
+envelope, CSRF, MFA and Idempotency-Key rules as api-conventions.md, and each response checked against its schema.
+Firm B's `EVIDENCE_ADD` audit events now name the evidence (`entityType: evidence`) and carry the instance id in
+`after`, as events.md says. README decisions 33-37. No schema changed.

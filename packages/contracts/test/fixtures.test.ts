@@ -9,7 +9,7 @@ import {
 } from '../src/fixtures/index.js';
 import { Id, RecurrenceRule, WorkflowState } from '../src/index.js';
 import { buildFirmB } from '../scripts/fixtures/firm-b.js';
-import { score, statusIds, type ScoredInstance } from '../scripts/fixtures/oracle.js';
+import { score, statusIds, type ScoredInstance } from '../src/mock/derive.js';
 
 const firmA = loadFixtureSet('firm-a.sample');
 const firmB = loadFixtureSet('firm-b.synthetic');
