@@ -1,11 +1,11 @@
+import type { Me } from '@canopy/contracts';
 import { describe, expect, it } from 'vitest';
 
 import { createApiClient } from '../api/client';
 import { MOCK_CLIENTS, MOCK_PASSWORD, mockFetch } from '../api/mock';
-import type { ShellMe } from '../api/types';
 import { buildShellModel, homeHref, navSections, rolesFor } from './model';
 
-async function meFor(email: string): Promise<ShellMe> {
+async function meFor(email: string): Promise<Me> {
   const anon = createApiClient({ baseUrl: 'http://api.test', fetch: mockFetch });
   const cookie = (await anon.login({ email, password: MOCK_PASSWORD })).setCookies[0]!.split(
     ';',

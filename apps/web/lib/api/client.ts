@@ -9,9 +9,7 @@ import {
   type InviteAcceptBody,
   type LoginBody,
 } from '@canopy/contracts';
-import { z } from 'zod';
-
-import { ShellMe } from './types';
+import type { z } from 'zod';
 
 export const API_PREFIX = '/api/v1';
 
@@ -116,8 +114,7 @@ export function createApiClient(options: ApiClientOptions) {
   const token = (value: string) => ({ params: { token: value } });
 
   return {
-    /** Parsed with `ShellMe` until M0 adds the per-client context to the contract (types.ts). */
-    me: () => call(E.getMe, ShellMe),
+    me: () => call(E.getMe, E.getMe.response),
     portfolio: () => call(E.portfolio, E.portfolio.response),
     login: (body: LoginBody) => call(E.login, E.login.response, { body }),
     requestMagicLink: (email: string) =>

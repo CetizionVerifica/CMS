@@ -1,9 +1,8 @@
 // What the shell shows for the signed-in user: their roles, the clients in the switcher and the sidebar sections.
 // Plain data, built on the server and passed to the client frame (icons are attached there, since components can't
 // cross the server/client boundary).
-import { FIRM_ROLES, type Role } from '@canopy/contracts';
+import { FIRM_ROLES, type ClientPeriods, type Me, type Role } from '@canopy/contracts';
 
-import type { ClientPeriodContext, ShellMe } from '../api/types';
 import { hrefFor, routeByPath, visibleTo } from '../routes';
 
 export type ShellClient = {
@@ -14,8 +13,9 @@ export type ShellClient = {
   overdueCount: number;
   fyStartMonth: number;
   timeZone: string;
-  thisPeriod: ClientPeriodContext['current'];
-} & Omit<ClientPeriodContext, 'current'>;
+  /** The engine's current quarter (the contract types it as an int 1-4). */
+  thisPeriod: { fy: string; quarter: 1 | 2 | 3 | 4 };
+} & Omit<ClientPeriods, 'current'>;
 
 export type ShellUser = { name: string; detail: string; email: string | null };
 
@@ -40,12 +40,12 @@ const ROLE_LABEL: Record<Role, string> = {
 
 const firmRoles: readonly Role[] = FIRM_ROLES;
 
-export function isFirmUser(me: Pick<ShellMe, 'memberships'>): boolean {
+export function isFirmUser(me: Pick<Me, 'memberships'>): boolean {
   return me.memberships.some((m) => firmRoles.includes(m.role));
 }
 
 /** The actor's roles, limited to one client when given: firm roles apply everywhere, client roles to their client. */
-export function rolesFor(me: Pick<ShellMe, 'memberships'>, clientId?: string): Role[] {
+export function rolesFor(me: Pick<Me, 'memberships'>, clientId?: string): Role[] {
   const roles = me.memberships
     .filter((m) => m.clientId === null || clientId === undefined || m.clientId === clientId)
     .map((m) => m.role);
@@ -57,7 +57,7 @@ function unitsLabel(n: number): string {
 }
 
 /** `overdue` comes from GET /portfolio (firm users); client users see no count. */
-export function buildShellModel(me: ShellMe, overdue: Record<string, number> = {}): ShellModel {
+export function buildShellModel(me: Me, overdue: Record<string, number> = {}): ShellModel {
   const roles = rolesFor(me);
   const clients = me.clients
     .map(({ id, name, unitCount, fyStartMonth, timeZone, period }): ShellClient => ({
@@ -67,7 +67,7 @@ export function buildShellModel(me: ShellMe, overdue: Record<string, number> = {
       overdueCount: overdue[id] ?? 0,
       fyStartMonth,
       timeZone,
-      thisPeriod: period.current,
+      thisPeriod: { fy: period.current.fy, quarter: period.current.quarter as 1 | 2 | 3 | 4 },
       availableFys: period.availableFys,
       availableUntil: period.availableUntil,
     }))

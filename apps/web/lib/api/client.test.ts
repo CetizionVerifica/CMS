@@ -14,9 +14,9 @@ async function sessionFor(email: string, mfa = false): Promise<string> {
 }
 
 describe('API client against the mock', () => {
-  it('returns the contract Me from login, and the shell context from /me', async () => {
+  it('returns Me from login too', async () => {
     const { data } = await api().login({ email: 'owner@demo.test', password: MOCK_PASSWORD });
-    expect(data.clients).toEqual([{ id: MOCK_CLIENTS.demoMetals, name: 'Demo Metals' }]);
+    expect(data.clients.map((c) => c.name)).toEqual(['Demo Metals']);
   });
 
   it('signs in and reads /me', async () => {

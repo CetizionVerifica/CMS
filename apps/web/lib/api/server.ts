@@ -2,6 +2,7 @@
 // sees the user's session; the tenant always comes from that session, never from the web app (api-conventions.md §1).
 import 'server-only';
 
+import type { Me } from '@canopy/contracts';
 import { cookies, headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { cache } from 'react';
@@ -10,7 +11,6 @@ import { createApiClient, isApiError, type ApiClient } from './client';
 import { mockFetch } from './mock';
 import { apiMode } from './mode';
 import { parseSetCookie } from './set-cookie';
-import type { ShellMe } from './types';
 
 /** True while no real API is configured and the request is local: the in-process mock answers instead. */
 export async function usingMockApi(): Promise<boolean> {
@@ -34,7 +34,7 @@ export async function serverApi(csrfToken?: string): Promise<ApiClient> {
 }
 
 /** The signed-in user, once per request. Null when there is no valid session. */
-export const getMe = cache(async (): Promise<ShellMe | null> => {
+export const getMe = cache(async (): Promise<Me | null> => {
   try {
     return (await (await serverApi()).me()).data;
   } catch (error) {
@@ -44,7 +44,7 @@ export const getMe = cache(async (): Promise<ShellMe | null> => {
 });
 
 /** The signed-in user, or a redirect to the login page that comes back to `returnTo`. */
-export async function requireMe(returnTo: string): Promise<ShellMe> {
+export async function requireMe(returnTo: string): Promise<Me> {
   const me = await getMe();
   if (!me) redirect(`/login?next=${encodeURIComponent(returnTo)}`);
   if (!me.mfa.satisfied) redirect(`/login/verify?next=${encodeURIComponent(returnTo)}`);

@@ -23,8 +23,8 @@ Shared code for every web screen. M12 and M13 import from here; they don't chang
   without `CANOPY_API_URL` fails instead of offering demo logins.
 - `api/client.ts` takes methods, paths and schemas from the contracts' `ENDPOINTS` table. Add a method there for each
   endpoint a page calls, rather than calling `fetch` directly.
-- `api/types.ts` holds `ShellMe`: the contract's `Me` plus the per-client context the switcher and period picker need
-  (contracts 1.2.0 adds it to `ClientSummary`; switch to the contract type then).
+- `Me.clients` carries each client's FY start, time zone, unit count and period context (contracts 1.1), which the
+  switcher and the period picker read.
 
 ## Period
 

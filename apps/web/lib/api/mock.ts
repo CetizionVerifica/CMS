@@ -8,6 +8,7 @@ import {
   LocalDate,
   type Client,
   type ErrorCode,
+  type ClientPeriods,
   type InvitePreview,
   type Me,
   type Membership,
@@ -15,8 +16,6 @@ import {
   type PortfolioRow,
   type Role,
 } from '@canopy/contracts';
-
-import type { ClientPeriodContext, ShellMe } from './types';
 
 export const MOCK_PASSWORD = 'demo-password';
 export const MOCK_MFA_CODE = '123456';
@@ -46,7 +45,7 @@ const clients: Client[] = [
   { ...base, id: MOCK_CLIENTS.sunrise, name: 'Sunrise Foods', settings: DEFAULT_CLIENT_SETTINGS },
 ];
 
-const shellInfo: Record<string, { unitCount: number; period: ClientPeriodContext }> = {
+const shellInfo: Record<string, { unitCount: number; period: ClientPeriods }> = {
   [MOCK_CLIENTS.demoMetals]: {
     unitCount: 3,
     period: {
@@ -150,33 +149,24 @@ function json(status: number, body: unknown, setCookie?: string): Response {
   return new Response(body === null ? null : JSON.stringify(body), { status, headers });
 }
 
-/** The contract's `Me`, which login, magic-link verify, MFA verify and invite accept return. */
+/** The contract's `Me`: GET /me, login, magic-link verify, MFA verify and invite accept all return it. */
 function meBody(u: MockUser, mfa: boolean): Me {
   const ids = visibleClientIds(u);
   const firm = isFirmUser(u);
   return {
     person: u.person,
     memberships: u.memberships,
-    clients: clients.filter((c) => ids.includes(c.id)).map((c) => ({ id: c.id, name: c.name })),
+    clients: clients
+      .filter((c) => ids.includes(c.id))
+      .map((c) => ({
+        id: c.id,
+        name: c.name,
+        fyStartMonth: c.settings.fyStartMonth,
+        timeZone: c.settings.timeZone,
+        ...shellInfo[c.id]!,
+      })),
     csrfToken: `mock-csrf-${u.person.id}`,
     mfa: { required: firm, enrolled: firm, satisfied: mfa || !firm },
-  };
-}
-
-/** `GET /me` with the per-client context M0 is adding (types.ts). */
-function shellMeBody(u: MockUser, mfa: boolean): ShellMe {
-  const me = meBody(u, mfa);
-  return {
-    ...me,
-    clients: me.clients.map((c) => {
-      const settings = clients.find((x) => x.id === c.id)!.settings;
-      return {
-        ...c,
-        fyStartMonth: settings.fyStartMonth,
-        timeZone: settings.timeZone,
-        ...shellInfo[c.id]!,
-      };
-    }),
   };
 }
 
@@ -270,7 +260,7 @@ export const mockFetch: typeof fetch = async (input, init) => {
       return fail(401, 'MFA_REQUIRED', 'That code is not right.', { enrolled: true });
     return json(200, meBody(me, true), sessionCookie(`${me.person.id}.1`));
   }
-  if (method === 'GET' && path === '/me') return json(200, shellMeBody(me, session.mfa));
+  if (method === 'GET' && path === '/me') return json(200, meBody(me, session.mfa));
   if (isFirmUser(me) && !session.mfa)
     return fail(401, 'MFA_REQUIRED', 'Verify your sign-in code.', { enrolled: true });
   if (method === 'GET' && path === '/portfolio') {
