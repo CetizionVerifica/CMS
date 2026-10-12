@@ -19,8 +19,8 @@ Shared code for every web screen. M12 and M13 import from here; they don't chang
   (`isApiError(err, 'NOT_FOUND')`).
 - Until `CANOPY_API_URL` is set, `api/mock.ts` answers in-process with pseudonymous demo data (accounts are listed on
   the login page). It covers only the routes the shell calls; it goes away once M0's mock server or the real API
-  answers. A production server reached on a non-local host refuses to use it (`api/mode.ts`), so a deployment
-  without `CANOPY_API_URL` fails instead of offering demo logins.
+  answers. A production build uses it only with `CANOPY_DEMO_API=1` (`api/mode.ts`, server env only), so a
+  deployment without `CANOPY_API_URL` fails instead of offering demo logins.
 - `api/client.ts` takes methods, paths and schemas from the contracts' `ENDPOINTS` table. Add a method there for each
   endpoint a page calls, rather than calling `fetch` directly.
 - `Me.clients` carries each client's FY start, time zone, unit count and period context (contracts 1.1), which the
