@@ -103,7 +103,7 @@ Assignment-level NOT_APPLICABLE stops future instance generation; existing OPEN 
 | POST | `/instances/{id}/send-back` `{ version, reason }` | `instance.approve` | | | ✓ | own | | | |
 | POST | `/instances/{id}/reopen` `{ version, reason }` | `instance.reopen` | ✓ | ✓ | ✓ | | | | |
 | POST | `/clients/{clientId}/instances/bulk-approve` `{ items: {id, version}[], comment? }` | `instance.approve` | | | ✓ | own | | | max 200, per-item results |
-| PATCH | `/instances/{id}` `{ version, ownerId?, approverId?, dueDate?, reason }` | `instance.reassign` / `instance.due_date` | ✓ | ✓ | ✓ | | | | due-date change needs reason, sets `dueDateOverridden` |
+| PATCH | `/instances/{id}` `{ version, ownerId?, approverId?, dueDate?, reason }` | `instance.reassign` / `instance.due_date` | ✓ | ✓ | ✓ | | | | every change needs a reason (it goes on the audit event); a due-date change sets `dueDateOverridden` |
 | GET | `/me/approvals` | `instance.read` | | | ✓ | ✓ | | | SUBMITTED where actor is approver (CA: all in client) |
 | GET | `/me/tasks` | `instance.read` | | | | ✓ | ✓ | | OPEN/SENT_BACK where actor is owner, by due date |
 | GET · POST | `/instances/{id}/comments` `{ body }` | `comment.read` / `comment.write` | ✓ | ✓ | ✓ | own | own | r | |
@@ -149,7 +149,7 @@ Query params: `fy` or `from`/`to`, `unitId`, `asOf` (FA/CO/VI). All numbers are 
 | GET | `/clients/{clientId}/breakdowns` (`by=department\|act\|criticality\|unit\|owner`) → `Breakdown` | `dashboard.read` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | GET | `/clients/{clientId}/calendar` (`from`, `to`) → `{ items: { date, items: InstanceRow[] }[] }` | `instance.read` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | GET | `/clients/{clientId}/reports/act-wise` · `/clients/{clientId}/reports/department-wise` → `Breakdown` · `/clients/{clientId}/reports/overdue` → `{ result, items: InstanceRow[] }` | `report.read` | ✓ | ✓ | ✓ | ✓ | | ✓ |
-| POST | `/clients/{clientId}/exports` `{ kind, filters, unitId?, fy? }` → `ExportJob` | `export.create` | ✓ | ✓ | ✓ | ✓ | | ✓ |
+| POST | `/clients/{clientId}/exports` `{ kind, filters, unitId?, fy? }` → `ExportJob`; `filters` is a register query string without paging, validated like `GET /clients/{clientId}/instances` | `export.create` | ✓ | ✓ | ✓ | ✓ | | ✓ |
 | GET | `/exports/{id}` · `/exports/{id}/download-url` | `export.read` | ✓ | ✓ | ✓ | ✓ | | ✓ |
 
 AP and OW dashboards are limited to their units (and owners see the same numbers as their register filter).

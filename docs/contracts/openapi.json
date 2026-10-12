@@ -4686,6 +4686,7 @@
             "in": "query",
             "required": false,
             "schema": {
+              "description": "As-at date for derived status. Only FIRM_ADMIN, CONSULTANT and VIEWER may set it; others get 403 FORBIDDEN.",
               "type": "string",
               "format": "date",
               "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
@@ -4951,6 +4952,7 @@
             "in": "query",
             "required": false,
             "schema": {
+              "description": "As-at date for derived status. Only FIRM_ADMIN, CONSULTANT and VIEWER may set it; others get 403 FORBIDDEN.",
               "type": "string",
               "format": "date",
               "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
@@ -5555,6 +5557,7 @@
             "in": "query",
             "required": false,
             "schema": {
+              "description": "As-at date for derived status. Only FIRM_ADMIN, CONSULTANT and VIEWER may set it; others get 403 FORBIDDEN.",
               "type": "string",
               "format": "date",
               "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
@@ -5642,6 +5645,7 @@
             "in": "query",
             "required": false,
             "schema": {
+              "description": "As-at date for derived status. Only FIRM_ADMIN, CONSULTANT and VIEWER may set it; others get 403 FORBIDDEN.",
               "type": "string",
               "format": "date",
               "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
@@ -7711,6 +7715,7 @@
             "in": "query",
             "required": false,
             "schema": {
+              "description": "As-at date for derived status. Only FIRM_ADMIN, CONSULTANT and VIEWER may set it; others get 403 FORBIDDEN.",
               "type": "string",
               "format": "date",
               "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
@@ -7817,6 +7822,7 @@
             "in": "query",
             "required": false,
             "schema": {
+              "description": "As-at date for derived status. Only FIRM_ADMIN, CONSULTANT and VIEWER may set it; others get 403 FORBIDDEN.",
               "type": "string",
               "format": "date",
               "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
@@ -7927,6 +7933,7 @@
             "in": "query",
             "required": false,
             "schema": {
+              "description": "As-at date for derived status. Only FIRM_ADMIN, CONSULTANT and VIEWER may set it; others get 403 FORBIDDEN.",
               "type": "string",
               "format": "date",
               "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
@@ -8046,6 +8053,7 @@
             "in": "query",
             "required": false,
             "schema": {
+              "description": "As-at date for derived status. Only FIRM_ADMIN, CONSULTANT and VIEWER may set it; others get 403 FORBIDDEN.",
               "type": "string",
               "format": "date",
               "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
@@ -8147,6 +8155,7 @@
             "in": "query",
             "required": false,
             "schema": {
+              "description": "As-at date for derived status. Only FIRM_ADMIN, CONSULTANT and VIEWER may set it; others get 403 FORBIDDEN.",
               "type": "string",
               "format": "date",
               "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
@@ -8256,6 +8265,7 @@
             "in": "query",
             "required": false,
             "schema": {
+              "description": "As-at date for derived status. Only FIRM_ADMIN, CONSULTANT and VIEWER may set it; others get 403 FORBIDDEN.",
               "type": "string",
               "format": "date",
               "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
@@ -8365,6 +8375,7 @@
             "in": "query",
             "required": false,
             "schema": {
+              "description": "As-at date for derived status. Only FIRM_ADMIN, CONSULTANT and VIEWER may set it; others get 403 FORBIDDEN.",
               "type": "string",
               "format": "date",
               "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
@@ -10398,8 +10409,7 @@
         "properties": {
           "otpauthUrl": {
             "type": "string",
-            "format": "starts_with",
-            "pattern": "^otpauth:\\/\\/.*"
+            "pattern": "^otpauth:\\/\\/"
           }
         },
         "required": ["otpauthUrl"],
@@ -13938,7 +13948,7 @@
             "maxLength": 5000
           }
         },
-        "required": ["version", "completedOn"],
+        "required": ["version", "completedOn", "comment"],
         "additionalProperties": false
       },
       "TemplateRef": {
@@ -14227,7 +14237,7 @@
             "maxLength": 2000
           }
         },
-        "required": ["version"],
+        "required": ["version", "reason"],
         "additionalProperties": false
       },
       "UpdateMappingTemplateBody": {

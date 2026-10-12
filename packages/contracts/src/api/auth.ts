@@ -18,7 +18,7 @@ export const MagicLinkVerifyBody = z.strictObject({ token: z.string().min(16).ma
 export type MagicLinkVerifyBody = z.infer<typeof MagicLinkVerifyBody>;
 
 /** TOTP enrolment: the authenticator app reads `otpauthUrl` (usually shown as a QR code). */
-export const MfaEnrollment = z.strictObject({ otpauthUrl: z.string().startsWith('otpauth://') });
+export const MfaEnrollment = z.strictObject({ otpauthUrl: z.string().regex(/^otpauth:\/\//) });
 export type MfaEnrollment = z.infer<typeof MfaEnrollment>;
 
 export const MfaVerifyBody = z.strictObject({

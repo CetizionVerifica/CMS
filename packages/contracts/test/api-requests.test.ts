@@ -131,6 +131,13 @@ describe('dashboard, calendar, audit and vault queries', () => {
       false,
     );
     expect(ok(AuditQuery, { action: 'TRANSITION,REASSIGN', entityType: 'instance' })).toBe(true);
+    // Instants compare by time, not as strings.
+    expect(ok(AuditQuery, { from: '2026-10-11T09:17:43Z', to: '2026-10-11T09:17:43.500Z' })).toBe(
+      true,
+    );
+    expect(ok(AuditQuery, { from: '2026-10-11T09:17:43.500Z', to: '2026-10-11T09:17:43Z' })).toBe(
+      false,
+    );
     expect(ok(EvidenceVaultQuery, { uploadedFrom: '2022-05-01', uploadedTo: '2022-04-01' })).toBe(
       false,
     );
@@ -140,12 +147,21 @@ describe('dashboard, calendar, audit and vault queries', () => {
 
 describe('workflow bodies', () => {
   it('needs version on every transition', () => {
-    expect(ok(SubmitBody, { version: 3, completedOn: '2022-05-06' })).toBe(true);
-    expect(ok(SubmitBody, { completedOn: '2022-05-06' })).toBe(false);
+    const submit = { version: 3, completedOn: '2022-05-06', comment: 'Filed on the portal.' };
+    expect(ok(SubmitBody, submit)).toBe(true);
+    expect(ok(SubmitBody, { ...submit, version: undefined })).toBe(false);
   });
 
-  it('requires a reason to move a due date, and some change', () => {
-    expect(ok(InstanceUpdateBody, { version: 1, ownerId: ID.owner })).toBe(true);
+  it('needs a comment to submit', () => {
+    expect(ok(SubmitBody, { version: 3, completedOn: '2022-05-06' })).toBe(false);
+    expect(ok(SubmitBody, { version: 3, completedOn: '2022-05-06', comment: '' })).toBe(false);
+  });
+
+  it('requires a reason for every instance change, and some change', () => {
+    expect(ok(InstanceUpdateBody, { version: 1, ownerId: ID.owner, reason: 'Owner left' })).toBe(
+      true,
+    );
+    expect(ok(InstanceUpdateBody, { version: 1, ownerId: ID.owner })).toBe(false);
     expect(ok(InstanceUpdateBody, { version: 1, dueDate: '2022-06-01' })).toBe(false);
     expect(ok(InstanceUpdateBody, { version: 1, dueDate: '2022-06-01', reason: 'Extension' })).toBe(
       true,
@@ -284,6 +300,18 @@ describe('import bodies', () => {
 
   it('defaults export filters to the whole register', () => {
     expect(ExportCreateBody.parse({ kind: 'REGISTER_XLSX' }).filters).toBe('');
+  });
+
+  it('validates export filters as a register query without paging', () => {
+    const body = { kind: 'REGISTER_XLSX' };
+    expect(
+      ok(ExportCreateBody, { ...body, filters: 'status=OVERDUE,DUE_SOON&sort=-dueDate' }),
+    ).toBe(true);
+    expect(ok(ExportCreateBody, { ...body, filters: 'status=LATE_ISH' })).toBe(false);
+    expect(ok(ExportCreateBody, { ...body, filters: 'sort=colour' })).toBe(false);
+    expect(ok(ExportCreateBody, { ...body, filters: 'limit=10' })).toBe(false);
+    const result = ExportCreateBody.safeParse({ ...body, filters: 'status=LATE_ISH' });
+    expect(result.error?.issues[0]?.path).toEqual(['filters', 'status', 0]);
   });
 });
 
