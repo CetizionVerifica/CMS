@@ -210,8 +210,25 @@ export const memberships = {
     ),
   list: (tx: TenantTx, clientId: string, page?: PageRequest) =>
     membershipEntity.list(tx, eq(s.membership.clientId, clientId), page),
-  create: membershipEntity.create,
-  update: membershipEntity.update,
+  /**
+   * Adds a membership for a person this context can already see; NOT_FOUND otherwise, so a client
+   * context cannot reveal someone by linking them to its client. New people: people.createWithMembership.
+   */
+  async create(tx: TenantTx, input: NewEntity<Membership>): Promise<Membership> {
+    if (!(await personEntity.get(tx, input.personId))) throw new DbError('NOT_FOUND', 'Not found');
+    return membershipEntity.create(tx, input);
+  },
+  async update(
+    tx: TenantTx,
+    id: string,
+    version: number,
+    patch: Partial<NewEntity<Membership>>,
+  ): Promise<Membership> {
+    if (patch.personId && !(await personEntity.get(tx, patch.personId))) {
+      throw new DbError('NOT_FOUND', 'Not found');
+    }
+    return membershipEntity.update(tx, id, version, patch);
+  },
   archive: membershipEntity.archive,
   restore: membershipEntity.restore,
 };

@@ -33,6 +33,22 @@ export type ServerFields = 'id' | 'firmId' | 'createdAt' | 'updatedAt' | 'archiv
 /** Create input for an entity: its fields minus the ones the database sets. */
 export type NewEntity<T> = Omit<T, ServerFields>;
 
+const SERVER_FIELDS: readonly ServerFields[] = [
+  'id',
+  'firmId',
+  'createdAt',
+  'updatedAt',
+  'archivedAt',
+  'version',
+];
+
+/** Drops server-owned fields from a patch at runtime too, so a cast patch cannot set them. */
+function withoutServerFields(patch: unknown): Record<string, unknown> {
+  const values = { ...(patch as Record<string, unknown>) };
+  for (const field of SERVER_FIELDS) delete values[field];
+  return values;
+}
+
 /** Dates become ISO 8601 UTC strings; everything else is passed through. */
 export function toWire(
   row: Record<string, unknown>,
@@ -172,7 +188,7 @@ export function entity<T, TNew = NewEntity<T>, TPatch = Partial<TNew>>(config: E
      * or outside the tenant.
      */
     async update(tx: TenantTx, id: string, version: number, patch: TPatch): Promise<T> {
-      return writeVersioned(tx, id, version, toRow(patch as Record<string, unknown>), false);
+      return writeVersioned(tx, id, version, toRow(withoutServerFields(patch)), false);
     },
 
     /** Soft delete (no hard deletes, packages/db/CLAUDE.md rule 6). */
@@ -225,6 +241,10 @@ export function entity<T, TNew = NewEntity<T>, TPatch = Partial<TNew>>(config: E
     if (!current || (current.archivedAt !== null) !== archived) {
       throw new DbError('NOT_FOUND', 'Not found');
     }
-    throw new DbError('STALE_VERSION', `Expected version ${current.version}`);
+    if (current.version !== version) {
+      throw new DbError('STALE_VERSION', `Expected version ${current.version}`);
+    }
+    // Visible at this version but the UPDATE matched nothing: an RLS update policy refused it.
+    throw new DbError('FORBIDDEN', 'Not allowed to change this row');
   }
 }

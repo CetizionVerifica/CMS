@@ -377,6 +377,138 @@ describe('tenancy and people', () => {
     ).toBe('FORBIDDEN');
     expect(await inA((tx) => r.people.findByNormalizedName(tx, 'hidden owner'))).toEqual([]);
   });
+  it('an update RLS refuses at the current version is FORBIDDEN, not STALE_VERSION', async () => {
+    const clientUser: TenantContext = {
+      firmId: firmA,
+      personId: null,
+      clientIds: [world.clientId],
+      requestId: 'client-user',
+    };
+    const firm = await inA((tx) => r.firms.current(tx));
+    expect(
+      await code(
+        t.db.withTenant(clientUser, (tx) =>
+          r.firms.update(tx, firm.version, { name: 'Taken Over' }),
+        ),
+      ),
+    ).toBe('FORBIDDEN');
+    // A person who also works for a client this context cannot see.
+    const other = await inA((tx) =>
+      r.clients.create(tx, { name: 'Shared Staff Group', settings: DEFAULT_CLIENT_SETTINGS }),
+    );
+    const shared = await inA(async (tx) => {
+      const { person } = await r.people.createWithMembership(
+        tx,
+        {
+          displayName: 'Shared Person',
+          nameNormalized: 'shared person',
+          email: null,
+          status: 'UNCLAIMED',
+        },
+        {
+          role: 'OWNER',
+          clientId: world.clientId,
+          consultantClientIds: null,
+          unitIds: [world.unitId],
+          expiresAt: null,
+        },
+      );
+      await r.memberships.create(tx, {
+        personId: person.id,
+        role: 'APPROVER',
+        clientId: other.id,
+        consultantClientIds: null,
+        unitIds: null,
+        expiresAt: null,
+      });
+      return person;
+    });
+    expect(
+      await code(
+        t.db.withTenant(clientUser, (tx) =>
+          r.people.update(tx, shared.id, shared.version, { displayName: 'Renamed' }),
+        ),
+      ),
+    ).toBe('FORBIDDEN');
+    // A wrong version is still STALE_VERSION.
+    expect(
+      await code(
+        t.db.withTenant(clientUser, (tx) => r.firms.update(tx, firm.version + 5, { name: 'X' })),
+      ),
+    ).toBe('STALE_VERSION');
+  });
+
+  it('a client context cannot reveal a hidden person by giving them a membership', async () => {
+    const hiddenClient = await inA((tx) =>
+      r.clients.create(tx, { name: 'Other Group', settings: DEFAULT_CLIENT_SETTINGS }),
+    );
+    const hidden = await inA(async (tx) => {
+      const { person } = await r.people.createWithMembership(
+        tx,
+        {
+          displayName: 'Hidden Person',
+          nameNormalized: 'hidden person',
+          email: 'hidden@example.com',
+          status: 'INVITED',
+        },
+        {
+          role: 'OWNER',
+          clientId: hiddenClient.id,
+          consultantClientIds: null,
+          unitIds: null,
+          expiresAt: null,
+        },
+      );
+      return person;
+    });
+    const clientUser: TenantContext = {
+      firmId: firmA,
+      personId: null,
+      clientIds: [world.clientId],
+      requestId: 'client-user',
+    };
+    const link = (tx: TenantTx) =>
+      r.memberships.create(tx, {
+        personId: hidden.id,
+        role: 'VIEWER',
+        clientId: world.clientId,
+        consultantClientIds: null,
+        unitIds: null,
+        expiresAt: '2027-03-31T18:30:00.000Z',
+      });
+    expect(await code(t.db.withTenant(clientUser, link))).toBe('NOT_FOUND');
+    // Moving one of its own memberships onto the hidden person is refused the same way.
+    const own = await t.db.withTenant(clientUser, (tx) => r.memberships.list(tx, world.clientId));
+    const m = own.items[0]!;
+    expect(
+      await code(
+        t.db.withTenant(clientUser, (tx) =>
+          r.memberships.update(tx, m.id, m.version, { personId: hidden.id }),
+        ),
+      ),
+    ).toBe('NOT_FOUND');
+    expect(await t.db.withTenant(clientUser, (tx) => r.people.get(tx, hidden.id))).toBeNull();
+  });
+
+  it('update ignores server fields smuggled into a patch', async () => {
+    const dept = await inA((tx) =>
+      r.departments.create(tx, { clientId: world.clientId, name: 'Smuggle Test', aliases: [] }),
+    );
+    const updated = await inA((tx) =>
+      r.departments.update(tx, dept.id, dept.version, {
+        name: 'Smuggle Test 2',
+        id: '01920000-0000-7000-8000-000000000bad',
+        version: 99,
+        firmId: firmB,
+      } as never),
+    );
+    expect(updated).toMatchObject({
+      id: dept.id,
+      version: dept.version + 1,
+      firmId: firmA,
+      name: 'Smuggle Test 2',
+    });
+  });
 });
 
 describe('firm B', () => {

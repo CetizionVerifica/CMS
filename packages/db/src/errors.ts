@@ -41,14 +41,19 @@ const SQLSTATE: Record<string, ErrorCode> = {
   '42501': 'FORBIDDEN', // insufficient_privilege, including RLS WITH CHECK
 };
 
-/** Rethrows a database error as a DbError when it is one a caller can cause; anything else unchanged. */
+/**
+ * Rethrows a database error as a DbError when it is one a caller can cause; anything else unchanged.
+ * The cause keeps only the SQLSTATE, table and constraint: Postgres puts row values (emails, names) in
+ * `detail`, `message` and `where`, so the driver error is dropped and loggers can serialise the cause.
+ */
 export function rethrow(error: unknown): never {
   if (error instanceof DbError) throw error;
   const pg = pgError(error);
   const code = pg ? SQLSTATE[pg.code] : undefined;
   if (pg && code) {
     const where = [pg.table, pg.constraint].filter(Boolean).join('.');
-    throw new DbError(code, `${code}${where ? ` (${where})` : ''}`, { cause: error });
+    const cause = { sqlstate: pg.code, table: pg.table, constraint: pg.constraint };
+    throw new DbError(code, `${code}${where ? ` (${where})` : ''}`, { cause });
   }
   throw error;
 }

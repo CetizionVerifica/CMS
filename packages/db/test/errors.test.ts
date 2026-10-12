@@ -15,6 +15,7 @@ describe('rethrow', () => {
       code: sqlstate,
       table: 'person',
       constraint: 'person_email_key',
+      detail: 'Key (firm_id, lower(email))=(x, surajit@example.com) already exists.',
     });
     const wrapped = Object.assign(new Error('Failed query'), { cause: pg });
     try {
@@ -24,6 +25,13 @@ describe('rethrow', () => {
       expect((e as DbError).code).toBe(code);
       expect((e as DbError).message).toBe(`${code} (person.person_email_key)`);
       expect((e as DbError).message).not.toContain('Surajit');
+      // The cause is safe to log: no driver error, so no detail or message with row values.
+      expect((e as DbError).cause).toEqual({
+        sqlstate,
+        table: 'person',
+        constraint: 'person_email_key',
+      });
+      expect(JSON.stringify((e as DbError).cause)).not.toMatch(/surajit/i);
       return;
     }
     throw new Error('did not throw');

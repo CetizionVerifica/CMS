@@ -60,6 +60,13 @@ to their own client. The details below were not fixed by the spec.
 - A client context's person update runs three plpgsql checks per row (`app_person_visible`,
   `app_person_has_firm_role`, `app_person_in_hidden_client`). Repositories keep client-context person writes to one
   row by id (`people.update`); M6 must not add bulk person updates for client contexts.
+- A client context can only add or move a membership onto a person it already sees (`memberships.create` and
+  `update` return NOT_FOUND otherwise), so it cannot reveal someone by linking them to its client. The guard is in the
+  repository, which is the only write path (no `sql.raw` outside `packages/db`).
+- Emails are unique per firm, so a client admin inviting an email already used in a hidden client gets DUPLICATE.
+  M6 should answer invites with a generic message.
+- `DbError.cause` holds only the SQLSTATE, table and constraint (Postgres puts row values in its error detail), so
+  callers may log the cause; they still never log inputs.
 - The populated-database migration test fills data after the last migration that exists. The first migration that
   changes an existing table must add a populate step for the state before it (`test/migrations.db.test.ts`).
 
