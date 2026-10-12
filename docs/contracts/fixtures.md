@@ -95,3 +95,5 @@ Contents:
 
 ## 7. Personal data
 The sample contains real employee names. The xlsx stays as the golden import file (root `CLAUDE.md`), but `firm-a.sample.json` replaces each person with a deterministic pseudonym ("Owner 01", "Approver 03", …) keyed by normalised name, so names do not spread into every test, snapshot and mock. Owner Comments are kept (they hold no names in this sample; re-checked when the JSON is generated).
+
+The register's client and company are real organisations, so the JSON names them "Kestrel Metals Group" and "Kestrel Aluminium" instead, and the same substitution applies to text copied from the sheet (one Act names the company). The generator fails if a real organisation name reaches any firm A file. Firm B's names are made up.

@@ -182,7 +182,7 @@ describe('scores', () => {
     expect(
       PortfolioRow.safeParse({
         clientId: ID.client,
-        clientName: 'Aditya Birla Group',
+        clientName: 'Kestrel Metals Group',
         result,
         dueThisWeek: 3,
         lastActivityAt: null,
@@ -195,7 +195,7 @@ describe('scores', () => {
     };
     const row = {
       clientId: ID.client,
-      clientName: 'Aditya Birla Group',
+      clientName: 'Kestrel Metals Group',
       result,
       dueThisWeek: 3,
       dueThisWeekFilter,

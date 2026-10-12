@@ -59,7 +59,7 @@ export const ClientSettings = z.strictObject({
 });
 export type ClientSettings = z.infer<typeof ClientSettings>;
 
-/** Customer organisation group, e.g. "Aditya Birla Group". */
+/** Customer organisation group, e.g. "Kestrel Metals Group". */
 export const Client = z.strictObject({
   ...baseShape,
   ...versionedShape,
@@ -68,7 +68,7 @@ export const Client = z.strictObject({
 });
 export type Client = z.infer<typeof Client>;
 
-/** e.g. "Hindalco". */
+/** e.g. "Kestrel Aluminium". */
 export const Company = z.strictObject({
   ...baseShape,
   ...versionedShape,

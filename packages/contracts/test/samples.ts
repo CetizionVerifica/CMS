@@ -90,7 +90,7 @@ export const instanceRow = {
   actName: 'Income Tax Act, 1961',
   criticality: 'SUPER_CRITICAL',
   clientId: ID.client,
-  companyName: 'Hindalco',
+  companyName: 'Kestrel Aluminium',
   unitId: ID.unit,
   unitName: 'Plant',
   locationLabel: 'India / West Bengal / Belur',
