@@ -203,9 +203,20 @@ export function createDbAccountStore(db: Database, options: DbAccountStoreOption
       return db.findLoginCandidates(email);
     },
 
-    async recordLoginFailure(firmId: string, personId: string, now: Date): Promise<void> {
-      await asFirm(firmId, LOOKUP_REQUEST, (tx) =>
+    async recordLoginFailure(firmId: string, personId: string, now: Date): Promise<boolean> {
+      const { lockedUntil } = await asFirm(firmId, LOOKUP_REQUEST, (tx) =>
         credentials.recordFailure(tx, personId, now.toISOString(), LOCKOUT),
+      );
+      return lockedUntil !== null && Date.parse(lockedUntil) > now.getTime();
+    },
+
+    async resetLoginFailures(firmId: string, personId: string): Promise<void> {
+      await asFirm(firmId, LOOKUP_REQUEST, (tx) => credentials.resetFailures(tx, personId));
+    },
+
+    async revokeAllSessions(firmId: string, personId: string, now: Date): Promise<void> {
+      await asFirm(firmId, LOOKUP_REQUEST, (tx) =>
+        sessions.revokeAllForPerson(tx, personId, now.toISOString()),
       );
     },
 
@@ -219,7 +230,7 @@ export function createDbAccountStore(db: Database, options: DbAccountStoreOption
           expiresAt: session.expiresAt,
           method: session.method,
         });
-        await credentials.resetFailures(tx, session.personId);
+        if (!session.owesMfa) await credentials.resetFailures(tx, session.personId);
         await auditEvents.append(tx, {
           clientId: null,
           requestId: session.requestId,
@@ -309,9 +320,20 @@ export function createDbAccountStore(db: Database, options: DbAccountStoreOption
     async findInvitee(firmId: string, personId: string): Promise<Invitee | null> {
       return asFirm(firmId, LOOKUP_REQUEST, async (tx) => {
         const person = await people.get(tx, personId);
-        return person === null || person.archivedAt !== null
-          ? null
-          : { personId, status: person.status, email: person.email };
+        if (person === null || person.archivedAt !== null) return null;
+        const held = await memberships.forPerson(tx, personId);
+        // M3 has no repository read for a person's open invites; this one runs under the same RLS.
+        const invited = await tx.query.authInvite.findMany({
+          columns: { role: true, clientId: true },
+          where: (t, { and, eq, isNull }) =>
+            and(eq(t.personId, personId), isNull(t.acceptedAt), isNull(t.revokedAt)),
+        });
+        return {
+          personId,
+          status: person.status,
+          email: person.email,
+          roles: [...held, ...invited].map((r) => ({ role: r.role, clientId: r.clientId })),
+        };
       });
     },
 

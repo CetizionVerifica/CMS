@@ -287,6 +287,100 @@ describe.skipIf(!url)('database AccountStore', () => {
     expect(JSON.stringify(stored)).not.toContain(secret);
   });
 
+  it('locks a firm admin after ten wrong MFA codes across sign-ins and ends every session', async () => {
+    const seeded = await firmWithClient();
+    const fa = await person(seeded, { role: 'FIRM_ADMIN' });
+    const first = sessionHeaders(await login(fa.email));
+    const enrolled = MfaEnrollment.parse(
+      (await app.inject({ method: 'POST', url: '/api/v1/auth/mfa/enroll', headers: first })).json(),
+    );
+    const secret = new URL(enrolled.otpauthUrl).searchParams.get('secret')!;
+    const verify = (headers: Record<string, string>, at: Date) =>
+      app.inject({
+        remoteAddress: `10.8.0.${(address += 1) % 250}`,
+        method: 'POST',
+        url: '/api/v1/auth/mfa/verify',
+        headers,
+        payload: { code: hotp(base32Decode(secret), totpStep(at)) },
+      });
+    const wrong = () => new Date(now.getTime() + 5 * 60_000);
+    for (let i = 0; i < 4; i++) await verify(first, wrong());
+    const second = sessionHeaders(await login(fa.email));
+    for (let i = 0; i < 4; i++) await verify(second, wrong());
+    const third = sessionHeaders(await login(fa.email));
+    await verify(third, wrong());
+    expect(errorCode(await verify(third, wrong()))).toBe('UNAUTHENTICATED');
+    expect(
+      await rows(
+        `SELECT count(*)::int AS open FROM auth_session WHERE person_id = $1 AND revoked_at IS NULL`,
+        [fa.personId],
+      ),
+    ).toEqual([{ open: 0 }]);
+    expect((await login(fa.email)).statusCode).toBe(401);
+
+    now = new Date(now.getTime() + (LOCKOUT.minutes + 1) * 60_000);
+    const back = sessionHeaders(await login(fa.email));
+    expect((await verify(back, now)).statusCode).toBe(200);
+    expect(
+      await rows(`SELECT failed_attempts FROM auth_credential WHERE person_id = $1`, [fa.personId]),
+    ).toEqual([{ failed_attempts: 0 }]);
+  });
+
+  it("refuses to invite a person whose roles lie outside the inviter's clients", async () => {
+    const seeded = await firmWithClient();
+    const other = await db.withTenant(systemContext(seeded.firmId, 'seed'), (tx) =>
+      clients.create(tx, { name: 'Tata Group', settings: DEFAULT_CLIENT_SETTINGS }),
+    );
+    const ca = await person(seeded, { role: 'CLIENT_ADMIN' });
+    const fa = await person(seeded, { role: 'FIRM_ADMIN' });
+    const elsewhere = await person(
+      { firmId: seeded.firmId, clientId: other.id },
+      { role: 'APPROVER', email: null },
+    );
+    const offered = await person(seeded, { email: null });
+    const open = await store.createInvite({
+      firmId: seeded.firmId,
+      personId: offered.personId,
+      displayName: null,
+      email: 'offered@example.com',
+      grant: {
+        role: 'APPROVER',
+        clientId: other.id,
+        consultantClientIds: null,
+        unitIds: null,
+        expiresAt: null,
+      },
+      invitedById: fa.personId,
+      linkExpiresAt: new Date(now.getTime() + 86_400_000).toISOString(),
+      requestId: 'fa-invite',
+      now,
+    });
+    const headers = sessionHeaders(await login(ca.email));
+    for (const target of [elsewhere, offered]) {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/api/v1/invites',
+        headers,
+        payload: {
+          personId: target.personId,
+          email: 'attacker@example.com',
+          role: 'OWNER',
+          clientId: seeded.clientId,
+          consultantClientIds: null,
+          unitIds: null,
+          expiresAt: null,
+        },
+      });
+      expect(errorCode(res)).toBe('NOT_FOUND');
+    }
+    expect((await store.findInvite(seeded.firmId, open.id))!.status).toBe('PENDING');
+    expect(
+      await rows(`SELECT count(*)::int AS n FROM auth_invite WHERE person_id = ANY($1)`, [
+        [elsewhere.personId, offered.personId],
+      ]),
+    ).toEqual([{ n: 1 }]);
+  });
+
   it('invites an imported person, who claims the account and signs in', async () => {
     const seeded = await firmWithClient();
     const ca = await person(seeded, { role: 'CLIENT_ADMIN' });

@@ -42,12 +42,30 @@ const addMinutes = (now: Date, minutes: number) =>
   new Date(now.getTime() + minutes * 60_000).toISOString();
 
 const LINK_EXPIRED = 'This link has expired or was already used.';
+const TOO_MANY_CODES = 'Too many incorrect codes. Sign in again.';
+
+/** Wrong MFA codes one session may send before it is revoked; the person's account locks after `LOCKOUT.attempts`. */
+export const MFA_SESSION_FAILURES = 5;
+/** A person gets at most one magic link per this many seconds, whoever asks. */
+export const MAGIC_LINK_INTERVAL_SECONDS = 60;
+/** Bound on the per-process counters below; the oldest entries go first. */
+const TRACKED = 10_000;
+
+function remember<V>(map: Map<string, V>, key: string, value: V): void {
+  map.delete(key);
+  map.set(key, value);
+  if (map.size > TRACKED) map.delete(map.keys().next().value!);
+}
 
 /** Sign-in, MFA and invite flows (endpoints.md §2). Routes validate input and call these. */
 export class AuthService {
   private readonly store: AccountStore;
   private readonly secrets: SecretBox;
   private readonly clock: () => Date;
+  /** Wrong MFA codes per session id, in this process. */
+  private readonly mfaFailures = new Map<string, number>();
+  /** Last magic link per `firmId/personId`, in this process. */
+  private readonly magicLinks = new Map<string, number>();
 
   constructor(options: AuthServiceOptions) {
     this.store = options.store;
@@ -98,7 +116,12 @@ export class AuthService {
   /** Always succeeds, so it reveals nothing; ACTIVE people with the email get a link (sent by M9). */
   async requestMagicLink(email: string, requestId: string): Promise<void> {
     const candidates = await this.store.findLoginCandidates(email);
+    const now = this.clock().getTime();
     for (const c of candidates.filter((x) => x.status === 'ACTIVE')) {
+      const key = `${c.firmId}/${c.personId}`;
+      const last = this.magicLinks.get(key);
+      if (last !== undefined && now - last < MAGIC_LINK_INTERVAL_SECONDS * 1000) continue;
+      remember(this.magicLinks, key, now);
       await this.store.requestMagicLink(c.firmId, c.personId, requestId);
     }
   }
@@ -179,10 +202,13 @@ export class AuthService {
     }
     const step = verifyTotp(this.secrets.open(record.sealedSecret), code, now);
     if (step === null || !(await this.store.acceptMfaStep(ctx.firmId, ctx.personId, step))) {
+      await this.mfaFailed(session, now);
       throw new ApiError('VALIDATION', {
         issues: [{ path: ['code'], message: 'Code is not correct.' }],
       });
     }
+    this.mfaFailures.delete(session.id);
+    await this.store.resetLoginFailures(ctx.firmId, ctx.personId);
     if (record.enrolledAt === null) {
       await this.store.saveMfa(ctx.firmId, ctx.personId, {
         ...record,
@@ -203,7 +229,11 @@ export class AuthService {
     this.authorizeGrant(ctx, grant);
     if (personId !== undefined) {
       const invitee = await this.store.findInvitee(ctx.firmId, personId);
-      if (invitee === null) throw new ApiError('NOT_FOUND');
+      // Claiming the account brings every role the person holds, so the inviter must be able to grant each one;
+      // otherwise the person is outside their scope and reads as not found.
+      if (invitee === null || invitee.roles.some((r) => !canGrantRole(ctx, r.role, r.clientId))) {
+        throw new ApiError('NOT_FOUND');
+      }
       if (invitee.status !== 'UNCLAIMED' && invitee.status !== 'INVITED') {
         throw new ApiError(
           'DUPLICATE',
@@ -350,6 +380,26 @@ export class AuthService {
    * Checks the person may sign in (ACTIVE, with an active membership) before any session exists, then stores the
    * session and returns `Me` for it.
    */
+  /**
+   * Counts a wrong MFA code: the session is revoked after `MFA_SESSION_FAILURES`, and when the person's failures
+   * (passwords and codes) reach `LOCKOUT.attempts` the account locks and all their sessions end.
+   */
+  private async mfaFailed(session: SessionRecord, now: Date): Promise<void> {
+    const locked = await this.store.recordLoginFailure(session.firmId, session.personId, now);
+    if (locked) {
+      this.mfaFailures.delete(session.id);
+      await this.store.revokeAllSessions(session.firmId, session.personId, now);
+      throw new ApiError('UNAUTHENTICATED', undefined, TOO_MANY_CODES);
+    }
+    const failures = (this.mfaFailures.get(session.id) ?? 0) + 1;
+    if (failures >= MFA_SESSION_FAILURES) {
+      this.mfaFailures.delete(session.id);
+      await this.store.revokeSession(session.firmId, session.id, now);
+      throw new ApiError('UNAUTHENTICATED', undefined, TOO_MANY_CODES);
+    }
+    remember(this.mfaFailures, session.id, failures);
+  }
+
   private async startSession(
     firmId: string,
     personId: string,
@@ -375,6 +425,7 @@ export class AuthService {
     });
     const record = await this.store.createSession({
       ...pending,
+      owesMfa: mfaRequired(principal!, ctx.memberships),
       tokenHash: hashToken(token),
       requestId,
       method,

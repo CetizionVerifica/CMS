@@ -4,6 +4,7 @@ import type {
   MembershipGrant,
   PersonStatus,
   RequestContext,
+  Role,
 } from '@canopy/contracts';
 import type { AuthStore, SessionRecord } from './context.js';
 
@@ -22,11 +23,21 @@ export interface AccountStore extends AuthStore {
 
   /** ACTIVE, INVITED and DISABLED people with this email (case-insensitive), across firms. */
   findLoginCandidates(email: string): Promise<LoginCandidate[]>;
-  /** Counts a failed password; after `LOCKOUT.attempts` failures in a row the account locks for `LOCKOUT.minutes`. */
-  recordLoginFailure(firmId: string, personId: string, now: Date): Promise<void>;
-  /** Stores a session and resets failed attempts. Audit: `LOGIN` on the person. */
+  /**
+   * Counts a failed password or MFA code; after `LOCKOUT.attempts` failures in a row the account locks for
+   * `LOCKOUT.minutes`. True when the account is locked after this failure.
+   */
+  recordLoginFailure(firmId: string, personId: string, now: Date): Promise<boolean>;
+  /** Clears the failed-attempt count (after a correct MFA code). */
+  resetLoginFailures(firmId: string, personId: string): Promise<void>;
+  /**
+   * Stores a session and, unless it still owes MFA, resets failed attempts (so signing in again does not clear
+   * failed MFA codes). Audit: `LOGIN` on the person.
+   */
   createSession(session: NewSession): Promise<SessionRecord>;
   revokeSession(firmId: string, sessionId: string, now: Date): Promise<void>;
+  /** Ends every open session of the person (MFA lockout). */
+  revokeAllSessions(firmId: string, personId: string, now: Date): Promise<void>;
   markSessionMfa(firmId: string, sessionId: string): Promise<void>;
 
   getMfa(firmId: string, personId: string): Promise<MfaRecord | null>;
@@ -44,7 +55,10 @@ export interface AccountStore extends AuthStore {
   /** Marks the token used if it is unused and unexpired; false when another request won. */
   consumeLoginToken(firmId: string, tokenId: string, now: Date): Promise<boolean>;
 
-  /** The person an invite is for, in the actor's tenant, or null. */
+  /**
+   * The person an invite is for, in the actor's firm, with the roles they hold or are invited to (non-archived
+   * memberships and open invites), or null.
+   */
   findInvitee(firmId: string, personId: string): Promise<Invitee | null>;
   /** The person in the firm who has this email (case-insensitive), or null. */
   findPersonIdByEmail(firmId: string, email: string): Promise<string | null>;
@@ -92,6 +106,8 @@ export interface NewSession {
   readonly tokenHash: string;
   readonly csrfToken: string;
   readonly mfaSatisfied: boolean;
+  /** The person must still pass MFA in this session; failed attempts are then not reset. */
+  readonly owesMfa: boolean;
   readonly expiresAt: string;
   readonly requestId: string;
   /** How the person signed in, for the audit event. */
@@ -130,6 +146,8 @@ export interface Invitee {
   readonly personId: string;
   readonly status: PersonStatus;
   readonly email: string | null;
+  /** Roles held (non-archived memberships) or offered (open invites); the inviter must be able to grant each. */
+  readonly roles: readonly { readonly role: Role; readonly clientId: string | null }[];
 }
 
 export interface NewInvite {

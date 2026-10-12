@@ -186,12 +186,24 @@ export class InMemoryAuthStore implements AccountStore {
       });
   }
 
-  async recordLoginFailure(firmId: string, personId: string, now: Date): Promise<void> {
+  async recordLoginFailure(firmId: string, personId: string, now: Date): Promise<boolean> {
     const stored = this.person(firmId, personId);
     stored.failedAttempts += 1;
     if (stored.failedAttempts >= LOCKOUT.attempts) {
       stored.lockedUntil = new Date(now.getTime() + LOCKOUT.minutes * 60_000).toISOString();
       stored.failedAttempts = 0;
+    }
+    return stored.lockedUntil !== null && Date.parse(stored.lockedUntil) > now.getTime();
+  }
+
+  async resetLoginFailures(firmId: string, personId: string): Promise<void> {
+    const stored = this.people.get(`${firmId}/${personId}`);
+    if (stored) stored.failedAttempts = 0;
+  }
+
+  async revokeAllSessions(firmId: string, personId: string): Promise<void> {
+    for (const [hash, s] of this.sessions) {
+      if (s.firmId === firmId && s.personId === personId) this.sessions.delete(hash);
     }
   }
 
@@ -206,7 +218,7 @@ export class InMemoryAuthStore implements AccountStore {
     };
     this.sessions.set(session.tokenHash, record);
     const stored = this.people.get(`${session.firmId}/${session.personId}`);
-    if (stored) stored.failedAttempts = 0;
+    if (stored && !session.owesMfa) stored.failedAttempts = 0;
     this.audit.push({
       firmId: session.firmId,
       type: 'LOGIN',
@@ -269,8 +281,19 @@ export class InMemoryAuthStore implements AccountStore {
   }
 
   async findInvitee(firmId: string, personId: string): Promise<Invitee | null> {
-    const stored = this.people.get(`${firmId}/${personId}`);
-    return stored ? { personId, status: stored.status, email: stored.email } : null;
+    const key = `${firmId}/${personId}`;
+    const stored = this.people.get(key);
+    if (!stored) return null;
+    const held = (this.principals.get(key)?.memberships ?? []).filter((m) => m.archivedAt === null);
+    const invited = [...this.invites.values()].filter(
+      (i) => i.firmId === firmId && i.personId === personId && i.status === 'PENDING',
+    );
+    return {
+      personId,
+      status: stored.status,
+      email: stored.email,
+      roles: [...held, ...invited].map((r) => ({ role: r.role, clientId: r.clientId })),
+    };
   }
 
   async findPersonIdByEmail(firmId: string, email: string): Promise<string | null> {

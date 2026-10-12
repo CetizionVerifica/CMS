@@ -22,7 +22,7 @@ import {
 } from './testing.js';
 import { redactUrl } from './tokens.js';
 import { base32Decode, hotp, totpStep } from './totp.js';
-import { AuthService } from './service.js';
+import { AuthService, MFA_SESSION_FAILURES } from './service.js';
 import { SecretBox } from './secretbox.js';
 
 const KEY = Buffer.alloc(32, 1).toString('base64');
@@ -231,6 +231,22 @@ describe('magic links', () => {
     ]);
   });
 
+  it('asks for at most one link a minute per person', async () => {
+    const person = await seed({ memberships: [{ role: 'OWNER' }] });
+    const ask = () =>
+      app.inject({
+        method: 'POST',
+        url: '/api/v1/auth/magic-link',
+        payload: { email: person.email },
+      });
+    expect((await ask()).statusCode).toBe(202);
+    expect((await ask()).statusCode).toBe(202);
+    expect(store.outbox).toHaveLength(1);
+    now = new Date(now.getTime() + 61_000);
+    await ask();
+    expect(store.outbox).toHaveLength(2);
+  });
+
   it('signs in once with an unexpired link', async () => {
     const person = await seed({ memberships: [{ role: 'OWNER' }] });
     const { token, expiresAt } = await service.issueLoginToken({ ...person, kind: 'MAGIC_LINK' });
@@ -363,6 +379,59 @@ describe('MFA', () => {
     expect((await app.inject({ url: '/api/v1/probe', headers: nextHeaders })).statusCode).toBe(200);
   });
 });
+
+describe('MFA failures', () => {
+  const wrongCode = (secret: string) =>
+    hotp(base32Decode(secret), totpStep(new Date(now.getTime() + 5 * 60_000)));
+
+  async function enrolled() {
+    const person = await seed({ memberships: [{ role: 'FIRM_ADMIN' }] });
+    const headers = sessionHeaders(await login(person.email));
+    const { otpauthUrl } = MfaEnrollment.parse(
+      (await app.inject({ method: 'POST', url: '/api/v1/auth/mfa/enroll', headers })).json(),
+    );
+    return { person, headers, secret: new URL(otpauthUrl).searchParams.get('secret')! };
+  }
+
+  // From a new address each time, as a distributed guesser would: the per-IP limit does not stop them.
+  const verify = (headers: Record<string, string>, code: string) => {
+    address += 1;
+    return app.inject({
+      remoteAddress: `10.2.${Math.floor(address / 250)}.${address % 250}`,
+      method: 'POST',
+      url: '/api/v1/auth/mfa/verify',
+      headers,
+      payload: { code },
+    });
+  };
+
+  it(`revokes the session after ${MFA_SESSION_FAILURES} wrong codes`, async () => {
+    const { headers, secret } = await enrolled();
+    for (let i = 1; i < MFA_SESSION_FAILURES; i++) {
+      expect(errorCode(await verify(headers, wrongCode(secret)))).toBe('VALIDATION');
+    }
+    expect(errorCode(await verify(headers, wrongCode(secret)))).toBe('UNAUTHENTICATED');
+    expect((await app.inject({ url: '/api/v1/me', headers })).statusCode).toBe(401);
+  });
+
+  it(`locks the account after ${LOCKOUT.attempts} wrong codes, even across new sign-ins`, async () => {
+    const { person, headers: first, secret } = await enrolled();
+    for (let i = 0; i < 4; i++) await verify(first, wrongCode(secret));
+    const second = sessionHeaders(await login(person.email));
+    for (let i = 0; i < 4; i++) await verify(second, wrongCode(secret));
+    const third = sessionHeaders(await login(person.email));
+    expect(errorCode(await verify(third, wrongCode(secret)))).toBe('VALIDATION');
+    expect(errorCode(await verify(third, wrongCode(secret)))).toBe('UNAUTHENTICATED');
+    for (const headers of [first, second, third]) {
+      expect((await app.inject({ url: '/api/v1/me', headers })).statusCode).toBe(401);
+    }
+    expect((await login(person.email)).statusCode).toBe(401);
+    now = new Date(now.getTime() + (LOCKOUT.minutes + 1) * 60_000);
+    const back = sessionHeaders(await login(person.email));
+    expect((await verify(back, hotp(base32Decode(secret), totpStep(now)))).statusCode).toBe(200);
+    expect(store.people.get(`${person.firmId}/${person.personId}`)!.failedAttempts).toBe(0);
+  });
+}, 30_000);
 
 describe('POST /auth/logout', () => {
   it('needs the CSRF header, then ends the session and clears the cookie', async () => {
@@ -508,6 +577,68 @@ describe('invites', () => {
         })
       ).statusCode,
     ).toBe(403);
+  });
+
+  it("refuses, as not found, a person who holds or is offered a role outside the inviter's scope", async () => {
+    for (const role of ['CLIENT_ADMIN', 'CONSULTANT'] as const) {
+      const { firmId, manager, headers } = await setup(role);
+      const unclaimed = { firmId, email: null, status: 'UNCLAIMED', password: null } as const;
+      const otherClient = await seed({
+        ...unclaimed,
+        memberships: [{ role: 'APPROVER', clientId: randomUUID() }],
+      });
+      const firmStaff = await seed({
+        ...unclaimed,
+        memberships: [{ role: 'CONSULTANT', consultantClientIds: [CLIENT] }],
+      });
+      const offered = await seed(unclaimed);
+      const open = await store.createInvite({
+        firmId,
+        personId: offered.personId,
+        displayName: null,
+        email: 'offered@example.com',
+        grant: {
+          role: 'APPROVER',
+          clientId: randomUUID(),
+          consultantClientIds: null,
+          unitIds: null,
+          expiresAt: null,
+        },
+        invitedById: manager.personId,
+        linkExpiresAt: new Date(now.getTime() + 86_400_000).toISOString(),
+        requestId: 'seed',
+        now,
+      });
+      for (const target of [otherClient, firmStaff, offered]) {
+        const res = await invite(headers, {
+          personId: target.personId,
+          email: 'attacker@example.com',
+          role: 'OWNER',
+          clientId: CLIENT,
+        });
+        expect(errorCode(res), role).toBe('NOT_FOUND');
+      }
+      expect(store.invites.get(open.id)!.status).toBe('PENDING');
+      expect([...store.invites.values()].filter((i) => i.firmId === firmId)).toHaveLength(1);
+    }
+  });
+
+  it("invites an imported person whose roles are all in the inviter's scope", async () => {
+    const { firmId, headers } = await setup();
+    const local = await seed({
+      firmId,
+      email: null,
+      status: 'UNCLAIMED',
+      password: null,
+      memberships: [{ role: 'OWNER', clientId: CLIENT }],
+    });
+    const res = await invite(headers, {
+      personId: local.personId,
+      email: 'local@example.com',
+      role: 'APPROVER',
+      clientId: CLIENT,
+    });
+    expect(res.statusCode).toBe(201);
   });
 
   it('refuses people who already have an account', async () => {
