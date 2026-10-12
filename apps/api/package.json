@@ -10,7 +10,10 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "fastify": "catalog:"
+    "@canopy/contracts": "workspace:*",
+    "@canopy/importer": "workspace:*",
+    "fastify": "catalog:",
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@canopy/tsconfig": "workspace:*",

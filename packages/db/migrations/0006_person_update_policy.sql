@@ -1,0 +1,1 @@
+ALTER POLICY "tenant_update" ON "person" TO public USING (firm_id = app_firm_id() and (app_firm_staff() or ((id = app_person_id() or app_person_visible(id)) and not app_person_has_firm_role(id) and (app_all_clients() or not app_person_in_hidden_client(id))))) WITH CHECK (firm_id = app_firm_id());

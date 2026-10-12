@@ -9,14 +9,25 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "db:migrate": "echo \"db:migrate: no migrations yet (M3)\"",
-    "db:seed": "echo \"db:seed: no seed yet (M3)\""
+    "test:db": "vitest run --config vitest.db.config.mjs",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "tsx src/cli/migrate.ts",
+    "db:seed": "echo \"db:seed: seed hook arrives in the next M3 PR\""
+  },
+  "dependencies": {
+    "@canopy/contracts": "workspace:*",
+    "drizzle-orm": "catalog:",
+    "pg": "catalog:",
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@canopy/tsconfig": "workspace:*",
     "@canopy/vitest-config": "workspace:*",
     "@types/node": "catalog:",
+    "@types/pg": "catalog:",
     "@vitest/coverage-v8": "catalog:",
+    "drizzle-kit": "catalog:",
+    "tsx": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
   }

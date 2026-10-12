@@ -17,5 +17,10 @@
     "@vitest/coverage-v8": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
+  },
+  "dependencies": {
+    "@canopy/contracts": "workspace:*",
+    "exceljs": "^4.4.0",
+    "zod": "catalog:"
   }
 }

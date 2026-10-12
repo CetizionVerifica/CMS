@@ -1,3 +1,9 @@
 import { canopyVitestConfig } from '@canopy/vitest-config';
+import { defineConfig, mergeConfig } from 'vitest/config';
 
-export default canopyVitestConfig();
+// `pnpm test`: unit tests, no database. database.ts only runs against Postgres, so its coverage is
+// counted by `pnpm test:db` (vitest.db.config.mjs) at the same thresholds. cli/ holds thin entry points.
+export default mergeConfig(
+  canopyVitestConfig({ exclude: ['src/cli/**', 'src/database.ts'] }),
+  defineConfig({ test: { include: ['test/**/*.test.ts'], exclude: ['test/**/*.db.test.ts'] } }),
+);
