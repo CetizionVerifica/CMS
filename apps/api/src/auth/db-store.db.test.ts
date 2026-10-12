@@ -106,7 +106,7 @@ describe.skipIf(!url)('database AccountStore', () => {
   async function firmWithClient(): Promise<Seeded> {
     const firmId = await admin.createFirm({ name: `Firm ${randomUUID().slice(0, 6)}` });
     const client = await db.withTenant(systemContext(firmId, 'seed'), (tx) =>
-      clients.create(tx, { name: 'Aditya Birla Group', settings: DEFAULT_CLIENT_SETTINGS }),
+      clients.create(tx, { name: 'Kestrel Metals Group', settings: DEFAULT_CLIENT_SETTINGS }),
     );
     return { firmId, clientId: client.id };
   }
@@ -176,7 +176,7 @@ describe.skipIf(!url)('database AccountStore', () => {
       clients: [
         {
           id: seeded.clientId,
-          name: 'Aditya Birla Group',
+          name: 'Kestrel Metals Group',
           timeZone: 'Asia/Kolkata',
           unitCount: 0,
           period: PERIODS,
@@ -329,7 +329,7 @@ describe.skipIf(!url)('database AccountStore', () => {
   it("refuses to invite a person whose roles lie outside the inviter's clients", async () => {
     const seeded = await firmWithClient();
     const other = await db.withTenant(systemContext(seeded.firmId, 'seed'), (tx) =>
-      clients.create(tx, { name: 'Tata Group', settings: DEFAULT_CLIENT_SETTINGS }),
+      clients.create(tx, { name: 'Osprey Holdings', settings: DEFAULT_CLIENT_SETTINGS }),
     );
     const ca = await person(seeded, { role: 'CLIENT_ADMIN' });
     const fa = await person(seeded, { role: 'FIRM_ADMIN' });
@@ -416,7 +416,7 @@ describe.skipIf(!url)('database AccountStore', () => {
     expect(preview).toMatchObject({
       email: 'new.owner@example.com',
       displayName: 'Asha Rao',
-      clientName: 'Aditya Birla Group',
+      clientName: 'Kestrel Metals Group',
       role: 'OWNER',
     });
     const accept = () =>
@@ -501,28 +501,31 @@ describe.skipIf(!url)('database AccountStore', () => {
     const seeded = await firmWithClient();
     const ctx = systemContext(seeded.firmId, 'seed');
     const { personId, email } = await db.withTenant(ctx, async (tx) => {
-      const company = await companies.create(tx, { clientId: seeded.clientId, name: 'Hindalco' });
+      const company = await companies.create(tx, {
+        clientId: seeded.clientId,
+        name: 'Kestrel Aluminium',
+      });
       const location = await locations.create(tx, {
         country: 'India',
         countryCode: 'IN',
         state: 'West Bengal',
         stateCode: 'WB',
-        city: 'Belur',
+        city: 'Northfield',
       });
       const plant = await units.create(tx, {
         clientId: seeded.clientId,
         companyId: company.id,
-        name: 'Belur Plant',
+        name: 'Northfield Plant',
         locationId: location.id,
       });
       await units.create(tx, {
         clientId: seeded.clientId,
         companyId: company.id,
-        name: 'Renukoot Plant',
+        name: 'Southmoor Plant',
         locationId: location.id,
       });
       const archived = await clients.create(tx, {
-        name: 'Tata Group',
+        name: 'Osprey Holdings',
         settings: DEFAULT_CLIENT_SETTINGS,
       });
       await clients.archive(tx, archived.id, archived.version);
