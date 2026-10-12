@@ -10,7 +10,11 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "catalog:",
+    "@aws-sdk/s3-request-presigner": "catalog:",
     "@canopy/contracts": "workspace:*",
+    "@canopy/db": "workspace:*",
+    "@canopy/engine": "workspace:*",
     "@canopy/importer": "workspace:*",
     "fastify": "catalog:",
     "zod": "catalog:"
