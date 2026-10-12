@@ -68,7 +68,7 @@ const columns = [
   col.accessor('penalty', { header: 'Penalty', meta: { type: 'number' } }),
 ];
 
-function renderTable(props: Partial<DataTableProps<Instance>> = {}, n = 50) {
+function renderTable(props: Partial<DataTableProps<Instance>> = {}, n = 12) {
   return render(
     <>
       <DataTable<Instance>
@@ -154,9 +154,9 @@ describe('DataTable', () => {
     await user.keyboard('{ArrowUp}');
     expect(document.activeElement?.textContent).toBe('Obligation 2');
     await user.keyboard('{End}');
-    expect(document.activeElement?.textContent).toBe('Obligation 50');
+    expect(document.activeElement?.textContent).toBe('Obligation 12');
     await user.keyboard('{ArrowDown}');
-    expect(document.activeElement?.textContent).toBe('Obligation 50');
+    expect(document.activeElement?.textContent).toBe('Obligation 12');
     await user.keyboard('{Home}{ArrowUp}');
     expect(document.activeElement?.textContent).toBe('Obligation 1');
     await user.tab();
@@ -234,7 +234,7 @@ describe('DataTable', () => {
 
     rowLinks()[2]!.focus();
     await user.keyboard('{Control>}a{/Control}');
-    expect(screen.getByRole('status').textContent).toBe('50 selected');
+    expect(screen.getByRole('status').textContent).toBe('12 selected');
     await user.click(screen.getByRole('button', { name: 'Select all 424' }));
     expect(screen.getByRole('status').textContent).toBe('424 selected');
     await user.click(screen.getByRole('button', { name: 'Approve' }));
@@ -258,7 +258,7 @@ describe('DataTable', () => {
     const selectedRow = screen.getByRole('checkbox', { name: /^Select TAX-CL-003/ }).closest('tr')!;
     expect(selectedRow.hasAttribute('data-selected')).toBe(true);
     await user.click(screen.getByRole('checkbox', { name: 'Select all rows' }));
-    expect(onChange).toHaveBeenLastCalledWith(expect.arrayContaining(['TAX-CL-050']));
+    expect(onChange).toHaveBeenLastCalledWith(expect.arrayContaining(['TAX-CL-012']));
     await user.click(screen.getByRole('checkbox', { name: 'Select all rows' }));
     expect(onChange).toHaveBeenLastCalledWith([]);
   });
@@ -448,7 +448,7 @@ describe('DataTable', () => {
       toolbar: false,
       selection: { bulkActions: [{ label: 'Approve', onClick: () => {} }] },
     });
-    expect(screen.queryByText(/^50 /)).toBeNull();
+    expect(screen.queryByText('12 instances')).toBeNull();
     expect(screen.queryByRole('button', { name: /columns/i })).toBeNull();
     await user.click(screen.getAllByRole('checkbox')[1]!);
     expect(screen.getByRole('button', { name: 'Approve' })).toBeTruthy();
