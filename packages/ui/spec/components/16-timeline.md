@@ -37,7 +37,7 @@ type TimelineProps = {
 
 ## States
 
-Loading (3 skeleton items) · empty ("No activity yet.") · has more ("Show earlier activity" button, appends; focus moves to the first new item) · system actor ("Canopy" with a `Bot` 16px icon instead of avatar).
+Loading (3 skeleton items) · empty ("No activity yet.") · has more ("Show earlier activity" button, appends; focus moves to the first new item) · system actor ("PlanetPulse Compliance" by default, set by `systemName`, with a `Bot` 16px icon instead of avatar; client-facing text never says "Canopy").
 
 ## Accessibility
 

@@ -93,7 +93,11 @@ then get it audited in a separate session (the builder never audits its own work
 audit comment and fix its findings.
 
 Merging is automatic (`.github/workflows/auto-merge.yml`): every ready PR gets GitHub auto-merge and joins the merge
-queue on `main` once `ci-ok` is green. The queue re-runs CI on the PR combined with `main` and the PRs ahead of it, then
+queue on `main` once `ci-ok` is green. Auto-merge is turned on with the `AUTOMERGE_TOKEN` secret, never `GITHUB_TOKEN`:
+a PR queued as `GITHUB_TOKEN` gets no merge-queue CI run and blocks the queue. The secret lives in the `automerge`
+environment, which only `main` may use, and only jobs that declare `environment: automerge` can read it. If it is missing, the thread that
+owns a PR turns auto-merge on itself (`PUT /repos/CetizionVerifica/CMS/pulls/<n>/ccr/auto_merge` with
+`merge_method=squash`) once the PR is ready. The queue re-runs CI on the PR combined with `main` and the PRs ahead of it, then
 squash-merges, so two PRs that pass alone but break together never both land. Changes to contracts, `packages/db`,
 auth, `.github`, `tooling/modules.json` or `.claude/skills` request Shyam's review (`.github/CODEOWNERS`), but merging
 needs no approval, so the audit is their gate too. A PR runs its own copy of `ci.yml` and `.github/scripts`, so the

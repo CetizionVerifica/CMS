@@ -1,5 +1,5 @@
 import { DEFAULT_FIRM_SETTINGS, FirmSettings, Id, Name } from '@canopy/contracts';
-import { sql } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { migrate as runMigrations } from 'drizzle-orm/node-postgres/migrator';
 import { fileURLToPath } from 'node:url';
@@ -93,7 +93,7 @@ export function createDatabase(options: DatabaseOptions): Database {
       if (reason) {
         loginChecked = null;
         throw new Error(
-          `Refusing tenant connections: ${reason}. Connect as a non-owner member of ${APP_ROLE} (ADR 0001).`,
+          `Refusing tenant connections: ${reason}. Connect as a non-owner member of ${APP_ROLE} (ADR 0003).`,
         );
       }
     });
@@ -134,6 +134,8 @@ export interface AdminDatabase {
   migrate(migrationsFolder?: string): Promise<void>;
   /** Creates a firm and returns its id. `id` is for deterministic seeds and fixtures. */
   createFirm(input: NewFirm): Promise<string>;
+  /** Whether a firm with this id exists (seeds use it to stay idempotent). */
+  firmExists(id: string): Promise<boolean>;
   close(): Promise<void>;
 }
 
@@ -154,6 +156,18 @@ export function createAdminDatabase(options: DatabaseOptions): AdminDatabase {
         await tx.execute(sql`SELECT set_config('app.firm_id', ${id}, true)`);
         await tx.insert(schema.firm).values({ id, name: firm.name, settings: firm.settings });
         return id;
+      });
+    },
+    async firmExists(id) {
+      const firmId = Id.parse(id);
+      return db.transaction(async (tx) => {
+        await tx.execute(sql`SELECT set_config('app.firm_id', ${firmId}, true)`);
+        // Filter by id too: a superuser owner bypasses RLS and would see every firm.
+        const rows = await tx
+          .select({ id: schema.firm.id })
+          .from(schema.firm)
+          .where(eq(schema.firm.id, firmId));
+        return rows.length === 1;
       });
     },
     close: () => pool.end(),

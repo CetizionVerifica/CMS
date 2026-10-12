@@ -11,11 +11,15 @@
     "test:db": "vitest run --config src/jobs/vitest.db.config.mjs"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "catalog:",
+    "@aws-sdk/s3-request-presigner": "catalog:",
     "@canopy/contracts": "workspace:*",
     "@canopy/db": "workspace:*",
     "@canopy/engine": "workspace:*",
     "@canopy/importer": "workspace:*",
     "@canopy/notifications": "workspace:*",
+    "@fastify/cookie": "catalog:",
+    "@fastify/rate-limit": "catalog:",
     "fastify": "catalog:",
     "pg-boss": "catalog:",
     "zod": "catalog:"

@@ -47,3 +47,27 @@ While a Radix Select, menu or dialog is open, Radix sets `aria-hidden` on the re
 ## CR-10 · Nav matching by prefix
 
 `activeHref` now matches the nav item with the longest href that prefixes the current page at a path boundary, not only an exact match, so record pages keep their list's item current. Spec 01 Props updated.
+
+## CR-11 · PeriodPicker takes the current period, not today
+
+Spec 03 had `today` and `availableFys`-based disabling, and said FY boundaries come from an engine helper through contracts. `packages/ui` depends on nothing in the repo, so it cannot import that helper, and computing the current period from `today` would be compliance date logic outside the engine. The picker takes `thisPeriod` (the API resolves it with the engine in the client's time zone) and `availableUntil` (last month with generated instances). It still orders the twelve months from `fyStartMonth` for layout. Spec 03 updated.
+
+## CR-12 · Timeline system actor name
+
+Spec 16 named the system actor "Canopy". Client-facing text must not say "Canopy", so the actor is `systemName`, defaulting to "PlanetPulse Compliance". Spec 16 updated.
+
+## CR-13 · ConfirmDialog name mode and returnFocusTo
+
+Saved views need a one-line name field, so `reason` gains `multiline: false` (Enter confirms), `maxLength` and `initialValue`. `returnFocusTo` is now a prop, as spec 18's text already required. Spec 18 Props updated.
+
+## CR-14 · DeadlineList Overdue group
+
+Spec 12's week groups had no place for items due before today, which landed under "This week". Grouping now starts with "Overdue". Spec 12 updated.
+
+## CR-15 · Toast queue
+
+Spec 17 said older toasts collapse but not whether they return. A toast pushed out of the newest three is now gone for good (it never reappears later with a fresh timer); errors wait for a slot, up to 10 queued. Spec 17 updated.
+
+## CR-16 · DeadlineList Overdue follows the engine status
+
+CR-14 put every item due before `today` under "Overdue", so the UI decided a status from the date (root rule 3) and called a submitted or sent-back item overdue. "Overdue" now holds only items whose status is `OVERDUE`. Other items due before this week go under a new "Earlier" group, and those due earlier this week stay in "This week". Spec 12 updated.

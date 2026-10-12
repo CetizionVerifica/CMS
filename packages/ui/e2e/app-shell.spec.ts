@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 
-import { expectNoA11yViolations } from './a11y';
+import { expectNoA11yViolations, expectNoPageOverflow } from './a11y';
 
 test.describe('desktop', () => {
   test.skip(({ viewport }) => (viewport?.width ?? 0) < 1100, 'sidebar layout only');
@@ -70,4 +70,22 @@ test.describe('mobile', () => {
     const box = await field.boundingBox();
     expect(box!.width).toBeGreaterThan(300);
   });
+});
+
+test('overview is composed from components, axe-clean and fits the viewport', async ({ page }) => {
+  await page.goto('/#/shell/overview');
+  await expect(page.getByRole('heading', { level: 1, name: 'Overview' })).toBeVisible();
+  await expect(page.getByRole('link', { name: /^Overdue/ })).toHaveAttribute(
+    'href',
+    '#/shell/register?status=overdue',
+  );
+  await expect(page.getByRole('img', { name: /Compliance score/ }).first()).toBeVisible();
+  const table = page.getByRole('table', { name: 'Readiness by department' });
+  await expect(table.getByRole('row')).toHaveCount(6);
+  await expect(page.getByRole('list', { name: 'My open items' }).getByRole('link')).toHaveCount(5);
+  await expectNoA11yViolations(page);
+  await expectNoPageOverflow(page);
+
+  await table.getByRole('link', { name: 'EHS' }).click();
+  await expect(page).toHaveURL(/#\/shell\/register\?department=ehs$/);
 });
