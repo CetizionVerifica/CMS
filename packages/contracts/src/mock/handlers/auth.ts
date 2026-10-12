@@ -85,6 +85,7 @@ function me(
     csrfToken: session.csrfToken,
     // Firm-role people in the fixtures count as enrolled, so sign-in goes straight to the code step.
     mfa: { required: firmRole, enrolled: firmRole, satisfied: session.mfaSatisfied },
+    session: { expiresAt: session.expiresAt },
   };
 }
 
@@ -123,8 +124,18 @@ export const authHandlers: PartialHandlers<
   | 'revokeInvite'
 > = {
   login(ctx) {
-    const match = ctx.store.findByEmail(ctx.body.email).find((m) => m.person.status === 'ACTIVE');
+    // The mock accepts any password for an ACTIVE person.
+    const matches = ctx.store
+      .findByEmail(ctx.body.email)
+      .filter((m) => m.person.status === 'ACTIVE')
+      .filter((m) => ctx.body.firmId === undefined || m.firm.data.firm.id === ctx.body.firmId);
+    const [match] = matches;
     if (match === undefined) throw new MockError('UNAUTHENTICATED', 'Email or password is wrong');
+    if (matches.length > 1) {
+      throw new MockError('FIRM_CHOICE_REQUIRED', 'Choose the firm to sign in to', {
+        firms: matches.map((m) => ({ id: m.firm.data.firm.id, name: m.firm.data.firm.name })),
+      });
+    }
     return signIn(ctx, match.firm, match.person);
   },
 

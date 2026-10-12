@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { type ErrorCode, ErrorCode as ErrorCodeSchema } from '../errors.js';
 import { InstanceAction, ImportBatchStatus, ScanStatus, WorkflowState } from '../enums.js';
-import { Id, Instant, LocalDate } from '../primitives.js';
+import { Id, Instant, LocalDate, Name } from '../primitives.js';
 import { Action } from '../schemas/context.js';
 
 /**
@@ -25,6 +25,10 @@ export const ERROR_DETAILS = {
   IMPORT_STATE: z.strictObject({
     status: ImportBatchStatus,
     expected: z.array(ImportBatchStatus).min(1),
+  }),
+  /** Sent only after the password matched in every firm listed. */
+  FIRM_CHOICE_REQUIRED: z.strictObject({
+    firms: z.array(z.strictObject({ id: Id, name: Name })).min(2),
   }),
   FILE_TOO_LARGE: z.strictObject({ maxBytes: z.int().min(1) }),
   UNSUPPORTED_FILE: z.strictObject({ allowed: z.array(z.string()).min(1) }),

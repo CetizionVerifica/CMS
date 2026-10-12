@@ -115,9 +115,11 @@ describe('mock server', () => {
       csrfToken: string;
       clients: { id: string }[];
       mfa: { required: boolean };
+      session: { expiresAt: string };
     };
     expect(me.clients.map((c) => c.id)).toEqual([NORTHWIND]);
     expect(me.mfa.required).toBe(false);
+    expect(me.session.expiresAt).toBe('2024-11-15T18:30:00Z');
 
     await ok(app, 'getMe', { as: null, headers: { cookie } });
     // Each client carries what the period picker needs, so the web app does no FY maths.
@@ -202,6 +204,38 @@ describe('mock server', () => {
     });
     expect(verified.mfa.satisfied).toBe(true);
     await ok(app, 'listClients', { as: null, headers: { cookie: adminCookie } });
+  });
+
+  it('asks which firm when an email signs in to more than one', async () => {
+    const shared = createMockServer({ today: TODAY });
+    await shared.ready();
+    const email = 'kabir.shah@northwind.example';
+    const [firmA, firmB] = shared.store.firms;
+    const other = firmA!.data.people.find((p) => p.status === 'ACTIVE' && p.archivedAt === null)!;
+    Object.assign(other, { email });
+    const password = 'x';
+    const choice = await shared.inject({
+      method: 'POST',
+      url: `${MOCK_BASE_PATH}/auth/login`,
+      payload: { email, password },
+    });
+    expect(choice.statusCode).toBe(409);
+    const body = ApiErrorResponse.parse(choice.json());
+    expect(body.error.code).toBe('FIRM_CHOICE_REQUIRED');
+    expect(body.error.details).toEqual({
+      firms: [
+        { id: firmA!.data.firm.id, name: firmA!.data.firm.name },
+        { id: firmB!.data.firm.id, name: firmB!.data.firm.name },
+      ],
+    });
+    const chosen = await shared.inject({
+      method: 'POST',
+      url: `${MOCK_BASE_PATH}/auth/login`,
+      payload: { email, password, firmId: firmB!.data.firm.id },
+    });
+    expect(chosen.statusCode).toBe(200);
+    expect((chosen.json() as { person: { id: string } }).person.id).toBe(PERSON.kabir);
+    await shared.close();
   });
 
   it('invites a new person and lets them sign up', async () => {

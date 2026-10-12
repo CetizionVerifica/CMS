@@ -78,4 +78,4 @@ const res = await app.inject({
 Sign in with any password (any six digits for MFA), or send `X-Mock-Person` with a person id or email.
 `GET /__mock/people` lists who can sign in, `GET /__mock/outbox` shows magic links and invites, and
 `POST /__mock/reset` restores the fixtures. Behaviour the contract leaves open is in `docs/contracts/README.md`
-decisions 33-37.
+decisions 33-38.

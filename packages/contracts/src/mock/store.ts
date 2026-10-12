@@ -41,6 +41,9 @@ export interface FirmState {
   scanning: Set<string>;
 }
 
+/** How long a mock session reports it lasts. */
+const SESSION_HOURS = 12;
+
 export interface Session {
   id: string;
   firmId: string;
@@ -49,6 +52,8 @@ export interface Session {
   mfaSatisfied: boolean;
   /** Header sessions (`X-Mock-Person`) skip CSRF, for tests and scripts. */
   viaHeader: boolean;
+  /** Reported in `Me.session`; the mock does not end sessions. */
+  expiresAt: string;
 }
 
 /** An email the real API would send; the mock keeps it for `GET /__mock/outbox` instead. */
@@ -138,6 +143,9 @@ export class MockStore {
       csrfToken: this.token('csrf'),
       mfaSatisfied: viaHeader || !memberships.some((m) => isFirmRole(m.role)),
       viaHeader,
+      expiresAt: new Date(Date.parse(now) + SESSION_HOURS * 3_600_000)
+        .toISOString()
+        .replace(/\.\d{3}Z$/, 'Z'),
     };
     this.sessions.set(session.id, session);
     return session;

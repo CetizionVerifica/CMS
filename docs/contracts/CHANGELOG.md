@@ -45,4 +45,9 @@ Mock API server (`@canopy/contracts/mock`, `pnpm --filter @canopy/contracts mock
 served from the firm A and firm B fixtures under `/api/v1`, with the same input validation, role checks, error
 envelope, CSRF, MFA and Idempotency-Key rules as api-conventions.md, and each response checked against its schema.
 Firm B's `EVIDENCE_ADD` audit events now name the evidence (`entityType: evidence`) and carry the instance id in
-`after`, as events.md says. The stub `can()` (domain-model.md §8) ships as `can`. README decisions 33-37. No schema changed.
+`after`, as events.md says. The stub `can()` (domain-model.md §8) ships as `can`. README decisions 33-38.
+
+Auth, additive, for M5 (#33): `LoginBody` takes an optional `firmId`, and its password is 1-1024 characters (the
+12-character policy stays on `InviteAcceptBody`, where a password is set). New error code `FIRM_CHOICE_REQUIRED` (409,
+details `{ firms: [{ id, name }] }`) for a login whose email signs in to more than one firm. `Me` gains an optional
+`session.expiresAt`.
