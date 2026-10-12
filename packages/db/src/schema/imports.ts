@@ -11,6 +11,7 @@ import {
   index,
   integer,
   jsonb,
+  pgPolicy,
   pgTable,
   text,
   unique,
@@ -203,5 +204,13 @@ export const importIssue = pgTable(
       sql`(decision = 'EDITED') = (edited_value is not null)`,
     ),
     clientPolicy(),
+    // Issues are deleted only while their batch is still being analysed (migration 0009); from COMMITTING on
+    // they are the record of the cleaning that was proposed and decided (non-negotiable 5).
+    pgPolicy('delete_before_commit', {
+      as: 'restrictive',
+      for: 'delete',
+      to: 'public',
+      using: sql`firm_id = app_firm_id() and exists (select 1 from import_batch b where b.id = batch_id and b.status in ('UPLOADED', 'MAPPED', 'PARSED', 'REVIEWED', 'DRY_RUN_READY'))`,
+    }),
   ],
 );

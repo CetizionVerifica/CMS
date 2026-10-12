@@ -22,6 +22,14 @@ export {
 } from './tenant-context.js';
 export * from './repositories/index.js';
 export { DbError } from './errors.js';
+export {
+  LoginCandidate,
+  LoginTokenKind,
+  LoginTokenLookup,
+  SessionLookup,
+  TokenHash,
+  type AuthLookups,
+} from './auth-lookups.js';
 export { isUuidV7, uuidv7 } from './uuid.js';
 export {
   SEED_FIRMS,
