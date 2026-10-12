@@ -1,5 +1,5 @@
 import { DEFAULT_CLIENT_SETTINGS } from '@canopy/contracts';
-import { eq, inArray } from 'drizzle-orm';
+import { eq, inArray, sql } from 'drizzle-orm';
 import type { Database, TenantTx } from '../../src/database.js';
 import * as s from '../../src/schema/index.js';
 import { systemContext } from '../../src/tenant-context.js';
@@ -327,18 +327,14 @@ async function populateClient(
   add(
     'notification_send',
     scope,
-    await one(
-      tx
-        .insert(s.notificationSend)
-        .values({
-          clientId,
-          instanceId,
-          recipientId: p.ownerId,
-          kind: 'OWNER_REMINDER',
-          sendDate: '2023-01-24',
-        })
-        .returning({ id: s.notificationSend.id }),
-    ),
+    // Raw SQL naming its columns: the migration test runs this at migration 0002, before later
+    // columns (event_id, 0016) exist, and Drizzle's insert lists every schema column.
+    (
+      await tx.execute<{ id: string }>(sql`
+        INSERT INTO notification_send (client_id, instance_id, recipient_id, kind, send_date)
+        VALUES (${clientId}, ${instanceId}, ${p.ownerId}, 'OWNER_REMINDER', '2023-01-24')
+        RETURNING id`)
+    ).rows[0]!.id,
   );
 }
 
