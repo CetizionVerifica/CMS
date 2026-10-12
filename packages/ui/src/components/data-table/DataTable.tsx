@@ -155,6 +155,8 @@ export function DataTable<T>({
   const [activeIndex, setActiveIndex] = useState(0);
   const anchor = useRef<number | null>(null);
   const focusPending = useRef(false);
+  /** When an open focus request gives up (performance.now() ms). */
+  const focusDeadline = useRef(0);
   const scrollRef = useRef<HTMLDivElement>(null);
   const tbodyRef = useRef<HTMLTableSectionElement>(null);
 
@@ -282,11 +284,11 @@ export function DataTable<T>({
   const tableWidth = visibleColumns.reduce((w, c) => w + c.getSize(), selection ? SELECT_WIDTH : 0);
 
   // Move focus to the active row's link after keyboard navigation (it may have just been rendered).
-  // While the virtual list scrolls, the row can be re-rendered a few frames later, so keep the request open (across
-  // renders and frames) until focus lands.
+  // While the virtual list scrolls, the row can be rendered many frames later (a jump of thousands of rows on a busy
+  // machine), so keep the request open across renders and frames until focus lands, for up to 2 seconds of time rather
+  // than a frame count, which a slow machine burns through before the row exists.
   useEffect(() => {
     if (!focusPending.current) return;
-    let frames = 0;
     const tryFocus = () => {
       if (!focusPending.current) return;
       const link = tbodyRef.current?.querySelector<HTMLElement>(
@@ -294,7 +296,7 @@ export function DataTable<T>({
       );
       link?.focus();
       if (link && document.activeElement === link) focusPending.current = false;
-      else if (frames++ < 20) requestAnimationFrame(tryFocus);
+      else if (performance.now() < focusDeadline.current) requestAnimationFrame(tryFocus);
       else focusPending.current = false;
     };
     tryFocus();
@@ -303,6 +305,7 @@ export function DataTable<T>({
   const goTo = (index: number) => {
     const i = Math.max(0, Math.min(rows.length - 1, index));
     focusPending.current = true;
+    focusDeadline.current = performance.now() + 2000;
     setActiveIndex(i);
     virtualizer.scrollToIndex(i, { align: 'auto' });
   };

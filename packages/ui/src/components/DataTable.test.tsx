@@ -472,6 +472,32 @@ describe('DataTable', () => {
     expect(document.activeElement).toBe(stops[0]);
   });
 
+  it('keeps trying to focus the target row for longer than 20 frames on a slow machine', async () => {
+    renderTable({}, 50);
+    const [first, second] = rowLinks();
+    first!.focus();
+    // A busy machine: the next row cannot take focus for the first 30 attempts (more than the old 20-frame budget).
+    const realFocus = HTMLElement.prototype.focus;
+    let refusals = 30;
+    const focus = vi.spyOn(HTMLElement.prototype, 'focus').mockImplementation(function (
+      this: HTMLElement,
+    ) {
+      if (this === second && refusals-- > 0) return;
+      realFocus.call(this);
+    });
+    const raf = vi
+      .spyOn(window, 'requestAnimationFrame')
+      .mockImplementation((cb) => window.setTimeout(() => cb(performance.now()), 1));
+    try {
+      fireEvent.keyDown(first!, { key: 'ArrowDown' });
+      await vi.waitFor(() => expect(document.activeElement).toBe(second), { timeout: 1500 });
+      expect(refusals).toBeLessThan(0);
+    } finally {
+      focus.mockRestore();
+      raf.mockRestore();
+    }
+  });
+
   it('drops selected rows that leave the data, so bulk actions never reach them (audit #3)', async () => {
     const user = userEvent.setup();
     const approve = vi.fn();
