@@ -1,4 +1,4 @@
-// Server-side data for the shell: the user, their clients and overdue counts for the switcher.
+// Server-side data for the shell: the user, their clients, overdue counts for the switcher and the Approvals badge.
 import 'server-only';
 
 import { cookies, headers } from 'next/headers';
@@ -6,7 +6,7 @@ import { cache } from 'react';
 
 import { requireMe, serverApi } from '../api/server';
 import { initialLayout, LAYOUT_COOKIE, type ShellLayout } from '../layout-hint';
-import { buildShellModel, type ShellModel } from './model';
+import { APPROVAL_ROLES, buildShellModel, isFirmUser, rolesFor, type ShellModel } from './model';
 
 import { PATH_HEADER } from './path-header';
 
@@ -17,18 +17,22 @@ export async function requestPath(): Promise<string> {
 
 export const loadShell = cache(async (): Promise<ShellModel> => {
   const me = await requireMe(await requestPath());
-  const model = buildShellModel(me);
-  if (!model.isFirmUser) return model;
-  // Overdue counts come from the portfolio. The switcher still works without them, so a failure here only hides counts.
-  try {
-    const rows = (await (await serverApi()).portfolio()).data.items;
-    return buildShellModel(
-      me,
-      Object.fromEntries(rows.map((r) => [r.clientId, r.result.counts.OVERDUE])),
-    );
-  } catch {
-    return model;
-  }
+  const firm = isFirmUser(me);
+  const approver = rolesFor(me).some((r) => APPROVAL_ROLES.includes(r));
+  if (!firm && !approver) return buildShellModel(me);
+  const api = await serverApi();
+  // The shell works without these counts, so a failed call only hides its count.
+  const [overdue, waiting] = await Promise.all([
+    firm
+      ? api.portfolio().then(
+          ({ data }) =>
+            Object.fromEntries(data.items.map((r) => [r.clientId, r.result.counts.OVERDUE])),
+          () => ({}),
+        )
+      : {},
+    approver ? api.approvalsWaiting().catch(() => 0) : 0,
+  ]);
+  return buildShellModel(me, overdue, waiting);
 });
 
 export async function shellLayoutHint(): Promise<ShellLayout> {

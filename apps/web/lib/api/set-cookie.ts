@@ -2,6 +2,8 @@ export type CookieInit = {
   name: string;
   value: string;
   path?: string;
+  domain?: string;
+  expires?: Date;
   httpOnly?: boolean;
   secure?: boolean;
   sameSite?: 'lax' | 'strict' | 'none';
@@ -24,7 +26,11 @@ export function parseSetCookie(header: string, secureByDefault = false): CookieI
     const key = rawKey!.toLowerCase();
     const value = rest.join('=');
     if (key === 'path') cookie.path = value;
-    else if (key === 'httponly') cookie.httpOnly = true;
+    else if (key === 'domain' && value) cookie.domain = value.replace(/^\./, '');
+    else if (key === 'expires') {
+      const expires = new Date(value);
+      if (!Number.isNaN(expires.getTime())) cookie.expires = expires;
+    } else if (key === 'httponly') cookie.httpOnly = true;
     else if (key === 'secure') cookie.secure = true;
     else if (key === 'max-age') cookie.maxAge = Number(value);
     else if (key === 'samesite') {

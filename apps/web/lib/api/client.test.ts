@@ -1,7 +1,14 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { ApiError, createApiClient, isApiError } from './client';
-import { MOCK_CLIENTS, MOCK_INVITE_TOKEN, MOCK_MFA_CODE, MOCK_PASSWORD, mockFetch } from './mock';
+import { ApiError, createApiClient, isApiError, queryString } from './client';
+import {
+  MOCK_APPROVALS_WAITING,
+  MOCK_CLIENTS,
+  MOCK_INVITE_TOKEN,
+  MOCK_MFA_CODE,
+  MOCK_PASSWORD,
+  mockFetch,
+} from './mock';
 
 const api = (cookie?: string, csrfToken?: string) =>
   createApiClient({ baseUrl: 'http://api.test/', fetch: mockFetch, cookie, csrfToken });
@@ -68,6 +75,16 @@ describe('API client against the mock', () => {
     await expect(client.invite('no-such-invite-token')).rejects.toMatchObject({
       code: 'NOT_FOUND',
     });
+  });
+
+  it('counts the approvals waiting for an approver, and forbids it for an owner', async () => {
+    const approver = await sessionFor('approver@demo.test');
+    expect(await api(approver).approvalsWaiting()).toBe(MOCK_APPROVALS_WAITING);
+    const { data } = await api(approver).call('myApprovals', { query: { limit: '5' } });
+    expect(data).toEqual({ items: [], nextCursor: null });
+    expect(await api(approver).approvalsWaiting()).toBe(MOCK_APPROVALS_WAITING);
+    const owner = await sessionFor('owner@demo.test');
+    await expect(api(owner).approvalsWaiting()).rejects.toMatchObject({ code: 'FORBIDDEN' });
   });
 
   it('logs out by clearing the cookie', async () => {
@@ -155,6 +172,33 @@ describe('API client transport', () => {
     });
     await client.invite('a/b?c').catch(() => undefined);
     expect(fetchSpy.mock.calls[0]?.[0]).toBe('http://api.test/api/v1/invites/a%2Fb%3Fc');
+  });
+
+  it('calls any endpoint by name, with its query serialised and its response parsed', async () => {
+    const fetchSpy = vi.fn(
+      async (_url: string, _init?: RequestInit) =>
+        new Response(JSON.stringify({ items: [], nextCursor: null, total: 7 }), { status: 200 }),
+    );
+    const client = createApiClient({
+      baseUrl: 'http://api.test',
+      fetch: fetchSpy as unknown as typeof fetch,
+    });
+    const { data } = await client.call('myTasks', { query: { limit: '20', count: 'true' } });
+    expect(data).toEqual({ items: [], nextCursor: null, total: 7 });
+    expect(fetchSpy.mock.calls[0]?.[0]).toBe('http://api.test/api/v1/me/tasks?limit=20&count=true');
+    await client
+      .call('approveInstance', { params: { id: 'i/1' }, body: { version: 3 } })
+      .catch(() => undefined);
+    expect(fetchSpy.mock.calls[1]?.[0]).toBe('http://api.test/api/v1/instances/i%2F1/approve');
+    expect(fetchSpy.mock.calls[1]?.[1]?.method).toBe('POST');
+  });
+
+  it('writes a query string the API reads: arrays comma-separated, empty values left out', () => {
+    expect(queryString(undefined)).toBe('');
+    expect(queryString({ a: undefined, b: null })).toBe('');
+    expect(queryString({ status: ['OVERDUE', 'DUE_SOON'], limit: 5, q: 'a b&c' })).toBe(
+      '?status=OVERDUE%2CDUE_SOON&limit=5&q=a+b%26c',
+    );
   });
 
   it('matches any code when none is given', () => {
