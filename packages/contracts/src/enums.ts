@@ -212,6 +212,10 @@ export const NotificationKind = z.enum([
   'INVITE',
   'MAGIC_LINK',
   'EXPORT_READY',
+  /** To the approver, on `instance.submitted`. Event-driven: dedupes on the source event id (events.md §4 rule 4). */
+  'APPROVAL_REQUESTED',
+  /** To the owner, on `instance.sent_back`. Event-driven: dedupes on the source event id. */
+  'SENT_BACK',
 ]);
 export type NotificationKind = z.infer<typeof NotificationKind>;
 

@@ -49,7 +49,7 @@ Rules: no `any`; unknown keys rejected at the edge; strings trimmed; empty strin
 | `ImportRowOutcome` | `PENDING`, `CREATE`, `UPDATE`, `UNCHANGED`, `SKIPPED`, `ERROR` | Set by dry run, confirmed by commit. |
 | `ImportIssueType` | see §6 | |
 | `IssueSeverity` | `INFO`, `WARNING`, `ERROR` | `ERROR` blocks the row; `WARNING` needs a decision; `INFO` is shown only. |
-| `NotificationKind` | `OWNER_REMINDER`, `APPROVER_ESCALATION`, `CONSULTANT_DIGEST`, `INVITE`, `MAGIC_LINK`, `EXPORT_READY` | |
+| `NotificationKind` | `OWNER_REMINDER`, `APPROVER_ESCALATION`, `CONSULTANT_DIGEST`, `INVITE`, `MAGIC_LINK`, `EXPORT_READY`, `APPROVAL_REQUESTED`, `SENT_BACK` | |
 | `ExportKind` | `REGISTER_XLSX`, `CERTIFICATE_PDF`, `ACT_REPORT_XLSX`, `DEPARTMENT_REPORT_XLSX`, `OVERDUE_REPORT_XLSX` | |
 | `JobStatus` | `QUEUED`, `RUNNING`, `DONE`, `FAILED` | Exports and imports. |
 
@@ -329,7 +329,7 @@ interface ScoreResult {
   instanceIds: Record<DerivedStatus, Id[]>          // so every number links to exactly those rows
 }
 interface Breakdown { by: "department" | "act" | "criticality" | "unit" | "owner"; rows: { key: string; label: string; result: ScoreResult }[] }
-interface PortfolioRow { clientId: Id; clientName: string; result: ScoreResult; dueThisWeek: number; lastActivityAt: Instant | null }
+interface PortfolioRow { clientId: Id; clientName: string; result: ScoreResult; dueThisWeek: number; dueThisWeekFilter?: { dueFrom: LocalDate; dueTo: LocalDate; workflowState: WorkflowState[] }; lastActivityAt: Instant | null }
 interface PlannedNotification { kind: NotificationKind; recipientId: Id; instanceId: Id; sendDate: LocalDate; offsetDays: number }
 interface ExportJob extends Base { clientId: Id; kind: ExportKind; params: Record<string, unknown>; status: JobStatus; fileName: string | null; requestedById: Id }
 ```
