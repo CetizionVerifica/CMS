@@ -89,7 +89,7 @@ describe('scale', () => {
     const small = largeSheet(2_500, 500);
     const large = largeSheet(40_000, 500);
     bestTime(small, 1); // warm up the JIT
-    const ratio = bestTime(large, 2) / bestTime(small, 3);
+    const ratio = bestTime(large, 3) / bestTime(small, 3);
     expect(ratio).toBeLessThan(24);
   }, 120_000);
 });
