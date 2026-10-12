@@ -10,6 +10,12 @@
 - Check permissions with `authorize(req, action, resource)` (throws `FORBIDDEN`) or `can()`. Pass `ownerId` and
   `approverId` on instance resources and `unitId` when known; pass `clientId: null` for firm-level resources.
 - A client id from a body or a loaded row goes through `requireClient(ctx, clientId)` (404 outside the actor's clients).
+- `clientId: null` means a firm-level resource, not "any client": client roles are denied there except on firm-wide
+  rows (library, locations). For a list across the actor's clients, authorize per client or filter the query by
+  `ctx.clientIds`.
+- `session-pre-mfa` routes exist only to finish MFA: `authorize()` there throws `MFA_REQUIRED` while MFA is owed.
+- Stricter per-route rate limits use `config.routeLimit: { max, timeWindow }`. The plugin's `config.rateLimit` is
+  refused, because the API-wide limiter would make it a no-op.
 - Throw `ApiError(code, details?)` for contract errors.
 - Tests: `createTestAuth()` from `./testing.ts`; `signIn({ memberships })` returns headers for `app.inject`.
 

@@ -17,6 +17,10 @@ app.get('/whoami', { config: { auth: 'session' } }, async (req) => req.ctx);
 app.get('/me-ish', { config: { auth: 'session-pre-mfa' } }, async (req) => ({
   mfa: req.ctx.mfaSatisfied,
 }));
+app.get('/pre-mfa-read', { config: { auth: 'session-pre-mfa' } }, async (req) => {
+  authorize(req, 'client.read', { type: 'client', clientId: req.ctx.clientIds[0] ?? null });
+  return { ok: true };
+});
 app.post('/clients/:clientId/things', { config: { auth: 'session' } }, async (req) => {
   const { clientId } = req.params as { clientId: string };
   authorize(req, 'entity.write', { type: 'unit', clientId });
@@ -97,6 +101,19 @@ describe('session routes', () => {
     });
     const pre = await app.inject({ url: '/me-ish', headers: actor.headers });
     expect(pre.json()).toEqual({ mfa: false });
+    // authorize() on a pre-MFA route still demands MFA.
+    const read = await app.inject({ url: '/pre-mfa-read', headers: actor.headers });
+    expect(read.statusCode).toBe(401);
+    expect(read.json()).toMatchObject({
+      error: { code: 'MFA_REQUIRED', details: { enrolled: true } },
+    });
+    const done = signIn({
+      memberships: [{ role: 'FIRM_ADMIN' }],
+      principal: { firmClientIds: [CLIENT] },
+    });
+    expect((await app.inject({ url: '/pre-mfa-read', headers: done.headers })).statusCode).toBe(
+      200,
+    );
   });
 
   it('returns 403 ACCESS_EXPIRED when every membership has expired', async () => {
@@ -269,6 +286,36 @@ describe('rate limit', () => {
     const other = await limited.inject({ url: '/health', remoteAddress: '10.0.0.2' });
     expect(other.statusCode).toBe(200);
     await limited.close();
+  });
+});
+
+describe('per-route rate limit', () => {
+  it('trips config.routeLimit on its own counter, behind the API-wide limit', async () => {
+    const limited = buildServer();
+    limited.post(
+      '/login-ish',
+      { config: { auth: 'public', routeLimit: { max: 2, timeWindow: 60_000 } } },
+      async () => ({ ok: true }),
+    );
+    for (let i = 0; i < 2; i++) {
+      expect((await limited.inject({ method: 'POST', url: '/login-ish' })).statusCode).toBe(200);
+    }
+    const third = await limited.inject({ method: 'POST', url: '/login-ish' });
+    expect(third.statusCode).toBe(429);
+    expect(third.json()).toMatchObject({
+      error: { code: 'RATE_LIMITED', details: { retryAfterSeconds: 60 } },
+    });
+    // Other routes keep their own (API-wide) budget.
+    expect((await limited.inject({ url: '/health' })).statusCode).toBe(200);
+    await limited.close();
+  });
+
+  it('refuses the plugin config.rateLimit, which would never fire', async () => {
+    const bare = buildServer();
+    expect(() =>
+      bare.get('/x', { config: { auth: 'public', rateLimit: { max: 1 } } }, async () => 'x'),
+    ).toThrow(/use config.routeLimit/);
+    await bare.close();
   });
 });
 

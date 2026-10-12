@@ -9,7 +9,7 @@ import type {
   onRequestHookHandler,
 } from 'fastify';
 import { ZodError } from 'zod';
-import { buildRequestContext, type AuthStore } from './context.js';
+import { buildRequestContext, mfaRequired, type AuthStore } from './context.js';
 import { ApiError, errorEnvelope } from './errors.js';
 import { can } from './policy.js';
 import { hashToken, sameToken } from './tokens.js';
@@ -27,6 +27,8 @@ export type RouteAuth = (typeof ROUTE_AUTH)[number];
 declare module 'fastify' {
   interface FastifyContextConfig {
     auth?: RouteAuth;
+    /** A stricter per-route limit per client IP (login, magic link, invites), on top of the API-wide one. */
+    routeLimit?: RateLimit;
   }
   interface FastifyRequest {
     /** The request context. Set on `session` and `session-pre-mfa` routes; reading it elsewhere throws. */
@@ -43,12 +45,20 @@ export interface AuthOptions {
   /** Defaults to the system clock. */
   readonly clock?: () => Date;
   /** Requests per client IP per window across the whole API. Default 300 per minute. */
-  readonly rateLimit?: { readonly max: number; readonly timeWindow: string | number };
+  readonly rateLimit?: RateLimit;
+}
+
+export interface RateLimit {
+  readonly max: number;
+  /** Milliseconds, or a duration such as '1 minute'. */
+  readonly timeWindow: string | number;
 }
 
 export const DEFAULT_RATE_LIMIT = { max: 300, timeWindow: '1 minute' } as const;
 
 const contexts = new WeakMap<FastifyRequest, RequestContext>();
+/** Requests on `session-pre-mfa` routes whose actor still owes MFA, with whether they have enrolled. */
+const mfaPending = new WeakMap<FastifyRequest, { enrolled: boolean }>();
 
 function sessionHook(options: AuthOptions, auth: RouteAuth): onRequestHookHandler {
   const clock = options.clock ?? (() => new Date());
@@ -85,6 +95,22 @@ function sessionHook(options: AuthOptions, auth: RouteAuth): onRequestHookHandle
       throw new ApiError('NOT_FOUND');
 
     contexts.set(request, ctx);
+    if (principal && !ctx.mfaSatisfied && mfaRequired(principal, ctx.memberships)) {
+      mfaPending.set(request, { enrolled: principal.mfaEnrolled });
+    }
+  };
+}
+
+function routeLimitHook(app: FastifyInstance, limit: RateLimit): onRequestHookHandler {
+  let check: ReturnType<FastifyInstance['createRateLimit']> | undefined;
+  return async (request) => {
+    // Created on first use: the rate-limit plugin's decorators exist once the app is ready. Each route
+    // gets its own counters.
+    check ??= app.createRateLimit(limit);
+    const result = await check(request);
+    if (!result.isAllowed && result.isExceeded) {
+      throw new ApiError('RATE_LIMITED', { retryAfterSeconds: result.ttlInSeconds });
+    }
   };
 }
 
@@ -130,7 +156,7 @@ export function registerAuth(app: FastifyInstance, options: AuthOptions): void {
 
   // Every request is rate limited per client IP, before the session is looked up, so guessing session
   // tokens is throttled too. Login, magic link and invite routes add stricter per-route limits
-  // (`config.rateLimit`). The limiter is created on first use because the plugin loads asynchronously.
+  // (`config.routeLimit`). The limiter is created on first use because the plugin loads asynchronously.
   void app.register(fastifyRateLimit, {
     global: false,
     errorResponseBuilder: (_request, context) =>
@@ -159,10 +185,16 @@ export function registerAuth(app: FastifyInstance, options: AuthOptions): void {
         `${String(route.method)} ${route.url}: declare config.auth (${ROUTE_AUTH.join(', ')})`,
       );
     }
-    if (auth === 'public') return;
+    // The plugin's own per-route `config.rateLimit` would never fire behind the API-wide limiter.
+    if (route.config?.rateLimit !== undefined) {
+      throw new Error(
+        `${String(route.method)} ${route.url}: use config.routeLimit, not config.rateLimit`,
+      );
+    }
     const existing = route.onRequest ?? [];
     route.onRequest = [
-      sessionHook(options, auth),
+      ...(route.config?.routeLimit ? [routeLimitHook(app, route.config.routeLimit)] : []),
+      ...(auth === 'public' ? [] : [sessionHook(options, auth)]),
       ...(Array.isArray(existing) ? existing : [existing]),
     ];
   });
@@ -177,8 +209,13 @@ export function registerAuth(app: FastifyInstance, options: AuthOptions): void {
   app.setNotFoundHandler((request, reply) => sendError(request, reply, new ApiError('NOT_FOUND')));
 }
 
-/** Throws `FORBIDDEN` unless `can()` allows the action for the request's actor. */
+/**
+ * Throws `FORBIDDEN` unless `can()` allows the action for the request's actor. On a `session-pre-mfa`
+ * route whose actor still owes MFA it throws `MFA_REQUIRED`: those routes only complete MFA.
+ */
 export function authorize(request: FastifyRequest, action: Action, resource: Resource): void {
+  const pending = mfaPending.get(request);
+  if (pending) throw new ApiError('MFA_REQUIRED', pending);
   if (!can(request.ctx, action, resource)) throw new ApiError('FORBIDDEN', { action });
 }
 

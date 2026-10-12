@@ -197,6 +197,19 @@ describe('can() scope', () => {
     expect(can(ctxFor([scoped('OWNER')]), 'location.write', location)).toBe(false);
   });
 
+  it('denies client roles client-level actions with clientId null; lists filter by ctx.clientIds', () => {
+    const anyClient: Resource = { type: 'instance', clientId: null };
+    for (const role of ['CLIENT_ADMIN', 'APPROVER', 'OWNER', 'VIEWER'] as const) {
+      expect(can(ctxFor([scoped(role)]), 'client.read', { type: 'client', clientId: null })).toBe(
+        false,
+      );
+      expect(can(ctxFor([scoped(role)]), 'instance.read', anyClient)).toBe(false);
+    }
+    expect(
+      can(ctxFor([scoped('FIRM_ADMIN')]), 'client.read', { type: 'client', clientId: null }),
+    ).toBe(true);
+  });
+
   it('ignores archived memberships', () => {
     const ctx = ctxFor([scoped('CLIENT_ADMIN', { archivedAt: '2026-01-02T00:00:00Z' })]);
     expect(can(ctx, 'instance.read', instance())).toBe(false);
