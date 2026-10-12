@@ -88,4 +88,7 @@ interface DomainEvent<T extends string, D> {
 1. Add a type only through an M0 change request; never rename one (add `schemaVersion: 2` alongside instead).
 2. An event that a consumer needs to act on must be emitted from the same transaction as the change (outbox). No "fire after commit" side calls.
 3. Bulk operations emit one event per item plus at most one summary event.
-4. Importer commit emits domain events with `actor.kind = "IMPORT"`, but M9 must **not** send reminders for instances created as already APPROVED or NOT_APPLICABLE (engine already returns none for them).
+4. Notifications are deduplicated on `(instanceId, kind, sendDate, recipientId)` (`NOTIFICATION_DEDUPE_KEY`), the
+   recipient included: after a same-day reassignment the new owner or approver is still reminded. A store's unique
+   index must cover all four columns.
+5. Importer commit emits domain events with `actor.kind = "IMPORT"`, but M9 must **not** send reminders for instances created as already APPROVED or NOT_APPLICABLE (engine already returns none for them).
