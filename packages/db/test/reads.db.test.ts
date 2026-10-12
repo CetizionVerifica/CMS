@@ -123,10 +123,10 @@ describe('units', () => {
 });
 
 describe('generated range', () => {
-  it("spans the client's instance period starts, or is null", async () => {
+  it("spans the client's instance due dates, or is null", async () => {
     expect(await inFirm(a, (tx) => r.clients.generatedRange(tx, a.clientIds[0]))).toEqual({
-      from: '2022-04-01',
-      to: '2022-04-01',
+      from: '2023-01-31',
+      to: '2023-01-31',
     });
     expect(await inFirm(b, (tx) => r.clients.generatedRange(tx, a.clientIds[0]))).toBeNull();
     const empty = await inFirm(a, (tx) =>

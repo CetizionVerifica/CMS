@@ -59,8 +59,8 @@ export const clients = {
   /** The clients this context may see. */
   list: (tx: TenantTx, page?: PageRequest) => clientEntity.list(tx, undefined, page),
   /**
-   * The earliest and latest period start of the client's non-archived instances this context sees, or null
-   * when there are none.
+   * The earliest and latest due date of the client's non-archived instances this context sees, or null
+   * when there are none (M4's `?fy=` filters by due date).
    */
   async generatedRange(
     tx: TenantTx,
@@ -69,8 +69,8 @@ export const clients = {
     const i = s.complianceInstance;
     const [row] = await tx
       .select({
-        from: sql<string | null>`min(${i.periodStart})::text`,
-        to: sql<string | null>`max(${i.periodStart})::text`,
+        from: sql<string | null>`min(${i.dueDate})::text`,
+        to: sql<string | null>`max(${i.dueDate})::text`,
       })
       .from(i)
       .where(and(eq(i.clientId, validate(Id, clientId)), isNull(i.archivedAt)))
