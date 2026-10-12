@@ -44,7 +44,7 @@ export function memoisedGenerator(): (
 /**
  * Whether the job generates instances for an assignment, and why not. Event-driven obligations get an instance
  * when their event is recorded (M7), and a TO_REVIEW rule is a low-confidence import guess that a consultant has
- * not confirmed, so neither is generated ahead (ADR 0003).
+ * not confirmed, so neither is generated ahead (ADR M9-0001).
  */
 export function skipReason(
   t: GenerationTarget,

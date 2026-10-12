@@ -1,4 +1,4 @@
-# 0003. M9 jobs and notifications: schedule, dedupe and what is generated
+# M9-0001. Jobs and notifications: schedule, dedupe and what is generated
 
 Status: accepted (M9 PR 1, 2026-10-12)
 

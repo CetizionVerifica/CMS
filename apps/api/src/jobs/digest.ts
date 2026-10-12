@@ -21,7 +21,7 @@ export function clientUrl(appUrl: string, clientId: Id): string {
 /**
  * The time zone that fixes a consultant's digest day. A consultant gets at most one digest per date (the send
  * log's digest key is recipient, kind and date), so every client must agree on which date that is, even when
- * clients sit in different zones. It is the product default, India time (ADR 0003 §8).
+ * clients sit in different zones. It is the product default, India time (ADR M9-0001 §8).
  */
 export const DIGEST_TIME_ZONE = DEFAULT_CLIENT_SETTINGS.timeZone;
 
