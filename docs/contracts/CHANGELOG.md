@@ -32,3 +32,10 @@ validated as a register query (`RegisterFilterQuery`); action names are camelCas
 `INSTANCE_EDIT_STATES` (ADR 0004 §7); `ClientSummary` carries FY start, time zone, unit count and periods (M11);
 `PersonCreateBody.role` (M6); `NOTIFICATION_DEDUPE_KEY` (M9); `instance.generated` is one event per created instance
 (M9). README decisions 26-29.
+
+## 1.2.0 · 2026-10-12
+Typed fixtures (fixtures.md): `firm-a.sample.json` (the sample register, recommended profile, people pseudonymised),
+`firm-a.expected.json` (§3 counts for both profiles, the §4 score table, instance ids per status, breakdowns by
+department, Act and criticality), `firm-a.due-dates.json` and `firm-b.synthetic.json`. New schemas `FixtureSet`,
+`DueDatesFixture` and `ExpectedFixture`; the Node entry `@canopy/contracts/fixtures` adds `fixtureId`, `uuidV5` and
+loaders. `mock-large.json` and the `import-edge/*.xlsx` sheets are not built yet. README decisions 30-32.

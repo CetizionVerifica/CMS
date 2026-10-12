@@ -1,2 +1,2 @@
 /** Contracts version. Every change bumps it and adds a line to docs/contracts/CHANGELOG.md. */
-export const CONTRACTS_VERSION = '1.1.0';
+export const CONTRACTS_VERSION = '1.2.0';

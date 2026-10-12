@@ -2,90 +2,64 @@ import {
   LocalDate,
   type Action,
   type Can,
-  type Membership,
   type RequestContext,
   type Role,
   type WorkflowState,
 } from '@canopy/contracts';
 import { describe, expect, it } from 'vitest';
+import { can } from '../../auth/index.js';
+import { membership } from '../../auth/testing.js';
 import { allowedActions, instanceResource, type ActionTarget } from './allowed-actions.js';
 
 const FIRM = '0190f000-0000-7000-8000-0000000000f1';
 const CLIENT = '0190f000-0000-7000-8000-0000000000c1';
+const OTHER_CLIENT = '0190f000-0000-7000-8000-0000000000c2';
 const UNIT = '0190f000-0000-7000-8000-0000000000e1';
+const OTHER_UNIT = '0190f000-0000-7000-8000-0000000000e2';
 const OWNER = '0190f000-0000-7000-8000-000000000001';
 const APPROVER = '0190f000-0000-7000-8000-000000000002';
 const OTHER = '0190f000-0000-7000-8000-000000000009';
-const AT = '2023-04-01T00:00:00Z';
 
-function ctx(role: Role, personId: string): RequestContext {
+/** A request context with one membership of `role`, scoped to CLIENT unless overridden. */
+function ctx(
+  role: Role,
+  personId: string,
+  scope: { clientId?: string; unitIds?: string[] } = {},
+): RequestContext {
+  const clientId = scope.clientId ?? CLIENT;
   const firmRole = role === 'FIRM_ADMIN' || role === 'CONSULTANT';
-  const membership: Membership = {
-    id: '0190f000-0000-7000-8000-0000000000d1',
-    firmId: FIRM,
-    createdAt: AT,
-    updatedAt: AT,
-    archivedAt: null,
-    version: 1,
-    personId,
-    role,
-    clientId: firmRole ? null : CLIENT,
-    consultantClientIds: role === 'CONSULTANT' ? [CLIENT] : null,
-    unitIds: null,
-    expiresAt: role === 'VIEWER' ? '2030-01-01T00:00:00Z' : null,
-  };
   return {
     requestId: 'req-1',
     firmId: FIRM,
     personId,
-    memberships: [membership],
-    clientIds: [CLIENT],
+    memberships: [
+      membership({
+        role,
+        firmId: FIRM,
+        personId,
+        clientId: firmRole ? null : clientId,
+        consultantClientIds: role === 'CONSULTANT' ? [clientId] : null,
+        unitIds: scope.unitIds ?? null,
+      }),
+    ],
+    clientIds: [clientId],
     mfaSatisfied: true,
     asOf: LocalDate.parse('2023-04-20'),
   };
 }
 
-/** The endpoints.md §4 matrix, as a stand-in for M5's policy table. "own" = owner or approver of the instance. */
-const MATRIX: Record<string, Partial<Record<Role, 'all' | 'own'>>> = {
-  'instance.submit': { OWNER: 'own' },
-  'instance.approve': { CLIENT_ADMIN: 'all', APPROVER: 'own' },
-  'instance.reopen': { FIRM_ADMIN: 'all', CONSULTANT: 'all', CLIENT_ADMIN: 'all' },
-  'instance.reassign': { FIRM_ADMIN: 'all', CONSULTANT: 'all', CLIENT_ADMIN: 'all' },
-  'instance.dueDate': { FIRM_ADMIN: 'all', CONSULTANT: 'all', CLIENT_ADMIN: 'all' },
-  'comment.write': {
-    FIRM_ADMIN: 'all',
-    CONSULTANT: 'all',
-    CLIENT_ADMIN: 'all',
-    APPROVER: 'own',
-    OWNER: 'own',
-  },
-  'evidence.write': {
-    FIRM_ADMIN: 'all',
-    CONSULTANT: 'all',
-    CLIENT_ADMIN: 'all',
-    APPROVER: 'own',
-    OWNER: 'own',
-  },
-};
-
+/** M5's real can(), recording which actions it was asked about. */
 const seen: Action[] = [];
-const can: Can = (c, action, resource) => {
+const recordingCan: Can = (c, action, resource) => {
   seen.push(action);
-  return c.memberships.some((m) => {
-    const rule = MATRIX[action]?.[m.role];
-    if (rule === 'all') return true;
-    if (rule !== 'own') return false;
-    return m.role === 'OWNER'
-      ? resource.ownerId === c.personId
-      : resource.approverId === c.personId;
-  });
+  return can(c, action, resource);
 };
 
 function target(workflowState: WorkflowState): ActionTarget {
   return { workflowState, clientId: CLIENT, unitId: UNIT, ownerId: OWNER, approverId: APPROVER };
 }
 
-describe('allowedActions', () => {
+describe("allowedActions with M5's can()", () => {
   it('passes the instance as the can() resource', () => {
     expect(instanceResource(target('OPEN'))).toEqual({
       type: 'instance',
@@ -98,7 +72,7 @@ describe('allowedActions', () => {
 
   it('asks can() with the endpoints.md action names', () => {
     seen.length = 0;
-    allowedActions(target('OPEN'), ctx('VIEWER', OTHER), can);
+    allowedActions(target('OPEN'), ctx('VIEWER', OTHER), recordingCan);
     expect(new Set(seen)).toEqual(
       new Set([
         'instance.submit',
@@ -132,7 +106,19 @@ describe('allowedActions', () => {
     ['VIEWER', OTHER, 'OPEN', []],
     ['VIEWER', OTHER, 'SUBMITTED', []],
   ] as const)('%s (%s) on %s → %j', (role, person, state, expected) => {
-    expect(allowedActions(target(state), ctx(role, person), can)).toEqual(expected);
+    expect(allowedActions(target(state), ctx(role, person), recordingCan)).toEqual(expected);
+  });
+
+  it("offers nothing outside the person's units", () => {
+    expect(
+      allowedActions(target('OPEN'), ctx('OWNER', OWNER, { unitIds: [OTHER_UNIT] }), can),
+    ).toEqual([]);
+  });
+
+  it('offers nothing to a consultant on another client', () => {
+    expect(
+      allowedActions(target('APPROVED'), ctx('CONSULTANT', OTHER, { clientId: OTHER_CLIENT }), can),
+    ).toEqual([]);
   });
 
   it('offers nothing when can() refuses everything', () => {

@@ -2,8 +2,9 @@
 
 The shared shapes every module builds against. These files describe them; the code in `packages/contracts` is the
 source of truth wherever it exists. Shipped in code so far: domain types, enums, entity Zod schemas, error codes, request/response
-schemas for every endpoint with role permissions (`packages/contracts/src/api`) and the generated OpenAPI 3.1 spec
-([openapi.json](openapi.json)). Still spec only, coming in later M0 PRs: typed JSON fixtures and the mock server.
+schemas for every endpoint with role permissions (`packages/contracts/src/api`), the generated OpenAPI 3.1 spec
+([openapi.json](openapi.json)) and typed JSON fixtures for firms A and B (`packages/contracts/fixtures`). Still spec
+only, coming in a later M0 PR: the mock server.
 
 | File | What it fixes | Main readers |
 |---|---|---|
@@ -16,7 +17,7 @@ schemas for every endpoint with role permissions (`packages/contracts/src/api`) 
 | [CHANGELOG.md](CHANGELOG.md) | Contract versions | everyone |
 
 ## Status
-Version `1.1.0` (`CONTRACTS_VERSION` in `packages/contracts/src/version.ts`). The domain model in §1-8 of
+Version `1.2.0` (`CONTRACTS_VERSION` in `packages/contracts/src/version.ts`). The domain model in §1-8 of
 [domain-model.md](domain-model.md) is published as v1 so wave 1 (M3, M4, M8, M11) can build against it. Each consumer
 module owner still reviews its part (MODULES.md M0 acceptance); review findings ship as additive changes or, if breaking,
 with sign-off per "How to change a contract".
@@ -83,3 +84,13 @@ with sign-off per "How to change a contract".
     keeps their status either way. This keeps the status rule M3's `person_email_status_check` enforces.
 29. `instance.generated` is one event per created instance with `aggregateVersion: 1`, so an instance's events count
     up from its creation; there is no per-run summary event.
+30. Fixture periods: firm A's instances get `periodStart`/`periodEnd` from the rule stored on the obligation (quarter or
+    month ending on the due date for ongoing reviews, the month before for monthly returns, the FY for annual dates,
+    equal FY slices otherwise). Firm A obligations whose dates no simple rule reproduces store `FIXED_DATES` and
+    `ruleStatus: TO_REVIEW`. M4's golden test asserts due dates, not these periods.
+31. Firm A carries two firm staff besides the 21 register people: a FIRM_ADMIN and a CONSULTANT, with
+    `@demo-advisory.example` emails. Register people are UNCLAIMED with no email. Owners are "Owner 01"-"Owner 12" and
+    people who only approve are "Approver 01"-"Approver 09", numbered by normalised real name; the generator fails if
+    any real name, or a part of one, appears in copied text.
+32. For the `raw` profile the complied row with no Activity Date still counts as APPROVED with `completedOn = dueDate`;
+    "raw" means no merges are accepted, not that the row is left invalid.
