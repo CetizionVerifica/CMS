@@ -24,16 +24,22 @@ who may write firm-wide mapping templates.
    whose due date equals the instance's due date, so the nightly generator (unique on `(assignment_id,
    period_start)`) finds it and does not add a duplicate. When no generated period has that due date (an irregular
    register date, a TO_REVIEW rule) or that period is already taken, the period is the due date itself.
-4. **Re-import compares field by field** (`instanceChange`, packages/importer): comments are append-only and match
-   in order; a SUBMITTED or SENT_BACK instance whose row still says Pending with no Activity Date is unchanged and is
-   never moved back to OPEN. A changed instance keeps its id and gets one `update` (version + 1).
-5. **People are created UNCLAIMED, without memberships.** The register has no emails. They are matched by
+4. **Re-import compares field by field** (`instanceChange`, packages/importer): comments are append-only, and an
+   incoming comment matches a stored one with the same body in any order, so a reordered register appends nothing.
+   A changed instance keeps its id and gets one `update` (version + 1).
+5. **An import never reopens work.** A SUBMITTED, SENT_BACK, APPROVED or NOT_APPLICABLE instance whose row still says
+   Pending with no Activity Date keeps its state (its owner, approver and new comments still apply): the register is
+   older than the workflow step. The app requires a reason to reopen closed work (`reopen`, apps/api CLAUDE.md), and
+   a register row carries none, so reopening stays a workflow action by a client admin or consultant. Listing
+   reopenings in the dry run instead would need a new `DryRunReport` field from M0. Closed work the register shows
+   closed differently (another completion date, APPROVED against NOT_APPLICABLE) is corrected and audited.
+6. **People are created UNCLAIMED, without memberships.** The register has no emails. They are matched by
    `nameNormalized` within the client's people and are invited later by a client or firm admin.
-6. **Audit actions.** Every created or changed entity writes an `AuditEvent` with `action = IMPORT` (before and after
+7. **Audit actions.** Every created or changed entity writes an `AuditEvent` with `action = IMPORT` (before and after
    hold the changed fields only, never names from rows) in the commit's transaction; an accepted alias is
    `MERGE_ALIAS` on the act, category or department. Appended comments are IMPORT comments with no author, plus
    one IMPORT event `{ commentsAdded }` per instance. The actor is the person who called commit.
-7. **Firm templates are FIRM_ADMIN only.** A consultant can run every import step for their clients, including
+8. **Firm templates are FIRM_ADMIN only.** A consultant can run every import step for their clients, including
    commit, and save client templates, but creating, renaming or deleting a firm-wide template (`clientId: null`)
    and saving a mapping as one needs FIRM_ADMIN (`403 FORBIDDEN`), because firm templates apply to every client.
 
