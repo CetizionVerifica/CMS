@@ -1,6 +1,7 @@
 import type { ApiError, ErrorCode, Id } from '@canopy/contracts';
 import { ERROR_HTTP_STATUS } from '@canopy/contracts';
 import type { z } from 'zod';
+import type { DuplicateError } from '../store.js';
 
 type Details<C extends ErrorCode> = Extract<ApiError, { error: { code: C } }>['error']['details'];
 
@@ -37,6 +38,14 @@ export const duplicate = (field: string, existingId: Id): HttpError<'DUPLICATE'>
 
 export const invalid = (message: string, path: (string | number)[] = []): HttpError<'VALIDATION'> =>
   new HttpError('VALIDATION', message, { issues: [{ path, message }] });
+
+/** 409 DUPLICATE naming the existing row, or 400 when that row is outside what the actor can see (its id stays hidden). */
+export const fromDuplicate = (
+  e: DuplicateError,
+): HttpError<'DUPLICATE'> | HttpError<'VALIDATION'> =>
+  e.existingId === null
+    ? invalid(`This ${e.field} is already in use.`, ['body', e.field])
+    : duplicate(e.field, e.existingId);
 
 /** 400 VALIDATION from a Zod error, with paths prefixed by where the value came from. */
 export function fromZod(error: z.ZodError, where: string): HttpError<'VALIDATION'> {

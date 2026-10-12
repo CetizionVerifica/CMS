@@ -21,6 +21,7 @@ import type {
   JobDomainEvent,
   JobStore,
   Mailer,
+  OutboxEvent,
   OutgoingEmail,
   Recipient,
   SendFailureCode,
@@ -68,6 +69,20 @@ export interface MemorySend extends SendKey {
   failureCode: SendFailureCode | null;
 }
 
+/** An event any module wrote, as the outbox stores it. */
+export type AnyDomainEvent = Omit<JobDomainEvent, 'type' | 'actor'> & {
+  type: string;
+  actor: Record<string, unknown>;
+};
+
+/** An outbox row: the event as written plus what the database adds. */
+export interface MemoryOutboxEvent extends AnyDomainEvent {
+  id: Id;
+  occurredAt: string;
+  publishedAt: string | null;
+  attempts: number;
+}
+
 export interface MemoryFirm {
   id: Id;
   settings: FirmSettings;
@@ -77,7 +92,7 @@ export interface MemoryFirm {
   people: MemoryPerson[];
   sends: MemorySend[];
   audits: JobAuditEvent[];
-  events: JobDomainEvent[];
+  events: MemoryOutboxEvent[];
 }
 
 export function memoryFirm(id: Id = randomUUID()): MemoryFirm {
@@ -146,7 +161,7 @@ function firmTx(firm: MemoryFirm, hooks: MemoryStoreHooks): FirmTx {
       });
     },
     writeAudit: async (events) => void firm.audits.push(...events),
-    writeEvents: async (events) => void firm.events.push(...events),
+    writeEvents: async (events) => void firm.events.push(...events.map(outboxRow)),
     listReminderCandidates: async (clientId, range) =>
       firm.instances
         .filter(
@@ -232,15 +247,52 @@ function firmTx(firm: MemoryFirm, hooks: MemoryStoreHooks): FirmTx {
     markSent: async (key, at, event) => {
       const row = firm.sends.find((s) => sameKey(s, key))!;
       row.sentAt = at;
-      firm.events.push({
-        ...event,
-        aggregate: { type: 'notification_send', id: row.id },
-        aggregateVersion: 1,
-      });
+      firm.events.push(
+        outboxRow({
+          ...event,
+          aggregate: { type: 'notification_send', id: row.id },
+          aggregateVersion: 1,
+        }),
+      );
     },
     markFailed: async (key, code) => {
       firm.sends.find((s) => sameKey(s, key))!.failureCode = code;
     },
+    claimEvents: async (limit) =>
+      firm.events
+        .filter((e) => e.publishedAt === null)
+        .slice(0, limit)
+        .map((e): OutboxEvent => ({
+          id: e.id,
+          type: e.type,
+          schemaVersion: 1,
+          occurredAt: e.occurredAt,
+          firmId: firm.id,
+          clientId: e.clientId,
+          actor: e.actor,
+          requestId: e.requestId,
+          aggregate: e.aggregate,
+          aggregateVersion: e.aggregateVersion,
+          data: e.data,
+        })),
+    markEventsPublished: async (ids) => {
+      for (const e of firm.events) if (ids.includes(e.id)) e.publishedAt = new Date().toISOString();
+    },
+    recordEventFailure: async (id) => {
+      const e = firm.events.find((x) => x.id === id);
+      if (e) e.attempts += 1;
+    },
+  };
+}
+
+/** What the outbox adds to an event on insert. */
+export function outboxRow(event: AnyDomainEvent): MemoryOutboxEvent {
+  return {
+    ...event,
+    id: randomUUID(),
+    occurredAt: new Date().toISOString(),
+    publishedAt: null,
+    attempts: 0,
   };
 }
 

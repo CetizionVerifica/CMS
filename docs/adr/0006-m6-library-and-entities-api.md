@@ -23,6 +23,12 @@ in parallel. Shared API helpers (`apps/api/src/lib/`) belong to no module yet.
    one person follow the person rules below. The "limited" rows are enforced in the routes: a client admin may PUT
    only `reminders`; only a firm admin grants, changes or ends firm roles; consultants and client admins manage client
    roles in their own clients.
+4. **HTTP helpers stay in M6's paths** (`modules/entities/http/`): error envelope, cursor pagination, request id.
+   They can move to `lib/` in a tooling PR once another module needs them.
+5. **Every write is audited in its transaction** with the changed fields only; an update that changes nothing writes
+   no audit row and keeps the version. The audit row records the values the store kept, which can differ from the
+   request (the database sets `archivedAt`). Merges audit each moved row as `MERGE_ALIAS`; instance reassignments as
+   `REASSIGN` with an `instance.reassigned` event.
 6. **Person rules.** A person record is shared by every client they belong to, so person routes check where the
    person reaches (`personReach`: every client of their memberships, assignments and instances, firm-wide, plus
    whether they hold a firm role), not only what the actor's context can see.
@@ -32,13 +38,25 @@ in parallel. Shared API helpers (`apps/api/src/lib/`) belong to no module yet.
    - A write (rename, email, merge) must stay inside the actor's clients: a person who also belongs to another client
      is 403 for anyone but a firm admin, so a merge never leaves another client's rows on an archived person.
    - The email of an `ACTIVE` person is their sign-in, so only a firm admin changes it.
-   - On Postgres, `personReach` needs a narrow security-definer function from M3, since a client context cannot see
-     the other clients' rows.
-4. **HTTP helpers stay in M6's paths** (`modules/entities/http/`): error envelope, cursor pagination, request id.
-   They can move to `lib/` in a tooling PR once another module needs them.
-5. **Every write is audited in its transaction** with the changed fields only; an update that changes nothing writes
-   no audit row and keeps the version. Merges audit each moved row as `MERGE_ALIAS`; instance reassignments as
-   `REASSIGN` with an `instance.reassigned` event.
+   - On Postgres, `personReach` is M3's `people.reach` over the security-definer `app_person_reach` (#49), since a
+     context sees only its own clients' rows. Its client ids can name clients the actor cannot see, so they only
+     decide allow or refuse and never appear in a response or error.
+7. **The Postgres store** (`modules/entities/service.ts`, PR 2) implements the port on M3's repositories. Each
+   request runs in `withTenant(tenantFromRequest(ctx))`, so row-level security decides what it sees.
+   - Lists may sort and search only on the fields in `list-fields.ts` (M3's #30 audit: its `query` accepts any
+     contract field). Both stores check every list against it; another field is a programming error (500).
+   - Assignments sort by id, not `createdAt`. Ids are UUIDv7, so the order is the same, but `created_at` has
+     microsecond precision and the wire value milliseconds, so a `createdAt` cursor could return a row twice.
+   - Every write runs in a savepoint, so after a unique clash the transaction can still find the existing row for
+     `DUPLICATE.details.existingId`. When that row is outside what the actor can see, the answer is 400
+     `VALIDATION` on the field without the id (both stores), since `existingId` would reveal it. That 400 still
+     tells the actor an email is taken somewhere in the firm, though not by whom: one person per email is what makes
+     sign-in and invites work, so the clash itself cannot be hidden.
+   - A client context cannot read back a person it has just inserted, so `POST /clients/{clientId}/people` creates the
+     person and their membership together (`createPersonInClient`, M3's `people.createWithMembership`).
+   - Archive and restore go through M3's `archive` and `restore`, so the database clock sets `archivedAt` (and the audit row
+     records that value, decision 5).
+   - The adapter is mounted by `main.ts`, which is outside M6's paths; that one-line change is a separate PR.
 
 ## Defaults where the contract is open (raised with M0)
 - `POST /clients/{clientId}/people` gives the new person a membership in `body.role` (contracts 1.2.0: `OWNER` by
@@ -56,6 +74,4 @@ in parallel. Shared API helpers (`apps/api/src/lib/`) belong to no module yet.
   never merged away, and the firm keeps at least one firm admin.
 
 ## Consequences
-- When M3's repositories merge, M6 adds the Postgres `Store` adapter plus `test:db` tests, and `main.ts` mounts M6
-  with it.
 - If M0 settles the open points differently, the change is local to one route each.

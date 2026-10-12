@@ -1,4 +1,4 @@
-import { createColumnHelper } from '@tanstack/react-table';
+import { createColumnHelper, sortingFns, type SortingFn } from '@tanstack/react-table';
 import { CheckCheck, Download, MoreHorizontal, UserPlus } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
@@ -94,6 +94,16 @@ function makeInstances(n: number): Instance[] {
   });
 }
 
+/**
+ * The sort TanStack picks for date strings, counting its comparisons on `window` so the e2e suite can check that sorting
+ * 10,000 rows stays n log n whatever the runner's load.
+ */
+const countedSort: SortingFn<Instance> = (a, b, id) => {
+  const w = window as Window & { dueDateComparisons?: number };
+  w.dueDateComparisons = (w.dueDateComparisons ?? 0) + 1;
+  return sortingFns.alphanumeric(a, b, id);
+};
+
 const col = createColumnHelper<Instance>();
 const columns = [
   col.accessor('id', { header: 'ID', size: 130, meta: { type: 'id' } }),
@@ -117,7 +127,12 @@ const columns = [
     meta: { type: 'person' },
     enableSorting: false,
   }),
-  col.accessor('due', { header: 'Due date', size: 130, meta: { type: 'date' } }),
+  col.accessor('due', {
+    header: 'Due date',
+    size: 130,
+    meta: { type: 'date' },
+    sortingFn: countedSort,
+  }),
   col.accessor((r) => ({ status: r.status, days: r.days }), {
     id: 'status',
     header: 'Status',

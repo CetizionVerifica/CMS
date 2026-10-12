@@ -101,7 +101,8 @@ describe('ShellFrame', () => {
     unmount();
     renderShell({ model: { ...model, roles: approver, approvalsWaiting: 4 } });
     expect(approvals().textContent).toContain('4');
-    expect(within(approvals()).getByText(/4 waiting/)).toBeTruthy();
+    // The count covers every client the user approves in, not just this one.
+    expect(within(approvals()).getByText(/4 waiting across all your clients/)).toBeTruthy();
   });
 
   it('shows the period from the URL and writes a new one into it', async () => {
@@ -231,15 +232,29 @@ describe('ShellFrame', () => {
 });
 
 describe('useSettledTitle', () => {
-  function Probe({ title, h1 }: { title: string; h1: string }) {
+  function Probe({ title, h1, busy }: { title: string; h1?: string; busy?: boolean }) {
     const settled = useSettledTitle(title, 50);
     return (
       <main>
-        <h1>{h1}</h1>
+        {busy ? <div aria-busy="true">Loading</div> : null}
+        {h1 ? <h1>{h1}</h1> : null}
         <p data-testid="settled">{settled}</p>
       </main>
     );
   }
+
+  it('waits past the timeout for a slow page’s h1, then applies the title', async () => {
+    const { rerender } = render(<Probe title="A" h1="Overview" />);
+    // Navigating: the loading skeleton replaces the old page and has no h1.
+    rerender(<Probe title="B" busy />);
+    await new Promise((resolve) => setTimeout(resolve, 120));
+    expect(screen.getByTestId('settled').textContent).toBe('A');
+    rerender(<Probe title="B" h1="Register" busy />);
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(screen.getByTestId('settled').textContent).toBe('A');
+    rerender(<Probe title="B" h1="Register" />);
+    await vi.waitFor(() => expect(screen.getByTestId('settled').textContent).toBe('B'));
+  });
 
   it('applies the title after a timeout when the h1 never changes', async () => {
     const { rerender } = render(<Probe title="A" h1="Same" />);

@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 import type { InferredRule } from '@canopy/contracts';
 import { suggestMapping } from '../src/mapping.js';
 import type { RawCell, SourceSheet } from '../src/read.js';
-import { dryRun } from '../src/dry-run.js';
+import { dryRun, fingerprintInstance, stateAfterCommit } from '../src/dry-run.js';
+import { instanceAfterCommit } from '../src/instances.js';
 import { EMPTY_STATE, type Decisions, type DraftIssue, type ImportAnalysis } from '../src/types.js';
 import { analyse } from './helpers.js';
 
@@ -485,12 +486,36 @@ describe('dry run against an existing client', () => {
       ...EMPTY_STATE,
       obligations: { [first.plan.obligations[0]?.key ?? '']: 'old' },
       assignments: { [first.plan.assignments[0]?.key ?? '']: 'old' },
-      instances: { [first.plan.instances[0]?.key ?? '']: 'old' },
+      instances: {
+        [first.plan.instances[0]?.key ?? '']: {
+          ...instanceAfterCommit(first.plan.instances[0]!, undefined),
+          owner: 'someone else',
+        },
+      },
     };
     const second = analyse(sheetOf({}), { existing: before });
     expect(second.plan.obligations[0]?.inferred).toBe(null);
     const { report, rows } = dryRun(second, before);
     expect(report.update).toEqual({ obligations: 1, assignments: 1, instances: 1 });
     expect(rows[0]?.outcome).toBe('UPDATE');
+  });
+
+  it('still compares an instance stored as a fingerprint as a whole', () => {
+    const first = analyse(sheetOf({}));
+    const planned = first.plan.instances[0]!;
+    const stored = (fingerprint: string) => ({
+      ...stateAfterCommit(first, EMPTY_STATE),
+      instances: { [planned.key]: fingerprint },
+    });
+    const same = stored(fingerprintInstance(planned));
+    expect(dryRun(analyse(sheetOf({}), { existing: same }), same).report.unchanged.instances).toBe(
+      1,
+    );
+    const old = stored('old');
+    const again = analyse(sheetOf({}), { existing: old });
+    expect(dryRun(again, old).report.update.instances).toBe(1);
+    expect(stateAfterCommit(again, old).instances[planned.key]).toEqual(
+      instanceAfterCommit(planned, undefined),
+    );
   });
 });

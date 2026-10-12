@@ -39,3 +39,29 @@ Typed fixtures (fixtures.md): `firm-a.sample.json` (the sample register, recomme
 department, Act and criticality), `firm-a.due-dates.json` and `firm-b.synthetic.json`. New schemas `FixtureSet`,
 `DueDatesFixture` and `ExpectedFixture`; the Node entry `@canopy/contracts/fixtures` adds `fixtureId`, `uuidV5` and
 loaders. `mock-large.json` and the `import-edge/*.xlsx` sheets are not built yet. README decisions 30-32.
+
+## 1.3.0 · 2026-10-12
+Mock API server (`@canopy/contracts/mock`, `pnpm --filter @canopy/contracts mock`): every endpoint in `ENDPOINTS`,
+served from the firm A and firm B fixtures under `/api/v1`, with the same input validation, role checks, error
+envelope, CSRF, MFA and Idempotency-Key rules as api-conventions.md, and each response checked against its schema.
+Firm B's `EVIDENCE_ADD` audit events now name the evidence (`entityType: evidence`) and carry the instance id in
+`after`, as events.md says. The stub `can()` (domain-model.md §8) ships as `can`. README decisions 33-38.
+
+Auth, additive, for M5 (#33): `LoginBody` takes an optional `firmId`, and its password is 1-1024 characters (the
+12-character policy stays on `InviteAcceptBody`, where a password is set). New error code `FIRM_CHOICE_REQUIRED` (409,
+details `{ firms: [{ id, name }] }`) for a login whose email signs in to more than one firm. `Me` gains an optional
+`session.expiresAt`.
+
+The mock answers the §5 codes the real API sends for body rejections: 422 `REASON_REQUIRED` for a missing or blank
+`reason`, 413 `FILE_TOO_LARGE` and 415 `UNSUPPORTED_FILE` for uploads; other schema failures stay 400 `VALIDATION`.
+
+## 1.4.0 · 2026-10-12
+For M9: `NotificationKind` gains `APPROVAL_REQUESTED` (to the approver on `instance.submitted`) and `SENT_BACK` (to the
+owner on `instance.sent_back`). These event-driven kinds dedupe on `(sourceEventId, recipientId)`
+(`EVENT_NOTIFICATION_DEDUPE_KEY`, events.md §4 rule 4), and `notification.sent` carries `sourceEventId`. Additive; the
+scheduled-kind key `NOTIFICATION_DEDUPE_KEY` is unchanged. `packages/db` derives its `notification_kind` enum from
+this list, so it needs a migration adding the two values.
+
+For M13: `PortfolioRow.dueThisWeekFilter` (optional, `DueThisWeekFilter`) gives the register filter behind
+`dueThisWeek` (`dueFrom` = `asOf`, `dueTo` = `asOf` + 6 days, `workflowState` OPEN and SENT_BACK), so the portfolio can
+link to the register showing exactly those items. The mock fills it.

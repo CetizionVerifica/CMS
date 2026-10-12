@@ -13,7 +13,6 @@ export type DueDatesFixture = z.input<typeof C.DueDatesFixture>;
 export type Evidence = z.input<typeof C.Evidence>;
 export type ExpectedFixture = z.input<typeof C.ExpectedFixture>;
 export type ExpectedProfile = z.input<typeof C.ExpectedProfile>;
-export type ExpectedScore = z.input<typeof C.ExpectedScore>;
 export type FixtureSet = z.input<typeof C.FixtureSet>;
 export type Membership = z.input<typeof C.Membership>;
 export type Obligation = z.input<typeof C.Obligation>;

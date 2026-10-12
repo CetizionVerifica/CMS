@@ -23,7 +23,7 @@ Work
 - `evidence` (instance, storage key, file name, size, mime, sha256, scan status, uploaded by), `comment` (instance, author, body)
 - `audit_event` (append-only: actor, action, entity, entity id, before jsonb, after jsonb, at, request id)
 - `import_batch`, `import_row` (raw row jsonb, mapped jsonb, outcome), `import_issue` (per row/field issue and resolution) and `mapping_template` (saved column mappings per client) for traceable imports
-- `domain_event` (transactional outbox for the event catalogue), `export_job` (Excel/PDF exports), `notification_send` (send log, unique per instance, kind, send date and recipient)
+- `domain_event` (transactional outbox for the event catalogue), `export_job` (Excel/PDF exports), `notification_send` (send log: scheduled sends unique per instance, kind, send date and recipient; event-driven sends, with `event_id`, unique per event and recipient)
 - `idempotency_key` (M7's Idempotency-Key replay: the first response per person and key, until `expires_at`)
 
 Sign-in (M5)
@@ -89,6 +89,10 @@ Decisions and their reasons: `docs/adr/0003-m3-tenant-isolation-in-postgres.md`.
   `withTenant`. Tokens are stored as SHA-256 hex only.
 - Idempotency (M7): `idempotencyKeys.find(tx, personId, key)` ignores expired rows; `record` writes in the caller's
   transaction, replaces an expired row and raises DUPLICATE on an unexpired one, also from a concurrent request.
+- Workflow (M7): `auditEvents.query` and `evidence.vault` page newest first with a keyset `nextCursor` (the last row's id;
+  its time is read back from the table, so microseconds survive). Their time bounds are UTC instants, half-open
+  `[from, to)`: the caller turns a client-zone date into instants with the engine helpers (root rule 4).
+  `withSavepoint(tx, fn)` runs `fn` in a savepoint that keeps the tenant context and rolls back alone on error.
 - Repositories never write audit or outbox rows themselves. The caller (M7 workflow, M8 import) calls
   `auditEvents.append(tx, ...)` and `domainEvents.enqueue(tx, ...)` in the same `withTenant` transaction as the change.
 - Client contexts create people with `people.createWithMembership` (the new person is invisible until a membership

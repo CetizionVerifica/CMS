@@ -48,6 +48,20 @@ remind for complied or not-applicable items, and reach the database only through
 10. **Mail transport** is a `Mailer` port. The SMTP or provider adapter lands with the hosting choice (M1 deviations:
     none chosen yet); until then no dependency is added for it.
 
+11. **Outbox relay** (`relay-outbox`, every minute, M9 owns it). Per firm, in one transaction: claim up to 200
+    unpublished events (`FOR UPDATE SKIP LOCKED`), send each consumed type to the pg-boss queue named after the type
+    with the event id as the job id, and mark the batch published. Types without a consumer are marked published
+    unsent. A failed send is counted on the row and left for the next run. A crash after sending re-sends the same
+    job id, so pg-boss holds one job; consumers are still idempotent on the event id (events.md §1).
+12. **Regeneration consumers.** `assignment.created`, `assignment.changed`, `assignment.applicability_changed`,
+    `import.committed` (their assignments, in the event's client) and `obligation.pushed` (that obligation's
+    assignments in the pushed clients) run the nightly generation for just those assignments, at once. Generation
+    only adds missing periods; it never moves or removes an instance, so a shortened `activeTo` leaves later
+    instances to the module that changed the assignment.
+13. **Event-driven emails** (approver on `instance.submitted`, owner on `instance.sent_back`) dedupe on the event id,
+    not the daily key, so a second send-back on the same day still reaches the owner. They wait on the new
+    notification kinds (M0) and the send-log column (M3).
+
 ## Consequences
 - M3 PR 2 must provide, as repository calls: list firm ids (system), clients, generation targets, instance keys,
   idempotent instance insert, audit and outbox writes, reminder candidates, recipients and consultants with membership

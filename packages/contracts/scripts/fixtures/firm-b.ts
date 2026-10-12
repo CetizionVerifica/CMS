@@ -23,6 +23,7 @@ import type {
 } from './types.js';
 import { DEFAULT_CLIENT_SETTINGS, DEFAULT_FIRM_SETTINGS } from '../../src/index.js';
 import { fixtureId } from '../../src/fixtures/index.js';
+import { addDays, type Period, periodsIn } from '../../src/mock/periods.js';
 
 const CREATED_AT = '2023-03-15T05:30:00Z';
 /** Instances due before this date are approved; later ones are open, apart from the showcase cases. */
@@ -38,86 +39,6 @@ const base = (key: string) => ({
   archivedAt: null,
 });
 const versioned = (key: string) => ({ ...base(key), version: 1 });
-
-// ---------- date helpers ----------
-
-const pad = (n: number) => String(n).padStart(2, '0');
-const DAY = 86_400_000;
-const toMs = (date: string) => Date.parse(`${date}T00:00:00Z`);
-const fromMs = (ms: number) => new Date(ms).toISOString().slice(0, 10);
-const addDays = (date: string, days: number) => fromMs(toMs(date) + days * DAY);
-const lastDayOf = (year: number, month: number) => new Date(Date.UTC(year, month, 0)).getUTCDate();
-function monthAdd(year: number, month: number, add: number) {
-  const total = year * 12 + (month - 1) + add;
-  return { year: Math.floor(total / 12), month: (total % 12) + 1 };
-}
-const dateOf = (year: number, month: number, day: number | 'LAST') =>
-  `${year}-${pad(month)}-${pad(day === 'LAST' ? lastDayOf(year, month) : Math.min(day, lastDayOf(year, month)))}`;
-function span(year: number, month: number, length: number) {
-  const end = monthAdd(year, month, length - 1);
-  return {
-    periodStart: dateOf(year, month, 1),
-    periodEnd: dateOf(end.year, end.month, 'LAST'),
-  };
-}
-
-interface Period {
-  periodStart: string;
-  periodEnd: string;
-  dueDate: string;
-}
-
-/** Periods of one FY starting at (year, month), written out per rule kind. */
-function periodsIn(rule: RecurrenceRule, year: number, month: number): Period[] {
-  const slices = (length: number) =>
-    Array.from({ length: 12 / length }, (_, i) => {
-      const start = monthAdd(year, month, i * length);
-      return span(start.year, start.month, length);
-    });
-  const fyEnd = span(year, month, 12).periodEnd;
-  /** The occurrence of a month/day inside this FY. */
-  const inFy = (m: number, d: number) => {
-    const y = m >= month ? year : year + 1;
-    return dateOf(y, m, d);
-  };
-  switch (rule.kind) {
-    case 'MONTHLY':
-      return slices(1).map((p) => {
-        const due = monthAdd(
-          Number(p.periodStart.slice(0, 4)),
-          Number(p.periodStart.slice(5, 7)),
-          rule.offsetMonths,
-        );
-        return { ...p, dueDate: dateOf(due.year, due.month, rule.day) };
-      });
-    case 'QUARTERLY':
-    case 'HALF_YEARLY':
-      return slices(rule.kind === 'QUARTERLY' ? 3 : 6).map((p) => ({
-        ...p,
-        dueDate: addDays(p.periodEnd, rule.days),
-      }));
-    case 'ANNUAL':
-      return [{ ...span(year, month, 12), dueDate: inFy(rule.month, rule.day) }];
-    case 'FIXED_DATES': {
-      const length = 12 / rule.dates.length;
-      return rule.dates.map(({ month: m, day: d }) => {
-        const dueDate = inFy(m, d);
-        const start = monthAdd(Number(dueDate.slice(0, 4)), m, -length);
-        return { ...span(start.year, start.month, length), dueDate };
-      });
-    }
-    case 'ONGOING_REVIEW': {
-      const length = { MONTH: 1, QUARTER: 3, HALF_YEAR: 6, YEAR: 12 }[rule.every];
-      return slices(length).map((p) => ({ ...p, dueDate: p.periodEnd }));
-    }
-    case 'ONE_TIME':
-      return rule.dueDate >= dateOf(year, month, 1) && rule.dueDate <= fyEnd
-        ? [{ periodStart: rule.dueDate, periodEnd: rule.dueDate, dueDate: rule.dueDate }]
-        : [];
-    case 'EVENT_DRIVEN':
-      return [];
-  }
-}
 
 // ---------- tenancy ----------
 
@@ -654,6 +575,7 @@ export function buildFirmB(): FixtureSet {
     before: Record<string, unknown> | null,
     after: Record<string, unknown> | null,
     reason: string | null = null,
+    entity: { type: AuditEvent['entityType']; id: string } = { type: 'instance', id: i.id },
   ) =>
     auditEvents.push({
       id: fixtureId(k(`audit:${i.id}:${n}`)),
@@ -664,8 +586,8 @@ export function buildFirmB(): FixtureSet {
       actorId,
       actorKind: 'PERSON',
       action,
-      entityType: 'instance',
-      entityId: i.id,
+      entityType: entity.type,
+      entityId: entity.id,
       before,
       after,
       reason,
@@ -694,7 +616,11 @@ export function buildFirmB(): FixtureSet {
       uploadedById: i.ownerId,
       storageKey: `${firmId}/${i.clientId}/${i.id}/${id}`,
     });
-    audit(i, 100 + n, 'EVIDENCE_ADD', i.ownerId, when, null, { evidenceId: id, fileName });
+    // Evidence file names can name people, so the audit trail records only ids.
+    audit(i, 100 + n, 'EVIDENCE_ADD', i.ownerId, when, null, { instanceId: i.id }, null, {
+      type: 'evidence',
+      id,
+    });
   };
 
   // Every approved TDS deposit carries clean evidence, since the obligation requires it.

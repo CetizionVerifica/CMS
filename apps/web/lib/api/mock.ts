@@ -1,7 +1,7 @@
-// In-process stand-in for the M0 mock API, used while `CANOPY_API_URL` is unset (local dev and e2e before the API
-// ships these routes). It answers the routes the shell calls with the same status codes and error envelopes the real
-// API uses, so the client code is identical either way. People are pseudonyms (fixtures.md §5); nothing here is real
-// data. When M0's mock server lands, point `CANOPY_API_URL` at it and delete this file.
+// In-process demo API, used while `CANOPY_API_URL` is unset (local dev and e2e). It answers the routes the shell calls
+// (sign-in, /me, the portfolio, the approvals count) with the same status codes and error envelopes the real API
+// uses, so the client code is identical either way, and hands every other route to M0's mock server
+// (mock-delegate.ts). People are pseudonyms (fixtures.md §5); nothing here is real data.
 import {
   DEFAULT_CLIENT_SETTINGS,
   DerivedStatus,
@@ -16,6 +16,8 @@ import {
   type PortfolioRow,
   type Role,
 } from '@canopy/contracts';
+
+import { delegateToM0 } from './mock-delegate';
 
 export const MOCK_PASSWORD = 'demo-password';
 export const MOCK_MFA_CODE = '123456';
@@ -290,5 +292,11 @@ export const mockFetch: typeof fetch = async (input, init) => {
       ...(url.searchParams.get('count') === 'true' ? { total } : {}),
     });
   }
-  return fail(404, 'NOT_FOUND', 'Not found.');
+  // Everything else (M7, M10 and the other modules' endpoints) comes from M0's mock server.
+  return delegateToM0(
+    me.person.email ?? '',
+    method,
+    url,
+    typeof init?.body === 'string' ? init.body : undefined,
+  );
 };

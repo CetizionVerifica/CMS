@@ -41,6 +41,9 @@ jobs:
       # On PRs, typecheck and test only the packages the PR changes (and their dependents).
       # Root config or lockfile changes still run everything. main always runs everything.
       - run: pnpm ${{ matrix.task }} ${{ github.event_name == 'pull_request' && matrix.task != 'lint' && '--affected' || '' }}
+        env:
+          # turbo looks for a local `main`, which a PR checkout doesn't have, then falls back to running every package.
+          TURBO_SCM_BASE: origin/${{ github.base_ref }}
 
   # Tests that need a real database (tenant isolation, migrations). Packages opt in with a `test:db` script.
   db:
@@ -103,6 +106,8 @@ jobs:
         with:
           node-version-file: .nvmrc
       - run: node --test tooling/scripts/*.test.mjs .github/scripts/*.test.mjs
+      # New ADRs are docs/adr/M<n>-NNNN-slug.md, unique per module and number (check-adrs.mjs). Also runs in the queue.
+      - run: node tooling/scripts/check-adrs.mjs
 
   # A PR titled "M<n>: ..." may only change the paths that module owns (tooling/modules.json).
   module-paths:

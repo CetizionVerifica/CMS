@@ -12,17 +12,20 @@ class ResizeObserverStub {
 }
 globalThis.ResizeObserver ??= ResizeObserverStub as unknown as typeof ResizeObserver;
 
-const proto = window.HTMLElement.prototype;
-proto.scrollIntoView ??= function scrollIntoView() {};
-proto.hasPointerCapture ??= () => false;
-proto.releasePointerCapture ??= () => {};
-proto.setPointerCapture ??= () => {};
+// Server-side tests run with `@vitest-environment node`, where there is no DOM to stub.
+if (typeof window !== 'undefined') {
+  const proto = window.HTMLElement.prototype;
+  proto.scrollIntoView ??= function scrollIntoView() {};
+  proto.hasPointerCapture ??= () => false;
+  proto.releasePointerCapture ??= () => {};
+  proto.setPointerCapture ??= () => {};
 
-setViewport(1280);
-
-afterEach(() => {
-  cleanup();
   setViewport(1280);
-  document.cookie = 'pp_layout=; Max-Age=0; Path=/';
-  window.localStorage.clear();
-});
+
+  afterEach(() => {
+    cleanup();
+    setViewport(1280);
+    document.cookie = 'pp_layout=; Max-Age=0; Path=/';
+    window.localStorage.clear();
+  });
+}

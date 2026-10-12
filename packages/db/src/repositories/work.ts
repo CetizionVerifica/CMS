@@ -1,28 +1,55 @@
 import {
   Assignment,
+  AuditAction,
   AuditEvent,
   Comment,
   ComplianceInstance,
   Criticality,
   Evidence,
+  EntityType,
   EvidenceView,
   Id,
+  Instant,
   LocalDate,
   ObligationDomain,
+  ScanStatus,
   TimelineType,
   WorkflowState,
   type InstanceRow,
-  type ScanStatus,
   type TemplateRef,
 } from '@canopy/contracts';
-import { and, asc, desc, eq, gte, inArray, isNull, lte, or, sql, type SQL } from 'drizzle-orm';
-import { alias } from 'drizzle-orm/pg-core';
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  gte,
+  ilike,
+  inArray,
+  isNull,
+  lt,
+  lte,
+  or,
+  sql,
+  type SQL,
+} from 'drizzle-orm';
+import { alias, type PgColumn, type PgTable } from 'drizzle-orm/pg-core';
 import { z } from 'zod';
 import type { TenantTx } from '../database.js';
 import { DbError, rethrow, validate } from '../errors.js';
 import * as s from '../schema/index.js';
 import { instantsToDates } from './convert.js';
-import { entity, pageLimit, toWire, type NewEntity, type Page, type PageRequest } from './crud.js';
+import {
+  containsPattern,
+  decodeCursor,
+  encodeCursor,
+  entity,
+  pageLimit,
+  toWire,
+  type NewEntity,
+  type Page,
+  type PageRequest,
+} from './crud.js';
 
 /** Work: assignments, instances, evidence, comments, audit (domain-model.md §5). */
 
@@ -422,6 +449,54 @@ export const instances = {
   },
 };
 
+/**
+ * Newest first on (time, id): rows strictly before the cursor's row. The cursor is that row's id and its
+ * time is read back from the table, so the comparison keeps Postgres's microseconds (a JS Date has ms).
+ */
+function before(table: PgTable, at: PgColumn, id: PgColumn, cursor: string | null | undefined) {
+  if (!cursor) return undefined;
+  const last = decodeCursor(cursor);
+  return sql`(${at}, ${id}) < ((select x.${sql.identifier(at.name)} from ${table} x where x.id = ${last}), ${last}::uuid)`;
+}
+
+/** Filters for the evidence vault (M7). Upload bounds are instants, half-open [from, to). */
+export const EvidenceVaultFilter = z.strictObject({
+  unitIds: z.array(Id).optional(),
+  actIds: z.array(Id).optional(),
+  departmentIds: z.array(Id).optional(),
+  uploadedFrom: Instant.optional(),
+  uploadedTo: Instant.optional(),
+  scanStatus: z.array(ScanStatus).optional(),
+  /** Case-insensitive substring of the file name. */
+  q: z.string().max(200).optional(),
+  after: z.string().nullable().optional(),
+  limit: z.int().optional(),
+});
+export type EvidenceVaultFilter = z.infer<typeof EvidenceVaultFilter>;
+
+/** Filters for the audit trail (M7). Time bounds are instants, half-open [from, to). */
+export const AuditQuery = z.strictObject({
+  clientId: Id.optional(),
+  entityType: EntityType.optional(),
+  entityId: Id.optional(),
+  actorId: Id.optional(),
+  action: z.array(AuditAction).optional(),
+  from: Instant.optional(),
+  to: Instant.optional(),
+  after: z.string().nullable().optional(),
+  limit: z.int().optional(),
+});
+export type AuditQuery = z.infer<typeof AuditQuery>;
+
+/** A list filter: undefined means no filter, an empty list matches nothing. */
+function anyOf(
+  column: Parameters<typeof inArray>[0],
+  ids: readonly string[] | undefined,
+): SQL | undefined {
+  if (ids === undefined) return undefined;
+  return ids.length === 0 ? sql`false` : inArray(column, [...ids]);
+}
+
 const evidenceEntity = entity<
   Evidence,
   Omit<Evidence, 'id' | 'firmId' | 'createdAt' | 'updatedAt' | 'archivedAt' | 'scanStatus'> & {
@@ -449,6 +524,50 @@ export const evidence = {
       and(eq(s.evidence.instanceId, instanceId), isNull(s.evidence.archivedAt)),
     );
     return rows.map(toView);
+  },
+  /**
+   * The client's evidence library, newest upload first, archived rows left out. Unit, Act and department
+   * come from the instance's unit and its assignment's obligation and department.
+   */
+  async vault(
+    tx: TenantTx,
+    clientId: string,
+    filter: EvidenceVaultFilter = {},
+  ): Promise<Page<EvidenceView>> {
+    const f = validate(EvidenceVaultFilter, filter);
+    const limit = pageLimit(f.limit);
+    const e = s.evidence;
+    const text = f.q?.trim();
+    const rows = await tx
+      .select({ evidence: e })
+      .from(e)
+      .innerJoin(s.complianceInstance, eq(s.complianceInstance.id, e.instanceId))
+      .innerJoin(s.assignment, eq(s.assignment.id, s.complianceInstance.assignmentId))
+      .innerJoin(s.obligation, eq(s.obligation.id, s.assignment.obligationId))
+      .where(
+        and(
+          eq(e.clientId, clientId),
+          isNull(e.archivedAt),
+          anyOf(s.complianceInstance.unitId, f.unitIds),
+          anyOf(s.obligation.actId, f.actIds),
+          anyOf(s.assignment.departmentId, f.departmentIds),
+          f.scanStatus === undefined
+            ? undefined
+            : f.scanStatus.length === 0
+              ? sql`false`
+              : inArray(e.scanStatus, f.scanStatus),
+          f.uploadedFrom ? gte(e.createdAt, new Date(f.uploadedFrom)) : undefined,
+          f.uploadedTo ? lt(e.createdAt, new Date(f.uploadedTo)) : undefined,
+          text ? ilike(e.fileName, containsPattern(text)) : undefined,
+          before(e, e.createdAt, e.id, f.after),
+        ),
+      )
+      .orderBy(desc(e.createdAt), desc(e.id))
+      .limit(limit)
+      .catch(rethrow);
+    const items = rows.map((r) => toView(evidenceEntity.parse(r.evidence)));
+    const last = items.length === limit ? items[items.length - 1] : undefined;
+    return { items, nextCursor: last ? encodeCursor(last.id) : null };
   },
   create: evidenceEntity.create,
   setScanStatus: (tx: TenantTx, id: string, scanStatus: ScanStatus): Promise<Evidence> =>
@@ -520,6 +639,40 @@ export const auditEvents = {
       .orderBy(asc(t.clientId))
       .catch(rethrow);
     return rows.map((r) => ({ clientId: r.clientId!, at: new Date(r.at).toISOString() }));
+  },
+  /**
+   * The audit trail this context sees, newest first (at, then id), filtered and paged with a keyset
+   * cursor. `forEntity` is the same history for one entity without a cursor.
+   */
+  async query(tx: TenantTx, q: AuditQuery = {}): Promise<Page<AuditEvent>> {
+    const f = validate(AuditQuery, q);
+    const limit = pageLimit(f.limit);
+    const t = s.auditEvent;
+    const rows = await tx
+      .select()
+      .from(t)
+      .where(
+        and(
+          f.clientId ? eq(t.clientId, f.clientId) : undefined,
+          f.entityType ? eq(t.entityType, f.entityType) : undefined,
+          f.entityId ? eq(t.entityId, f.entityId) : undefined,
+          f.actorId ? eq(t.actorId, f.actorId) : undefined,
+          f.action === undefined
+            ? undefined
+            : f.action.length === 0
+              ? sql`false`
+              : inArray(t.action, f.action),
+          f.from ? gte(t.at, new Date(f.from)) : undefined,
+          f.to ? lt(t.at, new Date(f.to)) : undefined,
+          before(t, t.at, t.id, f.after),
+        ),
+      )
+      .orderBy(desc(t.at), desc(t.id))
+      .limit(limit)
+      .catch(rethrow);
+    const items = rows.map((r) => AuditEvent.parse(toWire(r)));
+    const last = items.length === limit ? items[items.length - 1] : undefined;
+    return { items, nextCursor: last ? encodeCursor(last.id) : null };
   },
   /** History of one entity, newest first. */
   async forEntity(
