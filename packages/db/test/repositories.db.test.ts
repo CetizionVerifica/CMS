@@ -4,6 +4,7 @@ import type { TenantTx } from '../src/database.js';
 import { DbError } from '../src/errors.js';
 import * as r from '../src/repositories/index.js';
 import { systemContext, type TenantContext } from '../src/tenant-context.js';
+import { uuidv7 } from '../src/uuid.js';
 import { createTestDatabase, type TestDatabase } from './support/database.js';
 
 /** Repository behaviour against Postgres: contract shapes out, versioning, idempotency, tenancy. */
@@ -1005,5 +1006,99 @@ describe('imports', () => {
         ),
       ),
     ).toBe('NOT_FOUND');
+  });
+
+  it('creates a batch under a ticket id, lists newest first, and removes issue groups', async () => {
+    const base = {
+      clientId: world.clientId,
+      createdById: world.approverId,
+      fileName: 'register.xlsx',
+      sheetName: null,
+      mapping: [],
+      mappingTemplateId: null,
+      counts: null,
+      dryRun: null,
+      committedAt: null,
+      failureCode: null,
+    };
+    const older = await inA((tx) =>
+      r.importBatches.create(tx, { ...base, fileSha256: 'd'.repeat(64) }),
+    );
+    // The upload ticket's id: batches sort by when their id was made.
+    await new Promise((resolve) => setTimeout(resolve, 2));
+    const ticket = uuidv7();
+    const batch = await inA((tx) =>
+      r.importBatches.create(tx, { ...base, id: ticket, fileSha256: 'e'.repeat(64) }),
+    );
+    expect(batch.id).toBe(ticket);
+    expect(
+      await code(
+        inA((tx) =>
+          r.importBatches.create(tx, { ...base, id: ticket, fileSha256: 'f'.repeat(64) }),
+        ),
+      ),
+    ).toBe('DUPLICATE');
+    expect(
+      await code(
+        inA((tx) =>
+          r.importBatches.create(tx, {
+            ...base,
+            id: '01920000-0000-4000-8000-000000000001',
+            fileSha256: 'f'.repeat(64),
+          }),
+        ),
+      ),
+    ).toBe('VALIDATION');
+    const first = await inA((tx) => r.importBatches.list(tx, world.clientId, { limit: 1 }));
+    expect(first.items.map((b) => b.id)).toEqual([batch.id]);
+    const next = await inA((tx) =>
+      r.importBatches.list(tx, world.clientId, { cursor: first.nextCursor, limit: 200 }),
+    );
+    expect(next.items.map((b) => b.id)).toContain(older.id);
+    expect(next.items.map((b) => b.id)).not.toContain(batch.id);
+    const oldestFirst = await inA((tx) =>
+      r.importBatches.list(tx, world.clientId, { order: 'asc', limit: 200 }),
+    );
+    expect(oldestFirst.items.at(-1)!.id).toBe(batch.id);
+
+    const issue = (groupKey: string, batchId: string) => ({
+      batchId,
+      groupKey,
+      type: 'ALIAS_DEPARTMENT' as const,
+      severity: 'WARNING' as const,
+      rowNumbers: [2],
+      field: 'department' as const,
+      rawValues: ['HR'],
+      proposal: 'Human Resources',
+    });
+    await inA((tx) =>
+      r.importIssues.createMany(tx, batch.id, [
+        issue('g1', batch.id),
+        issue('g1', batch.id),
+        issue('g2', batch.id),
+        issue('g3', batch.id),
+      ]),
+    );
+    await inA((tx) => r.importIssues.createMany(tx, older.id, [issue('g1', older.id)]));
+    // Another firm, or a client context of another client, deletes nothing.
+    expect(await inB((tx) => r.importIssues.removeGroups(tx, batch.id, ['g1', 'g2']))).toBe(0);
+    const otherClient: TenantContext = {
+      firmId: firmA,
+      personId: null,
+      clientIds: [uuidv7()],
+      requestId: 'repo-test',
+    };
+    expect(
+      await t.db.withTenant(otherClient, (tx) => r.importIssues.removeGroups(tx, batch.id, ['g1'])),
+    ).toBe(0);
+    expect(await inA((tx) => r.importIssues.removeGroups(tx, batch.id, []))).toBe(0);
+    expect(await inA((tx) => r.importIssues.removeGroups(tx, batch.id, ['g1', 'g2']))).toBe(3);
+    expect(
+      (await inA((tx) => r.importIssues.forBatch(tx, batch.id))).map((i) => i.groupKey),
+    ).toEqual(['g3']);
+    // The same group key in another batch stays.
+    expect(
+      (await inA((tx) => r.importIssues.forBatch(tx, older.id))).map((i) => i.groupKey),
+    ).toEqual(['g1']);
   });
 });

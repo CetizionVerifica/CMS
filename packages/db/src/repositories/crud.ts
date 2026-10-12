@@ -2,6 +2,7 @@ import {
   and,
   asc,
   count,
+  desc,
   eq,
   getTableColumns,
   gt,
@@ -9,6 +10,7 @@ import {
   inArray,
   isNotNull,
   isNull,
+  lt,
   or,
   sql,
   type SQL,
@@ -36,6 +38,8 @@ export interface PageRequest {
   cursor?: string | null;
   /** Include soft-deleted rows. Default false. */
   includeArchived?: boolean;
+  /** Id order; ids are UUIDv7, so 'desc' is newest first. Default 'asc'. */
+  order?: 'asc' | 'desc';
 }
 
 export const MAX_LIMIT = 200;
@@ -207,12 +211,15 @@ export function entity<T, TNew = NewEntity<T>, TPatch = Partial<TNew>>(config: E
       const limit = pageLimit(page.limit);
       const conditions = [filter];
       if (!page.includeArchived && c.archivedAt) conditions.push(isNull(c.archivedAt));
-      if (page.cursor) conditions.push(gt(c.id, decodeCursor(page.cursor)));
+      const newestFirst = page.order === 'desc';
+      if (page.cursor) {
+        conditions.push((newestFirst ? lt : gt)(c.id, decodeCursor(page.cursor)));
+      }
       const rows = (await tx
         .select()
         .from(table)
         .where(and(...conditions))
-        .orderBy(asc(c.id))
+        .orderBy(newestFirst ? desc(c.id) : asc(c.id))
         .limit(limit + 1)
         .catch(rethrow)) as Record<string, unknown>[];
       const items = rows.slice(0, limit).map(parse);

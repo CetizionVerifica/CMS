@@ -64,6 +64,13 @@
       "when": 1791773375708,
       "tag": "0008_send_log_key_and_firm_lookup",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1791773764084,
+      "tag": "0009_import_issue_delete",
+      "breakpoints": true
     }
   ]
 }

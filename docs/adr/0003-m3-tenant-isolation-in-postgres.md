@@ -38,7 +38,8 @@ to their own client. The details below were not fixed by the spec.
    in firm A; it also keeps an instance's denormalised `client_id` and `unit_id` equal to its assignment's.
 6. **No deletes.** The app role gets SELECT, INSERT and UPDATE only (`firm`: SELECT, UPDATE; `audit_event`: SELECT,
    INSERT). A trigger rejects UPDATE, DELETE and TRUNCATE on `audit_event` for every role. Firms are created by
-   `createAdminDatabase().createFirm` on the owner connection.
+   `createAdminDatabase().createFirm` on the owner connection. The one exception is `import_issue` (migration 0009):
+   each analysis regenerates a batch's issues, so stale ones are deleted, still under RLS.
 7. **Ids and names.** UUIDv7 come from `canopy_uuid_v7()` (Postgres 16 has none built in). Name uniqueness is exact
    and among non-archived rows (Acts, categories per firm; companies, departments per client; units per company), so
    the importer's `raw` profile can hold spellings that differ only by case. `person.name_normalized` is indexed, not

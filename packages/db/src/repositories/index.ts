@@ -13,7 +13,7 @@ export {
   units,
 } from './tenancy.js';
 export { importBatches, importIssues, importRows, mappingTemplates } from './imports.js';
-export type { NewImportIssue, NewImportRow } from './imports.js';
+export type { NewImportBatch, NewImportIssue, NewImportRow } from './imports.js';
 export {
   domainEvents,
   exportJobs,
