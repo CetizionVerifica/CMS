@@ -69,6 +69,8 @@ export async function auditedUpdate<T extends Versioned>(u: AuditedUpdate<T>): P
     const current = await u.repo.get(u.row.id);
     throw stale(current?.version ?? u.row.version);
   }
+  // Audit what was stored: the database may set a field itself, such as `archivedAt` from its own clock.
+  for (const key of Object.keys(after)) after[key] = (updated as Record<string, unknown>)[key];
   for (const key of u.redact ?? []) {
     if (key in after) {
       before[key] = '[redacted]';

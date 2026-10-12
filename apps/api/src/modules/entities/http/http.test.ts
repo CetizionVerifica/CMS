@@ -96,6 +96,21 @@ describe('auditedUpdate', () => {
     ).rejects.toMatchObject({ code: 'NOT_FOUND' });
   });
 
+  it('audits the value the store kept, not the one asked for', async () => {
+    const audits: { before: unknown; after: unknown }[] = [];
+    const repo = fakeRepo(async () => ({ ...row, name: 'Plant 2', version: 2 }));
+    await auditedUpdate({
+      tx: fakeTx(audits),
+      repo,
+      entityType: 'unit',
+      row,
+      version: 1,
+      patch: { name: 'Plant 2 ' },
+      clientId: null,
+    });
+    expect(audits[0]).toMatchObject({ before: { name: 'Plant' }, after: { name: 'Plant 2' } });
+  });
+
   it('can keep a value out of the audit row', async () => {
     const audits: { before: unknown; after: unknown }[] = [];
     const repo = fakeRepo(async (_id, _v, patch) => ({ ...row, ...patch, version: 2 }));
