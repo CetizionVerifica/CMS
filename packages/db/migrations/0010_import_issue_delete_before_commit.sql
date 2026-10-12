@@ -1,0 +1,1 @@
+CREATE POLICY "delete_before_commit" ON "import_issue" AS RESTRICTIVE FOR DELETE TO public USING (firm_id = app_firm_id() and exists (select 1 from import_batch b where b.id = batch_id and b.status in ('UPLOADED', 'MAPPED', 'PARSED', 'REVIEWED', 'DRY_RUN_READY')));

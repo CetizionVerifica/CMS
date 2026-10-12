@@ -161,6 +161,10 @@ export const person = pgTable(
     uniqueIndex('person_email_key')
       .on(t.firmId, sql`lower(${t.email})`)
       .where(sql`email is not null and archived_at is null`),
+    // Sign-in looks a person up by email across firms (canopy_login_candidates).
+    index('person_email_lookup_idx')
+      .on(sql`lower(${t.email})`)
+      .where(sql`email is not null and archived_at is null`),
     check(
       'person_name_normalized_check',
       sql`name_normalized = lower(name_normalized) and name_normalized !~ '[\\t\\n\\r\\f\\v]|  '`,
@@ -189,6 +193,8 @@ export const person = pgTable(
       using: sql`firm_id = app_firm_id() and (app_firm_staff() or ((id = app_person_id() or app_person_visible(id)) and not app_person_has_firm_role(id) and (app_all_clients() or not app_person_in_hidden_client(id))))`,
       withCheck: sql`firm_id = app_firm_id()`,
     }),
+    // Sign-in candidates by email, before a tenant is known (migration 0012; granted columns only).
+    pgPolicy('lookup_read', { for: 'select', to: 'canopy_lookup', using: sql`true` }),
   ],
 );
 

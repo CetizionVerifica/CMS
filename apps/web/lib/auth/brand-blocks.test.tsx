@@ -1,0 +1,18 @@
+import { render, screen } from '@testing-library/react';
+import { describe, expect, it } from 'vitest';
+
+import { AuthBrand } from './AuthBrand';
+import { DemoAccounts } from './DemoAccounts';
+
+describe('auth page blocks', () => {
+  it('shows the client-facing brand', () => {
+    render(<AuthBrand />);
+    expect(screen.getByText('PlanetPulse Compliance')).toBeTruthy();
+  });
+
+  it('lists the demo accounts for the mock API', () => {
+    render(<DemoAccounts />);
+    expect(screen.getByText(/consultant@demo\.test \(consultant\)/)).toBeTruthy();
+    expect(screen.getByText('demo-password')).toBeTruthy();
+  });
+});
