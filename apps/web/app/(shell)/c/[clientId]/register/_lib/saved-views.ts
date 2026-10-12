@@ -77,7 +77,8 @@ export function addView(
 ): { store: ViewStore; id: string } {
   const label = cleanName(name);
   if (!label) throw new Error('A view needs a name');
-  if (store.views.length >= MAX_VIEWS) throw new Error(`You can keep up to ${MAX_VIEWS} views`);
+  if (store.views.length >= MAX_VIEWS)
+    throw new Error(`You can keep up to ${MAX_VIEWS} views. Delete one to save this view.`);
   const id = newId();
   return { store: { ...store, views: [...store.views, { id, name: label, query }] }, id };
 }

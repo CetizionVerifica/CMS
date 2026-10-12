@@ -292,6 +292,26 @@ describe('saved views', () => {
     expect(lastUrl()).toBe(`${PATH}?fy=2022-23&ownerId=me&view=v1`);
   });
 
+  it('says why a view can’t be saved at the limit and keeps the dialog open', async () => {
+    const user = userEvent.setup();
+    const views = Array.from({ length: 50 }, (_, i) => ({
+      id: `v${i}`,
+      name: `View ${i}`,
+      query: '',
+    }));
+    localStorage.setItem(key, JSON.stringify({ views }));
+    nav.search = 'status=OVERDUE';
+    renderGrid();
+    await waitFor(() => expect(trigger()).toBeTruthy());
+    await user.click(trigger());
+    await user.click(screen.getByRole('menuitem', { name: 'Save current view…' }));
+    await user.type(screen.getByRole('textbox', { name: /View name/ }), 'One more{Enter}');
+    expect(await screen.findByText(/You can keep up to 50 views/)).toBeTruthy();
+    expect(screen.getByRole('alertdialog')).toBeTruthy();
+    expect(JSON.parse(localStorage.getItem(key)!).views).toHaveLength(50);
+    expect(nav.replace).not.toHaveBeenCalled();
+  });
+
   it('warns when the browser blocks storage', async () => {
     const user = userEvent.setup();
     const setItem = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
