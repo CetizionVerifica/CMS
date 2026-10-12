@@ -2,10 +2,17 @@ import { randomUUID } from 'node:crypto';
 import Fastify, { type FastifyInstance } from 'fastify';
 import type { Database } from '@canopy/db';
 import { registerAuth, type AuthOptions, type AuthStore } from './auth/index.js';
+import { MemoryReportsStore } from './modules/dashboard/memory-store.js';
+import type { ReportsStore } from './modules/dashboard/ports.js';
+import { registerDashboardRoutes } from './modules/dashboard/routes.js';
+import { MemoryExportFiles, type ExportFiles } from './modules/reports/files.js';
+import { registerReportRoutes } from './modules/reports/routes.js';
+import { IdempotencyCache, InProcessRunner, type ExportRunner } from './modules/reports/service.js';
 import { libraryAndEntities, type M6Deps } from './modules/entities/index.js';
 import { registerEvidenceRoutes } from './modules/evidence/routes.js';
 import { createEvidenceService } from './modules/evidence/service.js';
 import type { EvidenceStorage } from './modules/evidence/storage.js';
+import { imports, type ImportOptions } from './modules/imports/index.js';
 import { registerInstanceRoutes } from './modules/instances/routes.js';
 import { createInstanceService } from './modules/instances/service.js';
 
@@ -14,8 +21,17 @@ export interface ServerOptions {
   readonly authStore?: AuthStore;
   readonly clock?: () => Date;
   readonly rateLimit?: AuthOptions['rateLimit'];
+  /** M10 dashboards and reports. Until the Postgres adapter lands, the default store is empty. */
+  readonly reports?: {
+    readonly store?: ReportsStore;
+    readonly files?: ExportFiles;
+    readonly runner?: ExportRunner;
+    readonly exportRateLimit?: { max: number; timeWindow: string | number };
+  };
   /** M6 · Library and entities, mounted under /api/v1 when given (main.ts wires the database store). */
   readonly libraryAndEntities?: M6Deps;
+  /** M8 · imports, mounted under /api/v1 when given (store, file storage and the engine's inferRule). */
+  readonly imports?: ImportOptions;
   /** M7 · Tenant database for the instance routes, mounted under /api/v1 when given. */
   readonly database?: Database;
   /** M7 · Evidence file storage; with `database`, the evidence routes are mounted too. */
@@ -42,9 +58,25 @@ export function buildServer(options: ServerOptions = {}): FastifyInstance {
 
   app.get('/health', { config: { auth: 'public' } }, async () => ({ status: 'ok' }));
 
+  const clock = options.clock ?? (() => new Date());
+  const reports = {
+    store: options.reports?.store ?? new MemoryReportsStore(clock),
+    files: options.reports?.files ?? new MemoryExportFiles(),
+    runner: options.reports?.runner ?? new InProcessRunner(),
+    idempotency: new IdempotencyCache(),
+    clock,
+    onExportError: (info: object) => app.log.error(info, 'export failed'),
+    exportRateLimit: options.reports?.exportRateLimit,
+  };
+  registerDashboardRoutes(app, reports);
+  registerReportRoutes(app, reports);
   if (options.libraryAndEntities) {
     const deps = options.libraryAndEntities;
     void app.register((scope) => libraryAndEntities(scope, deps), { prefix: '/api/v1' });
+  }
+  const importOptions = options.imports;
+  if (importOptions) {
+    void app.register(async (scope) => imports(scope, importOptions), { prefix: '/api/v1' });
   }
 
   const { database } = options;

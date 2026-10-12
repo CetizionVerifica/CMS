@@ -36,10 +36,38 @@ test('10,000-row table is virtualised, keyboard-driven and axe-clean', async ({ 
 test('sorting 10,000 rows stays fast', async ({ page }) => {
   await page.goto('/#/data-table');
   const header = page.getByRole('columnheader', { name: 'Due date' });
-  const started = Date.now();
-  await header.getByRole('button').click();
+  await expect(header).toBeVisible();
+  // Timed inside the page against a baseline from the same run, so a loaded runner (several merge-queue groups at once)
+  // slows both alike. The baseline is the median of five n log n sorts of 10,000 date strings. A healthy click costs
+  // about 50-90 baselines (rendering included), unloaded or at 4-6x CPU throttling. An O(n²) sort makes ~50M
+  // comparisons, at least 2.4s even with TanStack's cheapest comparator, so it fails both limits under any load.
+  const { baseline, elapsed } = await header.evaluate(async (th) => {
+    const dates = Array.from({ length: 10_000 }, (_, i) =>
+      new Date(Date.UTC(2026, 3, 1) + ((i * 7919) % 730) * 86_400_000).toISOString().slice(0, 10),
+    );
+    const runs = [0, 1, 2, 3, 4].map(() => {
+      const t = performance.now();
+      [...dates].sort((a, b) => a.localeCompare(b));
+      return performance.now() - t;
+    });
+    const sorted = new Promise<void>((resolve) => {
+      new MutationObserver((_, o) => {
+        if (th.getAttribute('aria-sort') === 'ascending') {
+          o.disconnect();
+          resolve();
+        }
+      }).observe(th, { attributes: true, attributeFilter: ['aria-sort'] });
+    });
+    const started = performance.now();
+    th.querySelector('button')!.click();
+    await sorted;
+    return { baseline: runs.sort((a, b) => a - b)[2]!, elapsed: performance.now() - started };
+  });
   await expect(header).toHaveAttribute('aria-sort', 'ascending');
-  expect(Date.now() - started).toBeLessThan(1000);
+  expect(
+    elapsed,
+    `sort took ${Math.round(elapsed)}ms; baseline ${baseline.toFixed(1)}ms`,
+  ).toBeLessThan(Math.max(1000, 150 * baseline));
 });
 
 test('the column chooser and row menu are axe-clean while open', async ({ page }) => {
