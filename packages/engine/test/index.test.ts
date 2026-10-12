@@ -13,6 +13,6 @@ describe('package entry', () => {
       planNotifications: api.planNotifications,
       ENGINE_VERSION: api.ENGINE_VERSION,
     });
-    expectTypeOf(api.engine).toExtend<Omit<EngineApi, 'planNotifications'>>();
+    expectTypeOf(api.engine).toExtend<EngineApi>();
   });
 });

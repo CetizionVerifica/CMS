@@ -85,13 +85,17 @@ describe('day numbers', () => {
     expect(fromDayNumber(n)).toBe(date);
   });
   it('round-trips every day across leap years and century boundaries', () => {
+    // One expect for the whole walk: ~73k expects per step ran past vitest's 5s timeout under coverage in CI.
+    const mismatches: string[] = [];
     let date = d('1899-12-25');
     for (let n = toDayNumber(date); date < '2101-01-05'; n++) {
-      expect(toDayNumber(date)).toBe(n);
+      if (toDayNumber(date) !== n) mismatches.push(`toDayNumber(${date}) !== ${n}`);
       const next = addDays(date, 1);
-      expect(fromDayNumber(n + 1)).toBe(next);
+      if (fromDayNumber(n + 1) !== next) mismatches.push(`fromDayNumber(${n + 1}) !== ${next}`);
       date = next;
     }
+    expect(date).toBe('2101-01-05');
+    expect(mismatches).toEqual([]);
   });
 });
 
