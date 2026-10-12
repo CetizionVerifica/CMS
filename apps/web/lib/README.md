@@ -18,8 +18,10 @@ Shared code for every web screen. M12 and M13 import from here; they don't chang
 - `api/client.ts` parses every response with its Zod schema and throws `ApiError` with the contract `code`
   (`isApiError(err, 'NOT_FOUND')`).
 - Until `CANOPY_API_URL` is set, `api/mock.ts` answers in-process with pseudonymous demo data (accounts are listed on
-  the login page). It covers only the routes the shell calls; it goes away once M0's mock server or the real API
-  answers. A production build uses it only with `CANOPY_DEMO_API=1` (`api/mode.ts`, server env only), so a
+  the login page). It answers the shell's routes itself (sign-in, `/me`, portfolio, approvals count) and hands every
+  other endpoint to M0's mock server (`api/mock-delegate.ts`, firm B's synthetic data, in-process). Demo Metals and
+  Northwind Textiles map to firm B's two clients there, so client pages get real contract data under our ids and
+  names; Sunrise Foods has no data (NOT_FOUND). A production build uses it only with `CANOPY_DEMO_API=1` (`api/mode.ts`, server env only), so a
   deployment without `CANOPY_API_URL` fails instead of offering demo logins.
 - `api/client.ts` takes methods, paths and schemas from the contracts' `ENDPOINTS` table. Call any endpoint by name,
   never `fetch` directly: `api.call('listInstances', { params: { clientId }, query: { status: 'OVERDUE', limit: '50' } })`.
@@ -37,6 +39,9 @@ Shared code for every web screen. M12 and M13 import from here; they don't chang
 `period.ts` reads and writes `?fy=2022-23&q=Q3` (or `&m=2022-10`). `periodFromParams(searchParams)` returns undefined
 when the URL has none; the API then uses the current period. The shell's picker defaults to the client's
 `thisPeriod`, which the API gets from the engine.
+
+`periodApiQuery(period, fyStartMonth)` turns the period into API query values: `{ fy }` for a whole FY, otherwise the
+quarter's or month's inclusive `{ from, to }` dates (map them onto the endpoint's names, e.g. `dueFrom`/`dueTo`).
 
 ## Page patterns (`patterns/`)
 

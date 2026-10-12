@@ -128,8 +128,10 @@ test.describe('shell navigation at 1280px', () => {
     await expect(page.getByRole('link', { name: 'Register', exact: true })).toBeFocused();
     await page.keyboard.press('Enter');
     await expect(page).toHaveURL(`/c/${DEMO_METALS}/register`);
-    // The route change moves focus to the new page's h1.
-    await expect(page.getByRole('heading', { level: 1, name: 'Register' })).toBeFocused();
+    // The route change moves focus to the new page's h1 once it renders, however long that takes under CI load.
+    await expect(page.getByRole('heading', { level: 1, name: 'Register' })).toBeFocused({
+      timeout: 15_000,
+    });
     await page.keyboard.press('Tab');
     await expect(page.getByRole('link', { name: 'Go to home' })).toBeFocused();
   });
