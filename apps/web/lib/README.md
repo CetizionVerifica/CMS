@@ -38,6 +38,9 @@ Shared code for every web screen. M12 and M13 import from here; they don't chang
 when the URL has none; the API then uses the current period. The shell's picker defaults to the client's
 `thisPeriod`, which the API gets from the engine.
 
+`periodApiQuery(period, fyStartMonth)` turns the period into API query values: `{ fy }` for a whole FY, otherwise the
+quarter's or month's inclusive `{ from, to }` dates (map them onto the endpoint's names, e.g. `dueFrom`/`dueTo`).
+
 ## Page patterns (`patterns/`)
 
 `PageHeader`, `PageLoading`, `PageEmpty`, `PageError` (for `error.tsx`, with `reset`), `NoPermission`,
