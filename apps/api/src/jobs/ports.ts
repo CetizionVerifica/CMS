@@ -124,6 +124,11 @@ export interface JobDomainEvent {
   data: Record<string, unknown>;
 }
 
+/** `notification.sent` before the store fills in its aggregate (the send-log row). */
+export type NotificationSentEvent = Omit<JobDomainEvent, 'aggregate' | 'aggregateVersion'> & {
+  type: 'notification.sent';
+};
+
 export interface FirmTx {
   firmSettings(): Promise<FirmSettings>;
   /** Clients of the firm that are not archived. */
@@ -152,13 +157,19 @@ export interface FirmTx {
   ): Promise<ReminderCandidate[]>;
   /** Send log rows of one client for one send date that are DONE (sent or failed). */
   listDoneSends(clientId: Id, sendDate: LocalDate): Promise<SendKey[]>;
+  /** Recipients whose CONSULTANT_DIGEST for this send date is DONE (sent or failed), across all clients. */
+  listDoneDigests(sendDate: LocalDate): Promise<Id[]>;
   recipients(personIds: Id[], clientId: Id): Promise<Recipient[]>;
   listConsultants(): Promise<ConsultantRef[]>;
   /** Score inputs of one client's non-archived instances with a due date in the range. */
   listScoreItems(clientId: Id, range: { from: LocalDate; to: LocalDate }): Promise<ScoreInput[]>;
   claimSend(key: SendKey): Promise<ClaimResult>;
-  /** Records the send and writes the `notification.sent` event in the same transaction. */
-  markSent(key: SendKey, at: string, event: JobDomainEvent): Promise<void>;
+  /**
+   * Records the send and writes the `notification.sent` event in the same transaction. The store sets the event's
+   * aggregate to the send-log row (`{ type: 'notification_send', id: <row id> }`, version 1): a row is sent at most
+   * once, so each aggregate has exactly one event.
+   */
+  markSent(key: SendKey, at: string, event: NotificationSentEvent): Promise<void>;
   markFailed(key: SendKey, failureCode: SendFailureCode): Promise<void>;
 }
 

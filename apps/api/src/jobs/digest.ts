@@ -1,4 +1,4 @@
-import type { Id, LocalDate } from '@canopy/contracts';
+import { DEFAULT_CLIENT_SETTINGS, type Id } from '@canopy/contracts';
 import {
   computeScore,
   fyBounds,
@@ -19,109 +19,106 @@ export function clientUrl(appUrl: string, clientId: Id): string {
 }
 
 /**
- * Runs every 15 minutes. A consultant gets at most one digest per day (the send log's digest key is recipient,
- * kind and date), so all their clients whose digest weekday is that day go into one email, sent once the
- * earliest of those clients' send times has passed. Scores and counts come from the engine over each client's
- * current FY to date.
+ * The time zone that fixes a consultant's digest day. A consultant gets at most one digest per date (the send
+ * log's digest key is recipient, kind and date), so every client must agree on which date that is, even when
+ * clients sit in different zones. It is the product default, India time (ADR 0003 §8).
+ */
+export const DIGEST_TIME_ZONE = DEFAULT_CLIENT_SETTINGS.timeZone;
+
+/**
+ * Runs every 15 minutes. On each India-time date, a consultant's digest covers every client of theirs whose digest
+ * weekday is that date, and goes out once India time passes the earliest send time among those clients. Each
+ * client's scores and counts come from the engine at the client's own local date, over its current FY to date.
  */
 export async function runConsultantDigest(deps: JobDeps, requestId: string): Promise<JobReport> {
   const report: JobReport = { firms: 0, consultants: 0, sent: 0 };
   const failures: unknown[] = [];
   const now = deps.clock();
+  const anchor = clientDay(now, DIGEST_TIME_ZONE);
+  const digestDate = anchor.today;
   for (const firmId of await deps.store.listFirmIds()) {
     report.firms! += 1;
-    const { clients, consultants, firmSettings } = await deps.store.withFirm(
+    const { clients, consultants, firmSettings, done } = await deps.store.withFirm(
       firmId,
       requestId,
       async (tx) => ({
         clients: await tx.listClients(),
         consultants: await tx.listConsultants(),
         firmSettings: await tx.firmSettings(),
+        // Skips the score queries for digests already sent today; the claim in deliver() is the real guard.
+        done: new Set(await tx.listDoneDigests(digestDate)),
       }),
     );
     const clientsById = new Map(clients.map((c) => [c.id, c]));
 
     for (const consultant of consultants) {
       report.consultants! += 1;
-      // Clients whose digest day it is, grouped by their local date (clients can sit in different time zones).
-      const byDate = new Map<LocalDate, { clients: ClientRef[]; reached: boolean }>();
-      for (const clientId of consultant.clientIds) {
-        const client = clientsById.get(clientId);
-        if (!client) continue;
-        const day = clientDay(now, client.settings.timeZone);
-        if (!isConsultantDigestDay(day.today, client.settings.reminders)) continue;
-        const group = byDate.get(day.today) ?? { clients: [], reached: false };
-        group.clients.push(client);
-        group.reached ||= sendTimeReached(day, client.settings);
-        byDate.set(day.today, group);
+      const due = consultant.clientIds
+        .map((id) => clientsById.get(id))
+        .filter((c): c is ClientRef => c !== undefined)
+        .filter((c) => isConsultantDigestDay(digestDate, c.settings.reminders))
+        .sort((a, b) => a.name.localeCompare(b.name, 'en') || a.id.localeCompare(b.id));
+      if (due.length === 0) continue;
+      const earliest = due.reduce((min, c) =>
+        c.settings.reminders.sendAtLocalTime < min.settings.reminders.sendAtLocalTime ? c : min,
+      );
+      if (!sendTimeReached(anchor, earliest.settings)) continue;
+      if (done.has(consultant.personId)) {
+        report.alreadySent = (report.alreadySent ?? 0) + 1;
+        continue;
       }
-      for (const [asOf, group] of byDate) {
-        if (!group.reached) continue;
-        const sorted = [...group.clients].sort((a, b) => a.name.localeCompare(b.name, 'en'));
-        try {
-          // Skip the score queries when today's digest already went out; the claim below is the real guard.
-          const done = await deps.store.withFirm(firmId, requestId, (tx) =>
-            tx.listDoneSends(sorted[0]!.id, asOf),
+      try {
+        const summaries: DigestClientSummary[] = [];
+        let label = '';
+        for (const client of due) {
+          const asOf = clientDay(now, client.settings.timeZone).today;
+          const fy = fyBounds(
+            fyStartYear(asOf, client.settings.fyStartMonth),
+            client.settings.fyStartMonth,
           );
-          if (
-            done.some(
-              (k) => k.kind === 'CONSULTANT_DIGEST' && k.recipientId === consultant.personId,
-            )
-          ) {
-            report.alreadySent = (report.alreadySent ?? 0) + 1;
-            continue;
-          }
-          const summaries: DigestClientSummary[] = [];
-          let label = '';
-          for (const client of sorted) {
-            const fy = fyBounds(
-              fyStartYear(asOf, client.settings.fyStartMonth),
-              client.settings.fyStartMonth,
-            );
-            label ||= fyLabel(asOf, client.settings.fyStartMonth);
-            const items = await deps.store.withFirm(firmId, requestId, (tx) =>
-              tx.listScoreItems(client.id, fy),
-            );
-            const result = computeScore(items, asOf, firmSettings);
-            const kpis = summarizeKpis(result);
-            summaries.push({
-              clientName: client.name,
-              score: result.score,
-              overdue: kpis.overdue.count,
-              dueSoon: kpis.dueSoon.count,
-              awaitingApproval: kpis.awaitingApproval.count,
-              url: clientUrl(deps.appUrl, client.id),
-            });
-          }
-          await deliver(
-            deps,
-            firmId,
-            requestId,
-            {
-              clientId: sorted[0]!.id,
-              instanceId: null,
-              recipientId: consultant.personId,
-              kind: 'CONSULTANT_DIGEST',
-              sendDate: asOf,
-            },
-            {
-              name: consultant.displayName,
-              email: consultant.email,
-              canReceive: consultant.canReceive,
-            },
-            {
-              kind: 'CONSULTANT_DIGEST',
-              recipientName: consultant.displayName,
-              asOf,
-              fyLabel: label,
-              clients: summaries,
-            },
-            CONSULTANT_DIGEST,
-            report,
+          label ||= fyLabel(asOf, client.settings.fyStartMonth);
+          const items = await deps.store.withFirm(firmId, requestId, (tx) =>
+            tx.listScoreItems(client.id, fy),
           );
-        } catch (error) {
-          failures.push(error);
+          const result = computeScore(items, asOf, firmSettings);
+          const kpis = summarizeKpis(result);
+          summaries.push({
+            clientName: client.name,
+            score: result.score,
+            overdue: kpis.overdue.count,
+            dueSoon: kpis.dueSoon.count,
+            awaitingApproval: kpis.awaitingApproval.count,
+            url: clientUrl(deps.appUrl, client.id),
+          });
         }
+        await deliver(
+          deps,
+          firmId,
+          requestId,
+          {
+            clientId: due[0]!.id,
+            instanceId: null,
+            recipientId: consultant.personId,
+            kind: 'CONSULTANT_DIGEST',
+            sendDate: digestDate,
+          },
+          {
+            name: consultant.displayName,
+            email: consultant.email,
+            canReceive: consultant.canReceive,
+          },
+          {
+            kind: 'CONSULTANT_DIGEST',
+            recipientName: consultant.displayName,
+            asOf: digestDate,
+            fyLabel: label,
+            clients: summaries,
+          },
+          CONSULTANT_DIGEST,
+          report,
+        );
+      } catch (error) {
+        failures.push(error);
       }
     }
   }

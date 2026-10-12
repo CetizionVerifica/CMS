@@ -31,12 +31,16 @@ remind for complied or not-applicable items, and reach the database only through
 7. **Dedupe and delivery.** The send log (`notification_send`, unique per instance, kind and date; digests per
    recipient, kind and date) is claimed first, the email is sent outside any transaction, then the row is marked sent
    with a `notification.sent` event. A crash between send and mark leaves the row pending and the next run sends
-   again (at least once); a sent or failed row is never sent again. A transport error leaves the row pending and fails
+   again (at least once); a sent or failed row is never sent again. The dedupe key is instance, kind, send date and
+   recipient (contracts `NOTIFICATION_DEDUPE_KEY`), so an owner reassigned after that day's reminder still gets one.
+   `notification.sent` uses the send-log row as its aggregate (version 1, one event per row). A transport error leaves the row pending and fails
    the run so pg-boss retries. A recipient with no email or no live membership is recorded as failed (`NO_EMAIL`,
    `NOT_ACTIVE`) without sending.
-8. **Digest.** One per consultant per day (the send-log key allows no more), covering every client of theirs whose
-   digest weekday it is in that client's date, sent once the earliest of those clients' send times has passed. Scores
-   and counts are `computeScore` and `summarizeKpis` over the client's current FY.
+8. **Digest.** One per consultant per India-time date (the send-log key allows no more, so all clients must agree on
+   the date even across time zones). It covers every client of theirs whose digest weekday is that date, and goes out
+   once India time passes the earliest send time among those clients. Each client is scored at its own local date with
+   `computeScore` and `summarizeKpis` over its current FY. A firm-level digest time zone can replace the India default
+   when firms outside India arrive.
 9. **Emails** are rendered by `@canopy/notifications`: table layout with inline styles in the design tokens, sentence
    case, status wording from the UI spec, a plain-text part, every interpolated value HTML-escaped, http(s) links only,
    and the client-facing product name. They carry names of the recipient, client, unit and obligation only; never
@@ -47,6 +51,9 @@ remind for complied or not-applicable items, and reach the database only through
 ## Consequences
 - M3 PR 2 must provide, as repository calls: list firm ids (system), clients, generation targets, instance keys,
   idempotent instance insert, audit and outbox writes, reminder candidates, recipients and consultants with membership
-  state, score items, and send-log claim/mark. M9 PR 2 wires the adapter and boots the runner.
+  state, score items, and send-log claim, mark sent (setting the event aggregate), mark failed, list done per client and
+  list done digests per date.
+- `instance.generated` names the assignment as its aggregate with the assignment's current version; a later run for a
+  new FY repeats that version for a non-mutating event. M0 decides whether that stands. M9 PR 2 wires the adapter and boots the runner.
 - Event consumers (notify approver on `instance.submitted`, owner on `instance.sent_back`, regenerate on
   `assignment.*` and `import.committed`) are a later M9 PR on the same ports.

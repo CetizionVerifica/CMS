@@ -141,6 +141,38 @@ describe('consultant-digest', () => {
     expect(h.store.firms[0]!.sends[0]!.failureCode).toBe('NOT_ACTIVE');
   });
 
+  it('puts clients in two time zones into the same Monday digest, each scored at its own date', async () => {
+    const { firm, abg, tata, t } = setup();
+    tata.settings.timeZone = 'America/New_York';
+    // Due 11 Oct: overdue in India (12 Oct), due today in New York (still 11 Oct) and so not overdue there.
+    firm.instances.push(instance(t, '2026-10-11'));
+    const h = harness([firm]);
+    h.at(MONDAY_SEND); // Monday 07:00 IST, Sunday 21:30 in New York
+    await runConsultantDigest(h.deps, 'job:d:1');
+    expect(h.mailer.sent).toHaveLength(1);
+    const text = h.mailer.sent[0]!.text;
+    expect(text).toContain('Aditya Birla Group: score No items due');
+    expect(text).toContain('Tata Group: score 0.0%, 0 overdue, 1 due soon');
+    expect(h.store.firms[0]!.sends[0]).toMatchObject({ clientId: abg.id, sendDate: '2026-10-12' });
+    // Monday 07:00 in New York: same India date, already sent, so no second digest without the New York client.
+    h.at('2026-10-12T11:00:00Z');
+    expect(await runConsultantDigest(h.deps, 'job:d:2')).toMatchObject({ sent: 0, alreadySent: 1 });
+    expect(h.mailer.sent).toHaveLength(1);
+  });
+
+  it('waits for the earliest send time among the clients due that day, read in India time', async () => {
+    const { firm } = setup();
+    for (const c of firm.clients) c.settings.reminders.sendAtLocalTime = '09:00';
+    firm.clients[1]!.settings.reminders.sendAtLocalTime = '08:00';
+    const h = harness([firm]);
+    h.at('2026-10-12T02:29:00Z'); // 07:59 IST
+    await runConsultantDigest(h.deps, 'job:d:1');
+    expect(h.mailer.sent).toEqual([]);
+    h.at('2026-10-12T02:30:00Z'); // 08:00 IST
+    await runConsultantDigest(h.deps, 'job:d:2');
+    expect(h.mailer.sent).toHaveLength(1);
+  });
+
   it('fails the run on a transport error and sends on the retry', async () => {
     const { firm } = setup();
     const h = harness([firm]);

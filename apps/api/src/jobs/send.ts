@@ -52,8 +52,6 @@ export async function deliver(
       clientId: key.clientId,
       actor: { kind: 'SYSTEM', job },
       requestId,
-      aggregate: { type: 'notification', id: key.instanceId ?? key.recipientId },
-      aggregateVersion: 1,
       data: {
         kind: key.kind,
         recipientId: key.recipientId,

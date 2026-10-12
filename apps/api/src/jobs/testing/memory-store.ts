@@ -63,6 +63,7 @@ export interface MemoryPerson {
 }
 
 export interface MemorySend extends SendKey {
+  id: Id;
   sentAt: string | null;
   failureCode: SendFailureCode | null;
 }
@@ -104,12 +105,12 @@ export function memoryClient(name: string, settings: Partial<ClientSettings> = {
 const inRange = (d: LocalDate, r: { from: LocalDate; to: LocalDate }) =>
   compareDates(d, r.from) >= 0 && compareDates(d, r.to) <= 0;
 
+/** The send-log dedupe key: instance, kind, send date and recipient (contracts NOTIFICATION_DEDUPE_KEY). */
 const sameKey = (a: SendKey, b: SendKey) =>
   a.kind === b.kind &&
   a.sendDate === b.sendDate &&
-  (a.instanceId === null
-    ? b.instanceId === null && a.recipientId === b.recipientId
-    : a.instanceId === b.instanceId);
+  a.recipientId === b.recipientId &&
+  a.instanceId === b.instanceId;
 
 function firmTx(firm: MemoryFirm, hooks: MemoryStoreHooks): FirmTx {
   const assignment = (id: Id) => firm.assignments.find((a) => a.assignmentId === id)!;
@@ -181,6 +182,15 @@ function firmTx(firm: MemoryFirm, hooks: MemoryStoreHooks): FirmTx {
           s.sendDate === sendDate &&
           (s.sentAt !== null || s.failureCode !== null),
       ),
+    listDoneDigests: async (sendDate) =>
+      firm.sends
+        .filter(
+          (s) =>
+            s.kind === 'CONSULTANT_DIGEST' &&
+            s.sendDate === sendDate &&
+            (s.sentAt !== null || s.failureCode !== null),
+        )
+        .map((s) => s.recipientId),
     recipients: async (ids, clientId) =>
       firm.people
         .filter((p) => ids.includes(p.id))
@@ -214,14 +224,19 @@ function firmTx(firm: MemoryFirm, hooks: MemoryStoreHooks): FirmTx {
     claimSend: async (key): Promise<ClaimResult> => {
       const row = firm.sends.find((s) => sameKey(s, key));
       if (!row) {
-        firm.sends.push({ ...key, sentAt: null, failureCode: null });
+        firm.sends.push({ ...key, id: randomUUID(), sentAt: null, failureCode: null });
         return 'NEW';
       }
       return row.sentAt === null && row.failureCode === null ? 'PENDING' : 'DONE';
     },
     markSent: async (key, at, event) => {
-      firm.sends.find((s) => sameKey(s, key))!.sentAt = at;
-      firm.events.push(event);
+      const row = firm.sends.find((s) => sameKey(s, key))!;
+      row.sentAt = at;
+      firm.events.push({
+        ...event,
+        aggregate: { type: 'notification_send', id: row.id },
+        aggregateVersion: 1,
+      });
     },
     markFailed: async (key, code) => {
       firm.sends.find((s) => sameKey(s, key))!.failureCode = code;

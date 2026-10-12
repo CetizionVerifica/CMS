@@ -22,7 +22,12 @@ const message = {
 describe('deliver', () => {
   it('skips a key the send log already has as sent, even when the pre-check missed it', async () => {
     const firm = memoryFirm();
-    firm.sends.push({ ...key, sentAt: '2026-10-12T01:30:00Z', failureCode: null });
+    firm.sends.push({
+      ...key,
+      id: '0190a000-0000-7000-8000-000000000009',
+      sentAt: '2026-10-12T01:30:00Z',
+      failureCode: null,
+    });
     const h = harness([firm]);
     const report = {};
     await deliver(
@@ -41,7 +46,12 @@ describe('deliver', () => {
 
   it('resends a PENDING key left by a crash after claiming', async () => {
     const firm = memoryFirm();
-    firm.sends.push({ ...key, sentAt: null, failureCode: null });
+    firm.sends.push({
+      ...key,
+      id: '0190a000-0000-7000-8000-000000000009',
+      sentAt: null,
+      failureCode: null,
+    });
     const h = harness([firm]);
     await deliver(
       h.deps,
@@ -57,7 +67,8 @@ describe('deliver', () => {
     expect(h.store.firms[0]!.sends).toHaveLength(1);
     expect(h.store.firms[0]!.events[0]).toMatchObject({
       type: 'notification.sent',
-      aggregate: { type: 'notification', id: key.recipientId },
+      aggregate: { type: 'notification_send', id: '0190a000-0000-7000-8000-000000000009' },
+      aggregateVersion: 1,
       data: {
         kind: 'CONSULTANT_DIGEST',
         instanceId: null,
