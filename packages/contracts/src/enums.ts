@@ -242,6 +242,16 @@ export const InstanceAction = z.enum([
 ]);
 export type InstanceAction = z.infer<typeof InstanceAction>;
 
+/**
+ * States in which REASSIGN, CHANGE_DUE_DATE and UPLOAD_EVIDENCE are offered (ADR 0004 §7). A complied or NA instance is
+ * reopened first, so its on-time result cannot change silently. Otherwise `409 INVALID_TRANSITION`.
+ */
+export const INSTANCE_EDIT_STATES = [
+  'OPEN',
+  'SENT_BACK',
+  'SUBMITTED',
+] as const satisfies readonly WorkflowState[];
+
 /** Fields an import column can map to (domain-model.md §6). */
 export const CanopyField = z.enum([
   'externalRef',

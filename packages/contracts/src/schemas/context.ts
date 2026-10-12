@@ -19,8 +19,13 @@ export const RequestContext = z.strictObject({
 });
 export type RequestContext = z.infer<typeof RequestContext>;
 
-/** `can()` action name, "<resource>.<verb>", e.g. "instance.submit". Listed in docs/contracts/endpoints.md. */
-export const Action = z.string().regex(/^[a-z_]+\.[a-z_]+$/, 'Expected "<resource>.<verb>"');
+/**
+ * `can()` action name, "<resource>.<verb>" in lower camelCase, e.g. "instance.submit", "instance.dueDate". Listed in
+ * docs/contracts/endpoints.md.
+ */
+export const Action = z
+  .string()
+  .regex(/^[a-z][a-zA-Z]*\.[a-z][a-zA-Z]*$/, 'Expected "<resource>.<verb>" in camelCase');
 export type Action = z.infer<typeof Action>;
 
 export const Resource = z.strictObject({

@@ -15,8 +15,8 @@ import {
 
 /** Library: Acts, categories, obligations and recurrence rules (docs/contracts/domain-model.md §4). */
 
-/** STATE needs a stateCode; CENTRAL has none. */
-function checkJurisdiction(
+/** STATE needs a stateCode; CENTRAL has none (README decision 9). */
+export function checkJurisdiction(
   value: { jurisdiction: Jurisdiction; stateCode: string | null },
   ctx: z.core.$RefinementCtx,
 ): void {

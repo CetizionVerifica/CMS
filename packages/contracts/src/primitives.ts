@@ -37,7 +37,8 @@ export function isLocalDate(value: string): boolean {
 export const LocalDate = z
   .string()
   .refine(isLocalDate, { message: 'Expected a calendar date YYYY-MM-DD' })
-  .brand<'LocalDate'>();
+  .brand<'LocalDate'>()
+  .meta({ format: 'date', pattern: '^\\d{4}-\\d{2}-\\d{2}$' });
 export type LocalDate = z.infer<typeof LocalDate>;
 
 /** ISO 8601 UTC timestamp ending in "Z", e.g. "2026-10-11T09:17:43Z". Event and audit times. */

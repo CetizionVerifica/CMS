@@ -82,6 +82,17 @@ export const PlannedNotification = z.strictObject({
 });
 export type PlannedNotification = z.infer<typeof PlannedNotification>;
 
+/**
+ * A notification is sent at most once per these fields (events.md §4 rule 4). `recipientId` is part of the key, so a person who
+ * becomes owner or approver on the day another was reminded is still reminded.
+ */
+export const NOTIFICATION_DEDUPE_KEY = [
+  'instanceId',
+  'kind',
+  'sendDate',
+  'recipientId',
+] as const satisfies readonly (keyof PlannedNotification)[];
+
 export const ExportJob = z.strictObject({
   ...baseShape,
   clientId: Id,

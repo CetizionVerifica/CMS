@@ -27,8 +27,9 @@ export type DeadlineListProps = {
   /** Default 5; the rest become "+ 12 more". */
   max?: number;
   /**
-   * Group into Overdue, This week, Next week and Later, from the API's `today` (never the browser
-   * clock). Without `today` the list is not grouped.
+   * Group into Overdue, Earlier, This week, Next week and Later. "Overdue" holds the items whose engine
+   * status is `OVERDUE`; the rest group by due date against the API's `today` (never the browser clock).
+   * Without `today` the list is not grouped.
    */
   groupBy?: 'week' | 'none';
   today?: string;
@@ -43,15 +44,18 @@ export type DeadlineListProps = {
 /** Only due-soon and overdue items show a pill, so the list stays calm. */
 const showsPill = (s?: DerivedStatus): s is DerivedStatus => s === 'DUE_SOON' || s === 'OVERDUE';
 
-const WEEK_ORDER = ['Overdue', 'This week', 'Next week', 'Later'];
-type WeekLabel = 'Overdue' | 'This week' | 'Next week' | 'Later';
+const WEEK_ORDER = ['Overdue', 'Earlier', 'This week', 'Next week', 'Later'];
+type WeekLabel = 'Overdue' | 'Earlier' | 'This week' | 'Next week' | 'Later';
 
-function weekGroup(due: string, today: string): WeekLabel {
+function weekGroup({ dueDate: due, status }: DeadlineItem, today: string): WeekLabel {
+  // Overdue is a status the engine derives (root rule 3), so the heading follows it, not the date. An item due
+  // before today that is submitted, sent back or not yet derived is not called overdue.
+  if (status === 'OVERDUE') return 'Overdue';
   // Both are YYYY-MM-DD calendar dates, so string order is date order.
-  if (due < today) return 'Overdue';
   const thisMonday = addDays(today, -weekdayMon0(today));
   const nextMonday = addDays(thisMonday, 7);
   const after = addDays(nextMonday, 7);
+  if (due < thisMonday) return 'Earlier';
   if (due < nextMonday) return 'This week';
   if (due < after) return 'Next week';
   return 'Later';
@@ -85,7 +89,7 @@ export function DeadlineList({
   const groups: { label: string | null; items: DeadlineItem[] }[] = [];
   // One group per label, in week order, even when the input is not sorted by due date.
   for (const item of shown) {
-    const label = groupBy === 'week' && today ? weekGroup(item.dueDate, today) : null;
+    const label = groupBy === 'week' && today ? weekGroup(item, today) : null;
     const group = groups.find((g) => g.label === label);
     if (group) group.items.push(item);
     else groups.push({ label, items: [item] });

@@ -25,6 +25,8 @@ jobs:
       contains(github.event.comment.body, '<!-- canopy-audit sha=') &&
       github.event.comment.user.type == 'User'
     runs-on: ubuntu-latest
+    # For AUTOMERGE_TOKEN (see auto-merge.yml). issue_comment runs on main, the only branch this environment allows.
+    environment: automerge
     timeout-minutes: 60
     permissions:
       actions: write
