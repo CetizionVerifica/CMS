@@ -25,6 +25,8 @@ export type ShellModel = {
   isFirmUser: boolean;
   /** Roles per client id (firm roles included), and firm roles alone for firm-level pages. */
   roles: { firm: Role[]; byClient: Record<string, Role[]> };
+  /** Instances waiting on the user's approval (GET /me/approvals), shown on the Approvals item. */
+  approvalsWaiting: number;
 };
 
 export type NavSection = { label?: string; items: { path: string; label: string; href: string }[] };
@@ -56,8 +58,18 @@ function unitsLabel(n: number): string {
   return `${n} ${n === 1 ? 'unit' : 'units'}`;
 }
 
-/** `overdue` comes from GET /portfolio (firm users); client users see no count. */
-export function buildShellModel(me: Me, overdue: Record<string, number> = {}): ShellModel {
+/** People who see the Approvals page, and so its badge (the same roles GET /me/approvals allows). */
+export const APPROVAL_ROLES: readonly Role[] = routeByPath('approvals').roles ?? [];
+
+/**
+ * `overdue` comes from GET /portfolio (firm users); client users see no count. `approvalsWaiting` comes from
+ * GET /me/approvals.
+ */
+export function buildShellModel(
+  me: Me,
+  overdue: Record<string, number> = {},
+  approvalsWaiting = 0,
+): ShellModel {
   const roles = rolesFor(me);
   const clients = me.clients
     .map(({ id, name, unitCount, fyStartMonth, timeZone, period }): ShellClient => ({
@@ -84,6 +96,7 @@ export function buildShellModel(me: Me, overdue: Record<string, number> = {}): S
       firm: roles.filter((r) => firmRoles.includes(r)),
       byClient: Object.fromEntries(clients.map((c) => [c.id, rolesFor(me, c.id)])),
     },
+    approvalsWaiting,
   };
 }
 

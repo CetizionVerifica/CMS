@@ -23,8 +23,27 @@ describe('parseSetCookie', () => {
       value: 'b',
       secure: true,
     });
-    expect(parseSetCookie('a=b; SameSite=Strict; Domain=x')).toMatchObject({
+    expect(parseSetCookie('a=b; SameSite=Strict')).toMatchObject({
       sameSite: 'strict',
+      secure: false,
+    });
+  });
+
+  it('keeps Domain and Expires, so a logout that expires the cookie clears it', () => {
+    expect(
+      parseSetCookie(
+        'pp_session=; Domain=.planetpulse.life; Expires=Thu, 01 Jan 1970 00:00:00 GMT',
+      ),
+    ).toEqual({
+      name: 'pp_session',
+      value: '',
+      secure: false,
+      domain: 'planetpulse.life',
+      expires: new Date(0),
+    });
+    expect(parseSetCookie('a=b; Expires=not a date; Domain=')).toEqual({
+      name: 'a',
+      value: 'b',
       secure: false,
     });
   });

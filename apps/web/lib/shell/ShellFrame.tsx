@@ -122,6 +122,9 @@ export function ShellFrame({ model, initialLayout, children }: ShellFrameProps) 
       label: item.label,
       href: item.href,
       icon: ICONS[item.path] ?? LayoutDashboard,
+      ...(item.path === 'approvals'
+        ? { badge: { count: model.approvalsWaiting, label: `${model.approvalsWaiting} waiting` } }
+        : {}),
     })),
   }));
 
