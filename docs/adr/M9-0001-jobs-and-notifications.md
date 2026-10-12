@@ -64,8 +64,10 @@ remind for complied or not-applicable items, and reach the database only through
       WHERE event_id IS NOT NULL` (M3 migration 0016). A redelivered event sends nothing twice. A second send-back on
       the same day is a new event, so it still reaches the owner. Scheduled sends keep their own key and leave out
       rows with an event id, so the day's reminder and the event email never block each other.
-    - **Stale events send nothing:** the consumer re-reads the instance, and sends only if it is still `SUBMITTED`
-      (or `SENT_BACK`) and not archived. An approval that lands before the email goes therefore stops it.
+    - **Stale events send nothing:** the consumer re-reads the instance and sends only if its version is still the
+      event's `aggregateVersion` (and it is not archived). An approval that lands before the email goes stops it, and
+      so does a resubmit followed by a second send-back, which has its own event and email. A reassignment after the
+      event also stops it; the daily reminder or escalation then reaches the new owner or approver.
     - **Send date** is the client's day when the email goes. It is recorded only; it is not part of the key.
     - **Retries:** a transport failure leaves the row pending and fails the pg-boss job, which retries it (`runner.ts`
       `RETRIES`: three times, backing off from a minute). The retry sends the pending row once.

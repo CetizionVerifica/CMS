@@ -21,7 +21,7 @@ describe.skipIf(!url)('job runner on pg-boss', () => {
 
   beforeAll(async () => {
     const firm = memoryFirm();
-    const client = memoryClient('Aditya Birla Group');
+    const client = memoryClient('Kestrel Metals Group');
     const owner = person({ clientIds: [client.id] });
     const approver = person({ clientIds: [client.id] });
     firm.clients.push(client);

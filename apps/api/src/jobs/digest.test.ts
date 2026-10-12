@@ -9,26 +9,26 @@ const MONDAY_SEND = '2026-10-12T01:30:00Z';
 
 function setup() {
   const firm = memoryFirm();
-  const abg = memoryClient('Aditya Birla Group');
-  const tata = memoryClient('Tata Group');
-  const owner = person({ clientIds: [abg.id, tata.id] });
-  const approver = person({ clientIds: [abg.id, tata.id] });
+  const kestrel = memoryClient('Kestrel Metals Group');
+  const osprey = memoryClient('Osprey Textiles Group');
+  const owner = person({ clientIds: [kestrel.id, osprey.id] });
+  const approver = person({ clientIds: [kestrel.id, osprey.id] });
   const consultant = person({
     displayName: 'Meera Iyer',
     email: 'meera@example.com',
-    consultantFor: [tata.id, abg.id],
+    consultantFor: [osprey.id, kestrel.id],
   });
-  firm.clients.push(abg, tata);
+  firm.clients.push(kestrel, osprey);
   firm.people.push(owner, approver, consultant);
-  const a = assignment(abg, owner, approver, { criticality: 'HIGH' });
-  const t = assignment(tata, owner, approver);
+  const a = assignment(kestrel, owner, approver, { criticality: 'HIGH' });
+  const t = assignment(osprey, owner, approver);
   firm.assignments.push(a, t);
-  return { firm, abg, tata, consultant, a, t };
+  return { firm, kestrel, osprey, consultant, a, t };
 }
 
 describe('consultant-digest', () => {
   it('sends one Monday digest per consultant covering all their clients, with engine scores', async () => {
-    const { firm, abg, tata, consultant, a, t } = setup();
+    const { firm, kestrel, osprey, consultant, a, t } = setup();
     firm.instances.push(
       instance(a, '2026-09-07', {
         workflowState: 'APPROVED',
@@ -46,15 +46,15 @@ describe('consultant-digest', () => {
     const mail = h.mailer.sent[0]!;
     expect(mail.to).toEqual({ name: 'Meera Iyer', email: 'meera@example.com' });
     expect(mail.subject).toBe('Weekly digest, 12 Oct 2026: 1 overdue');
-    // Aditya Birla: 1 on time of 2 due, both HIGH → 50.0%. Tata: 1 due, awaiting approval → 0.0%.
+    // Kestrel Metals: 1 on time of 2 due, both HIGH → 50.0%. Osprey Textiles: 1 due, awaiting approval → 0.0%.
     expect(mail.text).toContain(
-      'Aditya Birla Group: score 50.0%, 1 overdue, 1 due soon, 0 awaiting approval.',
+      'Kestrel Metals Group: score 50.0%, 1 overdue, 1 due soon, 0 awaiting approval.',
     );
     expect(mail.text).toContain(
-      'Tata Group: score 0.0%, 0 overdue, 0 due soon, 1 awaiting approval.',
+      'Osprey Textiles Group: score 0.0%, 0 overdue, 0 due soon, 1 awaiting approval.',
     );
-    expect(mail.text.indexOf('Aditya')).toBeLessThan(mail.text.indexOf('Tata'));
-    expect(mail.text).toContain(`${APP_URL}/c/${abg.id}/overview`);
+    expect(mail.text.indexOf('Kestrel')).toBeLessThan(mail.text.indexOf('Osprey'));
+    expect(mail.text).toContain(`${APP_URL}/c/${kestrel.id}/overview`);
     expect(mail.text).toContain('FY 2026-27');
     const log = h.store.firms[0]!.sends;
     expect(log).toEqual([
@@ -62,11 +62,11 @@ describe('consultant-digest', () => {
         kind: 'CONSULTANT_DIGEST',
         instanceId: null,
         recipientId: consultant.id,
-        clientId: abg.id,
+        clientId: kestrel.id,
         sendDate: '2026-10-12',
       }),
     ]);
-    expect(tata.id).not.toBe(abg.id);
+    expect(osprey.id).not.toBe(kestrel.id);
   });
 
   it('sends once per day however often it runs', async () => {
@@ -101,14 +101,14 @@ describe('consultant-digest', () => {
   });
 
   it('includes only clients whose digest day it is, once any of them has reached its send time', async () => {
-    const { firm, tata } = setup();
-    tata.settings.reminders.consultantDigestWeekday = 3; // Wednesday
-    firm.clients.find((c) => c.id === tata.id)!.settings.reminders.consultantDigestWeekday = 3;
+    const { firm, osprey } = setup();
+    osprey.settings.reminders.consultantDigestWeekday = 3; // Wednesday
+    firm.clients.find((c) => c.id === osprey.id)!.settings.reminders.consultantDigestWeekday = 3;
     const h = harness([firm]);
     h.at(MONDAY_SEND);
     await runConsultantDigest(h.deps, 'job:d:1');
-    expect(h.mailer.sent[0]!.text).toContain('Aditya Birla Group');
-    expect(h.mailer.sent[0]!.text).not.toContain('Tata Group');
+    expect(h.mailer.sent[0]!.text).toContain('Kestrel Metals Group');
+    expect(h.mailer.sent[0]!.text).not.toContain('Osprey Textiles Group');
   });
 
   it('shows "No items due" when nothing is due yet', async () => {
@@ -142,8 +142,8 @@ describe('consultant-digest', () => {
   });
 
   it('puts clients in two time zones into the same Monday digest, each scored at its own date', async () => {
-    const { firm, abg, tata, t } = setup();
-    tata.settings.timeZone = 'America/New_York';
+    const { firm, kestrel, osprey, t } = setup();
+    osprey.settings.timeZone = 'America/New_York';
     // Due 11 Oct: overdue in India (12 Oct), due today in New York (still 11 Oct) and so not overdue there.
     firm.instances.push(instance(t, '2026-10-11'));
     const h = harness([firm]);
@@ -151,9 +151,12 @@ describe('consultant-digest', () => {
     await runConsultantDigest(h.deps, 'job:d:1');
     expect(h.mailer.sent).toHaveLength(1);
     const text = h.mailer.sent[0]!.text;
-    expect(text).toContain('Aditya Birla Group: score No items due');
-    expect(text).toContain('Tata Group: score 0.0%, 0 overdue, 1 due soon');
-    expect(h.store.firms[0]!.sends[0]).toMatchObject({ clientId: abg.id, sendDate: '2026-10-12' });
+    expect(text).toContain('Kestrel Metals Group: score No items due');
+    expect(text).toContain('Osprey Textiles Group: score 0.0%, 0 overdue, 1 due soon');
+    expect(h.store.firms[0]!.sends[0]).toMatchObject({
+      clientId: kestrel.id,
+      sendDate: '2026-10-12',
+    });
     // Monday 07:00 in New York: same India date, already sent, so no second digest without the New York client.
     h.at('2026-10-12T11:00:00Z');
     expect(await runConsultantDigest(h.deps, 'job:d:2')).toMatchObject({ sent: 0, alreadySent: 1 });

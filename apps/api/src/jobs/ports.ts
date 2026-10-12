@@ -75,6 +75,11 @@ export interface ReminderCandidate extends NotificationInput {
   criticality: Criticality;
 }
 
+/** An instance an event-driven email is about: the reminder fields plus its optimistic-concurrency version. */
+export interface NoticeInstance extends ReminderCandidate {
+  version: number;
+}
+
 export interface Recipient {
   personId: Id;
   displayName: string;
@@ -178,10 +183,10 @@ export interface FirmTx {
     range: { from: LocalDate; to: LocalDate },
   ): Promise<ReminderCandidate[]>;
   /**
-   * One non-archived instance with the names its email shows, in any workflow state; null when it is missing or
-   * archived. Event-driven sends read it to check the instance is still where the event left it.
+   * One non-archived instance with the names its email shows and its version, in any workflow state; null when it
+   * is missing or archived. Event-driven sends read it to check the instance is still where the event left it.
    */
-  findInstance(instanceId: Id): Promise<ReminderCandidate | null>;
+  findInstance(instanceId: Id): Promise<NoticeInstance | null>;
   /** Scheduled send-log rows of one client for one send date that are DONE (sent or failed). */
   listDoneSends(clientId: Id, sendDate: LocalDate): Promise<SendKey[]>;
   /** Recipients whose CONSULTANT_DIGEST for this send date is DONE (sent or failed), across all clients. */
