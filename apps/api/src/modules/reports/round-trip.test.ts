@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
-import { dryRun } from '@canopy/importer';
+import { asLocalDate } from '@canopy/engine';
+import { dryRun, fingerprintInstance } from '@canopy/importer';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createTestAuth } from '../../auth/testing.js';
 import { buildServer } from '../../server.js';
@@ -8,8 +9,8 @@ import {
   loadSample,
   readSheet,
   type SampleClient,
-} from '../dashboard/fixtures.js';
-import { MemoryReportsStore } from '../dashboard/memory-store.js';
+} from '../dashboard/testing/fixtures.js';
+import { MemoryReportsStore, type MemoryRow } from '../dashboard/memory-store.js';
 import { MemoryExportFiles } from './files.js';
 import { REGISTER_HEADERS } from './register-xlsx.js';
 import { InProcessRunner } from './service.js';
@@ -104,6 +105,73 @@ describe('register export round trip', () => {
       });
       expect(before.comments.slice(0, incoming.comments.length)).toEqual(incoming.comments);
       expect(before.comments.length).toBeGreaterThan(incoming.comments.length);
+    }
+  });
+});
+
+describe('register export round trip after work in the app', () => {
+  it('re-imports approved work unchanged and shows submitted or sent-back work as still pending', async () => {
+    // Three open sample instances worked in the app: one approved, one submitted, one sent back.
+    const { instances } = sample.analysis.plan;
+    const picked = instances
+      .map((plan, index) => ({ plan, row: sample.rows[index]! }))
+      .filter(({ plan }) => plan.workflowState === 'OPEN' && plan.comments.length === 0)
+      .slice(0, 3);
+    expect(picked).toHaveLength(3);
+    const [approved, submitted, sentBack] = picked as [
+      (typeof picked)[number],
+      (typeof picked)[number],
+      (typeof picked)[number],
+    ];
+    const saved = picked.map(({ row }) => ({ row, before: { ...row } }));
+    const work: [MemoryRow, Partial<MemoryRow>][] = [
+      [approved.row, { workflowState: 'APPROVED', completedOn: asLocalDate('2022-05-10') }],
+      [
+        submitted.row,
+        {
+          workflowState: 'SUBMITTED',
+          pendingKind: 'COMPLETION',
+          completedOn: asLocalDate('2022-05-11'),
+        },
+      ],
+      [sentBack.row, { workflowState: 'SENT_BACK' }],
+    ];
+    for (const [row, change] of work) Object.assign(row, change);
+
+    try {
+      files.files.clear();
+      const sheet = await readSheet(await exportRegister(), 'export.xlsx');
+      // The stored state after the approval; submitted and sent-back work is not in the importer's state model.
+      const approvedPlan = { ...approved.plan, workflowState: 'APPROVED' as const };
+      approvedPlan.completedOn = asLocalDate('2022-05-10');
+      const state = {
+        ...sample.state,
+        instances: {
+          ...sample.state.instances,
+          [approved.plan.key]: fingerprintInstance(approvedPlan),
+        },
+      };
+      const again = analyseRecommended(sheet, state);
+      const { report, instanceOutcomes } = dryRun(again, state);
+      expect(report.blockingErrors).toBe(0);
+      expect(report.create.instances).toBe(0);
+
+      // Approved in the app: "Complied" with its Activity Date, read back as the same instance.
+      expect(instanceOutcomes.get(approved.plan.key)).toBe('UNCHANGED');
+
+      // Submitted or sent back: the register has no word for work in progress, so the row is "Pending" with
+      // no Activity Date and reads back as the open instance it was before the work started (ADR M10-0001 §8).
+      const incoming = new Map(again.plan.instances.map((i) => [i.key, i]));
+      for (const { plan } of [submitted, sentBack]) {
+        const read = incoming.get(plan.key)!;
+        const row = sheet.rows.find((r) => r.rowNumber === read.rowNumbers[0])!;
+        expect(row.cells['Compliance Status']).toBe('Pending');
+        expect(row.cells['Activity Date'] ?? null).toBeNull();
+        expect({ ...read, rowNumbers: [] }).toEqual({ ...plan, rowNumbers: [] });
+        expect(instanceOutcomes.get(plan.key)).toBe('UNCHANGED');
+      }
+    } finally {
+      for (const { row, before } of saved) Object.assign(row, before);
     }
   });
 });

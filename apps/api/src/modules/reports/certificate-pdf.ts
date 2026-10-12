@@ -14,8 +14,10 @@ export interface CertificateData {
   locationLabel: string;
   periodLabel: string;
   asOf: string;
-  /** UTC instant the file was made. */
+  /** UTC instant the file was made; printed in `timeZone`. */
   generatedAt: string;
+  /** The client's IANA time zone (root rule 4). */
+  timeZone: string;
   result: ScoreResult;
   byAct: Breakdown;
   /** Overdue instances, most overdue first. */
@@ -35,6 +37,24 @@ const LINE = rgb(0.82, 0.85, 0.83);
  */
 export function pdfSafe(text: string): string {
   return text.replace(/[^\x20-\x7e\xa0-\xff]/g, (ch) => (ch === '\n' || ch === '\t' ? ' ' : '?'));
+}
+
+/** "2026-10-12 11:30 Asia/Kolkata": an instant as a wall-clock time in the client's time zone. */
+export function localTime(instant: string, timeZone: string): string {
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat('en-CA', {
+      timeZone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hourCycle: 'h23',
+    })
+      .formatToParts(new Date(instant))
+      .map((p) => [p.type, p.value]),
+  );
+  return `${parts.year}-${parts.month}-${parts.day} ${parts.hour}:${parts.minute} ${timeZone}`;
 }
 
 function percent(value: number | null): string {
@@ -161,7 +181,7 @@ export async function certificatePdf(data: CertificateData): Promise<Uint8Array>
     regular,
     bold,
     pdfSafe(
-      `PlanetPulse Compliance · generated ${data.generatedAt} · engine ${data.result.engineVersion}`,
+      `PlanetPulse Compliance · generated ${localTime(data.generatedAt, data.timeZone)} · engine ${data.result.engineVersion}`,
     ),
   );
 
@@ -178,7 +198,7 @@ export async function certificatePdf(data: CertificateData): Promise<Uint8Array>
   w.paragraph(
     `As recorded in PlanetPulse Compliance on ${data.asOf}, the compliance score of ${data.unitName} ` +
       `for ${data.periodLabel} is ${percent(data.result.score)} and the on-time rate is ` +
-      `${percent(data.result.onTimeRate)}. ${counts.COMPLIED} obligations were complied with on time and ` +
+      `${percent(data.result.onTimeRate)}. ${counts.COMPLIED} compliance items were complied with on time and ` +
       `${counts.COMPLIED_LATE} late; ${counts.OVERDUE} are overdue, ${counts.SUBMITTED} are awaiting ` +
       `approval, ${counts.DUE_SOON + counts.UPCOMING} are not yet due and ${counts.NOT_APPLICABLE} are ` +
       `not applicable.`,
@@ -205,9 +225,9 @@ export async function certificatePdf(data: CertificateData): Promise<Uint8Array>
     );
   }
   if (data.byAct.rows.length === 0)
-    w.paragraph('No obligations in this period.', 10, regular, MUTED);
+    w.paragraph('No compliance items in this period.', 10, regular, MUTED);
 
-  w.heading('Overdue obligations');
+  w.heading('Overdue items');
   if (data.overdue.length === 0) {
     w.paragraph('None.', 10, regular, MUTED);
   } else {

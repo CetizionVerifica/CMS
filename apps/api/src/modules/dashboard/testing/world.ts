@@ -1,12 +1,12 @@
 import { randomUUID } from 'node:crypto';
 import { DEFAULT_CLIENT_SETTINGS, type Role } from '@canopy/contracts';
 import { asLocalDate } from '@canopy/engine';
-import { createTestAuth, type MembershipInput } from '../../auth/testing.js';
-import { buildServer } from '../../server.js';
-import { InProcessRunner } from '../reports/service.js';
-import { MemoryExportFiles } from '../reports/files.js';
+import { createTestAuth, type MembershipInput } from '../../../auth/testing.js';
+import { buildServer } from '../../../server.js';
+import { InProcessRunner } from '../../reports/service.js';
+import { MemoryExportFiles } from '../../reports/files.js';
 import { makeRow } from './fixtures.js';
-import { MemoryReportsStore, type MemoryRow } from './memory-store.js';
+import { MemoryReportsStore, type MemoryRow } from '../memory-store.js';
 
 /**
  * A small two-firm world for M10 route tests. "Today" is 2026-10-12 in Asia/Kolkata, so the current FY is

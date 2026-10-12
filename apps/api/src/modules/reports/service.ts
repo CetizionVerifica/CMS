@@ -120,25 +120,28 @@ export async function overdueReport(
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-/** First responses by (firm, person, Idempotency-Key), kept 24 hours. In memory: one API process in v1. */
+/**
+ * First responses by (firm, person, Idempotency-Key), kept 24 hours with the request they answered (client
+ * and body). In memory: one API process in v1.
+ */
 export class IdempotencyCache {
-  private readonly entries = new Map<string, { at: number; job: ExportJob }>();
+  private readonly entries = new Map<string, { at: number; request: string; job: ExportJob }>();
 
-  get(key: string, now: Date): ExportJob | undefined {
+  get(key: string, now: Date): { request: string; job: ExportJob } | undefined {
     const entry = this.entries.get(key);
     if (entry === undefined) return undefined;
     if (now.getTime() - entry.at >= DAY_MS) {
       this.entries.delete(key);
       return undefined;
     }
-    return entry.job;
+    return entry;
   }
 
-  set(key: string, job: ExportJob, now: Date): void {
+  set(key: string, request: string, job: ExportJob, now: Date): void {
     for (const [k, entry] of this.entries) {
       if (now.getTime() - entry.at >= DAY_MS) this.entries.delete(k);
     }
-    this.entries.set(key, { at: now.getTime(), job });
+    this.entries.set(key, { at: now.getTime(), request, job });
   }
 }
 
@@ -191,9 +194,23 @@ export async function createExport(
 ): Promise<ExportJob> {
   const cacheKey =
     idempotencyKey === undefined ? undefined : `${ctx.firmId}/${ctx.personId}/${idempotencyKey}`;
+  const request = JSON.stringify([
+    clientId,
+    body.kind,
+    body.filters,
+    body.unitId ?? null,
+    body.fy ?? null,
+  ]);
   const now = deps.clock();
   const cached = cacheKey === undefined ? undefined : deps.idempotency.get(cacheKey, now);
-  if (cached !== undefined) return cached;
+  if (cached !== undefined) {
+    // A key reused for another client or request is a client bug: refuse it rather than answer with a
+    // different job.
+    if (cached.request !== request) {
+      throw validation('Idempotency-Key', 'This key was used for a different export request');
+    }
+    return cached.job;
+  }
 
   const client = await requireClientInfo(deps.store, ctx, clientId);
   const query = parseFilters(body.filters);
@@ -215,7 +232,7 @@ export async function createExport(
   }
 
   const job = await deps.store.createExportJob(ctx, { clientId, kind: body.kind, params });
-  if (cacheKey !== undefined) deps.idempotency.set(cacheKey, job, now);
+  if (cacheKey !== undefined) deps.idempotency.set(cacheKey, request, job, now);
   deps.runner.run(() => runExport(deps, ctx, job));
   return job;
 }
@@ -453,6 +470,7 @@ async function buildFile(
           periodLabel: periodLabel(period),
           asOf: scope.asOf,
           generatedAt: deps.clock().toISOString(),
+          timeZone: client.settings.timeZone,
           result: scoreOf(scope),
           byAct: breakdownOf('act', scope),
           overdue: overdueRows(rows),

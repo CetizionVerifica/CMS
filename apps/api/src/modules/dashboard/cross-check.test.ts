@@ -6,18 +6,18 @@ import {
   type Breakdown,
   type LocalDate,
 } from '@canopy/contracts';
-import { asLocalDate, summarizeKpis } from '@canopy/engine';
+import { asLocalDate, engine, summarizeKpis } from '@canopy/engine';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createTestAuth } from '../../auth/testing.js';
 import { buildServer } from '../../server.js';
-import { rowStatus } from '../instances/status.js';
-import { loadSample, type SampleClient } from './fixtures.js';
+import { loadSample, type SampleClient } from './testing/fixtures.js';
 import { MemoryReportsStore, type MemoryRow } from './memory-store.js';
 
 /**
  * MODULES.md M10 acceptance: each KPI equals the matching filtered instance count from M7. On the sample
  * register, every dashboard number is compared with the register filtered the way M7 filters it: the
- * period's rows, the group's rows, then M7's own `rowStatus` (the status column of every register row).
+ * period's rows, the group's rows, then the register's status column, which M7 fills from
+ * `engine.deriveStatus` with the firm's settings (no import of M7's internals).
  */
 
 const NOW = new Date('2026-10-12T06:00:00Z');
@@ -41,7 +41,7 @@ afterAll(() => app.close());
 /** M7's register filtered by status: the rows of `rows` whose register status column is `status`. */
 function registerIds(rows: readonly MemoryRow[], status: DerivedStatus, asOf: LocalDate): string[] {
   return rows
-    .filter((r) => rowStatus(r, asOf, DEFAULT_FIRM_SETTINGS).status === status)
+    .filter((r) => engine.deriveStatus(r, asOf, DEFAULT_FIRM_SETTINGS).status === status)
     .map((r) => r.id)
     .sort();
 }

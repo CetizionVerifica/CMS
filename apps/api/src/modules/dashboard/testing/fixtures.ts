@@ -14,7 +14,7 @@ import {
   type ImportAnalysis,
   type SourceSheet,
 } from '@canopy/importer';
-import type { MemoryReportsStore, MemoryRow } from './memory-store.js';
+import type { MemoryReportsStore, MemoryRow } from '../memory-store.js';
 
 /**
  * Test data for M10: the sample register loaded through the importer (as the M8 commit stores it), and a
@@ -24,7 +24,7 @@ import type { MemoryReportsStore, MemoryRow } from './memory-store.js';
 export const CALENDAR: EngineCalendar = { fyStartMonth: 4, holidayPolicy: 'NONE' };
 
 const SAMPLE = new URL(
-  '../../../../../packages/importer/fixtures/sample-register.xlsx',
+  '../../../../../../packages/importer/fixtures/sample-register.xlsx',
   import.meta.url,
 );
 

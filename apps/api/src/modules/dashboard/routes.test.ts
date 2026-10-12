@@ -1,6 +1,6 @@
 import { ENDPOINTS, Role, type Breakdown, type ScoreResult } from '@canopy/contracts';
 import { afterAll, describe, expect, it } from 'vitest';
-import { createWorld } from './test-world.js';
+import { createWorld } from './testing/world.js';
 
 const w = createWorld();
 afterAll(() => w.app.close());

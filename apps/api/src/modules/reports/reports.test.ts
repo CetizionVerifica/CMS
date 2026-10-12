@@ -5,7 +5,7 @@ import ExcelJS from 'exceljs';
 import { afterAll, describe, expect, it } from 'vitest';
 import { buildServer } from '../../server.js';
 import { createTestAuth } from '../../auth/testing.js';
-import { createWorld, NOW } from '../dashboard/test-world.js';
+import { createWorld, NOW } from '../dashboard/testing/world.js';
 import { REGISTER_HEADERS } from './register-xlsx.js';
 
 const w = createWorld();
@@ -17,10 +17,11 @@ async function startExport(
   headers: Record<string, string>,
   payload: Record<string, unknown>,
   extra: Record<string, string> = {},
+  clientId = w.clientId,
 ) {
   return w.app.inject({
     method: 'POST',
-    url: `${base}/exports`,
+    url: `/api/v1/clients/${clientId}/exports`,
     headers: { ...headers, ...extra },
     payload,
   });
@@ -236,6 +237,11 @@ describe('exports', () => {
     expect(text).toContain('Factories Act, 1948');
     expect(text).toContain(w.rows.overdue!.externalRef!);
     expect(text).not.toMatch(/canopy/i);
+    // Generated at 06:00 UTC, printed in the client's time zone (Asia/Kolkata, UTC+5:30).
+    expect(text).toContain('generated 2026-10-12 11:30 Asia/Kolkata');
+    expect(text).not.toContain('2026-10-12T06:00');
+    expect(text).toMatch(/compliance items were complied with/);
+    expect(text).not.toMatch(/obligations were/);
     // No owner or approver names on the certificate.
     expect(text).not.toContain('Person Owner');
 
@@ -244,7 +250,7 @@ describe('exports', () => {
       filters: `unitId=${w.unit2}`,
     });
     expect(byFilter.job.fileName).toBe('compliance-certificate-head-office-fy-2026-27.pdf');
-    expect(pdfText(byFilter.file.bytes)).toContain('Overdue obligations');
+    expect(pdfText(byFilter.file.bytes)).toContain('Overdue items');
   });
 
   it('says so on a certificate for a unit with nothing in the period', async () => {
@@ -255,7 +261,7 @@ describe('exports', () => {
       fy: '2030-31',
     });
     const text = pdfText(file.bytes);
-    expect(text).toContain('No obligations in this period.');
+    expect(text).toContain('No compliance items in this period.');
     expect(text).toContain('None.');
     expect(text).toContain('No items due');
   });
@@ -319,6 +325,24 @@ describe('exports', () => {
       { 'idempotency-key': key },
     );
     expect(theirs.json().id).not.toBe(first.json().id);
+    // The same key for another client or another request is refused, not answered with the first job.
+    const admin = w.as('FIRM_ADMIN');
+    const firmKey = randomUUID();
+    await startExport(admin.headers, { kind: 'REGISTER_XLSX' }, { 'idempotency-key': firmKey });
+    const otherClient = await startExport(
+      admin.headers,
+      { kind: 'REGISTER_XLSX' },
+      { 'idempotency-key': firmKey },
+      w.secondClientId,
+    );
+    expect(otherClient.statusCode).toBe(400);
+    expect(otherClient.json().error.code).toBe('VALIDATION');
+    const otherBody = await startExport(
+      signed.headers,
+      { kind: 'ACT_REPORT_XLSX' },
+      { 'idempotency-key': key },
+    );
+    expect(otherBody.statusCode).toBe(400);
     const bad = await startExport(
       signed.headers,
       { kind: 'REGISTER_XLSX' },

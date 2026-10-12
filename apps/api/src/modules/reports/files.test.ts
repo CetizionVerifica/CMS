@@ -1,6 +1,6 @@
 import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { pdfSafe } from './certificate-pdf.js';
+import { localTime, pdfSafe } from './certificate-pdf.js';
 import { MemoryExportFiles, S3ExportFiles } from './files.js';
 import { slug } from './service.js';
 
@@ -54,6 +54,15 @@ describe('text helpers', () => {
   it('keeps WinAnsi text and replaces what the standard fonts cannot draw', () => {
     expect(pdfSafe('Café · Belur')).toBe('Café · Belur');
     expect(pdfSafe('कारखाना\tline\nnext')).toBe('??????? line next');
+  });
+
+  it('prints an instant as wall-clock time in the client time zone', () => {
+    expect(localTime('2026-10-12T18:45:00.000Z', 'Asia/Kolkata')).toBe(
+      '2026-10-13 00:15 Asia/Kolkata',
+    );
+    expect(localTime('2026-10-12T00:30:00.000Z', 'America/New_York')).toBe(
+      '2026-10-11 20:30 America/New_York',
+    );
   });
 
   it('makes file-name slugs without personal or unsafe characters', () => {
