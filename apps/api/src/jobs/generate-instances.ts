@@ -72,13 +72,14 @@ async function generateForClient(
   requestId: string,
   generate: ReturnType<typeof memoisedGenerator>,
   report: JobReport,
+  only: (t: GenerationTarget) => boolean = () => true,
 ): Promise<void> {
   const now = deps.clock();
   const fy = currentAndNextFy(
     clientDay(now, client.settings.timeZone).today,
     client.settings.fyStartMonth,
   );
-  const targets = await tx.listGenerationTargets(client.id);
+  const targets = (await tx.listGenerationTargets(client.id)).filter(only);
   const live = targets.filter((t) => {
     const reason = skipReason(t);
     if (reason) report[`skipped${reason}`] = (report[`skipped${reason}`] ?? 0) + 1;
@@ -169,6 +170,43 @@ async function generateForClient(
   await tx.writeEvents(events);
   report.created = (report.created ?? 0) + audits.length;
   report.existing = (report.existing ?? 0) + rows.length - audits.length;
+}
+
+/** Which assignments a targeted run regenerates. */
+export interface GenerationScope {
+  /** Clients to look in; 'ALL' when the event does not name one. */
+  clientIds: Id[] | 'ALL';
+  assignmentIds?: Id[];
+  obligationId?: Id;
+}
+
+/**
+ * Generates the current and next FY for the assignments in `scope` of one firm, as the nightly run would, so a new
+ * or changed assignment, a pushed rule or a committed import has its instances without waiting for the night. Same
+ * idempotency key and audit as the nightly run; each client is its own transaction.
+ */
+export async function generateForScope(
+  deps: JobDeps,
+  firmId: Id,
+  scope: GenerationScope,
+  requestId: string,
+): Promise<JobReport> {
+  const report: JobReport = { clients: 0, created: 0, existing: 0 };
+  const generate = memoisedGenerator();
+  const assignmentIds = scope.assignmentIds ? new Set(scope.assignmentIds) : null;
+  const only = (t: GenerationTarget) =>
+    (assignmentIds === null || assignmentIds.has(t.assignmentId)) &&
+    (scope.obligationId === undefined || t.obligationId === scope.obligationId);
+  const clients = (await deps.store.withFirm(firmId, requestId, (tx) => tx.listClients())).filter(
+    (c) => scope.clientIds === 'ALL' || scope.clientIds.includes(c.id),
+  );
+  for (const client of clients) {
+    report.clients! += 1;
+    await deps.store.withFirm(firmId, requestId, (tx) =>
+      generateForClient(tx, client, deps, requestId, generate, report, only),
+    );
+  }
+  return report;
 }
 
 /**
