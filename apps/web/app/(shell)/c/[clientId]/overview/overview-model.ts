@@ -64,10 +64,17 @@ export type Kpi = {
   value: number | string;
   unit?: string;
   score?: number | null;
-  context?: { text: string; tone: 'ok' | 'warn' | 'crit' | 'neutral' };
+  /** Words only. A number under the headline is a `detail`, with its own link to exactly its rows. */
+  context?: { text: string; tone: Tone };
   href: string;
   linkHint: string;
+  detail?: KpiDetail;
 };
+
+type Tone = 'ok' | 'warn' | 'crit' | 'neutral';
+
+/** A second number on a card ("3 due soon"), shown under it as its own link: one link can't sit inside another. */
+export type KpiDetail = { text: string; tone: Tone; href: string; label: string };
 
 export function kpis(
   clientId: string,
@@ -80,42 +87,58 @@ export function kpis(
   const superCritical =
     byCriticality?.rows.find((r) => r.key === 'SUPER_CRITICAL')?.result.counts.OVERDUE ?? 0;
   const complied = sum(result, COMPLIED_STATUSES);
-  const link = (statuses: readonly DerivedStatus[]) =>
-    registerHref(clientId, { status: statuses.join(',') }, period);
+  const link = (statuses: readonly DerivedStatus[], filters: Record<string, string> = {}) =>
+    registerHref(clientId, { status: statuses.join(','), ...filters }, period);
+  const dueSoon = result.counts.DUE_SOON;
   return [
     {
       label: 'Compliance score',
       value: result.score ?? 'No items due',
       unit: result.score === null ? undefined : '%',
       score: result.score,
-      context:
-        result.onTimeRate === null
-          ? undefined
-          : { text: `${result.onTimeRate}% complied on time`, tone: 'neutral' },
       href: link(COMPLIED_STATUSES),
       linkHint: `Open the ${plural(complied, 'complied instance', 'complied instances')}`,
+      detail:
+        result.onTimeRate === null
+          ? undefined
+          : {
+              text: `${result.onTimeRate}% complied on time`,
+              tone: 'neutral',
+              href: link(['COMPLIED']),
+              label: `${result.onTimeRate}% complied on time, open the instances complied on time`,
+            },
     },
     {
       label: 'Open',
       value: open,
-      context:
-        result.counts.DUE_SOON > 0
-          ? { text: `${result.counts.DUE_SOON} due soon`, tone: 'warn' }
-          : undefined,
       href: link(OPEN_STATUSES),
       linkHint: 'Open these instances',
+      detail:
+        dueSoon > 0
+          ? {
+              text: `${dueSoon} due soon`,
+              tone: 'warn',
+              href: link(['DUE_SOON']),
+              label: `${dueSoon} due soon, open the instances due soon`,
+            }
+          : undefined,
     },
     {
       label: 'Overdue',
       value: overdue,
       context:
-        superCritical > 0
-          ? { text: `${superCritical} super critical`, tone: 'crit' }
-          : overdue > 0
-            ? { text: 'Needs action', tone: 'crit' }
-            : { text: 'None overdue', tone: 'ok' },
+        overdue > 0 ? { text: 'Needs action', tone: 'crit' } : { text: 'None overdue', tone: 'ok' },
       href: link(['OVERDUE']),
       linkHint: 'Open the overdue instances',
+      detail:
+        superCritical > 0
+          ? {
+              text: `${superCritical} super critical`,
+              tone: 'crit',
+              href: link(['OVERDUE'], { criticality: 'SUPER_CRITICAL' }),
+              label: `${superCritical} super critical overdue, open these instances`,
+            }
+          : undefined,
     },
     {
       label: 'Awaiting approval',
@@ -135,6 +158,7 @@ export type DepartmentRow = {
   overdue: number;
   href: string;
   overdueHref: string;
+  compliedHref: string;
 };
 
 /** Readiness by department: most overdue first, then the lowest score, then the name. */
@@ -152,6 +176,11 @@ export function departmentRows(
       overdue: row.result.counts.OVERDUE,
       href: registerHref(clientId, { departmentId: row.key }, period),
       overdueHref: registerHref(clientId, { departmentId: row.key, status: 'OVERDUE' }, period),
+      compliedHref: registerHref(
+        clientId,
+        { departmentId: row.key, status: COMPLIED_STATUSES.join(',') },
+        period,
+      ),
     }))
     .sort(
       (a, b) =>
@@ -161,7 +190,20 @@ export function departmentRows(
     );
 }
 
-export type ActRow = { id: string; name: string; segments: Segment[]; href: string };
+/** One part of an Act's bar, with a link to exactly the instances it counts. */
+export type ActSegment = Segment & { href: string };
+export type ActRow = { id: string; name: string; segments: ActSegment[]; href: string };
+
+const ACT_SEGMENTS: readonly {
+  key: Segment['key'];
+  label: string;
+  statuses: readonly DerivedStatus[];
+}[] = [
+  { key: 'ok', label: 'Complied', statuses: COMPLIED_STATUSES },
+  { key: 'warn', label: 'Pending', statuses: PENDING_STATUSES },
+  { key: 'crit', label: 'Overdue', statuses: ['OVERDUE'] },
+  { key: 'neutral', label: 'Not applicable', statuses: ['NOT_APPLICABLE'] },
+];
 
 /** Status by Act: complied, pending, overdue and not applicable, most overdue first. */
 export function actRows(
@@ -173,12 +215,12 @@ export function actRows(
     .map((row) => ({
       id: row.key,
       name: row.label,
-      segments: [
-        { key: 'ok', label: 'Complied', count: sum(row.result, COMPLIED_STATUSES) },
-        { key: 'warn', label: 'Pending', count: sum(row.result, PENDING_STATUSES) },
-        { key: 'crit', label: 'Overdue', count: row.result.counts.OVERDUE },
-        { key: 'neutral', label: 'Not applicable', count: row.result.counts.NOT_APPLICABLE },
-      ] satisfies Segment[],
+      segments: ACT_SEGMENTS.map(({ key, label, statuses }) => ({
+        key,
+        label,
+        count: sum(row.result, statuses),
+        href: registerHref(clientId, { actId: row.key, status: statuses.join(',') }, period),
+      })),
       href: registerHref(clientId, { actId: row.key }, period),
     }))
     .sort(
