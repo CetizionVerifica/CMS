@@ -61,8 +61,8 @@
     {
       "idx": 8,
       "version": "7",
-      "when": 1791771084396,
-      "tag": "0008_send_log_recipient_key",
+      "when": 1791773375708,
+      "tag": "0008_send_log_key_and_firm_lookup",
       "breakpoints": true
     }
   ]

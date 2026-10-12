@@ -46,7 +46,8 @@ describe('every table', () => {
       qual: string | null;
       check: string | null;
     }>(`
-      SELECT tablename AS table, cmd, qual, with_check AS check FROM pg_policies WHERE schemaname = 'public'`);
+      SELECT tablename AS table, cmd, qual, with_check AS check FROM pg_policies
+      WHERE schemaname = 'public' AND roles <> '{canopy_lookup}'`);
     for (const { name } of TABLES) {
       const policies = rows.filter((p) => p.table === name);
       const commands = new Set(policies.map((p) => p.cmd));
@@ -63,6 +64,42 @@ describe('every table', () => {
         if (p.cmd !== 'INSERT') expect(p.qual, `${name} ${p.cmd}`).not.toBeNull();
         if (p.cmd !== 'SELECT') expect(p.check, `${name} ${p.cmd}`).not.toBeNull();
       }
+    }
+  });
+
+  it('limits canopy_lookup to read policies and column grants on ids', async () => {
+    const policies = await t.ownerQuery<{ table: string; cmd: string; roles: string[] }>(`
+      SELECT tablename AS table, cmd, roles::text[] AS roles FROM pg_policies
+      WHERE schemaname = 'public' AND 'canopy_lookup' = ANY (roles)`);
+    for (const p of policies.rows) {
+      expect(`${p.table} ${p.cmd} ${p.roles.join(',')}`).toBe(`${p.table} SELECT canopy_lookup`);
+    }
+    const tables = await t.ownerQuery(`
+      SELECT table_name FROM information_schema.role_table_grants
+      WHERE grantee = 'canopy_lookup' AND table_schema = 'public'`);
+    expect(tables.rows).toEqual([]);
+    const role = await t.ownerQuery(`
+      SELECT rolsuper, rolbypassrls, rolcanlogin,
+             pg_has_role('canopy_app', 'canopy_lookup', 'MEMBER') AS app_member,
+             has_schema_privilege('canopy_lookup', 'public', 'CREATE') AS can_create
+      FROM pg_roles WHERE rolname = 'canopy_lookup'`);
+    expect(role.rows).toEqual([
+      {
+        rolsuper: false,
+        rolbypassrls: false,
+        rolcanlogin: false,
+        app_member: false,
+        can_create: false,
+      },
+    ]);
+    const owned = await t.ownerQuery<{ name: string; definer: boolean; config: string[] | null }>(`
+      SELECT p.proname AS name, p.prosecdef AS definer, p.proconfig AS config FROM pg_proc p
+      JOIN pg_namespace n ON n.oid = p.pronamespace
+      WHERE n.nspname = 'public' AND pg_get_userbyid(p.proowner) = 'canopy_lookup'`);
+    expect(owned.rows.length).toBeGreaterThan(0);
+    for (const f of owned.rows) {
+      expect(f.definer, f.name).toBe(true);
+      expect(f.config, f.name).toContain('search_path=public, pg_temp');
     }
   });
 

@@ -1,5 +1,5 @@
 {
-  "id": "1bd7f4a0-69d5-4542-b970-2c907b080983",
+  "id": "3131b605-7cd9-42f2-b958-fe6bc243df25",
   "prevId": "86f7bae4-e280-43ae-9530-f7480d765929",
   "version": "7",
   "dialect": "postgresql",
@@ -81,6 +81,13 @@
           "to": ["public"],
           "using": "id = app_firm_id() and app_firm_staff()",
           "withCheck": "id = app_firm_id() and app_firm_staff()"
+        },
+        "lookup_read": {
+          "name": "lookup_read",
+          "as": "PERMISSIVE",
+          "for": "SELECT",
+          "to": ["canopy_lookup"],
+          "using": "true"
         }
       },
       "checkConstraints": {

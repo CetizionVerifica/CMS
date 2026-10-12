@@ -50,6 +50,8 @@ Decisions and their reasons: `docs/adr/0003-m3-tenant-isolation-in-postgres.md`.
   (`pnpm --filter @canopy/db exec drizzle-kit generate --custom --name=<what>`).
 - Access: `createDatabase({ connectionString }).withTenant(ctx, async (tx) => ...)`. Build `ctx` with `tenantFromRequest(requestContext)`
   in the API and `systemContext(firmId, requestId)` in jobs and imports. `createAdminDatabase` (migrate, createFirm) is for deploy, seed and tests only.
+- Deploy: migrations run as the owner, which need not be a superuser; the one-time grants it needs are in the ADR's
+  Consequences. Pre-tenant lookups are `SECURITY DEFINER` functions owned by `canopy_lookup`, never by the owner.
 - Production login: a non-owner member of `canopy_app`. With `NODE_ENV=production`, `createDatabase` refuses a login that is, or can `SET ROLE` to, a superuser, BYPASSRLS or table-owning role.
 - Repositories (`src/repositories`, exported from `@canopy/db`): one object per aggregate (`clients`, `units`, `people`,
   `memberships`, `obligations`, `assignments`, `instances`, `evidence`, `comments`, `auditEvents`, `importBatches`,

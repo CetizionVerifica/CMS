@@ -77,3 +77,11 @@ to their own client. The details below were not fixed by the spec.
   until all of these are there.
 - Cross-firm jobs (nightly generation) need a way to list firms; that is added with the job, as a narrow
   `SECURITY DEFINER` function, not by giving the app role BYPASSRLS.
+- Lookups before a tenant is known (`canopy_list_firm_ids`, and M5's auth lookups) are `SECURITY DEFINER` functions
+  owned by `canopy_lookup` (migration 0007): no login, no BYPASSRLS, not a member of anything, column grants on the
+  values it returns, and `lookup_read` SELECT policies that name it alone. Owning them as the migrating user would not
+  work: FORCE RLS binds the table owner, so they would see nothing unless the owner were a superuser.
+- The owner that runs migrations need not be a superuser. An administrator prepares it once per cluster: create
+  `canopy_app` and `canopy_lookup` (or give it CREATEROLE), grant both to it, and
+  `GRANT SET ON PARAMETER app.all_clients TO <owner>` (migrations 0003 and 0005 have functions with that SET clause).
+  `test/migrations.db.test.ts` migrates as such an owner.
