@@ -16,6 +16,8 @@
     "@canopy/db": "workspace:*",
     "@canopy/engine": "workspace:*",
     "@canopy/importer": "workspace:*",
+    "@fastify/cookie": "catalog:",
+    "@fastify/rate-limit": "catalog:",
     "fastify": "catalog:",
     "zod": "catalog:"
   },
