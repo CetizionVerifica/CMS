@@ -1,6 +1,8 @@
 # Endpoints and role permissions (contracts v1)
 
 Owner: M0. Each provider module (M5, M6, M7, M8, M10) implements its section exactly; M11-M13 build against the mock of it.
+The endpoint table in code (`packages/contracts/src/api/endpoints.ts`) is the source of truth, with request and response
+schemas per endpoint; `openapi.json` is generated from it. A test checks that this file and the code list the same paths.
 Conventions, filters and error codes: `api-conventions.md`. Types: `domain-model.md`. All paths are under `/api/v1`.
 
 ## 1. Role legend and scoping
@@ -26,7 +28,7 @@ The `Action` column is the `can()` action name; the M5 policy table has one row 
 | POST | `/auth/magic-link/verify` | public | | | | | | | token → session |
 | POST | `/auth/logout` | session | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | |
 | POST | `/auth/mfa/enroll` · `/auth/mfa/verify` | session | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | required for FA, CO |
-| GET | `/me` | session | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | person, memberships, clients, csrf token, MFA state |
+| GET | `/me` | session | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | person, memberships, clients (`ClientSummary`: FY start, time zone, unit count and the periods the picker offers, computed by the engine), csrf token, MFA state |
 | POST | `/invites` | `person.invite` | ✓ | ✓ | ✓ | | | | CO/CA may invite only client roles in their clients; only FA invites FA/CO |
 | GET | `/invites/{token}` · POST `/invites/{token}/accept` | public | | | | | | | claims an UNCLAIMED person (sets email, password) |
 | POST | `/invites/{id}/revoke` | `person.invite` | ✓ | ✓ | ✓ | | | | |
@@ -40,7 +42,7 @@ The `Action` column is the `can()` action name; the M5 policy table has one row 
 | POST | `/clients` | `client.create` | ✓ | | | | | |
 | GET | `/clients/{clientId}` | `client.read` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | PATCH | `/clients/{clientId}` | `client.update` | ✓ | ✓ | | | | |
-| POST | `/clients/{clientId}/archive` · `/restore` | `client.archive` | ✓ | | | | | |
+| POST | `/clients/{clientId}/archive` · `/clients/{clientId}/restore` | `client.archive` | ✓ | | | | | |
 | GET · PUT | `/clients/{clientId}/settings` | `client.settings` | ✓ | ✓ | r (PUT reminders only) | | | |
 | GET · POST | `/clients/{clientId}/companies` | `entity.read` / `entity.write` | ✓ | ✓ | ✓ | r | r | r |
 | PATCH | `/companies/{id}` · POST `/companies/{id}/archive` | `entity.write` | ✓ | ✓ | ✓ | | | |
@@ -55,7 +57,7 @@ The `Action` column is the `can()` action name; the M5 policy table has one row 
 | Method | Path | Action | FA | CO | CA | AP | OW | VI |
 |---|---|---|---|---|---|---|---|---|
 | GET | `/people` (firm staff) | `person.read` | ✓ | ✓ | | | | |
-| GET · POST | `/clients/{clientId}/people` | `person.read` / `person.write` | ✓ | ✓ | ✓ | r | r | r |
+| GET · POST | `/clients/{clientId}/people` (POST `{ displayName, email?, role? }`: role OWNER, APPROVER or CLIENT_ADMIN, default OWNER, as a membership on every unit) | `person.read` / `person.write` | ✓ | ✓ | ✓ | r | r | r |
 | PATCH | `/people/{id}` | `person.write` | ✓ | ✓ | ✓ | | | |
 | POST | `/people/{id}/merge` `{ sourceIds }` | `person.merge` | ✓ | ✓ | ✓ | | | |
 | GET · POST | `/people/{id}/memberships` | `membership.write` | ✓ | ✓ | ✓ | | | |
@@ -68,7 +70,7 @@ CA can manage only client roles (CA, AP, OW, VI) for their own client; granting 
 |---|---|---|---|---|---|---|---|---|
 | GET · POST | `/library/acts` | `library.read` / `library.write` | ✓ | ✓ | r | r | r | r |
 | PATCH | `/library/acts/{id}` · POST `/library/acts/{id}/merge` | `library.write` | ✓ | ✓ | | | | |
-| GET · POST | `/library/categories` · PATCH `/library/categories/{id}` · POST `/merge` | `library.*` | ✓ | ✓ | r | r | r | r |
+| GET · POST | `/library/categories` · PATCH `/library/categories/{id}` · POST `/library/categories/{id}/merge` | `library.*` | ✓ | ✓ | r | r | r | r |
 | GET | `/library/obligations` (filters: actId, categoryId, domain, criticality, jurisdiction, stateCode, ruleStatus, q) | `library.read` | ✓ | ✓ | r | r | r | r |
 | POST | `/library/obligations` | `library.write` | ✓ | ✓ | | | | |
 | GET · PATCH | `/library/obligations/{id}` | `library.read` / `library.write` | ✓ | ✓ | r | r | r | r |
@@ -82,7 +84,7 @@ CA, AP, OW and VI see only obligations that have an assignment in their client (
 | Method | Path | Action | FA | CO | CA | AP | OW | VI |
 |---|---|---|---|---|---|---|---|---|
 | GET | `/clients/{clientId}/assignments` (filters: unitId, departmentId, obligationId, applicability, ownerId, approverId) | `assignment.read` | ✓ | ✓ | ✓ | r | r | r |
-| POST | `/clients/{clientId}/assignments` · `/assignments/bulk` (per-item results) | `assignment.write` | ✓ | ✓ | ✓ | | | |
+| POST | `/clients/{clientId}/assignments` · `/clients/{clientId}/assignments/bulk` (per-item results, by request index) | `assignment.write` | ✓ | ✓ | ✓ | | | |
 | PATCH | `/assignments/{id}` (department, default owner/approver, activeTo; `applyToOpen: boolean` also reassigns OPEN/SENT_BACK instances) | `assignment.write` | ✓ | ✓ | ✓ | | | |
 | POST | `/assignments/{id}/applicability` `{ applicability, reason }` | `assignment.applicability` | ✓ | ✓ | ✓ | | | |
 | POST | `/assignments/{id}/archive` | `assignment.write` | ✓ | ✓ | ✓ | | | |
@@ -101,7 +103,7 @@ Assignment-level NOT_APPLICABLE stops future instance generation; existing OPEN 
 | POST | `/instances/{id}/send-back` `{ version, reason }` | `instance.approve` | | | ✓ | own | | | |
 | POST | `/instances/{id}/reopen` `{ version, reason }` | `instance.reopen` | ✓ | ✓ | ✓ | | | | |
 | POST | `/clients/{clientId}/instances/bulk-approve` `{ items: {id, version}[], comment? }` | `instance.approve` | | | ✓ | own | | | max 200, per-item results |
-| PATCH | `/instances/{id}` `{ version, ownerId?, approverId?, dueDate?, reason }` | `instance.reassign` / `instance.dueDate` | ✓ | ✓ | ✓ | | | | due-date change needs reason, sets `dueDateOverridden` |
+| PATCH | `/instances/{id}` `{ version, ownerId?, approverId?, dueDate?, reason }` | `instance.reassign` / `instance.dueDate` | ✓ | ✓ | ✓ | | | | only while OPEN, SENT_BACK or SUBMITTED (`INSTANCE_EDIT_STATES`); every change needs a reason (it goes on the audit event); a due-date change sets `dueDateOverridden` |
 | GET | `/me/approvals` | `instance.read` | | | ✓ | ✓ | | | SUBMITTED where actor is approver (CA: all in client) |
 | GET | `/me/tasks` | `instance.read` | | | | ✓ | ✓ | | OPEN/SENT_BACK where actor is owner, by due date |
 | GET · POST | `/instances/{id}/comments` `{ body }` | `comment.read` / `comment.write` | ✓ | ✓ | ✓ | own | own | r | |
@@ -118,12 +120,12 @@ Internal only (no route): `scanCallback(evidenceId, result)` called by the virus
 
 ## 5. M8 · Import (`apps/api/src/modules/imports`)
 
-All import endpoints: FA ✓, CO ✓ (own clients), everyone else forbidden (`import.*`). Steps must be called in order, else `409 IMPORT_STATE`.
+All import endpoints: FA ✓, CO ✓ (own clients), everyone else forbidden. Actions: `import.read` (GETs), `import.create`, `import.write` (later steps, templates) and `import.commit`. Steps must be called in order, else `409 IMPORT_STATE`.
 
 | Method | Path | Moves status | Notes |
 |---|---|---|---|
-| POST | `/clients/{clientId}/imports` `{ fileName, sizeBytes }` | → UPLOADED (after PUT) | returns batch + presigned PUT URL |
-| POST | `/imports/{id}/uploaded` `{ sha256 }` | UPLOADED | returns sheet names and headers; suggests mapping |
+| POST | `/clients/{clientId}/imports` `{ fileName, sizeBytes }` | — | returns `batchId` + presigned PUT URL; the batch is readable once the uploaded step confirms the bytes |
+| POST | `/imports/{id}/uploaded` `{ sha256 }` | → UPLOADED | returns sheet names and headers; suggests mapping |
 | PUT | `/imports/{id}/mapping` `{ sheetName, mapping, saveAsTemplate? }` | → MAPPED | |
 | POST | `/imports/{id}/parse` | → PARSED | async; poll `GET /imports/{id}` |
 | GET | `/imports/{id}` | — | batch with counts and status |
@@ -142,12 +144,12 @@ Query params: `fy` or `from`/`to`, `unitId`, `asOf` (FA/CO/VI). All numbers are 
 
 | Method | Path | Action | FA | CO | CA | AP | OW | VI |
 |---|---|---|---|---|---|---|---|---|
-| GET | `/portfolio` → `PortfolioRow[]` | `dashboard.portfolio` | ✓ | ✓ | | | | |
+| GET | `/portfolio` → `{ items: PortfolioRow[] }` | `dashboard.portfolio` | ✓ | ✓ | | | | |
 | GET | `/clients/{clientId}/overview` → `{ result, upcoming: InstanceRow[], myTasks: InstanceRow[] }` | `dashboard.read` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| GET | `/clients/{clientId}/breakdowns?by=department\|act\|criticality\|unit\|owner` → `Breakdown` | `dashboard.read` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| GET | `/clients/{clientId}/calendar?from&to` → `{ date, items: InstanceRow[] }[]` | `instance.read` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| GET | `/clients/{clientId}/reports/{act-wise\|department-wise\|overdue}` | `report.read` | ✓ | ✓ | ✓ | ✓ | | ✓ |
-| POST | `/clients/{clientId}/exports` `{ kind, filters, unitId?, fy? }` → `ExportJob` | `export.create` | ✓ | ✓ | ✓ | ✓ | | ✓ |
+| GET | `/clients/{clientId}/breakdowns` (`by=department\|act\|criticality\|unit\|owner`) → `Breakdown` | `dashboard.read` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| GET | `/clients/{clientId}/calendar` (`from`, `to`) → `{ items: { date, items: InstanceRow[] }[] }` | `instance.read` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| GET | `/clients/{clientId}/reports/act-wise` · `/clients/{clientId}/reports/department-wise` → `Breakdown` · `/clients/{clientId}/reports/overdue` → `{ result, items: InstanceRow[] }` | `report.read` | ✓ | ✓ | ✓ | ✓ | | ✓ |
+| POST | `/clients/{clientId}/exports` `{ kind, filters, unitId?, fy? }` → `ExportJob`; `filters` is a register query string without paging, validated like `GET /clients/{clientId}/instances` | `export.create` | ✓ | ✓ | ✓ | ✓ | | ✓ |
 | GET | `/exports/{id}` · `/exports/{id}/download-url` | `export.read` | ✓ | ✓ | ✓ | ✓ | | ✓ |
 
 AP and OW dashboards are limited to their units (and owners see the same numbers as their register filter).

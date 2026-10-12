@@ -153,6 +153,61 @@ export type Person = z.infer<typeof Person>;
 const firmRoles: readonly Role[] = FIRM_ROLES;
 const clientRoles: readonly Role[] = CLIENT_ROLES;
 
+/** The role and scope fields every membership-shaped value has (memberships, invites, grants). */
+interface MembershipScope {
+  role: Role;
+  clientId: string | null;
+  consultantClientIds: readonly string[] | null;
+  unitIds: readonly string[] | null;
+  expiresAt: string | null;
+}
+
+/** Membership shape follows role (README decision 11). */
+export function checkMembershipShape(m: MembershipScope, ctx: z.core.$RefinementCtx): void {
+  if (firmRoles.includes(m.role) && m.clientId !== null) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['clientId'],
+      message: `${m.role} is a firm role; clientId must be null`,
+    });
+  }
+  if (clientRoles.includes(m.role) && m.clientId === null) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['clientId'],
+      message: `${m.role} is a client role; clientId is required`,
+    });
+  }
+  if (m.role === 'CONSULTANT' && m.consultantClientIds === null) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['consultantClientIds'],
+      message: 'A CONSULTANT lists the clients they see',
+    });
+  }
+  if (m.role !== 'CONSULTANT' && m.consultantClientIds !== null) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['consultantClientIds'],
+      message: 'Only a CONSULTANT has consultantClientIds',
+    });
+  }
+  if (m.unitIds !== null && m.role !== 'OWNER' && m.role !== 'APPROVER') {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['unitIds'],
+      message: 'Only OWNER and APPROVER memberships are unit-scoped',
+    });
+  }
+  if (m.role === 'VIEWER' && m.expiresAt === null) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['expiresAt'],
+      message: 'A VIEWER membership needs expiresAt',
+    });
+  }
+}
+
 export const Membership = z
   .strictObject({
     ...baseShape,
@@ -168,48 +223,5 @@ export const Membership = z
     /** Required for VIEWER. */
     expiresAt: Instant.nullable(),
   })
-  .superRefine((m, ctx) => {
-    if (firmRoles.includes(m.role) && m.clientId !== null) {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['clientId'],
-        message: `${m.role} is a firm role; clientId must be null`,
-      });
-    }
-    if (clientRoles.includes(m.role) && m.clientId === null) {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['clientId'],
-        message: `${m.role} is a client role; clientId is required`,
-      });
-    }
-    if (m.role === 'CONSULTANT' && m.consultantClientIds === null) {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['consultantClientIds'],
-        message: 'A CONSULTANT lists the clients they see',
-      });
-    }
-    if (m.role !== 'CONSULTANT' && m.consultantClientIds !== null) {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['consultantClientIds'],
-        message: 'Only a CONSULTANT has consultantClientIds',
-      });
-    }
-    if (m.unitIds !== null && m.role !== 'OWNER' && m.role !== 'APPROVER') {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['unitIds'],
-        message: 'Only OWNER and APPROVER memberships are unit-scoped',
-      });
-    }
-    if (m.role === 'VIEWER' && m.expiresAt === null) {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['expiresAt'],
-        message: 'A VIEWER membership needs expiresAt',
-      });
-    }
-  });
+  .superRefine(checkMembershipShape);
 export type Membership = z.infer<typeof Membership>;
