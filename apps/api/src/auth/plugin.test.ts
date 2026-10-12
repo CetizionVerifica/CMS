@@ -256,6 +256,22 @@ describe('error envelope', () => {
   });
 });
 
+describe('rate limit', () => {
+  it('limits every route per client IP and answers RATE_LIMITED with retryAfterSeconds', async () => {
+    const limited = buildServer({ rateLimit: { max: 2, timeWindow: 60_000 } });
+    expect((await limited.inject({ url: '/health' })).statusCode).toBe(200);
+    expect((await limited.inject({ url: '/nowhere' })).statusCode).toBe(404);
+    const third = await limited.inject({ url: '/health' });
+    expect(third.statusCode).toBe(429);
+    expect(third.json()).toMatchObject({
+      error: { code: 'RATE_LIMITED', details: { retryAfterSeconds: 60 } },
+    });
+    const other = await limited.inject({ url: '/health', remoteAddress: '10.0.0.2' });
+    expect(other.statusCode).toBe(200);
+    await limited.close();
+  });
+});
+
 describe('tokens', () => {
   it('compares tokens in constant time, rejecting different lengths', () => {
     expect(sameToken('abc', 'abc')).toBe(true);

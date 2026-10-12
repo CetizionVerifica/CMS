@@ -1,4 +1,5 @@
 import fastifyCookie from '@fastify/cookie';
+import fastifyRateLimit from '@fastify/rate-limit';
 import type { Action, RequestContext, Resource } from '@canopy/contracts';
 import type {
   FastifyError,
@@ -41,7 +42,11 @@ export interface AuthOptions {
   readonly store: AuthStore;
   /** Defaults to the system clock. */
   readonly clock?: () => Date;
+  /** Requests per client IP per window across the whole API. Default 300 per minute. */
+  readonly rateLimit?: { readonly max: number; readonly timeWindow: string | number };
 }
+
+export const DEFAULT_RATE_LIMIT = { max: 300, timeWindow: '1 minute' } as const;
 
 const contexts = new WeakMap<FastifyRequest, RequestContext>();
 
@@ -117,11 +122,25 @@ function sendError(request: FastifyRequest, reply: FastifyReply, error: ApiError
 }
 
 /**
- * Installs auth on the app: the session cookie parser, the per-route context hook, `req.ctx`, and the error
+ * Installs auth on the app: the API-wide rate limit, the session cookie parser, the per-route context hook, `req.ctx`, and the error
  * and not-found handlers that render `ErrorEnvelope`s. Call it in `buildServer` before any route.
  */
 export function registerAuth(app: FastifyInstance, options: AuthOptions): void {
   void app.register(fastifyCookie);
+
+  // Every request is rate limited per client IP, before the session is looked up, so guessing session
+  // tokens is throttled too. Login, magic link and invite routes add stricter per-route limits
+  // (`config.rateLimit`). The limiter is created on first use because the plugin loads asynchronously.
+  void app.register(fastifyRateLimit, {
+    global: false,
+    errorResponseBuilder: (_request, context) =>
+      new ApiError('RATE_LIMITED', { retryAfterSeconds: Math.ceil(context.ttl / 1000) }),
+  });
+  let limiter: ReturnType<FastifyInstance['rateLimit']> | undefined;
+  app.addHook('onRequest', async function (request, reply) {
+    limiter ??= app.rateLimit(options.rateLimit ?? DEFAULT_RATE_LIMIT);
+    await limiter.call(this, request, reply);
+  });
 
   app.decorateRequest('ctx', {
     getter(this: FastifyRequest) {

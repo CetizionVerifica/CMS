@@ -1,11 +1,12 @@
 import { randomUUID } from 'node:crypto';
 import Fastify, { type FastifyInstance } from 'fastify';
-import { registerAuth, type AuthStore } from './auth/index.js';
+import { registerAuth, type AuthOptions, type AuthStore } from './auth/index.js';
 
 export interface ServerOptions {
   /** Session storage for auth. Until M5's repository-backed store lands, the default knows no sessions. */
   readonly authStore?: AuthStore;
   readonly clock?: () => Date;
+  readonly rateLimit?: AuthOptions['rateLimit'];
 }
 
 const NO_SESSIONS: AuthStore = {
@@ -20,7 +21,11 @@ const NO_SESSIONS: AuthStore = {
 export function buildServer(options: ServerOptions = {}): FastifyInstance {
   const app = Fastify({ logger: process.env.NODE_ENV !== 'test', genReqId: () => randomUUID() });
 
-  registerAuth(app, { store: options.authStore ?? NO_SESSIONS, clock: options.clock });
+  registerAuth(app, {
+    store: options.authStore ?? NO_SESSIONS,
+    clock: options.clock,
+    rateLimit: options.rateLimit,
+  });
 
   app.get('/health', { config: { auth: 'public' } }, async () => ({ status: 'ok' }));
 
