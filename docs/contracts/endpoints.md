@@ -23,7 +23,7 @@ The `Action` column is the `can()` action name; the M5 policy table has one row 
 
 | Method | Path | Action | FA | CO | CA | AP | OW | VI | Notes |
 |---|---|---|---|---|---|---|---|---|---|
-| POST | `/auth/login` | public | | | | | | | email + password; rate limited |
+| POST | `/auth/login` | public | | | | | | | email + password (+ optional `firmId`); `409 FIRM_CHOICE_REQUIRED` when the email is in several firms; rate limited |
 | POST | `/auth/magic-link` | public | | | | | | | always `202`, no account enumeration |
 | POST | `/auth/magic-link/verify` | public | | | | | | | token → session |
 | POST | `/auth/logout` | session | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | |

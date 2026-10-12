@@ -8,7 +8,16 @@ import { checkMembershipShape, Membership, Person } from '../schemas/tenancy.js'
 const Email = z.email().max(320);
 const Password = z.string().min(12).max(200);
 
-export const LoginBody = z.strictObject({ email: Email, password: Password });
+/**
+ * `POST /auth/login`. The password policy (12+ characters) applies when a password is set, not at sign-in, so login
+ * accepts any non-empty password. `firmId` picks the firm when the email signs in to more than one; without it such a
+ * login answers 409 `FIRM_CHOICE_REQUIRED` listing the firms.
+ */
+export const LoginBody = z.strictObject({
+  email: Email,
+  password: z.string().min(1).max(1024),
+  firmId: Id.optional(),
+});
 export type LoginBody = z.infer<typeof LoginBody>;
 
 export const MagicLinkBody = z.strictObject({ email: Email });
@@ -79,6 +88,8 @@ export const Me = z.strictObject({
     /** True once this session has passed MFA. */
     satisfied: z.boolean(),
   }),
+  /** When this session ends unless renewed. Optional: a provider may leave it out. */
+  session: z.strictObject({ expiresAt: Instant }).optional(),
 });
 export type Me = z.infer<typeof Me>;
 

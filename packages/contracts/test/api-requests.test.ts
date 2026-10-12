@@ -25,6 +25,8 @@ import {
   ImportIssueDecisionBody,
   InstanceRow,
   InstanceUpdateBody,
+  LoginBody,
+  InviteAcceptBody,
   InviteBody,
   Limit,
   MAX_EVIDENCE_BYTES,
@@ -312,6 +314,18 @@ describe('auth bodies', () => {
     };
     expect(ok(Me, me)).toBe(true);
     expect(ok(Me, without(me, 'csrfToken'))).toBe(false);
+    expect(ok(Me, { ...me, session: { expiresAt: '2024-11-15T18:30:00Z' } })).toBe(true);
+    expect(ok(Me, { ...me, session: {} })).toBe(false);
+  });
+
+  it('applies the password policy when a password is set, not at login', () => {
+    const login = { email: 'ravi@example.com', password: 'x' };
+    expect(ok(LoginBody, login)).toBe(true);
+    expect(ok(LoginBody, { ...login, firmId: person.id })).toBe(true);
+    expect(ok(LoginBody, { ...login, password: '' })).toBe(false);
+    expect(ok(LoginBody, { ...login, password: 'x'.repeat(1025) })).toBe(false);
+    expect(ok(LoginBody, { ...login, firmId: 'acme' })).toBe(false);
+    expect(ok(InviteAcceptBody, { password: 'x' })).toBe(false);
   });
 });
 

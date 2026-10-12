@@ -23,6 +23,7 @@ const detail = tolerant(ENDPOINTS.getInstance.response).parse(await response.jso
 | `src/schemas/*` | Entity schemas: tenancy, library (incl. `RecurrenceRule`), work, import, scores, request context |
 | `src/engine-api.ts` | Signatures M4 implements (`EngineApi`) |
 | `src/api/endpoints.ts` | `ENDPOINTS`: every endpoint with method, path, `can()` actions, role access and schemas |
+| `src/api/can.ts` | `can()`: the stub policy from the `ENDPOINTS` role matrix, until M5's lands |
 | `src/api/{auth,entities,workflow,imports,dashboards}.ts` | Request bodies, query schemas and response shapes per provider module |
 | `src/api/common.ts` | Pagination, sorting, comma lists, `page()`, `list()`, bulk results, signed URLs |
 | `src/api/tolerant.ts` | `tolerant(schema)`: the schema clients parse responses with |
@@ -31,7 +32,8 @@ const detail = tolerant(ENDPOINTS.getInstance.response).parse(await response.jso
 | `src/fixtures/schema.ts` | `FixtureSet`, `DueDatesFixture`, `ExpectedFixture` |
 | `src/fixtures/index.ts` | Node entry `@canopy/contracts/fixtures`: `fixtureId`, `uuidV5`, `loadFixtureSet`, `loadDueDates`, `loadExpected` |
 | `fixtures/*.json` | Generated fixtures (`docs/contracts/fixtures.md`); do not edit by hand |
-| `scripts/fixtures/*` | The generator: a small xlsx reader, firm A and firm B builders, and an independent score oracle |
+| `scripts/fixtures/*` | The generator: a small xlsx reader and the firm A and firm B builders |
+| `src/mock/*` | Node entry `@canopy/contracts/mock`: `createMockServer`, `HANDLERS`, the in-memory `MockStore`, and the test-double status, score and period helpers the fixtures also use |
 
 Each schema exports a Zod value and a type of the same name. Schemas check shape and consistency only; no due-date,
 status or score maths lives here (that is `packages/engine`).
@@ -55,4 +57,25 @@ Regenerate them with `pnpm --filter @canopy/contracts fixtures <path to sample-r
 (it lands with M8 at `packages/importer/fixtures/sample-register.xlsx`) only firm B is rebuilt. A test fails if firm B
 drifts from its generator or firm A from the documented counts.
 
-Coming in a later M0 PR: the mock API server.
+The mock API, for frontends and consumer contract tests:
+
+```sh
+pnpm --filter @canopy/contracts mock                 # http://localhost:4010/api/v1
+MOCK_TODAY=2024-11-15 pnpm --filter @canopy/contracts mock
+```
+
+```ts
+import { createMockServer } from '@canopy/contracts/mock';
+
+const app = createMockServer({ today: '2024-11-15' });
+const res = await app.inject({
+  method: 'GET',
+  url: '/api/v1/me',
+  headers: { 'x-mock-person': 'meera.kulkarni@second-ledger.example' },
+});
+```
+
+Sign in with any password (any six digits for MFA), or send `X-Mock-Person` with a person id or email.
+`GET /__mock/people` lists who can sign in, `GET /__mock/outbox` shows magic links and invites, and
+`POST /__mock/reset` restores the fixtures. Behaviour the contract leaves open is in `docs/contracts/README.md`
+decisions 33-38.
