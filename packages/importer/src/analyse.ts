@@ -4,14 +4,15 @@ import {
   type CanopyField,
   type ColumnMapping,
   type Criticality,
-  type EngineApi,
   type EngineCalendar,
+  type InferredRule,
   type ImportIssueType,
   type Jurisdiction,
   type LocalDate,
   type TemplateRef,
   type TimelineType,
 } from '@canopy/contracts';
+import { fyBounds, fyStartYear } from '@canopy/engine';
 import { actKey, aliasKey, principalActKey, type AliasField } from './aliases.js';
 import { readDate } from './dates.js';
 import { splitLocation, splitOrganization } from './paths.js';
@@ -38,6 +39,7 @@ import {
 } from './text.js';
 import type {
   AnalysedRow,
+  Coverage,
   Decision,
   Decisions,
   DraftIssue,
@@ -64,9 +66,22 @@ export interface AnalyseInput {
   mapping: ColumnMapping;
   existing: ExistingState;
   decisions?: Decisions;
-  inferRule: EngineApi['inferRule'];
+  inferRule: InferRule;
   calendar: EngineCalendar;
+  /**
+   * The span the register covers, passed to `inferRule`. Defaults to the whole financial years that hold the
+   * register's due dates, so a register exported for one FY is read as that FY.
+   */
+  coverage?: Coverage;
 }
+
+/** The engine's `inferRule` (contract `EngineApi['inferRule']` plus the engine's `coverage` option). */
+export type InferRule = (
+  dueDates: LocalDate[],
+  timelineType: TimelineType,
+  cal: EngineCalendar,
+  options?: { coverage?: Coverage },
+) => InferredRule;
 
 const DUPLICATE_COMMENT = (row: number, completedOn: string | null, comment: string | null) =>
   `Row ${row} of the import repeated this period and was folded into it` +
@@ -822,6 +837,21 @@ interface Usable extends CompleteRow {
   instanceKey: string;
 }
 
+/** Whole financial years from the earliest to the latest due date (engine FY helpers); null without rows. */
+function coverageOf(rows: readonly Usable[], calendar: EngineCalendar): Coverage | null {
+  let first: LocalDate | null = null;
+  let last: LocalDate | null = null;
+  for (const { dueDate } of rows) {
+    if (first === null || dueDate < first) first = dueDate;
+    if (last === null || dueDate > last) last = dueDate;
+  }
+  if (first === null || last === null) return null;
+  return {
+    from: fyBounds(fyStartYear(first, calendar.fyStartMonth), calendar.fyStartMonth).from,
+    to: fyBounds(fyStartYear(last, calendar.fyStartMonth), calendar.fyStartMonth).to,
+  };
+}
+
 function buildPlan(
   rows: CleanRow[],
   input: AnalyseInput,
@@ -910,6 +940,19 @@ function buildPlan(
     });
   }
 
+  const coverage = input.coverage ?? coverageOf(keptRows, input.calendar);
+  // inferRule is pure and costs milliseconds per call; obligations often share a schedule, so ask once per input.
+  const inferCache = new Map<string, InferredRule>();
+  const infer = (dates: LocalDate[], timelineType: TimelineType): InferredRule => {
+    const cacheKey = `${timelineType}|${dates.join(',')}`;
+    let result = inferCache.get(cacheKey);
+    if (!result) {
+      result = input.inferRule(dates, timelineType, input.calendar, coverage ? { coverage } : {});
+      inferCache.set(cacheKey, result);
+    }
+    return result;
+  };
+
   // Obligations: first row's values; differing values are listed, per-row values stay on instances.
   const rowsByObligation = new Map<string, Usable[]>();
   for (const row of keptRows) {
@@ -951,7 +994,7 @@ function buildPlan(
     let ruleStatus: PlanObligation['ruleStatus'] = null;
     if (!(key in input.existing.obligations)) {
       const dates = [...new Set(group.map((r) => r.dueDate))].sort();
-      inferred = input.inferRule(dates, first.timelineType ?? 'TIME_BASED', input.calendar);
+      inferred = infer(dates, first.timelineType ?? 'TIME_BASED');
       ruleStatus = 'CONFIRMED';
       if (inferred.confidence < 1) {
         ruleStatus = 'TO_REVIEW';
@@ -1014,6 +1057,7 @@ function buildPlan(
     [...entities.values()].filter((e) => names.has(e.name));
   const actNames = new Set(obligations.map((o) => o.act));
   const plan: ImportPlan = {
+    coverage,
     acts: used(resolved.acts, actNames).map((a): PlanAct => ({
       ...a,
       ...jurisdictionOfText(a.name),

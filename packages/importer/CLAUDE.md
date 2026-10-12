@@ -27,8 +27,12 @@ Root `CLAUDE.md` applies. Field mapping and data quirks: `docs/requirements/exce
   `analyseImport` (rows, issues and an `ImportPlan` keyed by natural keys), `dryRun`, `stateAfterCommit`.
   The API module (`apps/api/src/modules/imports`) stores batches and calls these; the commit writes the plan
   through the M3 repositories.
-- `analyseImport` takes the engine's `inferRule` as an argument (`EngineApi['inferRule']`), so no recurrence
-  maths lives here. An existing obligation keeps its library rule and is not re-inferred.
+- `analyseImport` takes the engine's `inferRule` as an argument, so no recurrence maths lives here. It passes the
+  engine's `coverage` option: the input's `coverage` if given, else the whole FYs holding the register's due dates
+  (`plan.coverage`). Calls are memoised per distinct schedule within a run, since each costs milliseconds.
+  An existing obligation keeps its library rule and is not re-inferred.
+- Inference runs on the planned instances, after repeated periods fold, so a repeated row does not lower a rule's
+  confidence (the sample gives 6 RULE_LOW_CONFIDENCE; the engine's own golden list of 8 counts the 2 repeats).
 - Decisions are inputs: re-run `analyseImport` with the stored decisions after every review change. A PENDING
   WARNING is previewed as its proposal (so duplicate periods appear while aliases are still pending); INFO
   issues are always accepted; ERROR issues block their rows until edited (value supplied) or rejected (row
@@ -38,10 +42,12 @@ Root `CLAUDE.md` applies. Field mapping and data quirks: `docs/requirements/exce
   edits the status ("Pending" keeps the row open and moves the date into an IMPORT comment, "Complied" keeps it)
   or skips the row. Dates outside 1950 to 2100 are `INVALID_DATE` (a year typed as a number is not a serial).
 - Every source row ends as an instance, SKIPPED or ERROR: a row that cannot be planned is never dropped.
-- Analysis stays near linear (20,000 rows in well under a second locally; `test/scale.test.ts`).
+- Analysis stays near linear (20,000 rows in well under a second locally with a stub `inferRule`;
+  `test/scale.test.ts`). The real engine adds a few milliseconds per distinct schedule, so the API should run
+  parse off-request (`POST /imports/{id}/parse` is async).
 - For the API and commit PRs: refuse commit unless `isReviewed(issues)`; cap the inflated xlsx size or parse in
   a worker, because the 20 MB limit is on compressed bytes.
-- The golden fixture is pseudonymised (`fixtures/README.md`, ADR 0001).
+- The golden fixture is pseudonymised (`fixtures/README.md`, ADR 0002).
 
 ## Tests
 - Golden test on `fixtures/sample-register.xlsx` asserts the counts in excel-analysis.md §5.

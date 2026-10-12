@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import type { SourceSheet } from '../src/read.js';
-import { analyse } from './helpers.js';
+import { analyse, stubInferRule } from './helpers.js';
 
 /**
  * The API re-runs analyseImport after every review change, so it must stay close to linear in rows.
  * 20,000 rows took 6 s before the audit fix (quadratic issue bookkeeping) and about 0.7 s after it.
+ * This measures the importer's own work, so it uses the stub inferRule; the engine's cost per distinct schedule
+ * is the engine's (calls are memoised per run, see analyse.test.ts).
  */
 const HEADERS = [
   'EY Compliance ID',
@@ -63,7 +65,7 @@ describe('scale', () => {
   it('analyses 20,000 rows in well under the old 6 seconds', () => {
     const sheet = largeSheet(20_000, 500);
     const started = performance.now();
-    const analysis = analyse(sheet);
+    const analysis = analyse(sheet, { inferRule: stubInferRule });
     const elapsed = performance.now() - started;
     expect(analysis.plan.instances).toHaveLength(20_000);
     expect(analysis.issues.find((i) => i.type === 'FILE_NOT_ATTACHED')?.rowNumbers).toHaveLength(
