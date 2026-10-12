@@ -87,12 +87,9 @@ export class AuthService {
       throw new ApiError('UNAUTHENTICATED', undefined, 'Email or password is not correct.');
     }
     if (matched.length > 1) {
-      // WIP: 409 FIRM_CHOICE_REQUIRED with details { firms: [{ id, name }] } once contracts add the code.
-      throw new ApiError(
-        'DUPLICATE',
-        undefined,
-        'This email signs in to more than one firm; choose one.',
-      );
+      throw new ApiError('FIRM_CHOICE_REQUIRED', {
+        firms: matched.map((c) => ({ id: c.firmId, name: c.firmName })),
+      });
     }
     const [person] = matched as [LoginCandidate];
     return this.startSession(person.firmId, person.personId, 'PASSWORD', requestId);

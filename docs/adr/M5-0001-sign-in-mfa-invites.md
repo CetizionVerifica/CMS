@@ -46,8 +46,3 @@ people in two firms.
     calls run in the firm's system context, because they happen before a request context exists or change people a
     client context cannot; `can()` has already decided the actor may. `Me.clients` periods come from the engine's
     `clientPeriods` over the client's generated due dates.
-
-## Open
-
-- Login uses a local extension of the contract `LoginBody` (optional `firmId`, any password length) and answers a
-  shared email with `409 DUPLICATE` until M0's next contracts release adds both and `FIRM_CHOICE_REQUIRED`.

@@ -3,7 +3,7 @@ import {
   InviteAcceptBody,
   InviteBody,
   InviteTokenParams,
-  LoginBody as ContractLoginBody,
+  LoginBody,
   MagicLinkBody,
   MagicLinkVerifyBody,
   MfaVerifyBody,
@@ -15,15 +15,6 @@ import { sessionOf, SESSION_COOKIE } from './plugin.js';
 import type { SecretBox } from './secretbox.js';
 import { AuthService, type IssuedSession } from './service.js';
 
-/**
- * The contract login body with what M0's next contracts release adds: an optional `firmId` for emails that sign in
- * to more than one firm, and any password length (the 12-character rule is for new passwords).
- * WIP: use `LoginBody` from contracts once that release merges.
- */
-const LoginBody = ContractLoginBody.extend({
-  password: z.string().min(1).max(1024),
-  firmId: Id.optional(),
-});
 const IdParams = z.strictObject({ id: Id });
 
 export interface AuthRoutesOptions {

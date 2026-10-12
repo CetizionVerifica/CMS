@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import {
   ApiErrorResponse,
+  ERROR_DETAILS,
   Invite,
   InvitePreview,
   Me,
@@ -185,6 +186,13 @@ describe('POST /auth/login', () => {
     const first = await login('shared@example.com');
     expect(first.statusCode).toBe(409);
     expect(first.cookies).toHaveLength(0);
+    const choice = ApiErrorResponse.parse(first.json()).error;
+    expect(choice.code).toBe('FIRM_CHOICE_REQUIRED');
+    expect(
+      ERROR_DETAILS.FIRM_CHOICE_REQUIRED.parse(choice.details)
+        .firms.map((f) => f.id)
+        .sort(),
+    ).toEqual([a.firmId, b.firmId].sort());
     const second = await login('shared@example.com', PASSWORD, b.firmId);
     expect(second.statusCode).toBe(200);
     expect(Me.parse(second.json()).person).toMatchObject({ id: b.personId, firmId: b.firmId });

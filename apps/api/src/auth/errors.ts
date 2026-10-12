@@ -11,6 +11,7 @@ const DEFAULT_MESSAGES: Partial<Record<ErrorCode, string>> = {
   INVALID_TRANSITION: 'This action is not allowed in the current state.',
   DUPLICATE: 'This already exists.',
   IMPORT_STATE: 'This import step is not available yet.',
+  FIRM_CHOICE_REQUIRED: 'This email signs in to more than one firm; choose one.',
   FILE_TOO_LARGE: 'The file is too large.',
   UNSUPPORTED_FILE: 'This file type is not supported.',
   REASON_REQUIRED: 'A reason is required.',
