@@ -108,14 +108,13 @@ export interface EventInput {
   data: Record<string, unknown>;
 }
 
+/**
+ * Where a person belongs across the firm. `clientIds` can name clients the caller cannot see: use it only to allow or
+ * refuse, never in a response.
+ */
 export interface PersonReach {
   clientIds: Id[];
   firmStaff: boolean;
-  /**
-   * True when the store could see only part of the firm, so `clientIds` may leave out clients outside the context and
-   * `firmStaff` may be false for firm staff. Person writes are then refused to everyone but a firm admin (ADR 0006).
-   */
-  partial: boolean;
 }
 
 export interface Tx {

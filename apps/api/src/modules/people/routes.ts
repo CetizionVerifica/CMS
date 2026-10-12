@@ -51,8 +51,8 @@ type PersonCall = Pick<Call<never>, 'ctx' | 'authorize'>;
  * Checks a route on one person (endpoints.md §3). A firm admin reaches everyone. Anyone else, consultants included,
  * reaches only people of the clients they work in; firm staff (people holding a firm role) are changed by a firm admin
  * alone. A write must stay inside the actor's clients, because a person shared with another client is that client's
- * person too. A person the actor cannot see is 404. When the store sees only part of the firm (`reach.partial`), only
- * a firm admin may write. Returns the person's reach, or null for a firm admin.
+ * person too. A person the actor cannot see is 404. Returns the person's reach, or null for a firm admin; its client ids
+ * may include clients the actor cannot see, so they decide and are never returned.
  */
 async function authorizePerson(
   tx: Tx,
@@ -76,11 +76,6 @@ async function authorizePerson(
   }
   const mine = reach.clientIds.filter((clientId) => ctx.clientIds.includes(clientId));
   if (mine.length === 0) throw notFound();
-  if (access === 'write' && reach.partial) {
-    throw new HttpError('FORBIDDEN', 'Only a firm admin can change this person.', {
-      action: `${type}.write`,
-    });
-  }
   if (access === 'write' && mine.length < reach.clientIds.length) {
     throw new HttpError('FORBIDDEN', 'This person also belongs to a client you do not manage.', {
       action: `${type}.write`,
@@ -307,8 +302,7 @@ export function peopleRoutes(app: FastifyInstance, deps: M6Deps): void {
       // A grant links the person to another client, so the actor must already reach them; and firm staff take client
       // roles from a firm admin only.
       const reach = await authorizePerson(tx, call, 'membership', person.id, 'read');
-      // A partial reach may miss a firm role, so only a firm admin grants then.
-      if (reach !== null && (reach.firmStaff || reach.partial)) throw forbidden('membership.write');
+      if (reach !== null && reach.firmStaff) throw forbidden('membership.write');
       await checkGrant(tx, body);
       const existing = (await tx.memberships.findAll({ personId: person.id })).find(
         (m) => m.role === body.role && m.clientId === body.clientId,

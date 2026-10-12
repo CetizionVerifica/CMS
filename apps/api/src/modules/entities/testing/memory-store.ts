@@ -482,7 +482,6 @@ export class MemoryStore implements Store {
       personReach: async (personId) => ({
         clientIds: [...this.personClients(personId, scope.firmId)],
         firmStaff: this.hasFirmRole(personId, scope.firmId),
-        partial: false,
       }),
       createPersonInClient: async (person, membership) => {
         const row = this.newRow('people', person, scope);

@@ -406,37 +406,52 @@ describe.skipIf(!url)('M6 on the Postgres store', () => {
   });
 
   describe('people', () => {
-    it('lets only a firm admin change a person until M3 reports the full reach', async () => {
-      const denied = await call('consultant', 'PATCH', `/people/${w.owner}`, {
+    it("keeps person changes inside the actor's clients, using M3's reach", async () => {
+      const renamed = await call('consultant', 'PATCH', `/people/${w.owner}`, {
         version: 1,
         displayName: 'Omar O.',
       });
-      expect(denied.status).toBe(403);
+      expect(renamed.status).toBe(200);
+      expect(renamed.body).toMatchObject({ nameNormalized: 'omar o.', version: 2 });
+      const grant = (clientId: Id) => ({
+        role: 'APPROVER',
+        clientId,
+        consultantClientIds: null,
+        unitIds: null,
+        expiresAt: null,
+      });
+      expect(
+        (await call('clientAdmin', 'POST', `/people/${w.owner}/memberships`, grant(w.clientA)))
+          .status,
+      ).toBe(201);
+      // Bina now belongs to clients A and B; the consultant manages only A.
+      expect(
+        (await call('firmAdmin', 'POST', `/people/${w.bina}/memberships`, grant(w.clientA))).status,
+      ).toBe(201);
+      const shared = await call('consultant', 'PATCH', `/people/${w.bina}`, {
+        version: 1,
+        displayName: 'Bina B.',
+      });
+      expect(shared.status).toBe(403);
+      expect(error(shared.body).message).toBe(
+        'This person also belongs to a client you do not manage.',
+      );
+      expect(JSON.stringify(shared.body)).not.toContain(w.clientB);
+      // Firm staff are hidden from client roles and changed by a firm admin only.
+      expect(
+        (await call('clientAdmin', 'GET', `/people/${w.people.consultant}/memberships`)).status,
+      ).toBe(404);
       expect(
         (
-          await call('clientAdmin', 'POST', `/people/${w.owner}/memberships`, {
-            role: 'APPROVER',
-            clientId: w.clientA,
-            consultantClientIds: null,
-            unitIds: null,
-            expiresAt: null,
+          await call('consultant', 'POST', `/people/${w.people.firmAdmin}/memberships`, {
+            ...grant(w.clientA),
           })
         ).status,
       ).toBe(403);
-      const ok = await call('firmAdmin', 'PATCH', `/people/${w.owner}`, {
-        version: 1,
-        displayName: 'Omar O.',
-      });
-      expect(ok.status).toBe(200);
       const staff = await call('firmAdmin', 'GET', '/people');
       expect(
         (staff.body as { items: { displayName: string }[] }).items.map((p) => p.displayName),
       ).toEqual(['Asha Admin', 'Cyrus Consultant']);
-      expect(ok.body).toMatchObject({
-        displayName: 'Omar O.',
-        nameNormalized: 'omar o.',
-        version: 2,
-      });
     });
 
     it('merges people and moves their instances', async () => {
@@ -624,18 +639,16 @@ describe.skipIf(!url)('M6 on the Postgres store', () => {
       ).rejects.toThrow('locations rows are not changed through this store');
     });
 
-    it('returns null for a row the context cannot change, and the exact reach for a firm admin', async () => {
+    it('returns null for a row the context cannot change, and the reach through M3', async () => {
       const otherFirm = { ...ctx(), firmId: w.firmB, clientIds: [] };
       expect(
         await store.transaction(otherFirm, (tx) =>
           tx.companies.update(w.companyA, 1, { name: 'Taken' }),
         ),
       ).toBeNull();
-      expect(await store.transaction(ctx(), (tx) => tx.personReach(w.bina))).toEqual({
-        clientIds: [w.clientB],
-        firmStaff: false,
-        partial: false,
-      });
+      const bina = await store.transaction(ctx(), (tx) => tx.personReach(w.bina));
+      expect(bina.firmStaff).toBe(false);
+      expect(bina.clientIds).toContain(w.clientB);
       expect(
         await store.transaction(ctx(), (tx) => tx.personReach(w.people.consultant)),
       ).toMatchObject({ firmStaff: true });

@@ -32,11 +32,9 @@ in parallel. Shared API helpers (`apps/api/src/lib/`) belong to no module yet.
    - A write (rename, email, merge) must stay inside the actor's clients: a person who also belongs to another client
      is 403 for anyone but a firm admin, so a merge never leaves another client's rows on an archived person.
    - The email of an `ACTIVE` person is their sign-in, so only a firm admin changes it.
-   - On Postgres, `personReach` needs a narrow security-definer function from M3 (`person_reach`, M3 PR 5), since a
-     context sees only its own clients' rows. Until it lands the Postgres store answers exactly for a firm admin and
-     marks the answer `partial` for everyone else, and a partial answer lets only a firm admin change a person or grant
-     them a membership. This fails closed: no write reaches past the actor's clients, at the cost of consultants and
-     client admins waiting on a firm admin for person changes.
+   - On Postgres, `personReach` is M3's `people.reach` over the security-definer `app_person_reach` (#49), since a
+     context sees only its own clients' rows. Its client ids can name clients the actor cannot see, so they only
+     decide allow or refuse and never appear in a response or error.
 4. **HTTP helpers stay in M6's paths** (`modules/entities/http/`): error envelope, cursor pagination, request id.
    They can move to `lib/` in a tooling PR once another module needs them.
 5. **Every write is audited in its transaction** with the changed fields only; an update that changes nothing writes
@@ -73,5 +71,4 @@ in parallel. Shared API helpers (`apps/api/src/lib/`) belong to no module yet.
   never merged away, and the firm keeps at least one firm admin.
 
 ## Consequences
-- When M3's `person_reach` lands, the Postgres store calls it and stops marking reach `partial`.
 - If M0 settles the open points differently, the change is local to one route each.

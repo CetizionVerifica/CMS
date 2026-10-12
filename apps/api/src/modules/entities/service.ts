@@ -221,24 +221,14 @@ function repoOf<T extends { id: Id }>(
   };
 }
 
-/** Clients of the context where `personId` has a live membership, assignment or instance. */
-async function clientsOf(tx: TenantTx, ctx: RequestContext, personId: Id): Promise<Id[]> {
-  const found: Id[] = [];
-  for (const clientId of ctx.clientIds) {
-    if ((await people.idsInClient(tx, clientId)).includes(personId)) found.push(clientId);
-  }
-  return found;
-}
-
 export class PostgresStore implements Store {
   constructor(private readonly db: Database) {}
 
   transaction<T>(ctx: RequestContext, fn: (tx: Tx) => Promise<T>): Promise<T> {
-    const tenant = tenantFromRequest(ctx);
-    return this.db.withTenant(tenant, (tx) => fn(this.tx(tx, ctx, tenant.clientIds === 'ALL')));
+    return this.db.withTenant(tenantFromRequest(ctx), (tx) => fn(this.tx(tx, ctx)));
   }
 
-  private tx(tx: TenantTx, ctx: RequestContext, firmWide: boolean): Tx {
+  private tx(tx: TenantTx, ctx: RequestContext): Tx {
     const repo = <T extends { id: Id }>(table: ListTable, aggregate: Aggregate<T>) =>
       repoOf(tx, table, aggregate, (sp, values) => aggregate.create(sp, values as never));
     return {
@@ -260,13 +250,8 @@ export class PostgresStore implements Store {
       clientPersonIds: (clientId) => people.idsInClient(tx, clientId),
       firmStaffIds: () => people.firmStaffIds(tx),
       assignedObligationIds: () => assignments.obligationIds(tx),
-      // Until M3's person_reach function lands, a context sees only its own clients' rows: the answer is exact for a
-      // firm admin and partial for everyone else, who then may not change people (ADR 0006).
-      personReach: async (personId): Promise<PersonReach> => ({
-        clientIds: await clientsOf(tx, ctx, personId),
-        firmStaff: (await people.firmStaffIds(tx)).includes(personId),
-        partial: !firmWide,
-      }),
+      // M3's security-definer app_person_reach: ids of clients this context may not see, for decisions only.
+      personReach: (personId): Promise<PersonReach> => people.reach(tx, personId),
       async createPersonInClient(person, membership) {
         try {
           return await savepoint(tx, (sp) => people.createWithMembership(sp, person, membership));

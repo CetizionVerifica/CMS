@@ -536,48 +536,6 @@ describe('granting a membership', () => {
   });
 });
 
-describe('a store that sees only part of the firm', () => {
-  /** The Postgres store until M3's person_reach lands: a reach outside the context is unknown. */
-  function partialApp() {
-    const app = testApp();
-    const transaction = app.store.transaction.bind(app.store);
-    app.store.transaction = (ctx, fn) =>
-      transaction(ctx, (tx) =>
-        fn({
-          ...tx,
-          personReach: async (personId) => ({ ...(await tx.personReach(personId)), partial: true }),
-        }),
-      );
-    return app;
-  }
-
-  it('lets only a firm admin change a person', async () => {
-    const { call, store } = partialApp();
-    const url = `/people/${ACTORS.owner.person}`;
-    const denied = await call('clientAdmin', 'PATCH', url, { version: 1, displayName: 'Omar O.' });
-    expect(denied.status).toBe(403);
-    expect(error(denied.body).message).toBe('Only a firm admin can change this person.');
-    expect((await call('clientAdmin', 'GET', `${url}/memberships`)).status).toBe(200);
-    expect(store.audits).toEqual([]);
-    const ok = await call('firmAdmin', 'PATCH', url, { version: 1, displayName: 'Omar O.' });
-    expect(ok.status).toBe(200);
-  });
-
-  it('lets only a firm admin grant a membership', async () => {
-    const { call } = partialApp();
-    const grant = {
-      role: 'APPROVER',
-      clientId: ids.clientA,
-      consultantClientIds: null,
-      unitIds: null,
-      expiresAt: null,
-    };
-    const url = `/people/${ACTORS.owner.person}/memberships`;
-    expect((await call('clientAdmin', 'POST', url, grant)).status).toBe(403);
-    expect((await call('firmAdmin', 'POST', url, grant)).status).toBe(201);
-  });
-});
-
 describe("an email already used outside the actor's clients", () => {
   it('is refused without revealing who holds it', async () => {
     const { call } = testApp();
