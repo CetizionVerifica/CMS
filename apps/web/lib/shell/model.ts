@@ -3,7 +3,7 @@
 // cross the server/client boundary).
 import { FIRM_ROLES, type Role } from '@canopy/contracts';
 
-import type { ClientShellInfo, MeResponse } from '../api/types';
+import type { ClientPeriodContext, ShellMe } from '../api/types';
 import { hrefFor, routeByPath, visibleTo } from '../routes';
 
 export type ShellClient = {
@@ -14,7 +14,8 @@ export type ShellClient = {
   overdueCount: number;
   fyStartMonth: number;
   timeZone: string;
-} & Omit<ClientShellInfo, 'unitCount'>;
+  thisPeriod: ClientPeriodContext['current'];
+} & Omit<ClientPeriodContext, 'current'>;
 
 export type ShellUser = { name: string; detail: string; email: string | null };
 
@@ -39,12 +40,12 @@ const ROLE_LABEL: Record<Role, string> = {
 
 const firmRoles: readonly Role[] = FIRM_ROLES;
 
-export function isFirmUser(me: Pick<MeResponse, 'memberships'>): boolean {
+export function isFirmUser(me: Pick<ShellMe, 'memberships'>): boolean {
   return me.memberships.some((m) => firmRoles.includes(m.role));
 }
 
 /** The actor's roles, limited to one client when given: firm roles apply everywhere, client roles to their client. */
-export function rolesFor(me: Pick<MeResponse, 'memberships'>, clientId?: string): Role[] {
+export function rolesFor(me: Pick<ShellMe, 'memberships'>, clientId?: string): Role[] {
   const roles = me.memberships
     .filter((m) => m.clientId === null || clientId === undefined || m.clientId === clientId)
     .map((m) => m.role);
@@ -56,25 +57,20 @@ function unitsLabel(n: number): string {
 }
 
 /** `overdue` comes from GET /portfolio (firm users); client users see no count. */
-export function buildShellModel(me: MeResponse, overdue: Record<string, number> = {}): ShellModel {
+export function buildShellModel(me: ShellMe, overdue: Record<string, number> = {}): ShellModel {
   const roles = rolesFor(me);
   const clients = me.clients
-    .filter((c) => c.archivedAt === null)
-    .map((c): ShellClient | undefined => {
-      const info = me.shell[c.id];
-      if (!info) return undefined;
-      const { unitCount, ...period } = info;
-      return {
-        id: c.id,
-        name: c.name,
-        meta: unitsLabel(unitCount),
-        overdueCount: overdue[c.id] ?? 0,
-        fyStartMonth: c.settings.fyStartMonth,
-        timeZone: c.settings.timeZone,
-        ...period,
-      };
-    })
-    .filter((c): c is ShellClient => !!c)
+    .map(({ id, name, unitCount, fyStartMonth, timeZone, period }): ShellClient => ({
+      id,
+      name,
+      meta: unitsLabel(unitCount),
+      overdueCount: overdue[id] ?? 0,
+      fyStartMonth,
+      timeZone,
+      thisPeriod: period.current,
+      availableFys: period.availableFys,
+      availableUntil: period.availableUntil,
+    }))
     .sort((a, b) => a.name.localeCompare(b.name));
   return {
     user: {

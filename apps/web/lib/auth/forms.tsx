@@ -129,20 +129,37 @@ export function MfaForm({ next }: { next?: string }) {
   );
 }
 
-export function InviteForm({ token, email }: { token: string; email: string | null }) {
+export function InviteForm({
+  token,
+  email,
+  displayName,
+}: {
+  token: string;
+  email: string;
+  displayName: string;
+}) {
   const [state, action, pending] = useActionState(acceptInvite, IDLE);
   return (
     <form action={action} className="flex flex-col gap-3.5" noValidate>
       <FormMessage state={state} />
       <input type="hidden" name="token" value={token} />
+      <input type="hidden" name="invitedName" value={displayName} />
       <Input
         label="Work email"
+        helper="You’ll sign in with this address."
         name="email"
         type="email"
-        autoComplete="email"
-        defaultValue={typed(state, 'email') ?? email ?? undefined}
+        autoComplete="username"
+        defaultValue={email}
+        readOnly
+      />
+      <Input
+        label="Your name"
+        name="displayName"
+        autoComplete="name"
+        defaultValue={typed(state, 'displayName') ?? displayName}
         required
-        error={fieldError(state, 'email')}
+        error={fieldError(state, 'displayName')}
       />
       <Input
         label="Choose a password"

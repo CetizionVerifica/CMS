@@ -10,7 +10,7 @@ import { createApiClient, isApiError, type ApiClient } from './client';
 import { mockFetch } from './mock';
 import { apiMode } from './mode';
 import { parseSetCookie } from './set-cookie';
-import type { MeResponse } from './types';
+import type { ShellMe } from './types';
 
 /** True while no real API is configured and the request is local: the in-process mock answers instead. */
 export async function usingMockApi(): Promise<boolean> {
@@ -34,7 +34,7 @@ export async function serverApi(csrfToken?: string): Promise<ApiClient> {
 }
 
 /** The signed-in user, once per request. Null when there is no valid session. */
-export const getMe = cache(async (): Promise<MeResponse | null> => {
+export const getMe = cache(async (): Promise<ShellMe | null> => {
   try {
     return (await (await serverApi()).me()).data;
   } catch (error) {
@@ -44,10 +44,10 @@ export const getMe = cache(async (): Promise<MeResponse | null> => {
 });
 
 /** The signed-in user, or a redirect to the login page that comes back to `returnTo`. */
-export async function requireMe(returnTo: string): Promise<MeResponse> {
+export async function requireMe(returnTo: string): Promise<ShellMe> {
   const me = await getMe();
   if (!me) redirect(`/login?next=${encodeURIComponent(returnTo)}`);
-  if (!me.mfaSatisfied) redirect(`/login/verify?next=${encodeURIComponent(returnTo)}`);
+  if (!me.mfa.satisfied) redirect(`/login/verify?next=${encodeURIComponent(returnTo)}`);
   return me;
 }
 

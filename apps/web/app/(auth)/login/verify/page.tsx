@@ -15,7 +15,7 @@ export default async function VerifyPage({ searchParams }: Props) {
   const next = safeNextPath(Array.isArray(raw) ? raw[0] : raw);
   const me = await getMe();
   if (!me) redirect(`/login${next ? `?next=${encodeURIComponent(next)}` : ''}`);
-  if (me.mfaSatisfied) redirect(next ?? '/');
+  if (me.mfa.satisfied) redirect(next ?? '/');
   return (
     <>
       <h1 className="mb-1 text-page text-ink">Verify it’s you</h1>

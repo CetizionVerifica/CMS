@@ -53,7 +53,7 @@ test.describe('auth pages', () => {
     );
     await checkPage(page);
 
-    await page.goto('/login/link?token=expired');
+    await page.goto('/login/link?token=expired-link-token-01');
     await checkPage(page);
     await page.getByRole('button', { name: 'Continue to sign in' }).click();
     await expect(
@@ -65,15 +65,16 @@ test.describe('auth pages', () => {
     await page.goto('/invite/not-a-token');
     await expect(page.getByRole('heading', { level: 1 })).toHaveText('This invite isn’t valid');
 
-    await page.goto('/invite/demo-invite');
+    await page.goto('/invite/demo-invite-0001');
     await expect(page.getByRole('heading', { level: 1 })).toHaveText('Welcome, Owner 02');
     await checkPage(page);
-    await page.getByLabel('Work email').fill('owner02@demo.test');
+    await expect(page.getByLabel('Work email')).toHaveValue('owner02@demo.test');
+    await page.getByLabel('Your name').fill('Owner Two');
     await page.getByLabel('Choose a password').fill('a-long-password');
     await page.getByLabel('Repeat the password').fill('different-password');
     await page.getByRole('button', { name: 'Create account' }).click();
     await expect(page.getByText('The passwords do not match')).toBeVisible();
-    await expect(page.getByLabel('Work email')).toHaveValue('owner02@demo.test');
+    await expect(page.getByLabel('Your name')).toHaveValue('Owner Two');
     await page.getByLabel('Choose a password').fill('a-long-password');
     await page.getByLabel('Repeat the password').fill('a-long-password');
     await page.getByRole('button', { name: 'Create account' }).click();

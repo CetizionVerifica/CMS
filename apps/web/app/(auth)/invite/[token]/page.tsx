@@ -1,8 +1,8 @@
+import type { InvitePreview } from '@canopy/contracts';
 import type { Metadata } from 'next';
 
 import { isApiError } from '../../../../lib/api/client';
 import { serverApi } from '../../../../lib/api/server';
-import type { InvitePreview } from '../../../../lib/api/types';
 import { InviteForm } from '../../../../lib/auth/forms';
 
 export const metadata: Metadata = { title: 'Accept invite' };
@@ -15,7 +15,8 @@ export default async function InvitePage({ params }: Props) {
   try {
     invite = (await (await serverApi()).invite(token)).data;
   } catch (error) {
-    if (!isApiError(error, 'NOT_FOUND')) throw error;
+    // A malformed token is rejected as VALIDATION before the lookup; both mean the link is no good.
+    if (!isApiError(error, 'NOT_FOUND', 'VALIDATION')) throw error;
   }
 
   if (!invite) {
@@ -36,7 +37,7 @@ export default async function InvitePage({ params }: Props) {
         {invite.firmName} invited you
         {invite.clientName ? ` to work on ${invite.clientName}` : ''}. Set a password to finish.
       </p>
-      <InviteForm token={token} email={invite.email} />
+      <InviteForm token={token} email={invite.email} displayName={invite.displayName} />
     </>
   );
 }

@@ -1,13 +1,13 @@
+import { LoginBody } from '@canopy/contracts';
 import { describe, expect, it } from 'vitest';
 
-import { LoginRequest } from '../api/types';
 import { fieldErrors } from './form-state';
 
 describe('fieldErrors', () => {
-  it('keeps the first message per field', () => {
-    const result = LoginRequest.safeParse({ email: 1, password: '' });
+  it('keeps the first message per field, replacing the ones given', () => {
+    const result = LoginBody.safeParse({ email: 1, password: '' });
     expect(result.success).toBe(false);
-    expect(fieldErrors(result.error!)).toEqual({
+    expect(fieldErrors(result.error!, { password: 'Enter your password' })).toEqual({
       email: expect.any(String),
       password: 'Enter your password',
     });

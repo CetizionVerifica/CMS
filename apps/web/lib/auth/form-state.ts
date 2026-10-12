@@ -13,12 +13,15 @@ export type FormState =
 
 export const IDLE: FormState = { status: 'idle' };
 
-/** First message per field, keyed by the field name. */
-export function fieldErrors(error: z.ZodError): Record<string, string> {
+/** First message per field, keyed by the field name. `messages` replaces the schema's text for the fields it names. */
+export function fieldErrors(
+  error: z.ZodError,
+  messages: Record<string, string> = {},
+): Record<string, string> {
   const out: Record<string, string> = {};
   for (const issue of error.issues) {
     const key = String(issue.path[0] ?? 'form');
-    out[key] ??= issue.message;
+    out[key] ??= messages[key] ?? issue.message;
   }
   return out;
 }

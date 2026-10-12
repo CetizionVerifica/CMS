@@ -1,9 +1,17 @@
 // Typed API client (MODULES.md M11). Every response is parsed with its schema, so drift between the web app and the
-// API (or the mock) fails loudly at the boundary instead of rendering wrong data. Errors follow api-conventions.md §4.
-import { ErrorCode, ErrorEnvelope, PortfolioRow } from '@canopy/contracts';
+// API (or the mock) fails loudly at the boundary instead of rendering wrong data. Methods, paths, bodies and response
+// schemas come from the contracts' endpoint table. Errors follow api-conventions.md §4.
+import {
+  ENDPOINTS,
+  ErrorCode,
+  ErrorEnvelope,
+  type Endpoint,
+  type InviteAcceptBody,
+  type LoginBody,
+} from '@canopy/contracts';
 import { z } from 'zod';
 
-import { Accepted, InvitePreview, MeResponse, type LoginRequest } from './types';
+import { ShellMe } from './types';
 
 export const API_PREFIX = '/api/v1';
 
@@ -43,11 +51,17 @@ export function createApiClient(options: ApiClientOptions) {
   const base = options.baseUrl.replace(/\/+$/, '');
 
   async function call<S extends z.ZodType>(
-    method: 'GET' | 'POST',
-    path: string,
+    endpoint: Pick<Endpoint, 'method' | 'path'>,
     schema: S,
-    body?: unknown,
+    request: { params?: Record<string, string>; body?: unknown } = {},
   ): Promise<ApiResult<z.output<S>>> {
+    const { method } = endpoint;
+    const { body } = request;
+    const path = endpoint.path.replace(/\{(\w+)\}/g, (_, name: string) => {
+      const value = request.params?.[name];
+      if (value === undefined) throw new Error(`Missing path parameter ${name}`);
+      return encodeURIComponent(value);
+    });
     const headers: Record<string, string> = { accept: 'application/json' };
     if (body !== undefined) headers['content-type'] = 'application/json';
     if (options.cookie) headers.cookie = options.cookie;
@@ -79,7 +93,8 @@ export function createApiClient(options: ApiClientOptions) {
       );
     }
 
-    const parsed = schema.safeParse(json);
+    // 202 and 204 have no body; the contract's NoContent is null.
+    const parsed = schema.safeParse(json ?? null);
     if (!parsed.success) {
       // Messages only: the body may hold personal data, so it is never put in the error (root rule 6).
       const issues = parsed.error.issues
@@ -97,20 +112,23 @@ export function createApiClient(options: ApiClientOptions) {
     return { data: parsed.data, setCookies: res.headers.getSetCookie?.() ?? [] };
   }
 
-  const id = (value: string) => encodeURIComponent(value);
+  const E = ENDPOINTS;
+  const token = (value: string) => ({ params: { token: value } });
 
   return {
-    me: () => call('GET', '/me', MeResponse),
-    portfolio: () => call('GET', '/portfolio', z.array(PortfolioRow)),
-    login: (body: LoginRequest) => call('POST', '/auth/login', Accepted, body),
-    requestMagicLink: (email: string) => call('POST', '/auth/magic-link', Accepted, { email }),
-    verifyMagicLink: (token: string) =>
-      call('POST', '/auth/magic-link/verify', Accepted, { token }),
-    verifyMfa: (code: string) => call('POST', '/auth/mfa/verify', Accepted, { code }),
-    logout: () => call('POST', '/auth/logout', Accepted, {}),
-    invite: (token: string) => call('GET', `/invites/${id(token)}`, InvitePreview),
-    acceptInvite: (token: string, body: { email: string; password: string }) =>
-      call('POST', `/invites/${id(token)}/accept`, Accepted, body),
+    /** Parsed with `ShellMe` until M0 adds the per-client context to the contract (types.ts). */
+    me: () => call(E.getMe, ShellMe),
+    portfolio: () => call(E.portfolio, E.portfolio.response),
+    login: (body: LoginBody) => call(E.login, E.login.response, { body }),
+    requestMagicLink: (email: string) =>
+      call(E.requestMagicLink, E.requestMagicLink.response, { body: { email } }),
+    verifyMagicLink: (value: string) =>
+      call(E.verifyMagicLink, E.verifyMagicLink.response, { body: { token: value } }),
+    verifyMfa: (code: string) => call(E.verifyMfa, E.verifyMfa.response, { body: { code } }),
+    logout: () => call(E.logout, E.logout.response),
+    invite: (value: string) => call(E.getInvite, E.getInvite.response, token(value)),
+    acceptInvite: (value: string, body: InviteAcceptBody) =>
+      call(E.acceptInvite, E.acceptInvite.response, { ...token(value), body }),
   };
 }
 

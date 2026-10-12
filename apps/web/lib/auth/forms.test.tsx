@@ -69,9 +69,12 @@ describe('auth forms', () => {
     expect((await screen.findByRole('alert')).textContent).toContain('couldn’t check the code');
   });
 
-  it('prefills the invited email', () => {
-    render(<InviteForm token="t" email="new@demo.test" />);
-    expect((screen.getByLabelText('Work email') as HTMLInputElement).value).toBe('new@demo.test');
+  it('shows the invited email read-only and prefills the name', () => {
+    render(<InviteForm token="t" email="new@demo.test" displayName="Owner 02" />);
+    const email = screen.getByLabelText('Work email') as HTMLInputElement;
+    expect(email.value).toBe('new@demo.test');
+    expect(email.readOnly).toBe(true);
+    expect((screen.getByLabelText('Your name') as HTMLInputElement).value).toBe('Owner 02');
     expect(screen.getByRole('link', { name: 'Sign in' }).getAttribute('href')).toBe('/login');
   });
 

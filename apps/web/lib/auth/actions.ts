@@ -1,40 +1,48 @@
 'use server';
-// Server Actions behind the auth pages and the user menu. Input is validated with the same Zod schemas the API uses
-// (root rule 7); the API sets the session cookie and these actions relay it to the browser.
+// Server Actions behind the auth pages and the user menu. Input is validated with the contracts' request schemas, the
+// same ones the API uses (root rule 7); the API sets the session cookie and these actions relay it to the browser.
+import {
+  InviteAcceptBody,
+  LoginBody,
+  MagicLinkBody,
+  MagicLinkVerifyBody,
+  MfaVerifyBody,
+} from '@canopy/contracts';
 import { redirect } from 'next/navigation';
 
 import { isApiError } from '../api/client';
 import { relayCookies, serverApi, sessionApi } from '../api/server';
-import {
-  AcceptInviteRequest,
-  LoginRequest,
-  MagicLinkRequest,
-  MfaVerifyRequest,
-} from '../api/types';
 import { safeNextPath } from '../routes';
 import { fieldErrors, type FormState } from './form-state';
 
 const text = (form: FormData, name: string) => String(form.get(name) ?? '');
 
+/** What the form says for a field the contract schema rejects; the schema's own messages are for developers. */
+const FIELD_MESSAGES: Record<string, string> = {
+  email: 'Enter a valid email address',
+  password: 'Use 12 to 200 characters',
+  code: 'Enter the 6-digit code',
+  displayName: 'Enter your name',
+};
+
 export async function signIn(_prev: FormState, form: FormData): Promise<FormState> {
-  const input = LoginRequest.safeParse({
-    email: form.get('email'),
-    password: form.get('password'),
-  });
+  const password = text(form, 'password');
+  const input = LoginBody.safeParse({ email: text(form, 'email').trim(), password });
   const next = safeNextPath(text(form, 'next'));
   const values = { email: text(form, 'email') };
-  if (!input.success) return { status: 'invalid', fieldErrors: fieldErrors(input.error), values };
+  if (!input.success) {
+    const errors = fieldErrors(input.error, FIELD_MESSAGES);
+    if (!password) errors.password = 'Enter your password';
+    // A password the contract rejects can't belong to an account: say so, as for a wrong one.
+    else if (errors.password && !errors.email) return wrongPassword(values);
+    else delete errors.password;
+    return { status: 'invalid', fieldErrors: errors, values };
+  }
   try {
     const { setCookies } = await (await serverApi()).login(input.data);
     await relayCookies(setCookies);
   } catch (error) {
-    if (isApiError(error, 'UNAUTHENTICATED')) {
-      return {
-        status: 'error',
-        message: 'That email and password don’t match an account.',
-        values,
-      };
-    }
+    if (isApiError(error, 'UNAUTHENTICATED')) return wrongPassword(values);
     if (isApiError(error, 'RATE_LIMITED')) {
       return {
         status: 'error',
@@ -48,10 +56,16 @@ export async function signIn(_prev: FormState, form: FormData): Promise<FormStat
   redirect(next ?? '/');
 }
 
+function wrongPassword(values: Record<string, string>): FormState {
+  return { status: 'error', message: 'That email and password don’t match an account.', values };
+}
+
 export async function sendMagicLink(_prev: FormState, form: FormData): Promise<FormState> {
-  const input = MagicLinkRequest.safeParse({ email: form.get('email') });
+  const input = MagicLinkBody.safeParse({ email: text(form, 'email').trim() });
   const values = { email: text(form, 'email') };
-  if (!input.success) return { status: 'invalid', fieldErrors: fieldErrors(input.error), values };
+  if (!input.success) {
+    return { status: 'invalid', fieldErrors: fieldErrors(input.error, FIELD_MESSAGES), values };
+  }
   try {
     await (await serverApi()).requestMagicLink(input.data.email);
   } catch (error) {
@@ -77,11 +91,10 @@ export async function sendMagicLink(_prev: FormState, form: FormData): Promise<F
 }
 
 export async function redeemMagicLink(_prev: FormState, form: FormData): Promise<FormState> {
-  const token = text(form, 'token');
-  if (!token || token.length > 500)
-    return { status: 'error', message: 'This sign-in link isn’t valid.' };
+  const input = MagicLinkVerifyBody.safeParse({ token: text(form, 'token') });
+  if (!input.success) return { status: 'error', message: 'This sign-in link isn’t valid.' };
   try {
-    const { setCookies } = await (await serverApi()).verifyMagicLink(token);
+    const { setCookies } = await (await serverApi()).verifyMagicLink(input.data.token);
     await relayCookies(setCookies);
   } catch (error) {
     if (isApiError(error, 'UNAUTHENTICATED', 'NOT_FOUND')) {
@@ -96,11 +109,11 @@ export async function redeemMagicLink(_prev: FormState, form: FormData): Promise
 }
 
 export async function verifyMfa(_prev: FormState, form: FormData): Promise<FormState> {
-  const input = MfaVerifyRequest.safeParse({
-    code: text(form, 'code').replace(/\s/g, ''),
-  });
+  const input = MfaVerifyBody.safeParse({ code: text(form, 'code').replace(/\s/g, '') });
   const next = safeNextPath(text(form, 'next'));
-  if (!input.success) return { status: 'invalid', fieldErrors: fieldErrors(input.error) };
+  if (!input.success) {
+    return { status: 'invalid', fieldErrors: fieldErrors(input.error, FIELD_MESSAGES) };
+  }
   try {
     const { setCookies } = await (await sessionApi()).verifyMfa(input.data.code);
     await relayCookies(setCookies);
@@ -119,23 +132,27 @@ export async function verifyMfa(_prev: FormState, form: FormData): Promise<FormS
 
 export async function acceptInvite(_prev: FormState, form: FormData): Promise<FormState> {
   const token = text(form, 'token');
-  const input = AcceptInviteRequest.safeParse({
-    email: form.get('email'),
-    password: form.get('password'),
-    confirm: form.get('confirm'),
+  const name = text(form, 'displayName').trim();
+  const values = { displayName: text(form, 'displayName') };
+  const input = InviteAcceptBody.safeParse({
+    password: text(form, 'password'),
+    // Sent only when the person corrected the name the invite gave them.
+    ...(name && name !== text(form, 'invitedName') ? { displayName: name } : {}),
   });
-  const values = { email: text(form, 'email') };
-  if (!input.success) return { status: 'invalid', fieldErrors: fieldErrors(input.error), values };
+  const errors = input.success ? {} : fieldErrors(input.error, FIELD_MESSAGES);
+  if (!name) errors.displayName = FIELD_MESSAGES.displayName!;
+  // The repeat field is a typing check in the form only; the API never sees it.
+  if (text(form, 'confirm') !== text(form, 'password')) {
+    errors.confirm ??= 'The passwords do not match';
+  }
+  if (!input.success || Object.keys(errors).length > 0) {
+    return { status: 'invalid', fieldErrors: errors, values };
+  }
   try {
-    const { setCookies } = await (
-      await serverApi()
-    ).acceptInvite(token, {
-      email: input.data.email,
-      password: input.data.password,
-    });
+    const { setCookies } = await (await serverApi()).acceptInvite(token, input.data);
     await relayCookies(setCookies);
   } catch (error) {
-    if (isApiError(error, 'NOT_FOUND')) {
+    if (isApiError(error, 'NOT_FOUND', 'INVALID_TRANSITION')) {
       return {
         status: 'error',
         message: 'This invite is no longer valid. Ask for a new one.',

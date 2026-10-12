@@ -8,17 +8,20 @@ import {
   LocalDate,
   type Client,
   type ErrorCode,
+  type InvitePreview,
+  type Me,
   type Membership,
   type Person,
   type PortfolioRow,
   type Role,
 } from '@canopy/contracts';
 
-import type { ClientShellInfo, InvitePreview, MeResponse } from './types';
+import type { ClientPeriodContext, ShellMe } from './types';
 
 export const MOCK_PASSWORD = 'demo-password';
 export const MOCK_MFA_CODE = '123456';
-export const MOCK_INVITE_TOKEN = 'demo-invite';
+/** Tokens are at least 16 characters (contracts `InviteTokenParams`). */
+export const MOCK_INVITE_TOKEN = 'demo-invite-0001';
 export const SESSION_COOKIE = 'pp_session';
 
 const FIRM_ID = '00000000-0000-5000-8000-0000000000f1';
@@ -43,24 +46,30 @@ const clients: Client[] = [
   { ...base, id: MOCK_CLIENTS.sunrise, name: 'Sunrise Foods', settings: DEFAULT_CLIENT_SETTINGS },
 ];
 
-const shellInfo: Record<string, ClientShellInfo> = {
+const shellInfo: Record<string, { unitCount: number; period: ClientPeriodContext }> = {
   [MOCK_CLIENTS.demoMetals]: {
     unitCount: 3,
-    thisPeriod: { fy: '2022-23', quarter: 4 },
-    availableFys: ['2022-23', '2023-24'],
-    availableUntil: '2023-03',
+    period: {
+      current: { fy: '2022-23', quarter: 4 },
+      availableFys: ['2022-23', '2023-24'],
+      availableUntil: '2023-03',
+    },
   },
   [MOCK_CLIENTS.northwind]: {
     unitCount: 1,
-    thisPeriod: { fy: '2022-23', quarter: 4 },
-    availableFys: ['2022-23', '2023-24'],
-    availableUntil: '2023-03',
+    period: {
+      current: { fy: '2022-23', quarter: 4 },
+      availableFys: ['2022-23', '2023-24'],
+      availableUntil: '2023-03',
+    },
   },
   [MOCK_CLIENTS.sunrise]: {
     unitCount: 5,
-    thisPeriod: { fy: '2022-23', quarter: 4 },
-    availableFys: ['2022-23', '2023-24'],
-    availableUntil: null,
+    period: {
+      current: { fy: '2022-23', quarter: 4 },
+      availableFys: ['2022-23', '2023-24'],
+      availableUntil: null,
+    },
   },
 };
 
@@ -135,12 +144,40 @@ function sessionCookie(value: string, maxAge = 60 * 60 * 8): string {
 }
 
 function json(status: number, body: unknown, setCookie?: string): Response {
-  const headers = new Headers({
-    'content-type': 'application/json; charset=utf-8',
-    'x-request-id': 'mock',
-  });
+  const headers = new Headers({ 'x-request-id': 'mock' });
+  if (body !== null) headers.set('content-type', 'application/json; charset=utf-8');
   if (setCookie) headers.append('set-cookie', setCookie);
-  return new Response(JSON.stringify(body), { status, headers });
+  return new Response(body === null ? null : JSON.stringify(body), { status, headers });
+}
+
+/** The contract's `Me`, which login, magic-link verify, MFA verify and invite accept return. */
+function meBody(u: MockUser, mfa: boolean): Me {
+  const ids = visibleClientIds(u);
+  const firm = isFirmUser(u);
+  return {
+    person: u.person,
+    memberships: u.memberships,
+    clients: clients.filter((c) => ids.includes(c.id)).map((c) => ({ id: c.id, name: c.name })),
+    csrfToken: `mock-csrf-${u.person.id}`,
+    mfa: { required: firm, enrolled: firm, satisfied: mfa || !firm },
+  };
+}
+
+/** `GET /me` with the per-client context M0 is adding (types.ts). */
+function shellMeBody(u: MockUser, mfa: boolean): ShellMe {
+  const me = meBody(u, mfa);
+  return {
+    ...me,
+    clients: me.clients.map((c) => {
+      const settings = clients.find((x) => x.id === c.id)!.settings;
+      return {
+        ...c,
+        fyStartMonth: settings.fyStartMonth,
+        timeZone: settings.timeZone,
+        ...shellInfo[c.id]!,
+      };
+    }),
+  };
 }
 
 function fail(status: number, code: ErrorCode, message: string, details?: Record<string, unknown>) {
@@ -189,13 +226,10 @@ export const mockFetch: typeof fetch = async (input, init) => {
     if (!found || body.password !== MOCK_PASSWORD) {
       return fail(401, 'UNAUTHENTICATED', 'Email or password is incorrect.');
     }
-    return json(
-      200,
-      { ok: true },
-      sessionCookie(`${found.person.id}.${isFirmUser(found) ? 0 : 1}`),
-    );
+    const mfa = !isFirmUser(found);
+    return json(200, meBody(found, mfa), sessionCookie(`${found.person.id}.${mfa ? 1 : 0}`));
   }
-  if (method === 'POST' && path === '/auth/magic-link') return json(202, { ok: true });
+  if (method === 'POST' && path === '/auth/magic-link') return json(202, null);
   if (method === 'POST' && path === '/auth/magic-link/verify') {
     return fail(401, 'UNAUTHENTICATED', 'This sign-in link has expired.');
   }
@@ -205,11 +239,12 @@ export const mockFetch: typeof fetch = async (input, init) => {
       return fail(404, 'NOT_FOUND', 'Invite not found.');
     if (method === 'GET' && !invite[2]) {
       const preview: InvitePreview = {
+        email: 'owner02@demo.test',
         displayName: 'Owner 02',
         firmName: 'Demo Advisory',
         clientName: 'Demo Metals',
-        email: null,
-        expiresAt: '2099-01-01T00:00:00.000Z',
+        role: 'OWNER',
+        linkExpiresAt: '2099-01-01T00:00:00.000Z',
       };
       return json(200, preview);
     }
@@ -220,7 +255,8 @@ export const mockFetch: typeof fetch = async (input, init) => {
         });
       }
       // Signs in as the owner account so the journey can continue into the shell.
-      return json(200, { ok: true }, sessionCookie(`${MOCK_USERS[2]!.person.id}.1`));
+      const owner = MOCK_USERS[2]!;
+      return json(200, meBody(owner, true), sessionCookie(`${owner.person.id}.1`));
     }
   }
 
@@ -228,26 +264,13 @@ export const mockFetch: typeof fetch = async (input, init) => {
   if (!session) return fail(401, 'UNAUTHENTICATED', 'Sign in to continue.');
   const { user: me } = session;
 
-  if (method === 'POST' && path === '/auth/logout')
-    return json(200, { ok: true }, sessionCookie('', 0));
+  if (method === 'POST' && path === '/auth/logout') return json(204, null, sessionCookie('', 0));
   if (method === 'POST' && path === '/auth/mfa/verify') {
     if (body.code !== MOCK_MFA_CODE)
       return fail(401, 'MFA_REQUIRED', 'That code is not right.', { enrolled: true });
-    return json(200, { ok: true }, sessionCookie(`${me.person.id}.1`));
+    return json(200, meBody(me, true), sessionCookie(`${me.person.id}.1`));
   }
-  if (method === 'GET' && path === '/me') {
-    const ids = visibleClientIds(me);
-    const response: MeResponse = {
-      person: me.person,
-      memberships: me.memberships,
-      clients: clients.filter((c) => ids.includes(c.id)),
-      csrfToken: `mock-csrf-${me.person.id}`,
-      mfaSatisfied: session.mfa || !isFirmUser(me),
-      asOf: AS_OF,
-      shell: Object.fromEntries(ids.map((id) => [id, shellInfo[id]!])),
-    };
-    return json(200, response);
-  }
+  if (method === 'GET' && path === '/me') return json(200, shellMeBody(me, session.mfa));
   if (isFirmUser(me) && !session.mfa)
     return fail(401, 'MFA_REQUIRED', 'Verify your sign-in code.', { enrolled: true });
   if (method === 'GET' && path === '/portfolio') {
@@ -262,7 +285,7 @@ export const mockFetch: typeof fetch = async (input, init) => {
         dueThisWeek: 0,
         lastActivityAt: null,
       }));
-    return json(200, rows);
+    return json(200, { items: rows });
   }
   return fail(404, 'NOT_FOUND', 'Not found.');
 };

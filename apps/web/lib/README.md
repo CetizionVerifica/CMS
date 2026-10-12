@@ -21,8 +21,10 @@ Shared code for every web screen. M12 and M13 import from here; they don't chang
   the login page). It covers only the routes the shell calls; it goes away once M0's mock server or the real API
   answers. A production server reached on a non-local host refuses to use it (`api/mode.ts`), so a deployment
   without `CANOPY_API_URL` fails instead of offering demo logins.
-- `api/types.ts` holds the response shapes contracts v1 doesn't have yet (`/me`, invite preview, per-client period
-  context). Replace each with the contract export when M0 adds it.
+- `api/client.ts` takes methods, paths and schemas from the contracts' `ENDPOINTS` table. Add a method there for each
+  endpoint a page calls, rather than calling `fetch` directly.
+- `api/types.ts` holds `ShellMe`: the contract's `Me` plus the per-client context the switcher and period picker need
+  (contracts 1.2.0 adds it to `ClientSummary`; switch to the contract type then).
 
 ## Period
 

@@ -21,7 +21,7 @@ export const loadShell = cache(async (): Promise<ShellModel> => {
   if (!model.isFirmUser) return model;
   // Overdue counts come from the portfolio. The switcher still works without them, so a failure here only hides counts.
   try {
-    const rows = (await (await serverApi()).portfolio()).data;
+    const rows = (await (await serverApi()).portfolio()).data.items;
     return buildShellModel(
       me,
       Object.fromEntries(rows.map((r) => [r.clientId, r.result.counts.OVERDUE])),

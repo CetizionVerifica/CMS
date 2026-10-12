@@ -70,7 +70,7 @@ describe('server API access', () => {
     await signIn('consultant@demo.test');
     expect(await redirectOf(requireMe('/portfolio'))).toBe('/login/verify?next=%2Fportfolio');
     await relayCookies((await (await sessionApi()).verifyMfa('123456')).setCookies);
-    expect((await requireMe('/portfolio')).mfaSatisfied).toBe(true);
+    expect((await requireMe('/portfolio')).mfa.satisfied).toBe(true);
   });
 
   it('marks cookies Secure in production against a real API', async () => {
@@ -89,6 +89,6 @@ describe('server API access', () => {
 
   it('exports a sign-in helper used by other tests', async () => {
     await signIn('admin@demo.test', true);
-    expect((await getMe())?.mfaSatisfied).toBe(true);
+    expect((await getMe())?.mfa.satisfied).toBe(true);
   });
 });

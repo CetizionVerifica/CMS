@@ -14,7 +14,7 @@ export default async function LoginPage({ searchParams }: Props) {
   const raw = (await searchParams).next;
   const next = safeNextPath(Array.isArray(raw) ? raw[0] : raw);
   const me = await getMe();
-  if (me?.mfaSatisfied) redirect(next ?? '/');
+  if (me?.mfa.satisfied) redirect(next ?? '/');
   return (
     <>
       <h1 className="mb-1 text-page text-ink">Sign in</h1>

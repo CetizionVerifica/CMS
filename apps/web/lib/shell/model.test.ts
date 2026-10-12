@@ -2,10 +2,10 @@ import { describe, expect, it } from 'vitest';
 
 import { createApiClient } from '../api/client';
 import { MOCK_CLIENTS, MOCK_PASSWORD, mockFetch } from '../api/mock';
-import type { MeResponse } from '../api/types';
+import type { ShellMe } from '../api/types';
 import { buildShellModel, homeHref, navSections, rolesFor } from './model';
 
-async function meFor(email: string): Promise<MeResponse> {
+async function meFor(email: string): Promise<ShellMe> {
   const anon = createApiClient({ baseUrl: 'http://api.test', fetch: mockFetch });
   const cookie = (await anon.login({ email, password: MOCK_PASSWORD })).setCookies[0]!.split(
     ';',
@@ -47,11 +47,21 @@ describe('shell model', () => {
     expect(homeHref(model)).toBe('/portfolio');
   });
 
-  it('drops archived clients and clients without shell info', async () => {
+  it('sorts every client the API lists by name and maps the period context', async () => {
     const me = await meFor('admin@demo.test');
-    me.clients[0] = { ...me.clients[0]!, archivedAt: '2026-01-02T00:00:00.000Z' };
-    delete me.shell[me.clients[1]!.id];
-    expect(buildShellModel(me).clients.map((c) => c.name)).toEqual(['Sunrise Foods']);
+    me.clients.reverse();
+    const model = buildShellModel(me);
+    expect(model.clients.map((c) => c.name)).toEqual([
+      'Demo Metals',
+      'Northwind Textiles',
+      'Sunrise Foods',
+    ]);
+    expect(model.clients[2]).toMatchObject({
+      meta: '5 units',
+      thisPeriod: { fy: '2022-23', quarter: 4 },
+      availableFys: ['2022-23', '2023-24'],
+      availableUntil: null,
+    });
   });
 
   it('sends client users to their client’s overview', async () => {

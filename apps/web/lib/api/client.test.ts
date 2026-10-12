@@ -14,13 +14,23 @@ async function sessionFor(email: string, mfa = false): Promise<string> {
 }
 
 describe('API client against the mock', () => {
+  it('returns the contract Me from login, and the shell context from /me', async () => {
+    const { data } = await api().login({ email: 'owner@demo.test', password: MOCK_PASSWORD });
+    expect(data.clients).toEqual([{ id: MOCK_CLIENTS.demoMetals, name: 'Demo Metals' }]);
+  });
+
   it('signs in and reads /me', async () => {
     const cookie = await sessionFor('owner@demo.test');
     const me = (await api(cookie).me()).data;
     expect(me.person.displayName).toBe('Owner 01');
     expect(me.clients.map((c) => c.id)).toEqual([MOCK_CLIENTS.demoMetals]);
-    expect(me.mfaSatisfied).toBe(true);
-    expect(me.shell[MOCK_CLIENTS.demoMetals]?.thisPeriod).toEqual({ fy: '2022-23', quarter: 4 });
+    expect(me.mfa).toEqual({ required: false, enrolled: false, satisfied: true });
+    expect(me.clients[0]).toMatchObject({
+      unitCount: 3,
+      fyStartMonth: 4,
+      timeZone: 'Asia/Kolkata',
+    });
+    expect(me.clients[0]?.period.current).toEqual({ fy: '2022-23', quarter: 4 });
   });
 
   it('rejects a wrong password with the contract error code', async () => {
@@ -34,11 +44,11 @@ describe('API client against the mock', () => {
 
   it('needs MFA before firm users read data', async () => {
     const cookie = await sessionFor('consultant@demo.test');
-    expect((await api(cookie).me()).data.mfaSatisfied).toBe(false);
+    expect((await api(cookie).me()).data.mfa.satisfied).toBe(false);
     await expect(api(cookie).portfolio()).rejects.toMatchObject({ code: 'MFA_REQUIRED' });
     await expect(api(cookie).verifyMfa('000000')).rejects.toMatchObject({ code: 'MFA_REQUIRED' });
     const verified = await sessionFor('consultant@demo.test', true);
-    const rows = (await api(verified).portfolio()).data;
+    const rows = (await api(verified).portfolio()).data.items;
     expect(rows.map((r) => r.clientName)).toEqual(['Demo Metals', 'Northwind Textiles']);
     expect(rows[0]!.result.counts.OVERDUE).toBe(5);
   });
@@ -55,7 +65,9 @@ describe('API client against the mock', () => {
     await expect(api('pp_session=bogus.1').me()).rejects.toMatchObject({ code: 'UNAUTHENTICATED' });
     const cookie = await sessionFor('owner@demo.test');
     const client = createApiClient({ baseUrl: 'http://api.test', fetch: mockFetch, cookie });
-    await expect(client.invite('nope')).rejects.toMatchObject({ code: 'NOT_FOUND' });
+    await expect(client.invite('no-such-invite-token')).rejects.toMatchObject({
+      code: 'NOT_FOUND',
+    });
   });
 
   it('logs out by clearing the cookie', async () => {
@@ -66,27 +78,29 @@ describe('API client against the mock', () => {
 
   it('handles magic links and invites', async () => {
     await expect(api().requestMagicLink('anyone@demo.test')).resolves.toMatchObject({
-      data: { ok: true },
+      data: null,
     });
-    await expect(api().verifyMagicLink('expired')).rejects.toMatchObject({
+    await expect(api().verifyMagicLink('expired-link-token-01')).rejects.toMatchObject({
       code: 'UNAUTHENTICATED',
     });
     const invite = (await api().invite(MOCK_INVITE_TOKEN)).data;
-    expect(invite).toMatchObject({ displayName: 'Owner 02', clientName: 'Demo Metals' });
-    await expect(
-      api().acceptInvite(MOCK_INVITE_TOKEN, { email: 'new@demo.test', password: 'short' }),
-    ).rejects.toMatchObject({ code: 'VALIDATION' });
-    const ok = await api().acceptInvite(MOCK_INVITE_TOKEN, {
-      email: 'new@demo.test',
-      password: 'a-long-enough-password',
+    expect(invite).toMatchObject({
+      email: 'owner02@demo.test',
+      displayName: 'Owner 02',
+      clientName: 'Demo Metals',
     });
+    await expect(
+      api().acceptInvite(MOCK_INVITE_TOKEN, { password: 'short' }),
+    ).rejects.toMatchObject({ code: 'VALIDATION' });
+    const ok = await api().acceptInvite(MOCK_INVITE_TOKEN, { password: 'a-long-enough-password' });
     expect(ok.setCookies[0]).toContain('pp_session=');
+    expect(ok.data.person.displayName).toBe('Owner 01');
   });
 });
 
 describe('API client transport', () => {
   it('sends cookie, request id and CSRF headers, and the /api/v1 prefix', async () => {
-    const fetchSpy = vi.fn(async () => new Response(JSON.stringify({ ok: true }), { status: 200 }));
+    const fetchSpy = vi.fn(async () => new Response(null, { status: 204 }));
     const client = createApiClient({
       baseUrl: 'http://api.test',
       fetch: fetchSpy as unknown as typeof fetch,
@@ -101,10 +115,13 @@ describe('API client transport', () => {
       cookie: 'pp_session=x',
       'x-request-id': 'req-1',
       'x-csrf-token': 'csrf-token-0123456789',
-      'content-type': 'application/json',
     });
+    await client.requestMagicLink('a@b.test');
+    const [, postInit] = fetchSpy.mock.calls[1] as unknown as [string, RequestInit];
+    expect(postInit.headers).toMatchObject({ 'content-type': 'application/json' });
+    expect(postInit.body).toBe('{"email":"a@b.test"}');
     await client.me().catch(() => undefined);
-    const [, getInit] = fetchSpy.mock.calls[1] as unknown as [string, RequestInit];
+    const [, getInit] = fetchSpy.mock.calls[2] as unknown as [string, RequestInit];
     expect(getInit.headers).not.toHaveProperty('x-csrf-token');
   });
 
@@ -128,6 +145,16 @@ describe('API client transport', () => {
     expect(err.code).toBe('UNKNOWN');
     expect(err.message).toContain('Unexpected response from GET /me');
     expect(err.message).not.toContain('Secret Name');
+  });
+
+  it('fills path parameters from the endpoint template, encoded', async () => {
+    const fetchSpy = vi.fn(async (_url: string) => new Response('{}', { status: 404 }));
+    const client = createApiClient({
+      baseUrl: 'http://api.test',
+      fetch: fetchSpy as unknown as typeof fetch,
+    });
+    await client.invite('a/b?c').catch(() => undefined);
+    expect(fetchSpy.mock.calls[0]?.[0]).toBe('http://api.test/api/v1/invites/a%2Fb%3Fc');
   });
 
   it('matches any code when none is given', () => {
