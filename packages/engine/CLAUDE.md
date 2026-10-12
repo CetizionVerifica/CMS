@@ -7,7 +7,7 @@ Everything else (api, web, importer, jobs) calls this package for recurrence, du
 1. **Pure functions only.** The current date is always a parameter (`asOf: LocalDate`), never `new Date()` inside the engine.
 2. **LocalDate for due dates**, an ISO `YYYY-MM-DD` branded type. Use the package's date helpers; do not use JS `Date` arithmetic for calendar maths.
 3. **Every function has unit tests with explicit dates**, including month ends, 29 Feb, FY boundaries (31 Mar / 1 Apr) and quarter ends.
-4. Changing a formula or rule is a product decision: add an ADR in `docs/adr/` and bump `ENGINE_VERSION`. Stored scores record the engine version that produced them.
+4. Changing a formula or rule is a product decision: add an ADR (`docs/adr/M4-NNNN-slug.md`) and bump `ENGINE_VERSION`. Stored scores record the engine version that produced them.
 
 ## Recurrence rules
 `RecurrenceRule` is a discriminated union:

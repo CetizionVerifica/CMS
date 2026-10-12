@@ -1,11 +1,13 @@
 #!/usr/bin/env node
 // Path guard (root CLAUDE.md "Parallel module rules"): a PR titled "M<n>: ..." may only change
-// the paths module M<n> owns in tooling/modules.json. PRs without a module prefix are not checked.
+// the paths module M<n> owns in tooling/modules.json, and may only add ADRs named docs/adr/M<n>-NNNN-slug.md.
+// PRs without a module prefix are not checked.
 //
 // Usage: node tooling/scripts/check-module-paths.mjs "<PR title>" <base-ref>
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { foreignAdrs } from './check-adrs.mjs';
 
 export function moduleFromTitle(title) {
   const match = /^\s*\[?(M\d{1,2})\b/i.exec(title ?? '');
@@ -42,6 +44,22 @@ function main() {
     console.error(`${id} may only change: ${[...owned, ...config.shared].join(', ')}`);
     console.error(`These files belong to another module:\n  ${bad.join('\n  ')}`);
     console.error('Ask the owning module (via the coordinator) to make that change instead.');
+    process.exit(1);
+  }
+  const added = execFileSync(
+    'git',
+    ['diff', '--name-only', '--diff-filter=A', `${baseRef}...HEAD`],
+    {
+      encoding: 'utf8',
+    },
+  )
+    .split('\n')
+    .filter(Boolean);
+  const foreign = foreignAdrs(added, id);
+  if (foreign.length > 0) {
+    console.error(
+      `${id} may only add ADRs named docs/adr/${id}-NNNN-slug.md:\n  ${foreign.join('\n  ')}`,
+    );
     process.exit(1);
   }
   console.log(`${id}: all ${files.length} changed files are inside the module's paths.`);
