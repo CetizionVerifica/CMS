@@ -15,8 +15,10 @@ import {
   auditEvents,
   clients,
   comments,
+  DbError,
   evidence,
   firms,
+  idempotencyKeys,
   instances,
   memberships,
   obligations,
@@ -25,11 +27,13 @@ import {
   type RegisterFilter,
   type RegisterRow,
   type TenantTx,
+  withSavepoint,
 } from '@canopy/db';
 import { fyRangeOf } from '@canopy/engine';
 import { ApiError, can } from '../../auth/index.js';
 import { loadInstance, toApiError } from './access.js';
 import { allowedActions, INSTANCE_ACTION_POLICY, instanceResource } from './allowed-actions.js';
+import { recordFor, replay, type KeyedRequest } from './idempotency.js';
 import { mergedPage, type RegisterSource } from './paging.js';
 import { clientsWithRole, mayChooseAsOf, unitScope } from './scope.js';
 import { commentAddedEvent, emit, transitionEvent } from './events.js';
@@ -78,6 +82,34 @@ export function createInstanceService(options: InstanceServiceOptions) {
 
   function inTenant<T>(ctx: RequestContext, fn: (tx: TenantTx) => Promise<T>): Promise<T> {
     return db.withTenant(tenantFromRequest(ctx), fn).catch(toApiError);
+  }
+
+  /**
+   * A write that honours `Idempotency-Key` (idempotency.ts): a repeat gets the stored first response, and a
+   * first run stores its response in the same transaction as the change. A request that loses a race to a
+   * concurrent one with the same key (its insert is DUPLICATE, or its change is STALE_VERSION behind the
+   * winner's) gets the winner's response.
+   */
+  async function keyed<T>(
+    ctx: RequestContext,
+    request: KeyedRequest | undefined,
+    run: (tx: TenantTx) => Promise<T>,
+  ): Promise<T> {
+    if (request === undefined) return inTenant(ctx, run);
+    const find = (tx: TenantTx) => idempotencyKeys.find(tx, ctx.personId, request.key, clock());
+    try {
+      return await inTenant(ctx, async (tx) => {
+        const first = await find(tx);
+        if (first !== null) return replay<T>(first, request);
+        const response = await run(tx);
+        await idempotencyKeys.record(tx, recordFor(ctx.personId, request, response, clock()));
+        return response;
+      });
+    } catch (error) {
+      const first = await inTenant(ctx, find);
+      if (first === null) throw error;
+      return replay<T>(first, request);
+    }
   }
 
   async function calendar(tx: TenantTx, clientId: string): Promise<ClientCalendar> {
@@ -335,53 +367,62 @@ export function createInstanceService(options: InstanceServiceOptions) {
       id: string,
       expectedVersion: number,
       command: TransitionCommand,
+      request?: KeyedRequest,
     ): Promise<InstanceDetail> {
-      return inTenant(actor.ctx, async (tx) => {
+      return keyed(actor.ctx, request, async (tx) => {
         const { instance, asOf, cal } = await transitionIn(tx, actor, id, expectedVersion, command);
         return detail(tx, actor.ctx, instance, asOf, cal);
       });
     },
 
-    /** POST /clients/{clientId}/instances/bulk-approve: each item in its own transaction. */
+    /**
+     * POST /clients/{clientId}/instances/bulk-approve: one transaction, each item in its own savepoint, so
+     * a refused item leaves the others and the summary event commits with the approvals it describes.
+     */
     async bulkApprove(
       actor: Actor,
       clientId: string,
       body: { items: { id: string; version: number }[]; comment?: string | undefined },
+      request?: KeyedRequest,
     ): Promise<{ results: BulkResult[] }> {
+      const { ctx } = actor;
       // Someone who approves nothing in this client is refused outright; each item is checked again below.
-      if (!clientsWithRole(actor.ctx, ['CLIENT_ADMIN', 'APPROVER']).includes(clientId)) {
+      if (!clientsWithRole(ctx, ['CLIENT_ADMIN', 'APPROVER']).includes(clientId)) {
         throw new ApiError('FORBIDDEN', { action: 'instance.approve' });
       }
-      const results: BulkResult[] = [];
-      for (const item of body.items) {
-        try {
-          const row = await inTenant(actor.ctx, async (tx) => {
-            const visible = await instances.get(tx, item.id);
-            if (visible === null || visible.clientId !== clientId) throw new ApiError('NOT_FOUND');
-            const { instance, asOf, cal } = await transitionIn(tx, actor, item.id, item.version, {
-              action: 'APPROVE',
-              comment: body.comment,
+      return keyed(ctx, request, async (tx) => {
+        const results: BulkResult[] = [];
+        for (const item of body.items) {
+          try {
+            const row = await withSavepoint(tx, async (sp) => {
+              const visible = await instances.get(sp, item.id);
+              if (visible === null || visible.clientId !== clientId) {
+                throw new ApiError('NOT_FOUND');
+              }
+              const { instance, asOf, cal } = await transitionIn(sp, actor, item.id, item.version, {
+                action: 'APPROVE',
+                comment: body.comment,
+              });
+              return withStatus(await registerRow(sp, instance), asOf, cal);
             });
-            return withStatus(await registerRow(tx, instance), asOf, cal);
-          });
-          results.push({ id: item.id, ok: true, item: row });
-        } catch (error) {
-          if (!(error instanceof ApiError)) throw error;
-          results.push({
-            id: item.id,
-            ok: false,
-            error: { code: error.code, message: error.message },
-          });
+            results.push({ id: item.id, ok: true, item: row });
+          } catch (caught) {
+            const error = caught instanceof DbError ? new ApiError(caught.code) : caught;
+            if (!(error instanceof ApiError)) throw error;
+            results.push({
+              id: item.id,
+              ok: false,
+              error: { code: error.code, message: error.message },
+            });
+          }
         }
-      }
-      const approved = results.filter((r) => r.ok).map((r) => r.id);
-      if (approved.length > 0) {
-        // The per-item instance.approved events are already written; this one summarises the request.
-        await inTenant(actor.ctx, async (tx) => {
+        const approved = results.filter((r) => r.ok).map((r) => r.id);
+        if (approved.length > 0) {
+          // Each item wrote its own instance.approved event; this one summarises the request.
           const client = await clients.require(tx, clientId);
           await emit(
             tx,
-            actor.ctx,
+            ctx,
             {
               type: 'instance.bulk_approved',
               data: {
@@ -393,9 +434,9 @@ export function createInstanceService(options: InstanceServiceOptions) {
             clientId,
             { type: 'client', id: client.id, version: client.version },
           );
-        });
-      }
-      return { results };
+        }
+        return { results };
+      });
     },
 
     /** PATCH /instances/{id}: reassign owner or approver, or move the due date. */
