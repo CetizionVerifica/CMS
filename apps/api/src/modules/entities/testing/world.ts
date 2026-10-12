@@ -256,7 +256,7 @@ export function seedWorld(store: MemoryStore): void {
     countryCode: 'IN',
     state: 'West Bengal',
     stateCode: 'WB',
-    city: 'Belur',
+    city: 'Riverbend',
   });
 
   const unit = (id: Id, clientId: Id, companyId: Id, name: string) =>

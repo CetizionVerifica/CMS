@@ -120,7 +120,7 @@ describe.skipIf(!url)('M6 on the Postgres store', () => {
         countryCode: 'IN',
         state: 'West Bengal',
         stateCode: 'WB',
-        city: 'Belur',
+        city: 'Riverbend',
       });
       const company = await r.companies.create(tx, {
         clientId: clientA.id,
@@ -129,7 +129,7 @@ describe.skipIf(!url)('M6 on the Postgres store', () => {
       const unit = await r.units.create(tx, {
         clientId: clientA.id,
         companyId: company.id,
-        name: 'Belur Plant',
+        name: 'Riverbend Plant',
         locationId: location.id,
       });
       const hr = await r.departments.create(tx, {
@@ -584,7 +584,7 @@ describe.skipIf(!url)('M6 on the Postgres store', () => {
             tx.units.insert({
               clientId: w.clientA,
               companyId: w.companyA,
-              name: 'Belur Plant',
+              name: 'Riverbend Plant',
               locationId: w.locationId,
             }),
           ).rejects.toMatchObject({ field: 'name', existingId: w.unitA });
