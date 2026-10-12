@@ -3,6 +3,7 @@ import { renderEmail, type EmailMessage } from '@canopy/notifications';
 import type { FirmTx, JobDeps, JobReport, SendFailureCode, SendKey } from './ports.js';
 
 export function sendKeyString(key: SendKey): string {
+  if (key.eventId) return ['event', key.eventId, key.recipientId].join(':');
   return [key.kind, key.instanceId ?? key.recipientId, key.recipientId, key.sendDate].join(':');
 }
 

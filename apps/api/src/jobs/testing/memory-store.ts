@@ -24,6 +24,7 @@ import type {
   OutboxEvent,
   OutgoingEmail,
   Recipient,
+  ReminderCandidate,
   SendFailureCode,
   SendKey,
 } from '../ports.js';
@@ -120,15 +121,38 @@ export function memoryClient(name: string, settings: Partial<ClientSettings> = {
 const inRange = (d: LocalDate, r: { from: LocalDate; to: LocalDate }) =>
   compareDates(d, r.from) >= 0 && compareDates(d, r.to) <= 0;
 
-/** The send-log dedupe key: instance, kind, send date and recipient (contracts NOTIFICATION_DEDUPE_KEY). */
+/**
+ * The send-log dedupe key: instance, kind, send date and recipient (contracts NOTIFICATION_DEDUPE_KEY) for scheduled
+ * sends; event and recipient for event-driven ones, as M3's partial unique indexes.
+ */
 const sameKey = (a: SendKey, b: SendKey) =>
-  a.kind === b.kind &&
-  a.sendDate === b.sendDate &&
-  a.recipientId === b.recipientId &&
-  a.instanceId === b.instanceId;
+  a.eventId || b.eventId
+    ? a.eventId === b.eventId && a.recipientId === b.recipientId
+    : a.kind === b.kind &&
+      a.sendDate === b.sendDate &&
+      a.recipientId === b.recipientId &&
+      a.instanceId === b.instanceId;
 
 function firmTx(firm: MemoryFirm, hooks: MemoryStoreHooks): FirmTx {
   const assignment = (id: Id) => firm.assignments.find((a) => a.assignmentId === id)!;
+  const withNames = (i: MemoryInstance): ReminderCandidate => {
+    const a = assignment(i.assignmentId);
+    return {
+      id: i.id,
+      clientId: i.clientId,
+      workflowState: i.workflowState,
+      pendingKind: i.pendingKind,
+      dueDate: i.dueDate,
+      completedOn: i.completedOn,
+      ownerId: i.ownerId,
+      approverId: i.approverId,
+      title: a.title,
+      actName: a.actName,
+      unitName: a.unitName,
+      departmentName: a.departmentName,
+      criticality: a.criticality,
+    };
+  };
   return {
     firmSettings: async () => firm.settings,
     listClients: async () => firm.clients,
@@ -172,27 +196,15 @@ function firmTx(firm: MemoryFirm, hooks: MemoryStoreHooks): FirmTx {
             inRange(i.dueDate, range) &&
             assignment(i.assignmentId).applicability === 'APPLICABLE',
         )
-        .map((i) => {
-          const a = assignment(i.assignmentId);
-          return {
-            id: i.id,
-            clientId: i.clientId,
-            workflowState: i.workflowState,
-            pendingKind: i.pendingKind,
-            dueDate: i.dueDate,
-            completedOn: i.completedOn,
-            ownerId: i.ownerId,
-            approverId: i.approverId,
-            title: a.title,
-            actName: a.actName,
-            unitName: a.unitName,
-            departmentName: a.departmentName,
-            criticality: a.criticality,
-          };
-        }),
+        .map(withNames),
+    findInstance: async (instanceId) => {
+      const found = firm.instances.find((i) => i.id === instanceId && !i.archived);
+      return found ? withNames(found) : null;
+    },
     listDoneSends: async (clientId, sendDate) =>
       firm.sends.filter(
         (s) =>
+          !s.eventId &&
           s.clientId === clientId &&
           s.sendDate === sendDate &&
           (s.sentAt !== null || s.failureCode !== null),
@@ -201,6 +213,7 @@ function firmTx(firm: MemoryFirm, hooks: MemoryStoreHooks): FirmTx {
       firm.sends
         .filter(
           (s) =>
+            !s.eventId &&
             s.kind === 'CONSULTANT_DIGEST' &&
             s.sendDate === sendDate &&
             (s.sentAt !== null || s.failureCode !== null),
