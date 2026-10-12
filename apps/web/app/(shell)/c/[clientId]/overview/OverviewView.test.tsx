@@ -43,11 +43,9 @@ describe('OverviewView', () => {
     expect(score.getAttribute('href')).toBe(`${reg}?status=COMPLIED%2CCOMPLIED_LATE`);
     expect(score.textContent).toContain('75% complied on time');
     expect(screen.getByRole('img', { name: /Compliance score/ })).toBeTruthy();
-    expect(
-      screen
-        .getByRole('link', { name: /Open these instances in the register/ })
-        .getAttribute('href'),
-    ).toBe(`${reg}?status=UPCOMING%2CDUE_SOON%2COVERDUE`);
+    expect(screen.getByRole('link', { name: /Open these instances/ }).getAttribute('href')).toBe(
+      `${reg}?status=UPCOMING%2CDUE_SOON%2COVERDUE`,
+    );
     const overdue = screen.getByRole('link', { name: /^Overdue/ });
     expect(overdue.getAttribute('href')).toBe(`${reg}?status=OVERDUE`);
     expect(overdue.textContent).toContain('Needs action');
@@ -69,7 +67,7 @@ describe('OverviewView', () => {
     );
     expect(
       within(table)
-        .getByRole('link', { name: '2 overdue in EHS, view in register' })
+        .getByRole('link', { name: '2 overdue in EHS, open these instances' })
         .getAttribute('href'),
     ).toBe(`${reg}?departmentId=${id(1)}&status=OVERDUE`);
     const it = within(table).getByRole('link', { name: 'IT' }).closest('tr')!;

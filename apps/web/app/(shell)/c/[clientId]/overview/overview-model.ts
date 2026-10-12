@@ -103,7 +103,7 @@ export function kpis(
           ? { text: `${result.counts.DUE_SOON} due soon`, tone: 'warn' }
           : undefined,
       href: link(OPEN_STATUSES),
-      linkHint: 'Open these instances in the register',
+      linkHint: 'Open these instances',
     },
     {
       label: 'Overdue',
@@ -115,13 +115,13 @@ export function kpis(
             ? { text: 'Needs action', tone: 'crit' }
             : { text: 'None overdue', tone: 'ok' },
       href: link(['OVERDUE']),
-      linkHint: 'Open the overdue instances in the register',
+      linkHint: 'Open the overdue instances',
     },
     {
       label: 'Awaiting approval',
       value: result.counts.SUBMITTED,
       href: link(['SUBMITTED']),
-      linkHint: 'Open the instances awaiting approval in the register',
+      linkHint: 'Open the instances awaiting approval',
     },
   ];
 }

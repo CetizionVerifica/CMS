@@ -50,7 +50,7 @@ const departmentColumns: DataTableProps<DepartmentRow>['columns'] = [
         <NextLink
           href={overdueHref}
           className="tabular font-semibold text-crit-ink underline-offset-2 hover:underline focus-visible:underline"
-          aria-label={`${formatNumber(overdue)} overdue in ${name}, view in register`}
+          aria-label={`${formatNumber(overdue)} overdue in ${name}, open these instances`}
         >
           {formatNumber(overdue)}
         </NextLink>

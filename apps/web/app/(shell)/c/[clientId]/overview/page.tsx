@@ -4,12 +4,11 @@ import { notFound } from 'next/navigation';
 import { isApiError } from '../../../../../lib/api/client';
 import { serverApi } from '../../../../../lib/api/server';
 import { NoPermission, PageHeader } from '../../../../../lib/patterns';
-import { periodFromParams } from '../../../../../lib/period';
+import { periodApiQuery, periodFromParams } from '../../../../../lib/period';
 import { homeHref } from '../../../../../lib/shell/model';
 import { loadShell } from '../../../../../lib/shell/server';
 import { OverviewView } from './OverviewView';
 import { overviewModel } from './overview-model';
-import { periodQuery } from './period-query';
 
 type Props = {
   params: Promise<{ clientId: string }>;
@@ -39,7 +38,7 @@ export default async function OverviewPage({ params, searchParams }: Props) {
   const client = model.clients.find((c) => c.id === clientId);
   if (!client) notFound();
   const period = periodFromParams(toSearchParams(await searchParams));
-  const query = periodQuery(period, client.fyStartMonth);
+  const query = period ? periodApiQuery(period, client.fyStartMonth) : {};
 
   const api = await serverApi();
   const request = { params: { clientId }, query };
