@@ -1,0 +1,234 @@
+import type { Criticality, LocalDate } from '@canopy/contracts';
+import { EMAIL_COLORS as c, PRODUCT_NAME } from './brand.js';
+import { days, escapeHtml, formatDate, safeUrl } from './format.js';
+import { detailsTable, renderLayout } from './layout.js';
+
+/** A rendered email. `text` is the plain-text alternative every message carries. */
+export interface RenderedEmail {
+  subject: string;
+  html: string;
+  text: string;
+}
+
+/** The instance an owner reminder or approver escalation is about. Names only, no evidence or comments. */
+export interface InstanceSummary {
+  title: string;
+  actName: string;
+  unitName: string;
+  departmentName: string;
+  criticality: Criticality;
+  dueDate: LocalDate;
+  /** Link to the instance in the register. */
+  url: string;
+}
+
+export interface OwnerReminderEmail {
+  kind: 'OWNER_REMINDER';
+  recipientName: string;
+  clientName: string;
+  /** Days relative to the due date, from the engine: 0 = due today, -3 = due in 3 days. Never positive. */
+  offsetDays: number;
+  /** True when the approver sent it back and it is the owner's turn again. */
+  sentBack: boolean;
+  instance: InstanceSummary;
+}
+
+export interface ApproverEscalationEmail {
+  kind: 'APPROVER_ESCALATION';
+  recipientName: string;
+  clientName: string;
+  /** Days past the due date, from the engine (0 = due today). Never negative. */
+  offsetDays: number;
+  /** SUBMITTED: waiting for the approver. Otherwise the owner has not submitted yet. */
+  awaitingApproval: boolean;
+  instance: InstanceSummary;
+}
+
+export interface DigestClientSummary {
+  clientName: string;
+  /** Compliance score from the engine, or null for "No items due". */
+  score: number | null;
+  overdue: number;
+  dueSoon: number;
+  awaitingApproval: number;
+  /** Link to the client overview. */
+  url: string;
+}
+
+export interface ConsultantDigestEmail {
+  kind: 'CONSULTANT_DIGEST';
+  recipientName: string;
+  /** The day the digest is for, in the clients' time zone. */
+  asOf: LocalDate;
+  /** Financial year the scores cover, e.g. "2026-27". */
+  fyLabel: string;
+  clients: DigestClientSummary[];
+}
+
+export type EmailMessage = OwnerReminderEmail | ApproverEscalationEmail | ConsultantDigestEmail;
+
+export const CRITICALITY_LABEL: Record<Criticality, string> = {
+  SUPER_CRITICAL: 'Super critical',
+  CRITICAL: 'Critical',
+  HIGH: 'High',
+  MEDIUM: 'Medium',
+  LOW: 'Low',
+};
+
+/** Status wording from packages/ui/spec/status-language.md. */
+function dueLabel(offsetDays: number): string {
+  if (offsetDays < -1) return `Due in ${days(-offsetDays)}`;
+  if (offsetDays === -1) return 'Due tomorrow';
+  if (offsetDays === 0) return 'Due today';
+  return `Overdue ${days(offsetDays)}`;
+}
+
+function instanceRows(
+  i: InstanceSummary,
+  offsetDays: number,
+): [string, string, ('crit' | 'warn')?][] {
+  const critical = i.criticality === 'SUPER_CRITICAL' || i.criticality === 'CRITICAL';
+  return [
+    ['Obligation', i.title],
+    ['Act', i.actName],
+    ['Unit', i.unitName],
+    ['Department', i.departmentName],
+    ['Criticality', CRITICALITY_LABEL[i.criticality], critical ? 'crit' : undefined],
+    [
+      'Due date',
+      `${formatDate(i.dueDate)} (${dueLabel(offsetDays)})`,
+      offsetDays > 0 ? 'crit' : 'warn',
+    ],
+  ];
+}
+
+function textRows(rows: [string, string, unknown?][]): string {
+  return rows.map(([label, value]) => `${label}: ${value}`).join('\n');
+}
+
+function paragraph(text: string): string {
+  return `<p style="margin:0">${escapeHtml(text)}</p>`;
+}
+
+function textEmail(lines: (string | null)[]): string {
+  return lines.filter((l) => l !== null).join('\n\n') + '\n';
+}
+
+function renderOwnerReminder(m: OwnerReminderEmail): RenderedEmail {
+  const status = dueLabel(m.offsetDays);
+  const intro = m.sentBack
+    ? `Your submission for ${m.clientName} was sent back. Please review the approver's comments and submit it again.`
+    : `This obligation for ${m.clientName} is assigned to you and has not been submitted yet.`;
+  const rows = instanceRows(m.instance, m.offsetDays);
+  const greeting = `Hello ${m.recipientName},`;
+  const footer = `You get this reminder because you are the owner of this obligation in ${PRODUCT_NAME}.`;
+  return {
+    subject: `${status}: ${m.instance.title}`,
+    html: renderLayout({
+      preheader: `${status}. ${m.instance.actName}, ${m.instance.unitName}.`,
+      heading: status,
+      blocks: [paragraph(greeting), paragraph(intro), detailsTable(rows)],
+      cta: { label: 'Open and submit', url: m.instance.url },
+      footer,
+    }),
+    text: textEmail([
+      greeting,
+      intro,
+      textRows(rows),
+      `Open and submit: ${safeUrl(m.instance.url)}`,
+      footer,
+    ]),
+  };
+}
+
+function renderApproverEscalation(m: ApproverEscalationEmail): RenderedEmail {
+  const status = dueLabel(m.offsetDays);
+  const intro = m.awaitingApproval
+    ? `This obligation for ${m.clientName} is waiting for your approval and its due date has passed.`
+    : `This obligation for ${m.clientName} has not been submitted by its owner, and you are its approver.`;
+  const ask = m.awaitingApproval
+    ? 'Please approve it or send it back.'
+    : 'Please follow up with the owner.';
+  const rows = instanceRows(m.instance, m.offsetDays);
+  const greeting = `Hello ${m.recipientName},`;
+  const cta = m.awaitingApproval ? 'Review submission' : 'Open obligation';
+  const footer = `You get this escalation because you are the approver of this obligation in ${PRODUCT_NAME}.`;
+  return {
+    subject: `${m.awaitingApproval ? 'Awaiting your approval' : 'Not submitted'}, ${status.toLowerCase()}: ${m.instance.title}`,
+    html: renderLayout({
+      preheader: `${status}. ${m.instance.actName}, ${m.instance.unitName}.`,
+      heading: m.awaitingApproval ? 'Awaiting your approval' : 'Not submitted yet',
+      blocks: [paragraph(greeting), paragraph(`${intro} ${ask}`), detailsTable(rows)],
+      cta: { label: cta, url: m.instance.url },
+      footer,
+    }),
+    text: textEmail([
+      greeting,
+      `${intro} ${ask}`,
+      textRows(rows),
+      `${cta}: ${safeUrl(m.instance.url)}`,
+      footer,
+    ]),
+  };
+}
+
+function scoreLabel(score: number | null): string {
+  return score === null ? 'No items due' : `${score.toFixed(1)}%`;
+}
+
+function renderConsultantDigest(m: ConsultantDigestEmail): RenderedEmail {
+  const font = "font-family:'Plus Jakarta Sans','Segoe UI',Roboto,Helvetica,Arial,sans-serif";
+  const greeting = `Hello ${m.recipientName},`;
+  const totalOverdue = m.clients.reduce((n, client) => n + client.overdue, 0);
+  const intro =
+    m.clients.length === 0
+      ? 'You have no active clients this week.'
+      : `Here is where your ${m.clients.length === 1 ? 'client stands' : `${m.clients.length} clients stand`} for FY ${m.fyLabel} as of ${formatDate(m.asOf)}. ${totalOverdue === 0 ? 'Nothing is overdue.' : `${totalOverdue} ${totalOverdue === 1 ? 'item is' : 'items are'} overdue.`}`;
+  const cell = `padding:8px 8px 8px 0;${font};font-size:13px;border-top:1px solid ${c.line}`;
+  const head = `padding:0 8px 6px 0;${font};font-size:12px;color:${c.muted};text-align:left`;
+  const num = 'text-align:right;font-variant-numeric:tabular-nums';
+  const table =
+    `<table role="presentation" cellpadding="0" cellspacing="0" style="width:100%">` +
+    `<tr><th style="${head}">Client</th><th style="${head};${num}">Score</th><th style="${head};${num}">Overdue</th><th style="${head};${num}">Due soon</th><th style="${head};${num}">Awaiting approval</th></tr>` +
+    m.clients
+      .map(
+        (client) =>
+          `<tr><td style="${cell}"><a href="${escapeHtml(safeUrl(client.url))}" style="color:${c.forest};font-weight:600">${escapeHtml(client.clientName)}</a></td>` +
+          `<td style="${cell};${num};color:${c.ink}">${scoreLabel(client.score)}</td>` +
+          `<td style="${cell};${num};color:${client.overdue > 0 ? c.critInk : c.ink};${client.overdue > 0 ? 'font-weight:600' : ''}">${client.overdue}</td>` +
+          `<td style="${cell};${num};color:${c.ink}">${client.dueSoon}</td>` +
+          `<td style="${cell};${num};color:${c.ink}">${client.awaitingApproval}</td></tr>`,
+      )
+      .join('') +
+    '</table>';
+  const text = m.clients
+    .map(
+      (client) =>
+        `${client.clientName}: score ${scoreLabel(client.score)}, ${client.overdue} overdue, ${client.dueSoon} due soon, ${client.awaitingApproval} awaiting approval. ${safeUrl(client.url)}`,
+    )
+    .join('\n');
+  const footer = `You get this weekly digest because you are a consultant for these clients in ${PRODUCT_NAME}.`;
+  return {
+    subject: `Weekly digest, ${formatDate(m.asOf)}: ${totalOverdue} overdue`,
+    html: renderLayout({
+      preheader: intro,
+      heading: 'Your weekly digest',
+      blocks: [paragraph(greeting), paragraph(intro), ...(m.clients.length > 0 ? [table] : [])],
+      cta: null,
+      footer,
+    }),
+    text: textEmail([greeting, intro, m.clients.length > 0 ? text : null, footer]),
+  };
+}
+
+/** Renders any notification email. Pure: same input, same output. */
+export function renderEmail(message: EmailMessage): RenderedEmail {
+  switch (message.kind) {
+    case 'OWNER_REMINDER':
+      return renderOwnerReminder(message);
+    case 'APPROVER_ESCALATION':
+      return renderApproverEscalation(message);
+    case 'CONSULTANT_DIGEST':
+      return renderConsultantDigest(message);
+  }
+}

@@ -134,8 +134,9 @@ export const notificationSend = pgTable(
       columns: [t.firmId, t.recipientId],
       foreignColumns: [person.firmId, person.id],
     }),
+    // events.md §3: one send per (instance, kind, date, recipient), so a reassigned owner still gets theirs.
     uniqueIndex('notification_send_instance_key')
-      .on(t.instanceId, t.kind, t.sendDate)
+      .on(t.instanceId, t.kind, t.sendDate, t.recipientId)
       .where(sql`instance_id is not null`),
     uniqueIndex('notification_send_digest_key')
       .on(t.recipientId, t.kind, t.sendDate)

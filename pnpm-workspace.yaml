@@ -25,6 +25,7 @@ catalog:
   globals: ^17.13.0
   next: ^16.4.0
   pg: ^8.20.0
+  pg-boss: ^12.35.0
   prettier: ^3.9.0
   react: ^19.3.0
   react-dom: ^19.3.0
