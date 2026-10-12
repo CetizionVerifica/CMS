@@ -11,6 +11,8 @@
   },
   "dependencies": {
     "@canopy/contracts": "workspace:*",
+    "@canopy/db": "workspace:*",
+    "@canopy/engine": "workspace:*",
     "@canopy/importer": "workspace:*",
     "fastify": "catalog:",
     "zod": "catalog:"

@@ -113,6 +113,12 @@ importers:
       '@canopy/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@canopy/db':
+        specifier: workspace:*
+        version: link:../../packages/db
+      '@canopy/engine':
+        specifier: workspace:*
+        version: link:../../packages/engine
       '@canopy/importer':
         specifier: workspace:*
         version: link:../../packages/importer
