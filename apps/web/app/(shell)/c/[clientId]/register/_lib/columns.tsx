@@ -2,8 +2,7 @@
 // Act, Department, Owner, Approver, Due date, Status, Criticality. Everything here is formatting; status, overdue days
 // and dates come from the API (engine output).
 import type { InstanceRow } from '@canopy/contracts';
-import type { PersonValue, StatusValue, TitleValue } from '@canopy/ui';
-import type { ColumnDef } from '@tanstack/react-table';
+import type { DataTableProps, PersonValue, StatusValue, TitleValue } from '@canopy/ui';
 
 /** Column ids that are also API sort fields; the grid sorts on the server (`manualSorting`). */
 const SORTABLE = new Set([
@@ -32,7 +31,8 @@ export function statusValue(row: InstanceRow): StatusValue {
 
 const person = (name: string): PersonValue => ({ name });
 
-type Column = ColumnDef<InstanceRow, never>;
+/** A DataTable column; the type comes from @canopy/ui, so the web app needs no direct TanStack dependency. */
+type Column = DataTableProps<InstanceRow>['columns'][number];
 
 function col(
   id: string,
