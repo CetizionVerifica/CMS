@@ -63,9 +63,11 @@ Decisions and their reasons: `docs/adr/0003-m3-tenant-isolation-in-postgres.md`.
   Errors are `DbError` with `code` NOT_FOUND, DUPLICATE, VALIDATION, FORBIDDEN or STALE_VERSION.
 - Most aggregates also have `query(tx, { where, search, includeArchived, orderBy, after, limit, count })` (where is
   equality or an array per contract field; keyset on `orderBy` then id, `after` = last row's value and id) and
-  `findAll(tx, where)`. M6 lookups: `people.idsInClient`, `people.firmStaffIds`, `assignments.obligationIds`,
+  `findAll(tx, where)`. Any contract field of the entity is accepted, so callers pass a fixed allow-list of filter and
+  search fields, never field names from the request. M6 lookups: `people.idsInClient`, `people.firmStaffIds`, `assignments.obligationIds`,
   `instances.reassignOpen` and `instances.replacePerson` (return the changed rows with before values).
-- Scheduled jobs (M9): `db.listFirmIds()` is the only cross-tenant read (ids only, a SECURITY DEFINER function);
+- Scheduled jobs (M9): `db.listFirmIds()` is the only cross-tenant read (ids only, a SECURITY DEFINER function that
+  any app-role transaction could call; only jobs use it);
   each firm then runs in `withTenant(systemContext(firmId, ...))` with the `jobs` read models and
   `notificationSends` (`claim` returns NEW, PENDING or DONE).
 - In a single-table select, Drizzle leaves columns unqualified, so a correlated subquery inside `sql` binds them to
