@@ -441,7 +441,9 @@ export class MemoryStore implements Store {
             .filter(
               (i) =>
                 i.assignmentId === assignmentId &&
-                (i.workflowState === 'OPEN' || i.workflowState === 'SENT_BACK'),
+                (i.workflowState === 'OPEN' || i.workflowState === 'SENT_BACK') &&
+                ((to.ownerId !== undefined && to.ownerId !== i.ownerId) ||
+                  (to.approverId !== undefined && to.approverId !== i.approverId)),
             )
             .map((i) =>
               reassign(i, {

@@ -117,6 +117,22 @@ describe('assignments', () => {
     });
   });
 
+  it('writes no REASSIGN for an open instance that already has the new people', async () => {
+    const { call, store } = testApp();
+    await call('clientAdmin', 'PATCH', `/assignments/${ids.assignment}`, {
+      version: 1,
+      defaultApproverId: ACTORS.clientAdmin.person,
+    });
+    const before = store.instance(ids.instance)?.version;
+    await call('clientAdmin', 'PATCH', `/assignments/${ids.assignment}`, {
+      version: 2,
+      defaultOwnerId: ACTORS.owner.person,
+      applyToOpen: true,
+    });
+    expect(store.instance(ids.instance)?.version).toBe(before);
+    expect(store.audits.filter((a) => a.action === 'REASSIGN')).toEqual([]);
+  });
+
   it('leaves instances alone without applyToOpen and checks the new values', async () => {
     const { call, store } = testApp();
     await call('clientAdmin', 'PATCH', `/assignments/${ids.assignment}`, {
