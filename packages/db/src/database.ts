@@ -44,6 +44,11 @@ export interface Database {
    * This is the only way request code reaches the database (packages/db/CLAUDE.md rule 2).
    */
   withTenant<T>(ctx: TenantContext, fn: (tx: TenantTx) => Promise<T>): Promise<T>;
+  /**
+   * Ids of every firm, for scheduled jobs that then run each firm in its own `withTenant`. The only
+   * cross-tenant read; it returns ids and nothing else (ADR 0003).
+   */
+  listFirmIds(): Promise<string[]>;
   close(): Promise<void>;
 }
 
@@ -113,6 +118,14 @@ export function createDatabase(options: DatabaseOptions): Database {
                  set_config('app.firm_staff', ${settings['app.firm_staff']}, true),
                  set_config('app.request_id', ${settings['app.request_id']}, true)`);
         return fn(tx as TenantTx);
+      });
+    },
+    async listFirmIds() {
+      if (policy === 'refuse') await checkLogin();
+      return db.transaction(async (tx) => {
+        await tx.execute(sql.raw(`SET LOCAL ROLE ${APP_ROLE}`));
+        const { rows } = await tx.execute<{ id: string }>(sql`SELECT canopy_list_firm_ids() AS id`);
+        return rows.map((r) => r.id);
       });
     },
     close: () => pool.end(),

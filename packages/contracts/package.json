@@ -1,15 +1,17 @@
 {
   "name": "@canopy/contracts",
   "private": true,
-  "version": "1.1.0",
+  "version": "1.2.0",
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./fixtures": "./src/fixtures/index.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "openapi": "tsx scripts/write-openapi.ts && prettier --write ../../docs/contracts/openapi.json"
+    "openapi": "tsx scripts/write-openapi.ts && prettier --write ../../docs/contracts/openapi.json",
+    "fixtures": "tsx scripts/build-fixtures.ts"
   },
   "devDependencies": {
     "@canopy/tsconfig": "workspace:*",
