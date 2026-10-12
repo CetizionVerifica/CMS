@@ -7,6 +7,7 @@ import { registerDashboardRoutes } from './modules/dashboard/routes.js';
 import { MemoryExportFiles, type ExportFiles } from './modules/reports/files.js';
 import { registerReportRoutes } from './modules/reports/routes.js';
 import { IdempotencyCache, InProcessRunner, type ExportRunner } from './modules/reports/service.js';
+import { libraryAndEntities, type M6Deps } from './modules/entities/index.js';
 
 export interface ServerOptions {
   /** Session storage for auth. Until M5's repository-backed store lands, the default knows no sessions. */
@@ -20,6 +21,8 @@ export interface ServerOptions {
     readonly runner?: ExportRunner;
     readonly exportRateLimit?: { max: number; timeWindow: string | number };
   };
+  /** M6 · Library and entities, mounted under /api/v1 when given (main.ts wires the database store). */
+  readonly libraryAndEntities?: M6Deps;
 }
 
 const NO_SESSIONS: AuthStore = {
@@ -54,6 +57,10 @@ export function buildServer(options: ServerOptions = {}): FastifyInstance {
   };
   registerDashboardRoutes(app, reports);
   registerReportRoutes(app, reports);
+  if (options.libraryAndEntities) {
+    const deps = options.libraryAndEntities;
+    void app.register((scope) => libraryAndEntities(scope, deps), { prefix: '/api/v1' });
+  }
 
   return app;
 }
