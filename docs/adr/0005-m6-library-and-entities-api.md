@@ -1,4 +1,4 @@
-# 0003: Library and entities API (M6) before its dependencies merge
+# 0005: Library and entities API (M6) before its dependencies merge
 
 Status: accepted (M6, 2026-10-12)
 

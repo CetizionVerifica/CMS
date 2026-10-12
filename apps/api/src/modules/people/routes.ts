@@ -160,7 +160,7 @@ export function peopleRoutes(app: FastifyInstance, deps: M6Deps): void {
         },
         () => clientId,
       );
-      // A person belongs to a client through a membership (ADR 0003): new people start as an OWNER of all units,
+      // A person belongs to a client through a membership (ADR 0005): new people start as an OWNER of all units,
       // the role imported people have, and can be given another role before they are invited.
       const membership = await auditedInsert(
         tx,
