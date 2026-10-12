@@ -21,3 +21,5 @@ export {
   type JobRunner,
   type JobRunnerOptions,
 } from './runner.js';
+export { mailConfigFromEnv, smtpMailer, type MailConfig } from './smtp-mailer.js';
+export { startJobsFromEnv, type JobsFromEnvOptions } from './start.js';

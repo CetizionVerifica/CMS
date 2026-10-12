@@ -7,7 +7,7 @@ import { memoryClient, memoryFirm } from './testing/memory-store.js';
 
 function setup() {
   const firm = memoryFirm();
-  const client = memoryClient('Aditya Birla Group');
+  const client = memoryClient('Kestrel Metals Group');
   const owner = person({ clientIds: [client.id] });
   const approver = person({ displayName: 'Vikram Shah', clientIds: [client.id] });
   firm.clients.push(client);
@@ -161,7 +161,7 @@ describe('generate-instances', () => {
 
   it('rolls back only the failing client and still fails the job so it is retried', async () => {
     const { firm, client, owner, approver } = setup();
-    const other = memoryClient('Tata Group');
+    const other = memoryClient('Osprey Textiles Group');
     firm.clients.push(other);
     firm.assignments.push(assignment(other, owner, approver));
     let calls = 0;
