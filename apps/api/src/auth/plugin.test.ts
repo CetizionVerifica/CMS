@@ -210,7 +210,7 @@ describe('error envelope', () => {
     });
     expect(zod.statusCode).toBe(400);
     expect(zod.json()).toMatchObject({
-      error: { code: 'VALIDATION', details: { issues: [{ path: 'clientId' }] } },
+      error: { code: 'VALIDATION', details: { issues: [{ path: ['clientId'] }] } },
     });
     const schema = await app.inject({ method: 'POST', url: '/typed', payload: {} });
     expect(schema.statusCode).toBe(400);

@@ -1,35 +1,29 @@
-import { Id, Instant, Role } from '@canopy/contracts';
+import {
+  Id,
+  InviteAcceptBody,
+  InviteBody,
+  InviteTokenParams,
+  LoginBody as ContractLoginBody,
+  MagicLinkBody,
+  MagicLinkVerifyBody,
+  MfaVerifyBody,
+} from '@canopy/contracts';
 import type { FastifyInstance, FastifyReply } from 'fastify';
 import { z } from 'zod';
 import type { AccountStore } from './accounts.js';
-import { mfaRequired } from './context.js';
-import { ApiError } from './errors.js';
-import { Password } from './passwords.js';
 import { sessionOf, SESSION_COOKIE } from './plugin.js';
 import type { SecretBox } from './secretbox.js';
 import { AuthService, type IssuedSession } from './service.js';
 
-/** Request bodies (endpoints.md §2). Local until M0 ships the auth request schemas. */
-const Email = z.email().max(320);
-export const LoginBody = z.strictObject({
-  email: Email,
+/**
+ * The contract login body with what M0's next contracts release adds: an optional `firmId` for emails that sign in
+ * to more than one firm, and any password length (the 12-character rule is for new passwords).
+ * WIP: use `LoginBody` from contracts once that release merges.
+ */
+const LoginBody = ContractLoginBody.extend({
   password: z.string().min(1).max(1024),
   firmId: Id.optional(),
 });
-export const MagicLinkBody = z.strictObject({ email: Email });
-export const TokenBody = z.strictObject({ token: z.string().min(20).max(200) });
-export const MfaCodeBody = z.strictObject({ code: z.string().regex(/^\d{6}$/) });
-export const AcceptInviteBody = z.strictObject({ password: Password });
-export const InviteBody = z.strictObject({
-  personId: Id,
-  email: Email,
-  role: Role,
-  clientId: Id.nullable(),
-  consultantClientIds: z.array(Id).max(10_000).nullable().default(null),
-  unitIds: z.array(Id).min(1).max(10_000).nullable().default(null),
-  expiresAt: Instant.nullable().default(null),
-});
-const TokenParams = z.strictObject({ token: z.string().min(20).max(200) });
 const IdParams = z.strictObject({ id: Id });
 
 export interface AuthRoutesOptions {
@@ -57,19 +51,16 @@ export function registerAuthRoutes(app: FastifyInstance, options: AuthRoutesOpti
   const secure =
     options.secureCookies ?? !['development', 'test'].includes(process.env.NODE_ENV ?? '');
 
-  function setSessionCookie(reply: FastifyReply, session: IssuedSession) {
+  /** Sets the session cookie and answers with the contract `Me`. */
+  function startSession(reply: FastifyReply, session: IssuedSession) {
     reply.setCookie(SESSION_COOKIE, session.token, {
       httpOnly: true,
       secure,
       sameSite: 'lax',
       path: '/',
-      expires: new Date(session.expiresAt),
+      expires: new Date(session.record.expiresAt),
     });
-    return {
-      csrfToken: session.csrfToken,
-      expiresAt: session.expiresAt,
-      mfa: { required: session.mfaRequired, enrolled: session.mfaEnrolled, satisfied: false },
-    };
+    return session.me;
   }
 
   void app.register(
@@ -77,12 +68,8 @@ export function registerAuthRoutes(app: FastifyInstance, options: AuthRoutesOpti
       api.post(
         '/auth/login',
         { config: { auth: 'public', routeLimit: LIMITS.login } },
-        async (req, reply) => {
-          const result = await service.login(LoginBody.parse(req.body), req.id);
-          if (result.status === 'CHOOSE_FIRM')
-            return { status: result.status, firms: result.firms };
-          return { status: result.status, ...setSessionCookie(reply, result.session) };
-        },
+        async (req, reply) =>
+          startSession(reply, await service.login(LoginBody.parse(req.body), req.id)),
       );
 
       api.post(
@@ -90,7 +77,7 @@ export function registerAuthRoutes(app: FastifyInstance, options: AuthRoutesOpti
         { config: { auth: 'public', routeLimit: LIMITS.magicLink } },
         async (req, reply) => {
           await service.requestMagicLink(MagicLinkBody.parse(req.body).email, req.id);
-          return reply.code(202).send({ status: 'ACCEPTED' });
+          return reply.code(202).send();
         },
       );
 
@@ -98,8 +85,8 @@ export function registerAuthRoutes(app: FastifyInstance, options: AuthRoutesOpti
         '/auth/magic-link/verify',
         { config: { auth: 'public', routeLimit: LIMITS.token } },
         async (req, reply) => {
-          const session = await service.verifyMagicLink(TokenBody.parse(req.body).token, req.id);
-          return { status: 'OK', ...setSessionCookie(reply, session) };
+          const { token } = MagicLinkVerifyBody.parse(req.body);
+          return startSession(reply, await service.verifyMagicLink(token, req.id));
         },
       );
 
@@ -112,73 +99,44 @@ export function registerAuthRoutes(app: FastifyInstance, options: AuthRoutesOpti
       api.post(
         '/auth/mfa/enroll',
         { config: { auth: 'session-pre-mfa', routeLimit: LIMITS.mfa } },
-        async (req) => {
-          const me = await options.store.loadPrincipal(req.ctx.firmId, req.ctx.personId);
-          return service.enrollMfa(req.ctx, me?.profile.email ?? req.ctx.personId);
-        },
+        async (req) => service.enrollMfa(req.ctx),
       );
 
       api.post(
         '/auth/mfa/verify',
         { config: { auth: 'session-pre-mfa', routeLimit: LIMITS.mfa } },
-        async (req, reply) => {
-          await service.verifyMfa(req.ctx, sessionOf(req).id, MfaCodeBody.parse(req.body).code);
-          return reply.code(204).send();
-        },
+        async (req) =>
+          service.verifyMfa(req.ctx, sessionOf(req), MfaVerifyBody.parse(req.body).code),
       );
 
-      api.get('/me', { config: { auth: 'session-pre-mfa' } }, async (req) => {
-        const { ctx } = req;
-        const principal = await options.store.loadPrincipal(ctx.firmId, ctx.personId);
-        if (principal === null) throw new ApiError('UNAUTHENTICATED');
-        const session = sessionOf(req);
-        return {
-          person: {
-            id: ctx.personId,
-            name: principal.profile.name,
-            email: principal.profile.email,
-          },
-          firmId: ctx.firmId,
-          memberships: ctx.memberships,
-          clientIds: ctx.clientIds,
-          csrfToken: session.csrfToken,
-          mfa: {
-            required: mfaRequired(principal, ctx.memberships),
-            enrolled: principal.mfaEnrolled,
-            satisfied: ctx.mfaSatisfied,
-          },
-          asOf: ctx.asOf,
-        };
-      });
+      api.get('/me', { config: { auth: 'session-pre-mfa' } }, async (req) =>
+        service.me(req.ctx, sessionOf(req)),
+      );
 
       api.post('/invites', { config: { auth: 'session' } }, async (req, reply) => {
-        const body = InviteBody.parse(req.body);
-        const { personId, email, ...grant } = body;
-        const result = await service.invite(req.ctx, { personId, email, grant }, req.id);
-        return reply.code(201).send(result);
+        const invite = await service.invite(req.ctx, InviteBody.parse(req.body), req.id);
+        return reply.code(201).send(invite);
       });
 
       api.get(
         '/invites/:token',
         { config: { auth: 'public', routeLimit: LIMITS.token } },
-        async (req) => service.inviteDetails(TokenParams.parse(req.params).token),
+        async (req) => service.invitePreview(InviteTokenParams.parse(req.params).token),
       );
 
       api.post(
         '/invites/:token/accept',
         { config: { auth: 'public', routeLimit: LIMITS.token } },
         async (req, reply) => {
-          const { token } = TokenParams.parse(req.params);
-          const { password } = AcceptInviteBody.parse(req.body);
-          const session = await service.acceptInvite(token, password, req.id);
-          return { status: 'OK', ...setSessionCookie(reply, session) };
+          const { token } = InviteTokenParams.parse(req.params);
+          const body = InviteAcceptBody.parse(req.body);
+          return startSession(reply, await service.acceptInvite(token, body, req.id));
         },
       );
 
-      api.post('/invites/:id/revoke', { config: { auth: 'session' } }, async (req, reply) => {
-        await service.revokeInvite(req.ctx, IdParams.parse(req.params).id, req.id);
-        return reply.code(204).send();
-      });
+      api.post('/invites/:id/revoke', { config: { auth: 'session' } }, async (req) =>
+        service.revokeInvite(req.ctx, IdParams.parse(req.params).id, req.id),
+      );
     },
     { prefix: '/api/v1' },
   );

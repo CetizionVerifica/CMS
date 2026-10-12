@@ -137,13 +137,19 @@ function toApiError(error: FastifyError | Error): ApiError | null {
   if (error instanceof ApiError) return error;
   if (error instanceof ZodError) {
     return new ApiError('VALIDATION', {
-      issues: error.issues.map((i) => ({ path: i.path.join('.'), message: i.message })),
+      issues: error.issues.map((i) => ({
+        path: i.path.map((key) => (typeof key === 'symbol' ? String(key) : key)),
+        message: i.message,
+      })),
     });
   }
   const fastifyError = error as FastifyError;
   if (fastifyError.validation) {
     return new ApiError('VALIDATION', {
-      issues: fastifyError.validation.map((v) => ({ path: v.instancePath, message: v.message })),
+      issues: fastifyError.validation.map((v) => ({
+        path: v.instancePath.split('/').filter((key) => key !== ''),
+        message: v.message ?? 'Not valid.',
+      })),
     });
   }
   switch (fastifyError.statusCode) {

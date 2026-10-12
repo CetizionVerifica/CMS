@@ -1,17 +1,10 @@
 import { randomBytes, scrypt, timingSafeEqual, type ScryptOptions } from 'node:crypto';
-import { z } from 'zod';
 
 /**
  * Password hashing with scrypt (Node's built-in; no dependency). Stored form:
  * `scrypt$<N>$<r>$<p>$<salt base64url>$<hash base64url>`, so parameters can be raised later and old hashes
  * still verify. Passwords are never logged or stored in clear.
  */
-
-export const PASSWORD_MIN_LENGTH = 12;
-export const PASSWORD_MAX_LENGTH = 256;
-
-/** The password rule at the edge: 12 to 256 characters. */
-export const Password = z.string().min(PASSWORD_MIN_LENGTH).max(PASSWORD_MAX_LENGTH);
 
 const PARAMS = { N: 2 ** 15, r: 8, p: 1 } as const;
 const KEY_LENGTH = 64;

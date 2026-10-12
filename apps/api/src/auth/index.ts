@@ -28,9 +28,9 @@ export {
   type RouteAuth,
 } from './plugin.js';
 export * from './accounts.js';
-export { hashPassword, verifyPassword, Password } from './passwords.js';
+export { hashPassword, verifyPassword } from './passwords.js';
 export { SecretBox } from './secretbox.js';
 export { redactUrl } from './tokens.js';
 export { sessionOf } from './plugin.js';
-export { AuthService, type IssuedSession, type LoginResult } from './service.js';
+export { AuthService, type IssuedSession } from './service.js';
 export { registerAuthRoutes, type AuthRoutesOptions } from './routes.js';

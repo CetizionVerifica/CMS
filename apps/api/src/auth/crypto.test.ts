@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { hashPassword, Password, verifyAgainstDummy, verifyPassword } from './passwords.js';
+import { hashPassword, verifyAgainstDummy, verifyPassword } from './passwords.js';
 import { SecretBox } from './secretbox.js';
 import {
   base32Decode,
@@ -26,12 +26,6 @@ describe('passwords', () => {
     expect(await verifyPassword('x', 'scrypt$1073741824$8$1$abc$def')).toBe(false);
     expect(await verifyPassword('x', 'scrypt$16384$8$1$abc$short')).toBe(false);
     expect(await verifyAgainstDummy('anything at all')).toBe(false);
-  });
-
-  it('requires 12 to 256 characters', () => {
-    expect(Password.safeParse('short').success).toBe(false);
-    expect(Password.safeParse('twelve chars').success).toBe(true);
-    expect(Password.safeParse('x'.repeat(257)).success).toBe(false);
   });
 });
 

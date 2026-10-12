@@ -1,4 +1,10 @@
-import type { PersonStatus, Role } from '@canopy/contracts';
+import type {
+  ClientSummary,
+  Invite,
+  MembershipGrant,
+  PersonStatus,
+  RequestContext,
+} from '@canopy/contracts';
 import type { AuthStore, SessionRecord } from './context.js';
 
 /**
@@ -8,6 +14,12 @@ import type { AuthStore, SessionRecord } from './context.js';
  * Lookups by email or token hash run before a tenant is known and return only ids, hashes and states.
  */
 export interface AccountStore extends AuthStore {
+  /**
+   * `Me.clients`: the clients in `ctx.clientIds` with the units the person may see counted and the periods computed
+   * with the engine (`ClientPeriods`).
+   */
+  clientSummaries(ctx: RequestContext): Promise<ClientSummary[]>;
+
   /** ACTIVE, INVITED and DISABLED people with this email (case-insensitive), across firms. */
   findLoginCandidates(email: string): Promise<LoginCandidate[]>;
   /** Counts a failed password; after `LOCKOUT.attempts` failures in a row the account locks for `LOCKOUT.minutes`. */
@@ -29,13 +41,16 @@ export interface AccountStore extends AuthStore {
 
   /** The person an invite is for, in the actor's tenant, or null. */
   findInvitee(firmId: string, personId: string): Promise<Invitee | null>;
+  /** The person in the firm who has this email (case-insensitive), or null. */
+  findPersonIdByEmail(firmId: string, email: string): Promise<string | null>;
   /**
-   * Records the invite, sets the person INVITED with the email, revokes earlier open invites for the person.
-   * Audit: `UPDATE` on the person. Outbox: `person.invited { personId, inviteId, role, clientId }`.
+   * Records the invite, sets the person INVITED with the email (creating them first when `personId` is null),
+   * revokes earlier pending invites for the person. Audit: `CREATE` on a new person, `UPDATE` on an existing
+   * one. Outbox: `person.invited { personId, inviteId, role, clientId }`.
    */
-  createInvite(invite: NewInvite): Promise<{ inviteId: string }>;
-  findInvite(firmId: string, inviteId: string): Promise<Invite | null>;
-  /** Audit: `UPDATE` on the person. Open tokens of the invite stop working. */
+  createInvite(invite: NewInvite): Promise<InviteRecord>;
+  findInvite(firmId: string, inviteId: string): Promise<InviteRecord | null>;
+  /** Sets the invite REVOKED. Audit: `UPDATE` on the person. Open tokens of the invite stop working. */
   revokeInvite(
     firmId: string,
     inviteId: string,
@@ -44,8 +59,8 @@ export interface AccountStore extends AuthStore {
     now: Date,
   ): Promise<void>;
   /**
-   * Accepts an open invite: sets the password, the person ACTIVE, grants the membership, marks the invite
-   * accepted. Audit: `UPDATE` on the person and `MEMBERSHIP_CHANGE`. Outbox: `person.claimed` and
+   * Accepts a pending invite: sets the password (and the display name when given), the person ACTIVE, grants the
+   * membership, marks the invite ACCEPTED. Audit: `UPDATE` on the person and `MEMBERSHIP_CHANGE`. Outbox: `person.claimed` and
    * `membership.changed` (GRANTED).
    */
   acceptInvite(accept: AcceptInvite): Promise<void>;
@@ -100,18 +115,10 @@ export interface NewLoginToken {
 export interface LoginToken extends NewLoginToken {
   readonly id: string;
   readonly usedAt: string | null;
-  /** For INVITE tokens: whether the invite is still open (not accepted, revoked or expired). */
-  readonly inviteOpen: boolean;
 }
 
-/** The membership an invite grants. */
-export interface Grant {
-  readonly role: Role;
-  readonly clientId: string | null;
-  readonly consultantClientIds: readonly string[] | null;
-  readonly unitIds: readonly string[] | null;
-  readonly expiresAt: string | null;
-}
+/** The membership an invite grants (the M0 `MembershipGrant`). */
+export type Grant = MembershipGrant;
 
 export interface Invitee {
   readonly personId: string;
@@ -121,19 +128,25 @@ export interface Invitee {
 
 export interface NewInvite {
   readonly firmId: string;
-  readonly personId: string;
+  /** Null to create the person, INVITED, with `displayName`. */
+  readonly personId: string | null;
+  readonly displayName: string | null;
   readonly email: string;
   readonly grant: Grant;
-  readonly createdById: string;
-  readonly expiresAt: string;
+  readonly invitedById: string;
+  readonly linkExpiresAt: string;
   readonly requestId: string;
+  readonly now: Date;
 }
 
-export interface Invite extends Omit<NewInvite, 'requestId'> {
-  readonly id: string;
+/**
+ * A stored invite: the M0 `Invite` with the names the accept page shows. The store keeps status PENDING after
+ * `linkExpiresAt`; the service reports such an invite as EXPIRED.
+ */
+export interface InviteRecord extends Invite {
   readonly firmName: string;
-  readonly acceptedAt: string | null;
-  readonly revokedAt: string | null;
+  readonly displayName: string;
+  readonly clientName: string | null;
 }
 
 export interface AcceptInvite {
@@ -141,6 +154,8 @@ export interface AcceptInvite {
   readonly inviteId: string;
   readonly tokenId: string;
   readonly passwordHash: string;
+  /** The name the person chose on the accept page, or null to keep the imported one. */
+  readonly displayName: string | null;
   readonly requestId: string;
   readonly now: Date;
 }

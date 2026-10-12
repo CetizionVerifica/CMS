@@ -1,11 +1,24 @@
 import { randomUUID } from 'node:crypto';
-import type { Role } from '@canopy/contracts';
+import {
+  ApiErrorResponse,
+  Invite,
+  InvitePreview,
+  Me,
+  MfaEnrollment,
+  type Role,
+} from '@canopy/contracts';
 import type { FastifyInstance, LightMyRequestResponse } from 'fastify';
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { buildServer, trustProxyFromEnv } from '../server.js';
 import { LOCKOUT } from './accounts.js';
 import { hashPassword } from './passwords.js';
-import { InMemoryAuthStore, membership, type MembershipInput } from './testing.js';
+import {
+  clientSummary,
+  InMemoryAuthStore,
+  membership,
+  person as personFixture,
+  type MembershipInput,
+} from './testing.js';
 import { redactUrl } from './tokens.js';
 import { base32Decode, hotp, totpStep } from './totp.js';
 import { AuthService } from './service.js';
@@ -57,7 +70,7 @@ async function seed(input: Seed = {}) {
   const email = input.email === undefined ? `${personId.slice(0, 8)}@example.com` : input.email;
   store.firms.set(firmId, `Firm ${firmId.slice(0, 4)}`);
   store.people.set(`${firmId}/${personId}`, {
-    name: 'Asha Rao',
+    displayName: 'Asha Rao',
     email,
     status,
     passwordHash: input.password === null ? null : await hashPassword(input.password ?? PASSWORD),
@@ -65,9 +78,11 @@ async function seed(input: Seed = {}) {
     lockedUntil: null,
   });
   const memberships = (input.memberships ?? []).map((m) => membership({ firmId, personId, ...m }));
+  for (const m of memberships) {
+    if (m.clientId) store.clients.set(`${firmId}/${m.clientId}`, clientSummary({ id: m.clientId }));
+  }
   store.principals.set(`${firmId}/${personId}`, {
-    status,
-    profile: { name: 'Asha Rao', email },
+    person: personFixture({ id: personId, firmId, status, email }),
     memberships,
     mfaEnrolled: false,
     mfaRequiredForFirmRoles: true,
@@ -79,7 +94,12 @@ async function seed(input: Seed = {}) {
 function sessionHeaders(res: LightMyRequestResponse) {
   const cookie = res.cookies.find((c) => c.name === 'sid');
   if (!cookie) throw new Error('no session cookie');
-  return { cookie: `sid=${cookie.value}`, 'x-csrf-token': res.json().csrfToken as string };
+  return { cookie: `sid=${cookie.value}`, 'x-csrf-token': Me.parse(res.json()).csrfToken };
+}
+
+/** The error code, after checking the body is a contract `ApiErrorResponse`. */
+function errorCode(res: LightMyRequestResponse) {
+  return ApiErrorResponse.parse(res.json()).error.code;
 }
 
 let address = 0;
@@ -101,8 +121,9 @@ describe('POST /auth/login', () => {
     const person = await seed({ memberships: [{ role: 'OWNER', clientId: client }] });
     const res = await login(person.email.toUpperCase());
     expect(res.statusCode).toBe(200);
-    expect(res.json()).toMatchObject({
-      status: 'OK',
+    expect(Me.parse(res.json())).toMatchObject({
+      person: { id: person.personId, displayName: 'Asha Rao', email: person.email },
+      clients: [{ id: client }],
       mfa: { required: false, enrolled: false, satisfied: false },
     });
     const cookie = res.cookies.find((c) => c.name === 'sid')!;
@@ -116,12 +137,7 @@ describe('POST /auth/login', () => {
 
     const me = await app.inject({ url: '/api/v1/me', headers: sessionHeaders(res) });
     expect(me.statusCode).toBe(200);
-    expect(me.json()).toMatchObject({
-      person: { id: person.personId, name: 'Asha Rao', email: person.email },
-      clientIds: [client],
-      csrfToken: res.json().csrfToken,
-      asOf: '2026-10-12',
-    });
+    expect(Me.parse(me.json())).toEqual(res.json());
   });
 
   it('answers every failure the same way', async () => {
@@ -139,6 +155,7 @@ describe('POST /auth/login', () => {
       await login('nopass@example.com'),
     ]) {
       expect(res.statusCode).toBe(401);
+      expect(errorCode(res)).toBe('UNAUTHENTICATED');
       expect(res.json().error).toEqual({
         code: 'UNAUTHENTICATED',
         message: 'Email or password is not correct.',
@@ -150,6 +167,7 @@ describe('POST /auth/login', () => {
       payload: { email: 'not an email', password: 'x' },
     });
     expect(bad.statusCode).toBe(400);
+    expect(errorCode(bad)).toBe('VALIDATION');
   });
 
   it(`locks the account for ${LOCKOUT.minutes} minutes after ${LOCKOUT.attempts} failures`, async () => {
@@ -164,18 +182,12 @@ describe('POST /auth/login', () => {
     const a = await seed({ email: 'shared@example.com', memberships: [{ role: 'OWNER' }] });
     const b = await seed({ email: 'shared@example.com', memberships: [{ role: 'VIEWER' }] });
     const first = await login('shared@example.com');
-    expect(first.json()).toEqual({
-      status: 'CHOOSE_FIRM',
-      firms: expect.arrayContaining([
-        { firmId: a.firmId, firmName: expect.any(String) },
-        { firmId: b.firmId, firmName: expect.any(String) },
-      ]),
-    });
+    expect(first.statusCode).toBe(409);
     expect(first.cookies).toHaveLength(0);
     const second = await login('shared@example.com', PASSWORD, b.firmId);
-    expect(second.json().status).toBe('OK');
-    const me = await app.inject({ url: '/api/v1/me', headers: sessionHeaders(second) });
-    expect(me.json().firmId).toBe(b.firmId);
+    expect(second.statusCode).toBe(200);
+    expect(Me.parse(second.json()).person).toMatchObject({ id: b.personId, firmId: b.firmId });
+    expect((await login('shared@example.com', PASSWORD, a.firmId)).statusCode).toBe(200);
   });
 
   it('is rate limited per IP', async () => {
@@ -185,7 +197,7 @@ describe('POST /auth/login', () => {
     }
     const res = await limited.inject({ method: 'POST', url: '/api/v1/auth/login', payload: {} });
     expect(res.statusCode).toBe(429);
-    expect(res.json().error.code).toBe('RATE_LIMITED');
+    expect(errorCode(res)).toBe('RATE_LIMITED');
   });
 });
 
@@ -219,6 +231,7 @@ describe('magic links', () => {
       app.inject({ method: 'POST', url: '/api/v1/auth/magic-link/verify', payload: { token: t } });
     const ok = await verify(token);
     expect(ok.statusCode).toBe(200);
+    expect(Me.parse(ok.json()).person.id).toBe(person.personId);
     expect(ok.cookies.some((c) => c.name === 'sid')).toBe(true);
     expect((await verify(token)).statusCode).toBe(401);
 
@@ -255,7 +268,11 @@ describe('MFA', () => {
 
   it('blocks firm roles until a TOTP code is verified, then refuses replays', async () => {
     const { res, headers } = await adminSession();
-    expect(res.json().mfa).toEqual({ required: true, enrolled: false, satisfied: false });
+    expect(Me.parse(res.json()).mfa).toEqual({
+      required: true,
+      enrolled: false,
+      satisfied: false,
+    });
     const blocked = await app.inject({ url: '/api/v1/probe', headers });
     expect(blocked.json().error).toMatchObject({
       code: 'MFA_REQUIRED',
@@ -272,8 +289,9 @@ describe('MFA', () => {
 
     const enroll = await app.inject({ method: 'POST', url: '/api/v1/auth/mfa/enroll', headers });
     expect(enroll.statusCode).toBe(200);
-    const { secret, otpauthUri } = enroll.json() as { secret: string; otpauthUri: string };
-    expect(otpauthUri).toContain(`secret=${secret}`);
+    const { otpauthUrl } = MfaEnrollment.parse(enroll.json());
+    const secret = new URL(otpauthUrl).searchParams.get('secret')!;
+    expect(otpauthUrl).toContain('PlanetPulse');
     expect(JSON.stringify([...store.mfa.values()])).not.toContain(secret);
 
     const wrong = await app.inject({
@@ -291,7 +309,8 @@ describe('MFA', () => {
       headers,
       payload: { code },
     });
-    expect(ok.statusCode).toBe(204);
+    expect(ok.statusCode).toBe(200);
+    expect(Me.parse(ok.json()).mfa).toEqual({ required: true, enrolled: true, satisfied: true });
     expect((await app.inject({ url: '/api/v1/probe', headers })).statusCode).toBe(200);
 
     const replay = await app.inject({
@@ -302,14 +321,15 @@ describe('MFA', () => {
     });
     expect(replay.statusCode).toBe(400);
     const again = await app.inject({ method: 'POST', url: '/api/v1/auth/mfa/enroll', headers });
-    expect(again.json().error.code).toBe('DUPLICATE');
+    expect(errorCode(again)).toBe('DUPLICATE');
   });
 
   it('requires a code in every new session once enrolled', async () => {
     const { person, headers } = await adminSession();
-    const { secret } = (
-      await app.inject({ method: 'POST', url: '/api/v1/auth/mfa/enroll', headers })
-    ).json();
+    const { otpauthUrl } = MfaEnrollment.parse(
+      (await app.inject({ method: 'POST', url: '/api/v1/auth/mfa/enroll', headers })).json(),
+    );
+    const secret = new URL(otpauthUrl).searchParams.get('secret')!;
     await app.inject({
       method: 'POST',
       url: '/api/v1/auth/mfa/verify',
@@ -318,7 +338,11 @@ describe('MFA', () => {
     });
     now = new Date(now.getTime() + 60_000);
     const next = await login(person.email);
-    expect(next.json().mfa).toEqual({ required: true, enrolled: true, satisfied: false });
+    expect(Me.parse(next.json()).mfa).toEqual({
+      required: true,
+      enrolled: true,
+      satisfied: false,
+    });
     const nextHeaders = sessionHeaders(next);
     expect((await app.inject({ url: '/api/v1/probe', headers: nextHeaders })).statusCode).toBe(401);
     await app.inject({
@@ -375,10 +399,15 @@ describe('invites', () => {
   }
 
   const invite = (headers: Record<string, string>, payload: Record<string, unknown>) =>
-    app.inject({ method: 'POST', url: '/api/v1/invites', headers, payload });
+    app.inject({
+      method: 'POST',
+      url: '/api/v1/invites',
+      headers,
+      payload: { consultantClientIds: null, unitIds: null, expiresAt: null, ...payload },
+    });
 
   it('lets a client admin invite an imported person, who claims the account', async () => {
-    const { firmId, headers, imported } = await setup();
+    const { firmId, manager, headers, imported } = await setup();
     const res = await invite(headers, {
       personId: imported.personId,
       email: 'new.owner@example.com',
@@ -386,7 +415,15 @@ describe('invites', () => {
       clientId: CLIENT,
     });
     expect(res.statusCode).toBe(201);
-    const { inviteId } = res.json() as { inviteId: string };
+    const created = Invite.parse(res.json());
+    expect(created).toMatchObject({
+      personId: imported.personId,
+      status: 'PENDING',
+      role: 'OWNER',
+      invitedById: manager.personId,
+      linkExpiresAt: '2026-10-19T00:00:00.000Z',
+    });
+    const inviteId = created.id;
     expect(store.outbox).toContainEqual({
       firmId,
       type: 'person.invited',
@@ -404,10 +441,13 @@ describe('invites', () => {
       inviteId,
     });
     const details = await app.inject({ url: `/api/v1/invites/${token}` });
-    expect(details.json()).toEqual({
-      firmName: expect.any(String),
+    expect(InvitePreview.parse(details.json())).toEqual({
       email: 'new.owner@example.com',
+      displayName: 'Asha Rao',
+      firmName: expect.any(String),
+      clientName: 'Client',
       role: 'OWNER',
+      linkExpiresAt: created.linkExpiresAt,
     });
 
     const weak = await app.inject({
@@ -419,14 +459,18 @@ describe('invites', () => {
     const accepted = await app.inject({
       method: 'POST',
       url: `/api/v1/invites/${token}/accept`,
-      payload: { password: PASSWORD },
+      payload: { password: PASSWORD, displayName: 'Asha R. Rao' },
     });
     expect(accepted.statusCode).toBe(200);
+    expect(Me.parse(accepted.json())).toMatchObject({
+      person: { id: imported.personId, displayName: 'Asha R. Rao', status: 'ACTIVE' },
+      clients: [{ id: CLIENT }],
+    });
     expect(store.outbox.map((e) => e.type)).toEqual(
       expect.arrayContaining(['person.claimed', 'membership.changed']),
     );
     const me = await app.inject({ url: '/api/v1/me', headers: sessionHeaders(accepted) });
-    expect(me.json().clientIds).toEqual([CLIENT]);
+    expect(Me.parse(me.json()).memberships).toMatchObject([{ role: 'OWNER', clientId: CLIENT }]);
     expect((await app.inject({ url: `/api/v1/invites/${token}` })).statusCode).toBe(404);
     expect((await login('new.owner@example.com')).statusCode).toBe(200);
   });
@@ -466,7 +510,48 @@ describe('invites', () => {
       role: 'OWNER',
       clientId: CLIENT,
     });
-    expect(res.json().error.code).toBe('DUPLICATE');
+    expect(ApiErrorResponse.parse(res.json()).error).toMatchObject({
+      code: 'DUPLICATE',
+      details: { field: 'personId', existingId: active.personId },
+    });
+  });
+
+  it('invites a new person by name, and refuses an email someone in the firm already has', async () => {
+    const { firmId, headers } = await setup();
+    const res = await invite(headers, {
+      displayName: 'Ravi Kumar',
+      email: 'ravi@example.com',
+      role: 'APPROVER',
+      clientId: CLIENT,
+    });
+    expect(res.statusCode).toBe(201);
+    const created = Invite.parse(res.json());
+    expect(store.people.get(`${firmId}/${created.personId}`)).toMatchObject({
+      displayName: 'Ravi Kumar',
+      status: 'INVITED',
+      email: 'ravi@example.com',
+    });
+    expect(store.audit).toContainEqual({
+      firmId,
+      type: 'CREATE',
+      data: { personId: created.personId },
+    });
+    const taken = await invite(headers, {
+      displayName: 'Someone Else',
+      email: 'RAVI@example.com',
+      role: 'OWNER',
+      clientId: CLIENT,
+    });
+    expect(ApiErrorResponse.parse(taken.json()).error).toMatchObject({
+      code: 'DUPLICATE',
+      details: { field: 'email', existingId: created.personId },
+    });
+    const neither = await invite(headers, {
+      email: 'n@example.com',
+      role: 'OWNER',
+      clientId: CLIENT,
+    });
+    expect(errorCode(neither)).toBe('VALIDATION');
   });
 
   it('lets a firm admin invite a consultant', async () => {
@@ -483,14 +568,16 @@ describe('invites', () => {
 
   it('revokes an open invite so its link stops working', async () => {
     const { firmId, headers, imported } = await setup();
-    const { inviteId } = (
-      await invite(headers, {
-        personId: imported.personId,
-        email: 'r@example.com',
-        role: 'OWNER',
-        clientId: CLIENT,
-      })
-    ).json();
+    const { id: inviteId } = Invite.parse(
+      (
+        await invite(headers, {
+          personId: imported.personId,
+          email: 'r@example.com',
+          role: 'OWNER',
+          clientId: CLIENT,
+        })
+      ).json(),
+    );
     const { token } = await service.issueLoginToken({
       firmId,
       personId: imported.personId,
@@ -499,12 +586,11 @@ describe('invites', () => {
     });
     const revoke = () =>
       app.inject({ method: 'POST', url: `/api/v1/invites/${inviteId}/revoke`, headers });
-    expect((await revoke()).statusCode).toBe(204);
+    const revoked = await revoke();
+    expect(revoked.statusCode).toBe(200);
+    expect(Invite.parse(revoked.json())).toMatchObject({ id: inviteId, status: 'REVOKED' });
     expect((await app.inject({ url: `/api/v1/invites/${token}` })).statusCode).toBe(404);
-    expect((await revoke()).json().error).toMatchObject({
-      code: 'INVALID_TRANSITION',
-      details: { from: 'REVOKED', action: 'REVOKE' },
-    });
+    expect(errorCode(await revoke())).toBe('INVALID_TRANSITION');
     const other = await setup();
     const elsewhere = await app.inject({
       method: 'POST',
@@ -516,14 +602,16 @@ describe('invites', () => {
 
   it('expires invite links after 7 days', async () => {
     const { firmId, headers, imported } = await setup();
-    const { inviteId } = (
-      await invite(headers, {
-        personId: imported.personId,
-        email: 'e@example.com',
-        role: 'OWNER',
-        clientId: CLIENT,
-      })
-    ).json();
+    const { id: inviteId } = Invite.parse(
+      (
+        await invite(headers, {
+          personId: imported.personId,
+          email: 'e@example.com',
+          role: 'OWNER',
+          clientId: CLIENT,
+        })
+      ).json(),
+    );
     const { token } = await service.issueLoginToken({
       firmId,
       personId: imported.personId,
@@ -532,6 +620,16 @@ describe('invites', () => {
     });
     now = new Date(now.getTime() + 7 * 24 * 3600_000 + 1000);
     expect((await app.inject({ url: `/api/v1/invites/${token}` })).statusCode).toBe(404);
+    // Keep the manager's session alive past the invite's expiry: an expired invite cannot be revoked.
+    for (const [hash, s] of store.sessions) {
+      store.sessions.set(hash, { ...s, expiresAt: '2099-01-01T00:00:00Z' });
+    }
+    const revoke = await app.inject({
+      method: 'POST',
+      url: `/api/v1/invites/${inviteId}/revoke`,
+      headers,
+    });
+    expect(errorCode(revoke)).toBe('INVALID_TRANSITION');
   });
 });
 

@@ -1,12 +1,20 @@
 import { randomUUID } from 'node:crypto';
-import type { Membership, Role } from '@canopy/contracts';
-import { Membership as MembershipSchema } from '@canopy/contracts';
-import type { PersonStatus } from '@canopy/contracts';
+import {
+  ClientSummary as ClientSummarySchema,
+  Membership as MembershipSchema,
+  Person as PersonSchema,
+  type ClientSummary,
+  type Membership,
+  type Person,
+  type PersonStatus,
+  type RequestContext,
+  type Role,
+} from '@canopy/contracts';
 import {
   LOCKOUT,
   type AcceptInvite,
   type AccountStore,
-  type Invite,
+  type InviteRecord,
   type Invitee,
   type LoginCandidate,
   type LoginToken,
@@ -47,8 +55,51 @@ export function membership(input: MembershipInput): Membership {
   });
 }
 
+export interface PersonInput {
+  readonly id?: string;
+  readonly firmId?: string;
+  readonly displayName?: string;
+  readonly email?: string | null;
+  readonly status?: PersonStatus;
+}
+
+/** A valid M0 `Person` (ACTIVE, with an email, unless given), with overrides. */
+export function person(input: PersonInput = {}): Person {
+  const status = input.status ?? 'ACTIVE';
+  const displayName = input.displayName ?? 'Asha Rao';
+  const id = input.id ?? randomUUID();
+  return PersonSchema.parse({
+    id,
+    firmId: input.firmId ?? randomUUID(),
+    createdAt: STAMP,
+    updatedAt: STAMP,
+    archivedAt: null,
+    version: 1,
+    displayName,
+    nameNormalized: displayName.toLowerCase().replace(/\s+/g, ' ').trim(),
+    email: status === 'UNCLAIMED' ? null : (input.email ?? `${id.slice(0, 8)}@example.com`),
+    status,
+  });
+}
+
+/** A valid M0 `ClientSummary` for a client in FY 2026-27, with overrides. */
+export function clientSummary(input: Partial<ClientSummary> & { id: string }): ClientSummary {
+  return ClientSummarySchema.parse({
+    name: 'Client',
+    fyStartMonth: 4,
+    timeZone: 'Asia/Kolkata',
+    unitCount: 1,
+    period: {
+      current: { fy: '2026-27', quarter: 3 },
+      availableFys: ['2026-27'],
+      availableUntil: null,
+    },
+    ...input,
+  });
+}
+
 export interface StoredPerson {
-  name: string;
+  displayName: string;
   email: string | null;
   status: PersonStatus;
   passwordHash: string | null;
@@ -65,17 +116,20 @@ export interface Recorded {
 
 /**
  * In-memory `AccountStore`: the reference behaviour the database adapter must match. Keys are
- * `${firmId}/${personId}` unless noted.
+ * `${firmId}/${personId}` (or `${firmId}/${clientId}`) unless noted.
  */
 export class InMemoryAuthStore implements AccountStore {
   readonly sessions = new Map<string, SessionRecord>();
   readonly principals = new Map<string, Principal>();
   readonly timeZones = new Map<string, string>();
   readonly firms = new Map<string, string>();
+  /** `Me.clients` rows, keyed by firm and client. */
+  readonly clients = new Map<string, ClientSummary>();
   readonly people = new Map<string, StoredPerson>();
   readonly mfa = new Map<string, MfaRecord>();
   readonly tokens = new Map<string, LoginToken>();
-  readonly invites = new Map<string, Invite>();
+  /** Keyed by invite id. */
+  readonly invites = new Map<string, InviteRecord>();
   readonly outbox: Recorded[] = [];
   readonly audit: Recorded[] = [];
 
@@ -87,19 +141,32 @@ export class InMemoryAuthStore implements AccountStore {
     const key = `${firmId}/${personId}`;
     const principal = this.principals.get(key);
     if (principal === undefined) return null;
-    const person = this.people.get(key);
+    const stored = this.people.get(key);
     const mfa = this.mfa.get(key);
     return {
       ...principal,
-      ...(person
-        ? { status: person.status, profile: { name: person.name, email: person.email } }
-        : {}),
+      person: stored
+        ? {
+            ...principal.person,
+            displayName: stored.displayName,
+            nameNormalized: stored.displayName.toLowerCase().replace(/\s+/g, ' ').trim(),
+            email: stored.email,
+            status: stored.status,
+          }
+        : principal.person,
       mfaEnrolled: mfa ? mfa.enrolledAt !== null : principal.mfaEnrolled,
     };
   }
 
   async clientTimeZone(firmId: string, clientId: string): Promise<string | null> {
     return this.timeZones.get(`${firmId}/${clientId}`) ?? null;
+  }
+
+  async clientSummaries(ctx: RequestContext): Promise<ClientSummary[]> {
+    return ctx.clientIds.flatMap((id) => {
+      const summary = this.clients.get(`${ctx.firmId}/${id}`);
+      return summary ? [summary] : [];
+    });
   }
 
   async findLoginCandidates(email: string): Promise<LoginCandidate[]> {
@@ -120,11 +187,11 @@ export class InMemoryAuthStore implements AccountStore {
   }
 
   async recordLoginFailure(firmId: string, personId: string, now: Date): Promise<void> {
-    const person = this.person(firmId, personId);
-    person.failedAttempts += 1;
-    if (person.failedAttempts >= LOCKOUT.attempts) {
-      person.lockedUntil = new Date(now.getTime() + LOCKOUT.minutes * 60_000).toISOString();
-      person.failedAttempts = 0;
+    const stored = this.person(firmId, personId);
+    stored.failedAttempts += 1;
+    if (stored.failedAttempts >= LOCKOUT.attempts) {
+      stored.lockedUntil = new Date(now.getTime() + LOCKOUT.minutes * 60_000).toISOString();
+      stored.failedAttempts = 0;
     }
   }
 
@@ -138,8 +205,8 @@ export class InMemoryAuthStore implements AccountStore {
       expiresAt: session.expiresAt,
     };
     this.sessions.set(session.tokenHash, record);
-    const person = this.people.get(`${session.firmId}/${session.personId}`);
-    if (person) person.failedAttempts = 0;
+    const stored = this.people.get(`${session.firmId}/${session.personId}`);
+    if (stored) stored.failedAttempts = 0;
     this.audit.push({
       firmId: session.firmId,
       type: 'LOGIN',
@@ -172,16 +239,11 @@ export class InMemoryAuthStore implements AccountStore {
 
   async createLoginToken(token: NewLoginToken): Promise<void> {
     const id = randomUUID();
-    this.tokens.set(id, { ...token, id, usedAt: null, inviteOpen: true });
+    this.tokens.set(id, { ...token, id, usedAt: null });
   }
 
   async findLoginToken(tokenHash: string): Promise<LoginToken | null> {
-    const token = [...this.tokens.values()].find((t) => t.tokenHash === tokenHash);
-    if (token === undefined) return null;
-    const invite = token.inviteId ? this.invites.get(token.inviteId) : undefined;
-    const inviteOpen =
-      invite !== undefined && invite.acceptedAt === null && invite.revokedAt === null;
-    return { ...token, inviteOpen };
+    return [...this.tokens.values()].find((t) => t.tokenHash === tokenHash) ?? null;
   }
 
   async consumeLoginToken(tokenId: string, now: Date): Promise<boolean> {
@@ -192,51 +254,79 @@ export class InMemoryAuthStore implements AccountStore {
   }
 
   async findInvitee(firmId: string, personId: string): Promise<Invitee | null> {
-    const person = this.people.get(`${firmId}/${personId}`);
-    return person ? { personId, status: person.status, email: person.email } : null;
+    const stored = this.people.get(`${firmId}/${personId}`);
+    return stored ? { personId, status: stored.status, email: stored.email } : null;
   }
 
-  async createInvite(invite: NewInvite): Promise<{ inviteId: string }> {
+  async findPersonIdByEmail(firmId: string, email: string): Promise<string | null> {
+    const wanted = email.toLowerCase();
+    for (const [key, p] of this.people) {
+      const [keyFirm, personId] = key.split('/') as [string, string];
+      if (keyFirm === firmId && p.email?.toLowerCase() === wanted) return personId;
+    }
+    return null;
+  }
+
+  async createInvite(invite: NewInvite): Promise<InviteRecord> {
+    const now = invite.now.toISOString();
+    let personId = invite.personId;
+    if (personId === null) {
+      personId = randomUUID();
+      this.people.set(`${invite.firmId}/${personId}`, {
+        displayName: invite.displayName ?? invite.email,
+        email: null,
+        status: 'UNCLAIMED',
+        passwordHash: null,
+        failedAttempts: 0,
+        lockedUntil: null,
+      });
+      this.audit.push({ firmId: invite.firmId, type: 'CREATE', data: { personId } });
+    } else {
+      this.audit.push({ firmId: invite.firmId, type: 'UPDATE', data: { personId } });
+    }
     for (const open of this.invites.values()) {
-      if (
-        open.personId === invite.personId &&
-        open.acceptedAt === null &&
-        open.revokedAt === null
-      ) {
-        this.invites.set(open.id, { ...open, revokedAt: STAMP });
+      if (open.personId === personId && open.status === 'PENDING') {
+        this.invites.set(open.id, { ...open, status: 'REVOKED', updatedAt: now });
       }
     }
+    const stored = this.person(invite.firmId, personId);
+    stored.status = 'INVITED';
+    stored.email = invite.email;
     const id = randomUUID();
-    this.invites.set(id, {
-      firmId: invite.firmId,
-      personId: invite.personId,
-      email: invite.email,
-      grant: invite.grant,
-      createdById: invite.createdById,
-      expiresAt: invite.expiresAt,
+    const record: InviteRecord = {
       id,
+      firmId: invite.firmId,
+      createdAt: now,
+      updatedAt: now,
+      archivedAt: null,
+      personId,
+      email: invite.email,
+      ...invite.grant,
+      status: 'PENDING',
+      invitedById: invite.invitedById,
+      linkExpiresAt: invite.linkExpiresAt,
       firmName: this.firms.get(invite.firmId) ?? 'Firm',
-      acceptedAt: null,
-      revokedAt: null,
-    });
-    const person = this.person(invite.firmId, invite.personId);
-    person.status = 'INVITED';
-    person.email = invite.email;
-    this.audit.push({ firmId: invite.firmId, type: 'UPDATE', data: { personId: invite.personId } });
+      displayName: stored.displayName,
+      clientName:
+        invite.grant.clientId === null
+          ? null
+          : (this.clients.get(`${invite.firmId}/${invite.grant.clientId}`)?.name ?? 'Client'),
+    };
+    this.invites.set(id, record);
     this.outbox.push({
       firmId: invite.firmId,
       type: 'person.invited',
       data: {
-        personId: invite.personId,
+        personId,
         inviteId: id,
         role: invite.grant.role,
         clientId: invite.grant.clientId,
       },
     });
-    return { inviteId: id };
+    return record;
   }
 
-  async findInvite(firmId: string, inviteId: string): Promise<Invite | null> {
+  async findInvite(firmId: string, inviteId: string): Promise<InviteRecord | null> {
     const invite = this.invites.get(inviteId);
     return invite && invite.firmId === firmId ? invite : null;
   }
@@ -250,7 +340,7 @@ export class InMemoryAuthStore implements AccountStore {
   ): Promise<void> {
     const invite = this.invites.get(inviteId);
     if (invite && invite.firmId === firmId) {
-      this.invites.set(inviteId, { ...invite, revokedAt: now.toISOString() });
+      this.invites.set(inviteId, { ...invite, status: 'REVOKED', updatedAt: now.toISOString() });
       this.audit.push({ firmId, type: 'UPDATE', data: { personId: invite.personId } });
     }
   }
@@ -258,31 +348,33 @@ export class InMemoryAuthStore implements AccountStore {
   async acceptInvite(accept: AcceptInvite): Promise<void> {
     const invite = this.invites.get(accept.inviteId);
     if (invite === undefined || invite.firmId !== accept.firmId) throw new Error('No such invite');
-    this.invites.set(invite.id, { ...invite, acceptedAt: accept.now.toISOString() });
+    const at = accept.now.toISOString();
+    this.invites.set(invite.id, { ...invite, status: 'ACCEPTED', updatedAt: at });
     const key = `${invite.firmId}/${invite.personId}`;
-    const person = this.person(invite.firmId, invite.personId);
-    person.status = 'ACTIVE';
-    person.passwordHash = accept.passwordHash;
+    const stored = this.person(invite.firmId, invite.personId);
+    stored.status = 'ACTIVE';
+    stored.passwordHash = accept.passwordHash;
+    if (accept.displayName !== null) stored.displayName = accept.displayName;
     const granted = membership({
       firmId: invite.firmId,
       personId: invite.personId,
-      role: invite.grant.role,
-      clientId: invite.grant.clientId,
-      consultantClientIds: invite.grant.consultantClientIds
-        ? [...invite.grant.consultantClientIds]
-        : null,
-      unitIds: invite.grant.unitIds ? [...invite.grant.unitIds] : null,
-      expiresAt: invite.grant.expiresAt,
+      role: invite.role,
+      clientId: invite.clientId,
+      consultantClientIds: invite.consultantClientIds,
+      unitIds: invite.unitIds,
+      expiresAt: invite.expiresAt,
     });
     const existing = this.principals.get(key);
     this.principals.set(key, {
-      status: 'ACTIVE',
-      profile: { name: person.name, email: person.email },
+      person:
+        existing?.person ??
+        person({ id: invite.personId, firmId: invite.firmId, email: invite.email }),
       memberships: [...(existing?.memberships ?? []), granted],
       mfaEnrolled: false,
       mfaRequiredForFirmRoles: true,
       firmClientIds: existing?.firmClientIds ?? [],
     });
+    this.audit.push({ firmId: invite.firmId, type: 'UPDATE', data: { personId: invite.personId } });
     this.audit.push({
       firmId: invite.firmId,
       type: 'MEMBERSHIP_CHANGE',
@@ -301,9 +393,9 @@ export class InMemoryAuthStore implements AccountStore {
   }
 
   private person(firmId: string, personId: string): StoredPerson {
-    const person = this.people.get(`${firmId}/${personId}`);
-    if (person === undefined) throw new Error('No such person');
-    return person;
+    const stored = this.people.get(`${firmId}/${personId}`);
+    if (stored === undefined) throw new Error('No such person');
+    return stored;
   }
 }
 
@@ -337,8 +429,7 @@ export function createTestAuth() {
       ...(m.consultantClientIds ?? []),
     ]);
     store.principals.set(`${firmId}/${personId}`, {
-      status: 'ACTIVE',
-      profile: { name: 'Test person', email: null },
+      person: person({ id: personId, firmId, displayName: 'Test person' }),
       memberships,
       mfaEnrolled: true,
       mfaRequiredForFirmRoles: true,
