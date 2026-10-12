@@ -1,6 +1,6 @@
 import { ComplianceInstance, LocalDate, WorkflowState, type ScanStatus } from '@canopy/contracts';
 import { describe, expect, it } from 'vitest';
-import { ApiError } from './errors.js';
+import { ApiError } from '../../auth/index.js';
 import {
   canTransition,
   planTransition,
@@ -287,7 +287,7 @@ describe('invalid transitions', () => {
     expect(canTransition(state, action)).toBe(false);
     const error = errorOf(() => planTransition(input(instance(state), COMMANDS[action])));
     expect(error.code).toBe('INVALID_TRANSITION');
-    expect(error.httpStatus).toBe(409);
+    expect(error.statusCode).toBe(409);
     expect(error.details).toEqual({ from: state, action });
   });
 
@@ -318,7 +318,7 @@ describe('optimistic concurrency', () => {
       planTransition(input(instance('OPEN'), COMMANDS.SUBMIT, { expectedVersion: seen })),
     );
     expect(error.code).toBe('STALE_VERSION');
-    expect(error.httpStatus).toBe(409);
+    expect(error.statusCode).toBe(409);
     expect(error.details).toEqual({ currentVersion: 3 });
   });
 
@@ -342,7 +342,7 @@ describe('submit checks', () => {
       planTransition(input(instance('OPEN'), { action: 'SUBMIT', completedOn: d('2023-04-21') })),
     );
     expect(error.code).toBe('DATE_IN_FUTURE');
-    expect(error.httpStatus).toBe(422);
+    expect(error.statusCode).toBe(422);
     expect(error.details).toEqual({ today: '2023-04-20' });
   });
 
@@ -372,7 +372,7 @@ describe('submit checks', () => {
     } else {
       const error = errorOf(run);
       expect(error.code).toBe(code);
-      expect(error.httpStatus).toBe(422);
+      expect(error.statusCode).toBe(422);
     }
   });
 
@@ -407,7 +407,7 @@ describe('reasons', () => {
     const command = { action, reason: '  \n ' } as TransitionCommand;
     const error = errorOf(() => planTransition(input(instance(state), command)));
     expect(error.code).toBe('REASON_REQUIRED');
-    expect(error.httpStatus).toBe(422);
+    expect(error.statusCode).toBe(422);
     expect(error.details).toBeUndefined();
   });
 
