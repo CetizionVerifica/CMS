@@ -21,6 +21,9 @@ import { MemoryReportsStore, type MemoryRow } from './memory-store.js';
  */
 
 const NOW = new Date('2026-10-12T06:00:00Z');
+// Loading and re-analysing the 424-row sample register is CPU-bound; on a loaded CI runner (every package's
+// tests in parallel, as in the merge queue) it can take several times its local 1-2 s.
+const SLOW = { timeout: 60_000 };
 const store = new MemoryReportsStore(() => NOW);
 const { store: authStore, signIn } = createTestAuth();
 const app = buildServer({ authStore, clock: () => NOW, reports: { store } });
@@ -35,7 +38,7 @@ beforeAll(async () => {
     memberships: [{ role: 'FIRM_ADMIN' }],
     principal: { firmClientIds: [sample.clientId] },
   }).headers;
-});
+}, SLOW.timeout);
 afterAll(() => app.close());
 
 /** M7's register filtered by status: the rows of `rows` whose register status column is `status`. */
@@ -51,7 +54,7 @@ const inFy = (r: MemoryRow) => r.dueDate >= '2022-04-01' && r.dueDate <= '2023-0
 // Before, during and after the sample's FY 2022-23, and on its quarter and FY boundaries.
 const AS_OF = ['2022-03-31', '2022-06-30', '2022-07-01', '2022-12-15', '2023-03-31', '2023-04-01'];
 
-describe.each(AS_OF)('as at %s, FY 2022-23', (asOfText) => {
+describe.each(AS_OF)('as at %s, FY 2022-23', SLOW, (asOfText) => {
   const asOf = asLocalDate(asOfText);
   const query = `fy=2022-23&asOf=${asOf}`;
 
@@ -106,7 +109,7 @@ describe.each(AS_OF)('as at %s, FY 2022-23', (asOfText) => {
   });
 });
 
-describe('sample register, FY 2022-23 as at 2023-03-31', () => {
+describe('sample register, FY 2022-23 as at 2023-03-31', SLOW, () => {
   it('matches the register status split: 209 complied, 201 pending, 12 not applicable', async () => {
     const res = await app.inject({
       url: `/api/v1/clients/${sample.clientId}/overview?fy=2022-23&asOf=2023-03-31`,

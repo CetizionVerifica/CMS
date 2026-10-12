@@ -22,6 +22,9 @@ import { InProcessRunner } from './service.js';
  */
 
 const NOW = new Date('2026-10-12T06:00:00Z');
+// Loading and re-analysing the 424-row sample register is CPU-bound; on a loaded CI runner (every package's
+// tests in parallel, as in the merge queue) it can take several times its local 1-2 s.
+const SLOW = { timeout: 60_000 };
 const store = new MemoryReportsStore(() => NOW);
 const files = new MemoryExportFiles();
 const runner = new InProcessRunner();
@@ -38,7 +41,7 @@ beforeAll(async () => {
     memberships: [{ role: 'FIRM_ADMIN' }],
     principal: { firmClientIds: [sample.clientId] },
   }).headers;
-});
+}, SLOW.timeout);
 afterAll(() => app.close());
 
 async function exportRegister(filters = ''): Promise<Uint8Array> {
@@ -59,7 +62,7 @@ async function exportRegister(filters = ''): Promise<Uint8Array> {
   return file!.bytes;
 }
 
-describe('register export round trip', () => {
+describe('register export round trip', SLOW, () => {
   it('exports every instance under the 19 sample headers, in order', async () => {
     const sheet = await readSheet(await exportRegister(), 'export.xlsx');
     expect(sheet.headers).toEqual([...REGISTER_HEADERS]);
@@ -109,7 +112,7 @@ describe('register export round trip', () => {
   });
 });
 
-describe('register export round trip after work in the app', () => {
+describe('register export round trip after work in the app', SLOW, () => {
   it('re-imports approved work unchanged and shows submitted or sent-back work as still pending', async () => {
     // Three open sample instances worked in the app: one approved, one submitted, one sent back.
     const { instances } = sample.analysis.plan;
