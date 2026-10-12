@@ -53,6 +53,8 @@ remind for complied or not-applicable items, and reach the database only through
   idempotent instance insert, audit and outbox writes, reminder candidates, recipients and consultants with membership
   state, score items, and send-log claim, mark sent (setting the event aggregate), mark failed, list done per client and
   list done digests per date.
-M9 PR 2 wires the adapter and boots the runner.
+- M9 PR 2 wires the adapter (`apps/api/src/jobs/postgres-store.ts`, one repository call per port; audit rows take
+  their time from the database, in the same transaction as the change). The runner is not booted in a process yet:
+  with no mail transport it would record sends as done that never left. It starts in the PR that adds the transport.
 - Event consumers (notify approver on `instance.submitted`, owner on `instance.sent_back`, regenerate on
   `assignment.*` and `import.committed`) are a later M9 PR on the same ports.

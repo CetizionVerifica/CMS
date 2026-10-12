@@ -1,7 +1,10 @@
 import { randomUUID } from 'node:crypto';
 import Fastify, { type FastifyInstance } from 'fastify';
+import type { Database } from '@canopy/db';
 import { registerAuth, type AuthOptions, type AuthStore } from './auth/index.js';
 import { libraryAndEntities, type M6Deps } from './modules/entities/index.js';
+import { registerInstanceRoutes } from './modules/instances/routes.js';
+import { createInstanceService } from './modules/instances/service.js';
 
 export interface ServerOptions {
   /** Session storage for auth. Until M5's repository-backed store lands, the default knows no sessions. */
@@ -10,6 +13,8 @@ export interface ServerOptions {
   readonly rateLimit?: AuthOptions['rateLimit'];
   /** M6 · Library and entities, mounted under /api/v1 when given (main.ts wires the database store). */
   readonly libraryAndEntities?: M6Deps;
+  /** M7 · Tenant database for the instance routes, mounted under /api/v1 when given. */
+  readonly database?: Database;
 }
 
 const NO_SESSIONS: AuthStore = {
@@ -35,6 +40,16 @@ export function buildServer(options: ServerOptions = {}): FastifyInstance {
   if (options.libraryAndEntities) {
     const deps = options.libraryAndEntities;
     void app.register((scope) => libraryAndEntities(scope, deps), { prefix: '/api/v1' });
+  }
+
+  const { database } = options;
+  if (database) {
+    void app.register(
+      async (api) => {
+        registerInstanceRoutes(api, createInstanceService({ db: database, clock: options.clock }));
+      },
+      { prefix: '/api/v1' },
+    );
   }
 
   return app;

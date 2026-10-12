@@ -5,3 +5,4 @@ export * from './library.js';
 export * from './work.js';
 export * from './imports.js';
 export * from './ops.js';
+export * from './auth.js';

@@ -25,6 +25,11 @@ Work
 - `import_batch`, `import_row` (raw row jsonb, mapped jsonb, outcome), `import_issue` (per row/field issue and resolution) and `mapping_template` (saved column mappings per client) for traceable imports
 - `domain_event` (transactional outbox for the event catalogue), `export_job` (Excel/PDF exports), `notification_send` (send log, unique per instance, kind, send date and recipient)
 
+Sign-in (M5)
+
+- `auth_credential` (password hash, sealed MFA secret, failed attempts, lock), `auth_session` (token hash, CSRF token, MFA flag),
+  `auth_invite` (the membership to grant), `auth_token` (magic-link and invite links by token hash). ADR M3-0001.
+
 Field-level definitions are in `docs/contracts/domain-model.md` (M0); that file wins if it and this list differ.
 
 ## Rules
@@ -53,7 +58,7 @@ Decisions and their reasons: `docs/adr/0003-m3-tenant-isolation-in-postgres.md`.
   in the API and `systemContext(firmId, requestId)` in jobs and imports. `createAdminDatabase` (migrate, createFirm) is for deploy, seed and tests only.
 - Deploy: migrations run as the owner, which need not be a superuser; the one-time grants it needs are in the ADR's
   Consequences. Pre-tenant lookups are `SECURITY DEFINER` functions owned by `canopy_lookup`, never by the owner.
-- Production login: a non-owner member of `canopy_app`. With `NODE_ENV=production`, `createDatabase` refuses a login that is, or can `SET ROLE` to, a superuser, BYPASSRLS or table-owning role.
+- Production login: a non-owner member of `canopy_app`. With `NODE_ENV=production`, `createDatabase` refuses a login that is, or can `SET ROLE` to, a superuser, BYPASSRLS, table-owning or `canopy_lookup` role.
 - Repositories (`src/repositories`, exported from `@canopy/db`): one object per aggregate (`clients`, `units`, `people`,
   `memberships`, `obligations`, `assignments`, `instances`, `evidence`, `comments`, `auditEvents`, `importBatches`,
   `domainEvents`, ...). Every function takes the `TenantTx` from `withTenant` first:
@@ -63,15 +68,20 @@ Decisions and their reasons: `docs/adr/0003-m3-tenant-isolation-in-postgres.md`.
   Errors are `DbError` with `code` NOT_FOUND, DUPLICATE, VALIDATION, FORBIDDEN or STALE_VERSION.
 - Most aggregates also have `query(tx, { where, search, includeArchived, orderBy, after, limit, count })` (where is
   equality or an array per contract field; keyset on `orderBy` then id, `after` = last row's value and id) and
-  `findAll(tx, where)`. M6 lookups: `people.idsInClient`, `people.firmStaffIds`, `assignments.obligationIds`,
+  `findAll(tx, where)`. Any contract field of the entity is accepted, so callers pass a fixed allow-list of filter and
+  search fields, never field names from the request. M6 lookups: `people.idsInClient`, `people.firmStaffIds`, `assignments.obligationIds`,
   `instances.reassignOpen` and `instances.replacePerson` (return the changed rows with before values).
-- Scheduled jobs (M9): `db.listFirmIds()` is the only cross-tenant read (ids only, a SECURITY DEFINER function);
+- Scheduled jobs (M9): `db.listFirmIds()` returns firm ids only (a SECURITY DEFINER function that any app-role
+  transaction could call; only jobs use it);
   each firm then runs in `withTenant(systemContext(firmId, ...))` with the `jobs` read models and
   `notificationSends` (`claim` returns NEW, PENDING or DONE).
 - In a single-table select, Drizzle leaves columns unqualified, so a correlated subquery inside `sql` binds them to
   the inner table. Use a join or two queries instead.
 - Imports (M8): `importBatches.create` takes an optional `id` (a UUIDv7 from `uuidv7()`, exported here) so an upload
   ticket can name the batch first; `importBatches.list` is newest first (`list` takes `order: 'asc' | 'desc'`).
+- Sign-in (M5, ADR M3-0001): `db.findLoginCandidates`, `db.findSession` and `db.findLoginToken` are the pre-tenant
+  lookups and return nothing inside a `withTenant` transaction; `credentials`, `sessions`, `loginTokens` and `invites` run in
+  `withTenant`. Tokens are stored as SHA-256 hex only.
 - Repositories never write audit or outbox rows themselves. The caller (M7 workflow, M8 import) calls
   `auditEvents.append(tx, ...)` and `domainEvents.enqueue(tx, ...)` in the same `withTenant` transaction as the change.
 - Client contexts create people with `people.createWithMembership` (the new person is invisible until a membership
