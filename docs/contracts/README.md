@@ -61,7 +61,7 @@ with sign-off per "How to change a contract".
     a bare array, so fields can be added. This changed the calendar and portfolio responses in endpoints.md §6.
 18. `POST /clients/{clientId}/imports` returns `{ batchId, url, headers, expiresAt }`. The batch becomes readable at
     `POST /imports/{id}/uploaded`, which records the hash, so `ImportBatch.fileSha256` is never empty.
-19. `can()` action names follow the `Action` pattern: `instance.dueDate` is `instance.due_date`. Import actions are
+19. `can()` action names are `<resource>.<verb>` in lower camelCase (`Action`), e.g. `instance.dueDate`. Import actions are
     `import.read`, `import.create`, `import.write` and `import.commit`.
 20. Bulk create (`/assignments/bulk`) reports results by request `index`; bulk approve reports them by instance `id`.
 21. Login, magic-link verify, MFA verify and invite accept all return `Me`, so the client has the CSRF token at once.
@@ -73,3 +73,13 @@ with sign-off per "How to change a contract".
 24. A `PATCH` must change something besides `version`, else `400 VALIDATION`. `PUT /clients/{clientId}/settings` takes
     either `settings` or, for a CLIENT_ADMIN, only `reminders`.
 25. The overdue report returns `{ result, items }`: the ScoreResult and the overdue rows.
+26. `GET /me` gives each client its FY start, time zone, the units the person can see and the periods the picker offers
+    (`ClientPeriods`: current FY and quarter, FYs with generated instances, last generated month), computed by the
+    server with the engine, so the web app does no FY maths.
+27. `POST /clients/{clientId}/people` takes `role` (OWNER, APPROVER or CLIENT_ADMIN; default OWNER) and creates a
+    membership on every unit, so the person belongs to the client under RLS. VIEWERs come through an invite.
+28. A person with an email is INVITED even before an invite is sent; removing the email makes an INVITED person
+    UNCLAIMED again. An ACTIVE person cannot have their email cleared (`400 VALIDATION` on `email`); a DISABLED person
+    keeps their status either way. This keeps the status rule M3's `person_email_status_check` enforces.
+29. `instance.generated` is one event per created instance with `aggregateVersion: 1`, so an instance's events count
+    up from its creation; there is no per-run summary event.

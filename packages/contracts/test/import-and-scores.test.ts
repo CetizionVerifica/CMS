@@ -224,6 +224,8 @@ describe('request context', () => {
   it('checks action names and resources', () => {
     expect(Action.safeParse('instance.submit').success).toBe(true);
     expect(Action.safeParse('Instance.Submit').success).toBe(false);
+    expect(Action.safeParse('instance.dueDate').success).toBe(true);
+    expect(Action.safeParse('instance.due_date').success).toBe(false);
     expect(
       Resource.safeParse({ type: 'instance', clientId: ID.client, ownerId: ID.owner }).success,
     ).toBe(true);

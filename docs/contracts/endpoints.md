@@ -28,7 +28,7 @@ The `Action` column is the `can()` action name; the M5 policy table has one row 
 | POST | `/auth/magic-link/verify` | public | | | | | | | token → session |
 | POST | `/auth/logout` | session | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | |
 | POST | `/auth/mfa/enroll` · `/auth/mfa/verify` | session | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | required for FA, CO |
-| GET | `/me` | session | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | person, memberships, clients, csrf token, MFA state |
+| GET | `/me` | session | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | person, memberships, clients (`ClientSummary`: FY start, time zone, unit count and the periods the picker offers, computed by the engine), csrf token, MFA state |
 | POST | `/invites` | `person.invite` | ✓ | ✓ | ✓ | | | | CO/CA may invite only client roles in their clients; only FA invites FA/CO |
 | GET | `/invites/{token}` · POST `/invites/{token}/accept` | public | | | | | | | claims an UNCLAIMED person (sets email, password) |
 | POST | `/invites/{id}/revoke` | `person.invite` | ✓ | ✓ | ✓ | | | | |
@@ -57,7 +57,7 @@ The `Action` column is the `can()` action name; the M5 policy table has one row 
 | Method | Path | Action | FA | CO | CA | AP | OW | VI |
 |---|---|---|---|---|---|---|---|---|
 | GET | `/people` (firm staff) | `person.read` | ✓ | ✓ | | | | |
-| GET · POST | `/clients/{clientId}/people` | `person.read` / `person.write` | ✓ | ✓ | ✓ | r | r | r |
+| GET · POST | `/clients/{clientId}/people` (POST `{ displayName, email?, role? }`: role OWNER, APPROVER or CLIENT_ADMIN, default OWNER, as a membership on every unit) | `person.read` / `person.write` | ✓ | ✓ | ✓ | r | r | r |
 | PATCH | `/people/{id}` | `person.write` | ✓ | ✓ | ✓ | | | |
 | POST | `/people/{id}/merge` `{ sourceIds }` | `person.merge` | ✓ | ✓ | ✓ | | | |
 | GET · POST | `/people/{id}/memberships` | `membership.write` | ✓ | ✓ | ✓ | | | |
@@ -103,7 +103,7 @@ Assignment-level NOT_APPLICABLE stops future instance generation; existing OPEN 
 | POST | `/instances/{id}/send-back` `{ version, reason }` | `instance.approve` | | | ✓ | own | | | |
 | POST | `/instances/{id}/reopen` `{ version, reason }` | `instance.reopen` | ✓ | ✓ | ✓ | | | | |
 | POST | `/clients/{clientId}/instances/bulk-approve` `{ items: {id, version}[], comment? }` | `instance.approve` | | | ✓ | own | | | max 200, per-item results |
-| PATCH | `/instances/{id}` `{ version, ownerId?, approverId?, dueDate?, reason }` | `instance.reassign` / `instance.due_date` | ✓ | ✓ | ✓ | | | | due-date change needs reason, sets `dueDateOverridden` |
+| PATCH | `/instances/{id}` `{ version, ownerId?, approverId?, dueDate?, reason }` | `instance.reassign` / `instance.dueDate` | ✓ | ✓ | ✓ | | | | only while OPEN, SENT_BACK or SUBMITTED (`INSTANCE_EDIT_STATES`); every change needs a reason (it goes on the audit event); a due-date change sets `dueDateOverridden` |
 | GET | `/me/approvals` | `instance.read` | | | ✓ | ✓ | | | SUBMITTED where actor is approver (CA: all in client) |
 | GET | `/me/tasks` | `instance.read` | | | | ✓ | ✓ | | OPEN/SENT_BACK where actor is owner, by due date |
 | GET · POST | `/instances/{id}/comments` `{ body }` | `comment.read` / `comment.write` | ✓ | ✓ | ✓ | own | own | r | |
@@ -149,7 +149,7 @@ Query params: `fy` or `from`/`to`, `unitId`, `asOf` (FA/CO/VI). All numbers are 
 | GET | `/clients/{clientId}/breakdowns` (`by=department\|act\|criticality\|unit\|owner`) → `Breakdown` | `dashboard.read` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | GET | `/clients/{clientId}/calendar` (`from`, `to`) → `{ items: { date, items: InstanceRow[] }[] }` | `instance.read` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | GET | `/clients/{clientId}/reports/act-wise` · `/clients/{clientId}/reports/department-wise` → `Breakdown` · `/clients/{clientId}/reports/overdue` → `{ result, items: InstanceRow[] }` | `report.read` | ✓ | ✓ | ✓ | ✓ | | ✓ |
-| POST | `/clients/{clientId}/exports` `{ kind, filters, unitId?, fy? }` → `ExportJob` | `export.create` | ✓ | ✓ | ✓ | ✓ | | ✓ |
+| POST | `/clients/{clientId}/exports` `{ kind, filters, unitId?, fy? }` → `ExportJob`; `filters` is a register query string without paging, validated like `GET /clients/{clientId}/instances` | `export.create` | ✓ | ✓ | ✓ | ✓ | | ✓ |
 | GET | `/exports/{id}` · `/exports/{id}/download-url` | `export.read` | ✓ | ✓ | ✓ | ✓ | | ✓ |
 
 AP and OW dashboards are limited to their units (and owners see the same numbers as their register filter).

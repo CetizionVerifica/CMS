@@ -104,6 +104,15 @@ export const RegisterQuery = z
   .superRefine(checkRegisterFilters);
 export type RegisterQuery = z.output<typeof RegisterQuery>;
 
+/** The register filters an export takes in `ExportCreateBody.filters`: the register query without paging. */
+export const RegisterFilterQuery = z
+  .strictObject({
+    ...asOfQueryShape,
+    ...registerFilterShape,
+    sort: sortParam(REGISTER_SORT_FIELDS).optional(),
+  })
+  .superRefine(checkRegisterFilters);
+
 /** `/me/approvals` and `/me/tasks`: always the signed-in person's queue, by due date. */
 export const MyQueueQuery = z.strictObject({ ...pageQueryShape, ...asOfQueryShape });
 
@@ -111,11 +120,14 @@ export const InstanceReadQuery = z.strictObject({ ...asOfQueryShape });
 
 // ---------- transitions ----------
 
-/** OWNER marks the work done. `completedOn` may not be after today in the client's time zone. */
+/**
+ * OWNER marks the work done. `completedOn` may not be after today in the client's time zone. A comment is required
+ * (domain-model.md §5).
+ */
 export const SubmitBody = z.strictObject({
   ...versionField,
   completedOn: LocalDate,
-  comment: LongText.max(5000).optional(),
+  comment: LongText.max(5000),
 });
 export type SubmitBody = z.infer<typeof SubmitBody>;
 
@@ -145,7 +157,7 @@ export type BulkApproveBody = z.infer<typeof BulkApproveBody>;
 
 /**
  * Reassign or move the due date of one instance. Reassigning needs `instance.reassign`, moving the due date
- * `instance.due_date`; the reason is required for a due-date change and recorded for both.
+ * `instance.dueDate`. Every change needs a reason, recorded on the audit event.
  */
 export const InstanceUpdateBody = z
   .strictObject({
@@ -153,18 +165,12 @@ export const InstanceUpdateBody = z
     ownerId: Id.optional(),
     approverId: Id.optional(),
     dueDate: LocalDate.optional(),
-    reason: Reason.optional(),
+    /** Required for every change: reassignment and due-date changes are audited with it. */
+    reason: Reason,
   })
   .superRefine((body, ctx) => {
     if (body.ownerId === undefined && body.approverId === undefined && body.dueDate === undefined) {
       ctx.addIssue({ code: 'custom', message: 'Nothing to update' });
-    }
-    if (body.dueDate !== undefined && body.reason === undefined) {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['reason'],
-        message: 'A due-date change needs a reason',
-      });
     }
   });
 export type InstanceUpdateBody = z.infer<typeof InstanceUpdateBody>;
@@ -252,9 +258,13 @@ export const AuditQuery = z
     from: Instant.optional(),
     to: Instant.optional(),
   })
-  .refine((query) => query.from === undefined || query.to === undefined || query.to >= query.from, {
-    path: ['to'],
-    message: 'to is before from',
-  });
+  // Compare instants, not strings: "…43.500Z" is after "…43Z" but sorts before it.
+  .refine(
+    (q) => q.from === undefined || q.to === undefined || Date.parse(q.to) >= Date.parse(q.from),
+    {
+      path: ['to'],
+      message: 'to is before from',
+    },
+  );
 
 export const InstanceAuditQuery = z.strictObject({ ...pageQueryShape });

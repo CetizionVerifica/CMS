@@ -85,7 +85,12 @@ export const pageQueryShape = {
 };
 
 /** "As at" date for derived status; FIRM_ADMIN, CONSULTANT and VIEWER only (api-conventions.md §1). */
-export const asOfQueryShape = { asOf: LocalDate.optional() };
+export const asOfQueryShape = {
+  asOf: LocalDate.optional().meta({
+    description:
+      'As-at date for derived status. Only FIRM_ADMIN, CONSULTANT and VIEWER may set it; others get 403 FORBIDDEN.',
+  }),
+};
 
 /** `fy` or `dueFrom`/`dueTo`, not both (api-conventions.md §3). */
 export function checkPeriod(

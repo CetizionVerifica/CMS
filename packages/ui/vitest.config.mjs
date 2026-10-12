@@ -13,6 +13,9 @@ export default mergeConfig(
       environment: 'jsdom',
       include: ['src/**/*.test.{ts,tsx}'],
       setupFiles: ['./test/setup.ts'],
+      // Interaction tests drive many key presses and run axe in jsdom; on shared CI runners some (the 10,000-row
+      // DataTable) take over the 5s default while the whole package runs in parallel.
+      testTimeout: 20_000,
     },
   },
 );

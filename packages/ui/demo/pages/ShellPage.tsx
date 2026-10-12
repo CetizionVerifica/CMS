@@ -16,8 +16,19 @@ import {
   Users,
 } from 'lucide-react';
 
-import { AppShell, Button, type AppShellLayout, type NavGroup } from '../../src';
+import { useState } from 'react';
+
+import {
+  AppShell,
+  ClientSwitcher,
+  PeriodPicker,
+  type AppShellLayout,
+  type NavGroup,
+  type Period,
+} from '../../src';
+import { demoClients, demoFys } from '../fixtures';
 import { Page, Section } from '../Page';
+import { OverviewContent } from './OverviewContent';
 import { useRoute } from '../router';
 import { shellVariants } from '../routes';
 
@@ -86,6 +97,7 @@ export function ShellFrame() {
   const badge = Number(params.get('badge') ?? 4);
   const client = params.get('client');
   const noClient = client === 'none';
+  const [period, setPeriod] = useState<Period>({ fy: '2022-23' });
   const clientName =
     client === 'long'
       ? 'Hindalco Industries Limited, Belur Aluminium Rolling Plant'
@@ -115,14 +127,24 @@ export function ShellFrame() {
       }}
       topBar={{
         clientSwitcher: (
-          <Button size="sm" className="max-w-full justify-start sm:max-w-72">
-            <span className="truncate">{noClient ? 'Choose a client' : clientName}</span>
-          </Button>
+          <ClientSwitcher
+            current={noClient ? undefined : client === 'long' ? demoClients[6] : demoClients[0]}
+            clients={demoClients}
+            recentIds={['tp', 'sc']}
+            hrefFor={() => `#/shell/${page}${query ? `?${query}` : ''}`}
+            onNavigate={(href) => {
+              window.location.hash = href.slice(1);
+            }}
+            overviewHref="#/shell/portfolio?client=none"
+          />
         ),
         periodPicker: noClient ? undefined : (
-          <span className="inline-flex h-control-compact items-center rounded-chip bg-sage px-3 text-meta font-bold text-forest">
-            FY 2022–23
-          </span>
+          <PeriodPicker
+            value={period}
+            onChange={setPeriod}
+            availableFys={demoFys}
+            thisPeriod={{ fy: '2022-23', quarter: 3 }}
+          />
         ),
         search: (
           <label className="relative block">
@@ -153,17 +175,15 @@ export function ShellFrame() {
         },
       }}
     >
-      <h1 className="text-page text-ink">{title}</h1>
-      <p className="mt-1 text-body text-muted">5 items are overdue, 2 are super critical.</p>
-      <div className="mt-3.5 grid gap-3.5 sm:grid-cols-2">
-        {['Compliance score', 'Open', 'Overdue', 'Awaiting approval'].map((k) => (
-          <div key={k} className="rounded-card border border-line bg-surface px-4 py-3.5">
-            <p className="text-card text-ink">{k}</p>
-            <p className="mt-2 text-kpi tabular text-ink">—</p>
-          </div>
-        ))}
-      </div>
-      <div aria-hidden className="h-[120vh]" />
+      {page === 'overview' ? (
+        <OverviewContent approvals={badge} />
+      ) : (
+        <>
+          <h1 className="text-page text-ink">{title}</h1>
+          <p className="mt-1 text-body text-muted">This page is a placeholder in the gallery.</p>
+          <div aria-hidden className="h-[120vh]" />
+        </>
+      )}
     </AppShell>
   );
 }

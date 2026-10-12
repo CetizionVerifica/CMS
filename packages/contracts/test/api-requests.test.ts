@@ -29,6 +29,7 @@ import {
   Limit,
   MAX_EVIDENCE_BYTES,
   MAX_IMPORT_BYTES,
+  ClientSummary,
   Me,
   MembershipGrant,
   ObligationCreateBody,
@@ -131,6 +132,13 @@ describe('dashboard, calendar, audit and vault queries', () => {
       false,
     );
     expect(ok(AuditQuery, { action: 'TRANSITION,REASSIGN', entityType: 'instance' })).toBe(true);
+    // Instants compare by time, not as strings.
+    expect(ok(AuditQuery, { from: '2026-10-11T09:17:43Z', to: '2026-10-11T09:17:43.500Z' })).toBe(
+      true,
+    );
+    expect(ok(AuditQuery, { from: '2026-10-11T09:17:43.500Z', to: '2026-10-11T09:17:43Z' })).toBe(
+      false,
+    );
     expect(ok(EvidenceVaultQuery, { uploadedFrom: '2022-05-01', uploadedTo: '2022-04-01' })).toBe(
       false,
     );
@@ -140,12 +148,21 @@ describe('dashboard, calendar, audit and vault queries', () => {
 
 describe('workflow bodies', () => {
   it('needs version on every transition', () => {
-    expect(ok(SubmitBody, { version: 3, completedOn: '2022-05-06' })).toBe(true);
-    expect(ok(SubmitBody, { completedOn: '2022-05-06' })).toBe(false);
+    const submit = { version: 3, completedOn: '2022-05-06', comment: 'Filed on the portal.' };
+    expect(ok(SubmitBody, submit)).toBe(true);
+    expect(ok(SubmitBody, { ...submit, version: undefined })).toBe(false);
   });
 
-  it('requires a reason to move a due date, and some change', () => {
-    expect(ok(InstanceUpdateBody, { version: 1, ownerId: ID.owner })).toBe(true);
+  it('needs a comment to submit', () => {
+    expect(ok(SubmitBody, { version: 3, completedOn: '2022-05-06' })).toBe(false);
+    expect(ok(SubmitBody, { version: 3, completedOn: '2022-05-06', comment: '' })).toBe(false);
+  });
+
+  it('requires a reason for every instance change, and some change', () => {
+    expect(ok(InstanceUpdateBody, { version: 1, ownerId: ID.owner, reason: 'Owner left' })).toBe(
+      true,
+    );
+    expect(ok(InstanceUpdateBody, { version: 1, ownerId: ID.owner })).toBe(false);
     expect(ok(InstanceUpdateBody, { version: 1, dueDate: '2022-06-01' })).toBe(false);
     expect(ok(InstanceUpdateBody, { version: 1, dueDate: '2022-06-01', reason: 'Extension' })).toBe(
       true,
@@ -179,7 +196,11 @@ describe('entity bodies', () => {
     expect(PersonCreateBody.parse({ displayName: 'Ravi Kumar' })).toEqual({
       displayName: 'Ravi Kumar',
       email: null,
+      role: 'OWNER',
     });
+    expect(ok(PersonCreateBody, { displayName: 'Ravi Kumar', role: 'APPROVER' })).toBe(true);
+    expect(ok(PersonCreateBody, { displayName: 'Ravi Kumar', role: 'VIEWER' })).toBe(false);
+    expect(ok(PersonCreateBody, { displayName: 'Ravi Kumar', role: 'CONSULTANT' })).toBe(false);
     expect(ActCreateBody.parse({ name: 'Income Tax Act, 1961', jurisdiction: 'CENTRAL' })).toEqual({
       name: 'Income Tax Act, 1961',
       shortName: null,
@@ -252,11 +273,40 @@ describe('auth bodies', () => {
     expect(ok(InviteBody, without(invite, 'personId'))).toBe(false);
   });
 
+  const client = {
+    id: ID.client,
+    name: 'Aditya Birla Group',
+    fyStartMonth: 4,
+    timeZone: 'Asia/Kolkata',
+    unitCount: 1,
+    period: {
+      current: { fy: '2026-27', quarter: 3 },
+      availableFys: ['2025-26', '2026-27'],
+      availableUntil: '2027-03',
+    },
+  };
+
+  it('gives each client its periods so the web app does no FY maths', () => {
+    expect(ok(ClientSummary, client)).toBe(true);
+    const period = (p: object) => ({ ...client, period: { ...client.period, ...p } });
+    expect(ok(ClientSummary, period({ availableUntil: null }))).toBe(true);
+    // A new client: nothing generated, only the current FY.
+    expect(ok(ClientSummary, period({ availableFys: ['2026-27'], availableUntil: null }))).toBe(
+      true,
+    );
+    expect(ok(ClientSummary, period({ availableFys: ['2025-26'] }))).toBe(false);
+    expect(ok(ClientSummary, period({ availableFys: [] }))).toBe(false);
+    expect(ok(ClientSummary, period({ availableUntil: '2027-13' }))).toBe(false);
+    expect(ok(ClientSummary, period({ current: { fy: '2026-27', quarter: 5 } }))).toBe(false);
+    expect(ok(ClientSummary, { ...client, unitCount: -1 })).toBe(false);
+    expect(ok(ClientSummary, without(client, 'timeZone'))).toBe(false);
+  });
+
   it('describes the signed-in person for GET /me', () => {
     const me = {
       person: { ...person, email: 'ravi@example.com', status: 'ACTIVE' },
       memberships: [membership],
-      clients: [{ id: ID.client, name: 'Aditya Birla Group' }],
+      clients: [client],
       csrfToken: 'c'.repeat(32),
       mfa: { required: false, enrolled: false, satisfied: false },
     };
@@ -284,6 +334,18 @@ describe('import bodies', () => {
 
   it('defaults export filters to the whole register', () => {
     expect(ExportCreateBody.parse({ kind: 'REGISTER_XLSX' }).filters).toBe('');
+  });
+
+  it('validates export filters as a register query without paging', () => {
+    const body = { kind: 'REGISTER_XLSX' };
+    expect(
+      ok(ExportCreateBody, { ...body, filters: 'status=OVERDUE,DUE_SOON&sort=-dueDate' }),
+    ).toBe(true);
+    expect(ok(ExportCreateBody, { ...body, filters: 'status=LATE_ISH' })).toBe(false);
+    expect(ok(ExportCreateBody, { ...body, filters: 'sort=colour' })).toBe(false);
+    expect(ok(ExportCreateBody, { ...body, filters: 'limit=10' })).toBe(false);
+    const result = ExportCreateBody.safeParse({ ...body, filters: 'status=LATE_ISH' });
+    expect(result.error?.issues[0]?.path).toEqual(['filters', 'status', 0]);
   });
 });
 

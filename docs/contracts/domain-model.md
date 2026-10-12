@@ -31,7 +31,7 @@ Rules: no `any`; unknown keys rejected at the edge; strings trimmed; empty strin
 | Enum | Values | Notes |
 |---|---|---|
 | `Role` | `FIRM_ADMIN`, `CONSULTANT`, `CLIENT_ADMIN`, `APPROVER`, `OWNER`, `VIEWER` | Firm roles: first two. Client roles: the rest. |
-| `PersonStatus` | `UNCLAIMED`, `INVITED`, `ACTIVE`, `DISABLED` | People created by import are `UNCLAIMED` (no email). |
+| `PersonStatus` | `UNCLAIMED`, `INVITED`, `ACTIVE`, `DISABLED` | People created by import are `UNCLAIMED` (no email). A person with an email on file but not yet signed in is `INVITED`; adding an email to an UNCLAIMED person makes them INVITED, and removing it makes them UNCLAIMED again. |
 | `Criticality` | `SUPER_CRITICAL`, `CRITICAL`, `HIGH`, `MEDIUM`, `LOW` | Default weights 5/4/3/2/1 (firm setting). |
 | `TimelineType` | `TIME_BASED`, `ONGOING` | Excel "Time Based" / "On Going". |
 | `ObligationDomain` | `HRS`, `EHS`, `TAX`, `IT`, `INT`, `ENG`, `ENV`, `OTHER` | Parsed from `externalRef` prefix; `OTHER` when unknown. |
@@ -247,8 +247,15 @@ interface AuditEvent {                              // append-only; no updatedAt
 | SUBMITTED | APPROVE | instance approver | optional `comment` | APPROVED, or NOT_APPLICABLE when pendingKind NA |
 | SUBMITTED | SEND_BACK | instance approver | `reason` | SENT_BACK |
 | APPROVED, NOT_APPLICABLE | REOPEN | CLIENT_ADMIN, CONSULTANT, FIRM_ADMIN | `reason` | OPEN |
+| OPEN, SENT_BACK, SUBMITTED | REASSIGN, CHANGE_DUE_DATE | FIRM_ADMIN, CONSULTANT, CLIENT_ADMIN | `reason` | same state |
+| OPEN, SENT_BACK, SUBMITTED | UPLOAD_EVIDENCE | as `evidence.write` in endpoints.md §4 | the file | same state |
+| any | COMMENT | anyone who can read the instance | `body` | same state |
 
-Every transition carries the instance `version`; stale → `409 STALE_VERSION`. Any other pair → `409 INVALID_TRANSITION`.
+Every transition (SUBMIT to REOPEN) and every REASSIGN or CHANGE_DUE_DATE carries the instance `version`; stale →
+`409 STALE_VERSION`. COMMENT and UPLOAD_EVIDENCE do not change the instance and carry no version. Any other pair →
+`409 INVALID_TRANSITION`.
+Reassign, due-date change and evidence upload are limited to `INSTANCE_EDIT_STATES` (ADR 0004 §7): an APPROVED or
+NOT_APPLICABLE instance is reopened first. `allowedActions` is these rules intersected with `can()`.
 
 ## 6. Import
 

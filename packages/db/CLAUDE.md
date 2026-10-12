@@ -36,7 +36,7 @@ Field-level definitions are in `docs/contracts/domain-model.md` (M0); that file 
 10. **Seeds**: `pnpm db:seed` creates two firms and loads the sample register through the importer, not with hand-written inserts.
 
 ## How it is built (M3)
-Decisions and their reasons: `docs/adr/0001-m3-tenant-isolation-in-postgres.md`.
+Decisions and their reasons: `docs/adr/0003-m3-tenant-isolation-in-postgres.md`.
 - Schema: `src/schema/*.ts` (Drizzle). Enums come from `@canopy/contracts`. Policies use the helpers in `src/schema/columns.ts`.
 - Migrations: `migrations/`, applied by `pnpm db:migrate`. `pnpm --filter @canopy/db db:generate` writes the schema diff;
   roles, functions, `FORCE ROW LEVEL SECURITY`, grants and triggers go in custom migrations
@@ -44,6 +44,17 @@ Decisions and their reasons: `docs/adr/0001-m3-tenant-isolation-in-postgres.md`.
 - Access: `createDatabase({ connectionString }).withTenant(ctx, async (tx) => ...)`. Build `ctx` with `tenantFromRequest(requestContext)`
   in the API and `systemContext(firmId, requestId)` in jobs and imports. `createAdminDatabase` (migrate, createFirm) is for deploy, seed and tests only.
 - Production login: a non-owner member of `canopy_app`. With `NODE_ENV=production`, `createDatabase` refuses a login that is, or can `SET ROLE` to, a superuser, BYPASSRLS or table-owning role.
+- Repositories (`src/repositories`, exported from `@canopy/db`): one object per aggregate (`clients`, `units`, `people`,
+  `memberships`, `obligations`, `assignments`, `instances`, `evidence`, `comments`, `auditEvents`, `importBatches`,
+  `domainEvents`, ...). Every function takes the `TenantTx` from `withTenant` first:
+  `db.withTenant(ctx, (tx) => clients.list(tx, { limit: 50 }))`. Reads and writes return the M0 contract types, parsed
+  by the contract schemas. The usual set is `get` (null), `require` (NOT_FOUND), `list` (keyset `{ items, nextCursor }`),
+  `create`, `update(tx, id, version, patch)` (optimistic, STALE_VERSION), `archive` and `restore`; there is no delete.
+  Errors are `DbError` with `code` NOT_FOUND, DUPLICATE, VALIDATION, FORBIDDEN or STALE_VERSION.
+- Repositories never write audit or outbox rows themselves. The caller (M7 workflow, M8 import) calls
+  `auditEvents.append(tx, ...)` and `domainEvents.enqueue(tx, ...)` in the same `withTenant` transaction as the change.
+- Client contexts create people with `people.createWithMembership` (the new person is invisible until a membership
+  exists) and change people one row at a time by id.
 - Never build SQL outside this package (no `sql.raw` in request code): the tenant settings are plain GUCs that raw SQL could change.
 - Tests: `pnpm test` (unit, includes a drift check that the migrations match the schema) and `pnpm test:db` (needs Postgres 16 at
   `DATABASE_URL`; each file creates and drops its own database). Adding a table: see the ADR's Consequences.

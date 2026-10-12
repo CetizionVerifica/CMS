@@ -216,4 +216,21 @@ describe('Field review fixes', () => {
     await user.keyboard('{Escape}');
     expect(input.hasAttribute('aria-controls')).toBe(false);
   });
+
+  it('scrolls the highlighted option into view as it moves (audit #5)', async () => {
+    const scroll = vi.fn();
+    const original = HTMLElement.prototype.scrollIntoView;
+    HTMLElement.prototype.scrollIntoView = scroll;
+    try {
+      const user = userEvent.setup();
+      render(<ControlledCombobox />);
+      await user.click(screen.getByRole('combobox', { name: 'Unit' }));
+      await user.keyboard('{End}');
+      const last = scroll.mock.contexts.at(-1) as HTMLElement;
+      expect(last.textContent).toContain('Taloja');
+      expect(scroll).toHaveBeenLastCalledWith({ block: 'nearest' });
+    } finally {
+      HTMLElement.prototype.scrollIntoView = original;
+    }
+  });
 });

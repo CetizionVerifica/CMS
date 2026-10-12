@@ -4,6 +4,7 @@ import { FyLabel, Id, LocalDate } from '../primitives.js';
 import { InstanceRow } from '../schemas/work.js';
 import { ScoreResult } from '../schemas/scores.js';
 import { asOfQueryShape, checkPeriod, csv } from './common.js';
+import { RegisterFilterQuery } from './workflow.js';
 
 /**
  * M10 · Dashboards, calendar, reports and exports (docs/contracts/endpoints.md §6).
@@ -60,7 +61,18 @@ export const REPORT_KINDS = ['act-wise', 'department-wise', 'overdue'] as const;
  */
 export const ExportCreateBody = z.strictObject({
   kind: ExportKind,
-  filters: z.string().max(4000).default(''),
+  filters: z
+    .string()
+    .max(4000)
+    .default('')
+    .superRefine((filters, ctx) => {
+      const parsed = RegisterFilterQuery.safeParse(
+        Object.fromEntries(new URLSearchParams(filters)),
+      );
+      for (const issue of parsed.error?.issues ?? []) {
+        ctx.addIssue({ code: 'custom', path: issue.path, message: issue.message });
+      }
+    }),
   unitId: Id.optional(),
   fy: FyLabel.optional(),
 });

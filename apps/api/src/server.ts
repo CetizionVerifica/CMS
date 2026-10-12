@@ -1,17 +1,36 @@
+import { randomUUID } from 'node:crypto';
 import Fastify, { type FastifyInstance } from 'fastify';
+import { registerAuth, type AuthOptions, type AuthStore } from './auth/index.js';
 import { libraryAndEntities, type M6Deps } from './modules/entities/index.js';
 
 export interface ServerOptions {
-  /** M6 · Library and entities. Mounted under /api/v1 when given (the database and M5 context are wired in main.ts). */
-  libraryAndEntities?: M6Deps;
+  /** Session storage for auth. Until M5's repository-backed store lands, the default knows no sessions. */
+  readonly authStore?: AuthStore;
+  readonly clock?: () => Date;
+  readonly rateLimit?: AuthOptions['rateLimit'];
+  /** M6 · Library and entities, mounted under /api/v1 when given (main.ts wires the database store). */
+  readonly libraryAndEntities?: M6Deps;
 }
 
-// Builds the app without listening, so tests can use `app.inject`.
-// Modules register their routes here as they land (see apps/api/CLAUDE.md).
-export function buildServer(options: ServerOptions = {}): FastifyInstance {
-  const app = Fastify({ logger: process.env.NODE_ENV !== 'test' });
+const NO_SESSIONS: AuthStore = {
+  findSession: async () => null,
+  loadPrincipal: async () => null,
+  clientTimeZone: async () => null,
+};
 
-  app.get('/health', async () => ({ status: 'ok' }));
+// Builds the app without listening, so tests can use `app.inject`.
+// Modules register their routes here as they land (see apps/api/CLAUDE.md). Every route declares
+// `config.auth`; see apps/api/src/auth/CLAUDE.md.
+export function buildServer(options: ServerOptions = {}): FastifyInstance {
+  const app = Fastify({ logger: process.env.NODE_ENV !== 'test', genReqId: () => randomUUID() });
+
+  registerAuth(app, {
+    store: options.authStore ?? NO_SESSIONS,
+    clock: options.clock,
+    rateLimit: options.rateLimit,
+  });
+
+  app.get('/health', { config: { auth: 'public' } }, async () => ({ status: 'ok' }));
 
   if (options.libraryAndEntities) {
     const deps = options.libraryAndEntities;

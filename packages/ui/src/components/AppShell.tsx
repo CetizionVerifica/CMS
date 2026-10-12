@@ -1,15 +1,9 @@
 import { Leaf, Menu as MenuIcon, Search, X, type LucideIcon } from 'lucide-react';
 import { Dialog } from 'radix-ui';
-import {
-  useEffect,
-  useRef,
-  useState,
-  type AnchorHTMLAttributes,
-  type ReactElement,
-  type ReactNode,
-} from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 
 import { cx } from '../lib/cx';
+import { defaultLink, type LinkRenderer } from '../lib/link';
 import { useMediaQuery } from '../lib/useMediaQuery';
 import { Avatar } from '../primitives/Avatar';
 import { Badge } from '../primitives/Badge';
@@ -56,9 +50,7 @@ export type PrimaryAction = {
   href?: string;
 };
 
-export type LinkRenderer = (
-  props: AnchorHTMLAttributes<HTMLAnchorElement> & { href: string; children: ReactNode },
-) => ReactElement;
+export type { LinkRenderer };
 
 export type AppShellLayout = 'auto' | 'sidebar' | 'rail' | 'sheet';
 
@@ -92,8 +84,6 @@ export type AppShellProps = {
   renderLink?: LinkRenderer;
   children: ReactNode;
 };
-
-const defaultLink: LinkRenderer = ({ children, ...props }) => <a {...props}>{children}</a>;
 
 function useLayout(layout: AppShellLayout): Exclude<AppShellLayout, 'auto'> {
   const lg = useMediaQuery('(min-width: 1100px)', true);

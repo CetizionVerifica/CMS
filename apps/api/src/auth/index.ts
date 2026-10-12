@@ -1,0 +1,29 @@
+// M5 public surface: the only auth file other modules import (apps/api/src/auth/CLAUDE.md).
+export { ApiError, errorEnvelope } from './errors.js';
+export {
+  POLICY,
+  can,
+  canGrantRole,
+  isFirmRole,
+  ruleFor,
+  type Grant,
+  type PolicyRule,
+} from './policy.js';
+export {
+  activeMemberships,
+  buildRequestContext,
+  visibleClientIds,
+  type AuthStore,
+  type Principal,
+  type SessionRecord,
+} from './context.js';
+export {
+  CSRF_HEADER,
+  ROUTE_AUTH,
+  SESSION_COOKIE,
+  authorize,
+  registerAuth,
+  requireClient,
+  type AuthOptions,
+  type RouteAuth,
+} from './plugin.js';

@@ -1,6 +1,6 @@
 import { Check, ChevronDown } from 'lucide-react';
 import { Popover as RadixPopover } from 'radix-ui';
-import { useId, useMemo, useRef, useState, type KeyboardEvent } from 'react';
+import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 
 import { cx } from '../lib/cx';
 import { controlClasses, Field } from './Field';
@@ -122,6 +122,14 @@ export function Combobox({
   const activeIndex = Math.min(active, filtered.length - 1);
   const activeOption = open && activeIndex >= 0 ? filtered[activeIndex] : undefined;
   const optionId = (i: number) => `${listId}-opt-${i}`;
+
+  // Focus stays in the input, so keep the highlighted option in view as it moves (WCAG 2.4.11).
+  useEffect(() => {
+    if (open && activeIndex >= 0)
+      document
+        .getElementById(`${listId}-opt-${activeIndex}`)
+        ?.scrollIntoView?.({ block: 'nearest' });
+  }, [open, activeIndex, listId]);
 
   return (
     <Field
