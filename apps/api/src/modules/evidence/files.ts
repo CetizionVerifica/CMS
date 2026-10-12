@@ -1,0 +1,57 @@
+import { ApiError } from '../../auth/index.js';
+
+/**
+ * Allowed evidence types (api-conventions.md §6): the extension decides, and the declared MIME type must be
+ * one a browser sends for it. Anything else is VALIDATION before a URL is signed.
+ */
+export const ALLOWED_TYPES: Readonly<Record<string, readonly string[]>> = {
+  pdf: ['application/pdf'],
+  png: ['image/png'],
+  jpg: ['image/jpeg'],
+  jpeg: ['image/jpeg'],
+  heic: ['image/heic', 'image/heif'],
+  docx: ['application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
+  xlsx: ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'],
+  xls: ['application/vnd.ms-excel'],
+  csv: ['text/csv', 'application/vnd.ms-excel'],
+  txt: ['text/plain'],
+  zip: ['application/zip', 'application/x-zip-compressed'],
+};
+
+export function extensionOf(fileName: string): string {
+  const dot = fileName.lastIndexOf('.');
+  return dot === -1 ? '' : fileName.slice(dot + 1).toLowerCase();
+}
+
+/** The MIME type without parameters, lower case ("text/plain; charset=utf-8" → "text/plain"). */
+export function baseMimeType(mimeType: string): string {
+  return mimeType.split(';')[0]!.trim().toLowerCase();
+}
+
+export function isAllowedType(fileName: string, mimeType: string): boolean {
+  return (ALLOWED_TYPES[extensionOf(fileName)] ?? []).includes(baseMimeType(mimeType));
+}
+
+export function requireAllowedType(fileName: string, mimeType: string): void {
+  if (!isAllowedType(fileName, mimeType)) {
+    throw new ApiError('VALIDATION', {
+      issues: [
+        {
+          path: ['fileName'],
+          message:
+            'This file type is not accepted. Use PDF, PNG, JPG, HEIC, DOCX, XLSX, XLS, CSV, TXT or ZIP.',
+        },
+      ],
+    });
+  }
+}
+
+/** Where an upload is stored. Derived from the upload id, so confirming needs no extra table. */
+export function storageKey(input: {
+  firmId: string;
+  clientId: string;
+  instanceId: string;
+  uploadId: string;
+}): string {
+  return `evidence/${input.firmId}/${input.clientId}/${input.instanceId}/${input.uploadId}`;
+}

@@ -3,12 +3,15 @@ import {
   DEFAULT_CLIENT_SETTINGS,
   LocalDate,
   type ComplianceInstance,
+  type Evidence,
   type Role,
+  type ScanStatus,
   type WorkflowState,
 } from '@canopy/contracts';
 import {
   acts,
   assignments,
+  evidence,
   categories,
   clients,
   companies,
@@ -325,6 +328,29 @@ export async function addInstance(
       approvedAt: null,
       dueDateOverridden: false,
       ...STATE[input.state ?? 'OPEN'],
+    }),
+  );
+}
+
+/** Adds an evidence row to an instance, as an upload confirmed and scanned with `scanStatus`. */
+export async function addEvidence(
+  db: Database,
+  f: Fixture,
+  instance: ComplianceInstance,
+  scanStatus: ScanStatus = 'CLEAN',
+): Promise<Evidence> {
+  const n = randomBytes(4).toString('hex');
+  return db.withTenant(systemContext(f.firmId, 'fixture-evidence'), (tx) =>
+    evidence.create(tx, {
+      instanceId: instance.id,
+      clientId: instance.clientId,
+      storageKey: `evidence/${f.firmId}/${instance.clientId}/${instance.id}/fixture-${n}`,
+      fileName: `challan-${n}.pdf`,
+      mimeType: 'application/pdf',
+      sizeBytes: 1024,
+      sha256: 'a'.repeat(64),
+      uploadedById: instance.ownerId ?? f.people.owner,
+      scanStatus,
     }),
   );
 }

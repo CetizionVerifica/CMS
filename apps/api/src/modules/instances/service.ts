@@ -15,7 +15,6 @@ import {
   auditEvents,
   clients,
   comments,
-  DbError,
   evidence,
   firms,
   instances,
@@ -29,6 +28,7 @@ import {
 } from '@canopy/db';
 import { fyRangeOf } from '@canopy/engine';
 import { ApiError, can } from '../../auth/index.js';
+import { loadInstance, toApiError } from './access.js';
 import { allowedActions, INSTANCE_ACTION_POLICY, instanceResource } from './allowed-actions.js';
 import { mergedPage, type RegisterSource } from './paging.js';
 import { clientsWithRole, mayChooseAsOf, unitScope } from './scope.js';
@@ -68,12 +68,6 @@ export interface BulkResult {
   item?: InstanceRow;
 }
 
-/** Repository errors carry contract codes; their messages name tables, so callers get the default text. */
-function toApiError(error: unknown): never {
-  if (error instanceof DbError) throw new ApiError(error.code);
-  throw error;
-}
-
 function nowInstant(clock: () => Date): string {
   return clock().toISOString();
 }
@@ -110,19 +104,6 @@ export function createInstanceService(options: InstanceServiceOptions) {
 
   function withStatus(row: RegisterRow, asOf: LocalDate, cal: ClientCalendar): InstanceRow {
     return InstanceRow.parse({ ...row, ...rowStatus(row, asOf, cal) });
-  }
-
-  /** Loads an instance the actor's tenant can see; NOT_FOUND otherwise (also outside the actor's clients). */
-  async function loadInstance(tx: TenantTx, ctx: RequestContext, id: string) {
-    const instance = await instances.get(tx, id);
-    if (
-      instance === null ||
-      instance.archivedAt !== null ||
-      !ctx.clientIds.includes(instance.clientId)
-    ) {
-      throw new ApiError('NOT_FOUND');
-    }
-    return instance;
   }
 
   async function registerRow(tx: TenantTx, instance: ComplianceInstance): Promise<RegisterRow> {
