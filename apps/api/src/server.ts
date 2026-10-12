@@ -9,6 +9,7 @@ import { MemoryExportFiles, type ExportFiles } from './modules/reports/files.js'
 import { registerReportRoutes } from './modules/reports/routes.js';
 import { IdempotencyCache, InProcessRunner, type ExportRunner } from './modules/reports/service.js';
 import { libraryAndEntities, type M6Deps } from './modules/entities/index.js';
+import { imports, type ImportOptions } from './modules/imports/index.js';
 import { registerInstanceRoutes } from './modules/instances/routes.js';
 import { createInstanceService } from './modules/instances/service.js';
 
@@ -26,6 +27,8 @@ export interface ServerOptions {
   };
   /** M6 · Library and entities, mounted under /api/v1 when given (main.ts wires the database store). */
   readonly libraryAndEntities?: M6Deps;
+  /** M8 · imports, mounted under /api/v1 when given (store, file storage and the engine's inferRule). */
+  readonly imports?: ImportOptions;
   /** M7 · Tenant database for the instance routes, mounted under /api/v1 when given. */
   readonly database?: Database;
 }
@@ -65,6 +68,10 @@ export function buildServer(options: ServerOptions = {}): FastifyInstance {
   if (options.libraryAndEntities) {
     const deps = options.libraryAndEntities;
     void app.register((scope) => libraryAndEntities(scope, deps), { prefix: '/api/v1' });
+  }
+  const importOptions = options.imports;
+  if (importOptions) {
+    void app.register(async (scope) => imports(scope, importOptions), { prefix: '/api/v1' });
   }
 
   const { database } = options;
