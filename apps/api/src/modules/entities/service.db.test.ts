@@ -108,7 +108,7 @@ describe.skipIf(!url)('M6 on the Postgres store', () => {
 
     w = await system(firmA, async (tx) => {
       const clientA = await r.clients.create(tx, {
-        name: 'Aditya Group',
+        name: 'Kestrel Metals Group',
         settings: DEFAULT_CLIENT_SETTINGS,
       });
       const clientB = await r.clients.create(tx, {
@@ -122,7 +122,10 @@ describe.skipIf(!url)('M6 on the Postgres store', () => {
         stateCode: 'WB',
         city: 'Belur',
       });
-      const company = await r.companies.create(tx, { clientId: clientA.id, name: 'Hindalco' });
+      const company = await r.companies.create(tx, {
+        clientId: clientA.id,
+        name: 'Kestrel Aluminium',
+      });
       const unit = await r.units.create(tx, {
         clientId: clientA.id,
         companyId: company.id,
@@ -281,9 +284,9 @@ describe.skipIf(!url)('M6 on the Postgres store', () => {
         ((await call(actor, 'GET', '/clients')).body as { items: { name: string }[] }).items.map(
           (c) => c.name,
         );
-      expect(await names('firmAdmin')).toEqual(['Aditya Group', 'Bharat Mills']);
-      expect(await names('consultant')).toEqual(['Aditya Group']);
-      expect(await names('clientAdmin')).toEqual(['Aditya Group']);
+      expect(await names('firmAdmin')).toEqual(['Bharat Mills', 'Kestrel Metals Group']);
+      expect(await names('consultant')).toEqual(['Kestrel Metals Group']);
+      expect(await names('clientAdmin')).toEqual(['Kestrel Metals Group']);
       expect(await names('otherFirmAdmin')).toEqual(['Xeno Holdings']);
     });
 
@@ -486,10 +489,13 @@ describe.skipIf(!url)('M6 on the Postgres store', () => {
       signIn('firmAdmin', w.firmA, { role: 'FIRM_ADMIN', clientId: null }, [w.clientA, w.clientB]);
       const first = await call('firmAdmin', 'GET', '/clients?limit=1&count=true');
       const page1 = first.body as { items: { name: string }[]; nextCursor: string; total: number };
-      expect(page1.items.map((c) => c.name)).toEqual(['Aditya Group']);
+      expect(page1.items.map((c) => c.name)).toEqual(['Bharat Mills']);
       expect(page1.total).toBe(2);
       const second = await call('firmAdmin', 'GET', `/clients?limit=1&cursor=${page1.nextCursor}`);
-      expect(second.body).toMatchObject({ items: [{ name: 'Bharat Mills' }], nextCursor: null });
+      expect(second.body).toMatchObject({
+        items: [{ name: 'Kestrel Metals Group' }],
+        nextCursor: null,
+      });
       expect((await call('firmAdmin', 'GET', '/clients?q=BHAR')).body).toMatchObject({
         items: [{ name: 'Bharat Mills' }],
       });
@@ -564,14 +570,16 @@ describe.skipIf(!url)('M6 on the Postgres store', () => {
       const rollback = new Error('rollback');
       await expect(
         store.transaction(ctx(), async (tx) => {
-          const grasim = await tx.companies.insert({ clientId: w.clientA, name: 'Grasim' });
+          const foils = await tx.companies.insert({ clientId: w.clientA, name: 'Kestrel Foils' });
           await expect(
-            tx.companies.insert({ clientId: w.clientA, name: 'Hindalco' }),
+            tx.companies.insert({ clientId: w.clientA, name: 'Kestrel Aluminium' }),
           ).rejects.toMatchObject({ field: 'name', existingId: w.companyA });
           await expect(
-            tx.companies.update(grasim.id, 1, { name: 'Hindalco' }),
+            tx.companies.update(foils.id, 1, { name: 'Kestrel Aluminium' }),
           ).rejects.toMatchObject({ field: 'name', existingId: w.companyA });
-          expect(await tx.companies.update(grasim.id, 7, { name: 'Grasim Ltd' })).toBe('STALE');
+          expect(await tx.companies.update(foils.id, 7, { name: 'Kestrel Foils Ltd' })).toBe(
+            'STALE',
+          );
           await expect(
             tx.units.insert({
               clientId: w.clientA,

@@ -9,7 +9,7 @@ describe('companies', () => {
   it('rejects a duplicate name in the client with DUPLICATE', async () => {
     const { call } = testApp();
     const res = await call('clientAdmin', 'POST', `/clients/${ids.clientA}/companies`, {
-      name: 'Hindalco',
+      name: 'Kestrel Aluminium',
     });
     expect(res.status).toBe(409);
     expect(error(res.body)).toMatchObject({

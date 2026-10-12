@@ -221,7 +221,7 @@ export function seedWorld(store: MemoryStore): void {
       name,
       settings: DEFAULT_CLIENT_SETTINGS,
     });
-  client(ids.clientA, 'Aditya Group');
+  client(ids.clientA, 'Kestrel Metals Group');
   client(ids.clientB, 'Bharat Mills');
   client(ids.clientX, 'Xeno Holdings', FIRM_B);
 
@@ -229,7 +229,7 @@ export function seedWorld(store: MemoryStore): void {
     ...base(ids.companyA),
     version: 1,
     clientId: ids.clientA,
-    name: 'Hindalco',
+    name: 'Kestrel Aluminium',
   });
   store.seed('companies', {
     ...base(ids.companyB),
@@ -247,7 +247,7 @@ export function seedWorld(store: MemoryStore): void {
     ...base(ids.companyEmpty),
     version: 1,
     clientId: ids.clientA,
-    name: 'Aditya Cement',
+    name: 'Kestrel Cement',
   });
 
   store.seed('locations', {
