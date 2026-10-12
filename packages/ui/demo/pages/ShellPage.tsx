@@ -100,8 +100,8 @@ export function ShellFrame() {
   const [period, setPeriod] = useState<Period>({ fy: '2022-23' });
   const clientName =
     client === 'long'
-      ? 'Kestrel Aluminium Limited, Belur Aluminium Rolling Plant'
-      : 'Kestrel Aluminium Belur';
+      ? 'Kestrel Aluminium Limited, Riverbend Aluminium Rolling Plant'
+      : 'Kestrel Aluminium Riverbend';
   const page = path.split('/')[2] || (noClient ? 'portfolio' : 'overview');
   const query = params.toString();
   const withQuery = (groups: NavGroup[]) =>

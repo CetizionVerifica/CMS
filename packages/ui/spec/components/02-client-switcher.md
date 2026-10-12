@@ -43,7 +43,7 @@ type ClientSwitcherProps = {
 
 ## Accessibility
 
-Trigger `aria-haspopup="dialog"`, `aria-expanded`, accessible name "Client: Kestrel Aluminium Belur, change client". Search is `role="combobox"` with `aria-controls` on the listbox; options `role="option"` with name, meta and "12 overdue" in the accessible name. After switching, the new page title is announced (AppShell rule).
+Trigger `aria-haspopup="dialog"`, `aria-expanded`, accessible name "Client: Kestrel Aluminium Riverbend, change client". Search is `role="combobox"` with `aria-controls` on the listbox; options `role="option"` with name, meta and "12 overdue" in the accessible name. After switching, the new page title is announced (AppShell rule).
 
 ## Content
 

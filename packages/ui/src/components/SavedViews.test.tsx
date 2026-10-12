@@ -94,10 +94,10 @@ describe('SavedViews (spec 09, audit #2)', () => {
     await user.keyboard('{Enter}');
     expect(onSave).not.toHaveBeenCalled();
     expect(within(dialog).getByText(/Enter a view name/)).toBeTruthy();
-    await user.type(input, 'Belur this week{Enter}');
-    expect(onSave).toHaveBeenCalledWith('Belur this week');
+    await user.type(input, 'Riverbend this week{Enter}');
+    expect(onSave).toHaveBeenCalledWith('Riverbend this week');
     await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull());
-    expect(trigger().textContent).toBe('View: Belur this week');
+    expect(trigger().textContent).toBe('View: Riverbend this week');
     await waitFor(() => expect(document.activeElement).toBe(trigger()));
   });
 

@@ -50,13 +50,13 @@ function Shell(props: Partial<AppShellProps>) {
       activeHref="/c/1/register"
       helpCard={{ title: 'Need help?', body: 'Ask your consultant.', href: '/help' }}
       topBar={{
-        clientSwitcher: <button type="button">Kestrel Aluminium Belur</button>,
+        clientSwitcher: <button type="button">Kestrel Aluminium Riverbend</button>,
         periodPicker: <button type="button">FY 2022–23</button>,
         search: <input aria-label="Search register" type="search" />,
         primaryAction: { label: 'Assign obligation', icon: Plus, onClick: () => {} },
         user: {
           name: 'Priya Rane',
-          detail: 'Owner · Kestrel Aluminium Belur',
+          detail: 'Owner · Kestrel Aluminium Riverbend',
           items: [
             { label: 'Profile', icon: User, href: '/profile' },
             { label: 'Sign out', icon: LogOut, onSelect: () => {}, destructive: true },
@@ -107,7 +107,7 @@ describe('AppShell at 1280px (sidebar)', () => {
     expect(document.activeElement).toBe(screen.getByRole('link', { name: 'Get help' }));
     await user.tab();
     expect(document.activeElement).toBe(
-      screen.getByRole('button', { name: 'Kestrel Aluminium Belur' }),
+      screen.getByRole('button', { name: 'Kestrel Aluminium Riverbend' }),
     );
     await user.tab();
     await user.tab();
@@ -143,12 +143,12 @@ describe('AppShell at 1280px (sidebar)', () => {
 
   it('on a title change sets document.title, focuses the h1 and announces it', async () => {
     const { rerender } = render(
-      <Shell title="Overview · Kestrel Aluminium Belur · PlanetPulse Compliance" />,
+      <Shell title="Overview · Kestrel Aluminium Riverbend · PlanetPulse Compliance" />,
     );
-    expect(document.title).toBe('Overview · Kestrel Aluminium Belur · PlanetPulse Compliance');
+    expect(document.title).toBe('Overview · Kestrel Aluminium Riverbend · PlanetPulse Compliance');
     expect(document.activeElement).toBe(document.body);
-    rerender(<Shell title="Register · Kestrel Aluminium Belur · PlanetPulse Compliance" />);
-    expect(document.title).toBe('Register · Kestrel Aluminium Belur · PlanetPulse Compliance');
+    rerender(<Shell title="Register · Kestrel Aluminium Riverbend · PlanetPulse Compliance" />);
+    expect(document.title).toBe('Register · Kestrel Aluminium Riverbend · PlanetPulse Compliance');
     const h1 = screen.getByRole('heading', { level: 1, name: 'Register' });
     expect(document.activeElement).toBe(h1);
     expect(h1.getAttribute('tabindex')).toBe('-1');
@@ -158,7 +158,7 @@ describe('AppShell at 1280px (sidebar)', () => {
   it('does not focus or announce on first load under StrictMode', () => {
     render(
       <StrictMode>
-        <Shell title="Overview · Kestrel Aluminium Belur · PlanetPulse Compliance" />
+        <Shell title="Overview · Kestrel Aluminium Riverbend · PlanetPulse Compliance" />
       </StrictMode>,
     );
     expect(document.activeElement).toBe(document.body);

@@ -84,7 +84,7 @@ Sidebar bg `--forest`; logo text `--on-forest` 800 15px, mark `--moss`; item tex
 
 - Landmarks: one `nav[aria-label=Main]`, one `header`, one `main`. Selected item has `aria-current="page"`.
 - Rail tooltips are labels, so the link also has `aria-label`. The shell mounts one `TooltipProvider`, so moving along the rail skips the delay after the first tooltip.
-- Page title updates `document.title` as "Register · Kestrel Aluminium Belur · PlanetPulse Compliance".
+- Page title updates `document.title` as "Register · Kestrel Aluminium Riverbend · PlanetPulse Compliance".
 - Route changes move focus to the page `h1` and announce the title via a polite live region.
 
 ## Responsive

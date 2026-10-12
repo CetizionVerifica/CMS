@@ -18,7 +18,7 @@ const handlers = () => ({ onAdd: vi.fn(), onRemove: vi.fn(), onRetry: vi.fn(), o
 describe('middleTruncate', () => {
   it('keeps the start, the end and the extension', () => {
     expect(middleTruncate('short.pdf')).toBe('short.pdf');
-    const t = middleTruncate('Challan_April_2022_Belur_plant_final_signed.pdf');
+    const t = middleTruncate('Challan_April_2022_Riverbend_plant_final_signed.pdf');
     expect(t).toHaveLength(28);
     expect(t.startsWith('Challan_')).toBe(true);
     expect(t.endsWith('signed.pdf')).toBe(true);

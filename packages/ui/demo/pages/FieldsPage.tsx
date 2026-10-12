@@ -4,14 +4,14 @@ import { Checkbox, Combobox, Input, RadioGroup, Select, Switch, Textarea } from 
 import { Page, Section } from '../Page';
 
 const units = [
-  { value: 'belur', label: 'Kestrel Aluminium Belur', description: 'Metals · 1 unit' },
-  { value: 'renukoot', label: 'Kestrel Aluminium Renukoot', description: 'Metals · 3 units' },
+  { value: 'riverbend', label: 'Kestrel Aluminium Riverbend', description: 'Metals · 1 unit' },
+  { value: 'stonebridge', label: 'Kestrel Aluminium Stonebridge', description: 'Metals · 3 units' },
   { value: 'taloja', label: 'Taloja plant', description: 'Chemicals · 1 unit' },
-  { value: 'hirakud', label: 'Hirakud smelter', description: 'Metals · 2 units' },
+  { value: 'highmoor', label: 'Highmoor smelter', description: 'Metals · 2 units' },
 ];
 
 export function FieldsPage() {
-  const [unit, setUnit] = useState<string | null>('belur');
+  const [unit, setUnit] = useState<string | null>('riverbend');
   const [dept, setDept] = useState<string>('');
   return (
     <Page

@@ -6,7 +6,7 @@ import { Page, Section } from '../Page';
 const seeded: UploadItem[] = [
   {
     id: 'f-1',
-    name: 'PF_challan_February_2027_Belur_plant_signed.pdf',
+    name: 'PF_challan_February_2027_Riverbend_plant_signed.pdf',
     size: 1_480_000,
     state: 'ready',
     addedBy: 'Priya Rane',
