@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // Path guard (root CLAUDE.md "Parallel module rules"): a PR titled "M<n>: ..." may only change
-// the paths module M<n> owns in tooling/modules.json, and may only add ADRs named docs/adr/M<n>-NNNN-slug.md.
+// the paths module M<n> owns in tooling/modules.json, and may only add ADRs named docs/adr/M<n>-NNNN-slug.md (a
+// renamed ADR counts as added).
 // PRs without a module prefix are not checked.
 //
 // Usage: node tooling/scripts/check-module-paths.mjs "<PR title>" <base-ref>
@@ -48,7 +49,7 @@ function main() {
   }
   const added = execFileSync(
     'git',
-    ['diff', '--name-only', '--diff-filter=A', `${baseRef}...HEAD`],
+    ['diff', '--name-only', '--no-renames', '--diff-filter=A', `${baseRef}...HEAD`],
     {
       encoding: 'utf8',
     },
