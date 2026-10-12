@@ -37,12 +37,12 @@ test('sorting 10,000 rows stays fast', async ({ page }) => {
   await page.goto('/#/data-table');
   const header = page.getByRole('columnheader', { name: 'Due date' });
   await expect(header).toBeVisible();
-  // Two checks. Work: the demo's Due date column counts its comparisons, and an n log n sort of 10,000 rows makes about
-  // 120,000 (n·log2 n is 133,000) while a quadratic one makes tens of millions, so a cap of 4·n·log2 n catches it at
-  // any load. Time: measured inside the page against a baseline from the same run, so a loaded runner (several
-  // merge-queue groups at once) slows both alike; it guards the render, not the sort's complexity. The baseline is the
-  // median of five sorts of 10,000 date strings; a healthy click costs about 50-90 of them, unloaded or at 4-6x CPU
-  // throttling.
+  // Two checks. Work: the demo's Due date column counts its comparisons. An n log n sort of 10,000 rows makes about
+  // 120,000 (n·log2 n is 133,000) and a quadratic one tens of millions, so the 4·n·log2 n cap catches a quadratic
+  // sort at any load, as long as it compares through the column's sortingFn (TanStack's sort does). Time: measured
+  // inside the page against a baseline from the same run, so a loaded runner (several merge-queue groups at once)
+  // slows both alike; it guards the render, not the sort's complexity. The baseline is the median of five sorts of
+  // 10,000 date strings; a healthy click costs about 50-90 of them, unloaded or at 4-6x CPU throttling.
   await page.evaluate(() => {
     (window as Window & { dueDateComparisons?: number }).dueDateComparisons = 0;
   });

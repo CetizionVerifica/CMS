@@ -210,13 +210,18 @@ describe('DataTable', { timeout: 60_000 }, () => {
     const user = userEvent.setup();
     const approve = vi.fn();
     const onChange = vi.fn();
-    renderTable({
-      totalCount: 424,
-      selection: {
-        bulkActions: [{ label: 'Approve', icon: CheckCheck, onClick: approve }],
-        onChange,
+    // 50 rows, so some are outside the rendered window and Ctrl+A must still reach them.
+    renderTable(
+      {
+        totalCount: 424,
+        selection: {
+          bulkActions: [{ label: 'Approve', icon: CheckCheck, onClick: approve }],
+          onChange,
+        },
       },
-    });
+      50,
+    );
+    expect(screen.queryByRole('checkbox', { name: /^Select TAX-CL-050/ })).toBeNull();
     rowLinks()[0]!.focus();
     await user.keyboard(' ');
     expect(
@@ -236,7 +241,8 @@ describe('DataTable', { timeout: 60_000 }, () => {
 
     rowLinks()[2]!.focus();
     await user.keyboard('{Control>}a{/Control}');
-    expect(screen.getByRole('status').textContent).toBe('12 selected');
+    expect(screen.getByRole('status').textContent).toBe('50 selected');
+    expect(onChange).toHaveBeenLastCalledWith(expect.arrayContaining(['TAX-CL-050']));
     await user.click(screen.getByRole('button', { name: 'Select all 424' }));
     expect(screen.getByRole('status').textContent).toBe('424 selected');
     await user.click(screen.getByRole('button', { name: 'Approve' }));
@@ -251,7 +257,9 @@ describe('DataTable', { timeout: 60_000 }, () => {
   it('selects with the checkboxes, shift-click for a range, and the header box', async () => {
     const user = userEvent.setup();
     const onChange = vi.fn();
-    renderTable({ selection: { bulkActions: [], onChange } });
+    // 50 rows, so the header box must select rows outside the rendered window too.
+    renderTable({ selection: { bulkActions: [], onChange } }, 50);
+    expect(screen.queryByRole('checkbox', { name: /^Select TAX-CL-050/ })).toBeNull();
     await user.click(screen.getByRole('checkbox', { name: /^Select TAX-CL-002/ }));
     await user.keyboard('{Shift>}');
     await user.click(screen.getByRole('checkbox', { name: /^Select TAX-CL-004/ }));
@@ -260,7 +268,7 @@ describe('DataTable', { timeout: 60_000 }, () => {
     const selectedRow = screen.getByRole('checkbox', { name: /^Select TAX-CL-003/ }).closest('tr')!;
     expect(selectedRow.hasAttribute('data-selected')).toBe(true);
     await user.click(screen.getByRole('checkbox', { name: 'Select all rows' }));
-    expect(onChange).toHaveBeenLastCalledWith(expect.arrayContaining(['TAX-CL-012']));
+    expect(onChange).toHaveBeenLastCalledWith(expect.arrayContaining(['TAX-CL-050']));
     await user.click(screen.getByRole('checkbox', { name: 'Select all rows' }));
     expect(onChange).toHaveBeenLastCalledWith([]);
   });
