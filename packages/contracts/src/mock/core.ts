@@ -3,7 +3,12 @@ import type { z } from 'zod';
 import type { ERROR_DETAILS } from '../api/error-details.js';
 import type { Endpoint } from '../api/endpoints.js';
 import type { RegisterQuery } from '../api/workflow.js';
-import type { DerivedStatus, InstanceAction, Role } from '../enums.js';
+import {
+  type DerivedStatus,
+  INSTANCE_EDIT_STATES,
+  type InstanceAction,
+  type Role,
+} from '../enums.js';
 import type { ErrorCode } from '../errors.js';
 import type { InstanceDetail, InstanceRow } from '../schemas/work.js';
 import type { ScoreResult } from '../schemas/scores.js';
@@ -167,7 +172,7 @@ export function asOfFor(
   if (asOf === undefined) return clock.today();
   if (!hasRole(actor, clientId, ['FIRM_ADMIN', 'CONSULTANT', 'VIEWER'])) {
     throw new MockError('FORBIDDEN', 'Only firm roles and viewers may set asOf', {
-      action: 'report.as_of',
+      action: 'report.asOf',
     });
   }
   return asOf;
@@ -316,9 +321,10 @@ export function allowedActions(actor: Actor, instance: InstanceRecord): Instance
     actions.push('APPROVE', 'SEND_BACK');
   }
   if (closed && manager) actions.push('REOPEN');
-  if (!closed && manager) actions.push('REASSIGN', 'CHANGE_DUE_DATE');
+  const editable = (INSTANCE_EDIT_STATES as readonly string[]).includes(instance.workflowState);
+  if (editable && manager) actions.push('REASSIGN', 'CHANGE_DUE_DATE');
   if (manager || isOwner || isApprover) actions.push('COMMENT');
-  if (!closed && (manager || isOwner || isApprover)) actions.push('UPLOAD_EVIDENCE');
+  if (editable && (manager || isOwner || isApprover)) actions.push('UPLOAD_EVIDENCE');
   return actions;
 }
 

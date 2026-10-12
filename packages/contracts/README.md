@@ -23,6 +23,7 @@ const detail = tolerant(ENDPOINTS.getInstance.response).parse(await response.jso
 | `src/schemas/*` | Entity schemas: tenancy, library (incl. `RecurrenceRule`), work, import, scores, request context |
 | `src/engine-api.ts` | Signatures M4 implements (`EngineApi`) |
 | `src/api/endpoints.ts` | `ENDPOINTS`: every endpoint with method, path, `can()` actions, role access and schemas |
+| `src/api/can.ts` | `can()`: the stub policy from the `ENDPOINTS` role matrix, until M5's lands |
 | `src/api/{auth,entities,workflow,imports,dashboards}.ts` | Request bodies, query schemas and response shapes per provider module |
 | `src/api/common.ts` | Pagination, sorting, comma lists, `page()`, `list()`, bulk results, signed URLs |
 | `src/api/tolerant.ts` | `tolerant(schema)`: the schema clients parse responses with |

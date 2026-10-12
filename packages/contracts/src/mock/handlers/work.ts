@@ -1,7 +1,7 @@
 // M7 endpoints: the register, workflow transitions, comments, evidence and audit.
 // Uploads are not stored: the PUT URL points nowhere, and confirmed evidence passes its "scan" on the next read
 // (a file name containing "eicar" fails it instead).
-import type { InstanceAction, WorkflowState } from '../../enums.js';
+import { INSTANCE_EDIT_STATES, type InstanceAction, type WorkflowState } from '../../enums.js';
 import {
   type Actor,
   asOfFor,
@@ -42,7 +42,7 @@ const instanceScope = (i: InstanceRecord) => ({
 
 function requireState(
   instance: InstanceRecord,
-  allowed: WorkflowState[],
+  allowed: readonly WorkflowState[],
   action: InstanceAction,
 ): void {
   if (!allowed.includes(instance.workflowState)) {
@@ -367,11 +367,7 @@ export const workHandlers: PartialHandlers<
     const body = ctx.body;
     checkVersion(instance, body.version);
     const reassign = body.ownerId !== undefined || body.approverId !== undefined;
-    requireState(
-      instance,
-      ['OPEN', 'SENT_BACK', 'SUBMITTED'],
-      reassign ? 'REASSIGN' : 'CHANGE_DUE_DATE',
-    );
+    requireState(instance, INSTANCE_EDIT_STATES, reassign ? 'REASSIGN' : 'CHANGE_DUE_DATE');
     for (const field of ['ownerId', 'approverId'] as const) {
       const id = body[field];
       if (
@@ -394,7 +390,7 @@ export const workHandlers: PartialHandlers<
         clientId: instance.clientId,
         before,
         after: { ownerId: instance.ownerId, approverId: instance.approverId },
-        reason: body.reason ?? null,
+        reason: body.reason,
       });
     }
     if (body.dueDate !== undefined) {
@@ -408,7 +404,7 @@ export const workHandlers: PartialHandlers<
         clientId: instance.clientId,
         before,
         after: { dueDate: body.dueDate },
-        reason: body.reason!,
+        reason: body.reason,
       });
     }
     touch(instance, ctx.clock);
@@ -456,7 +452,7 @@ export const workHandlers: PartialHandlers<
     const actor = actorOf(ctx);
     const instance = findInstance(actor, ctx.params.id);
     ctx.authorize(instanceScope(instance));
-    requireState(instance, ['OPEN', 'SENT_BACK', 'SUBMITTED'], 'UPLOAD_EVIDENCE');
+    requireState(instance, INSTANCE_EDIT_STATES, 'UPLOAD_EVIDENCE');
     const uploadId = ctx.store.newId();
     actor.firm.pendingUploads.set(uploadId, { instanceId: instance.id, ...ctx.body });
     return {

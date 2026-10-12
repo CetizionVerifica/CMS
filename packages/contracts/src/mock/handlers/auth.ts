@@ -3,10 +3,12 @@
 import type { z } from 'zod';
 import type { Me } from '../../api/auth.js';
 import {
+  type Actor,
   actorFor,
   audit,
   type Clock,
   fresh,
+  membershipsFor,
   MockError,
   notFound,
   visibleClientIds,
@@ -22,6 +24,49 @@ import {
 
 const INVITE_DAYS = 7;
 
+const pad = (n: number) => String(n).padStart(2, '0');
+
+/** The FY label ("2024-25") containing `date` for an FY starting in `startMonth`. */
+function fyOf(date: string, startMonth: number): string {
+  const year = Number(date.slice(0, 4));
+  const start = Number(date.slice(5, 7)) >= startMonth ? year : year - 1;
+  return `${start}-${pad((start + 1) % 100)}`;
+}
+
+/** One client for the switcher and period picker (README decision 26), worked out from the fixture rows. */
+function clientSummary(actor: Actor, client: FirmState['data']['clients'][number], today: string) {
+  const startMonth = client.settings.fyStartMonth;
+  const month = Number(today.slice(5, 7));
+  const current = {
+    fy: fyOf(today, startMonth),
+    quarter: Math.floor(((month - startMonth + 12) % 12) / 3) + 1,
+  };
+  const instances = actor.firm.data.instances.filter((i) => i.clientId === client.id);
+  const fys = new Set([current.fy, ...instances.map((i) => fyOf(i.periodStart, startMonth))]);
+  const lastEnd = instances.reduce<string | null>(
+    (last, i) => (last === null || i.periodEnd > last ? i.periodEnd : last),
+    null,
+  );
+  const live = actor.firm.data.units.filter(
+    (u) => u.clientId === client.id && u.archivedAt === null,
+  );
+  const scoped = membershipsFor(actor, client.id);
+  const allUnits = scoped.some((m) => isFirmRole(m.role) || m.unitIds === null);
+  const unitIds = new Set(scoped.flatMap((m) => m.unitIds ?? []));
+  return {
+    id: client.id,
+    name: client.name,
+    fyStartMonth: startMonth,
+    timeZone: client.settings.timeZone,
+    unitCount: allUnits ? live.length : live.filter((u) => unitIds.has(u.id)).length,
+    period: {
+      current,
+      availableFys: [...fys].sort(),
+      availableUntil: lastEnd === null ? null : lastEnd.slice(0, 7),
+    },
+  };
+}
+
 function me(
   firm: FirmState,
   person: PersonRecord,
@@ -36,7 +81,7 @@ function me(
     memberships: actor.memberships,
     clients: firm.data.clients
       .filter((c) => clientIds.includes(c.id))
-      .map((c) => ({ id: c.id, name: c.name })),
+      .map((c) => clientSummary(actor, c, clock.today())),
     csrfToken: session.csrfToken,
     // Firm-role people in the fixtures count as enrolled, so sign-in goes straight to the code step.
     mfa: { required: firmRole, enrolled: firmRole, satisfied: session.mfaSatisfied },

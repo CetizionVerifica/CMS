@@ -700,16 +700,27 @@ export const entityHandlers: PartialHandlers<
       displayName: ctx.body.displayName,
       nameNormalized: ctx.body.displayName.toLowerCase().replace(/\s+/g, ' '),
       email,
-      // With an email the person is ready to invite; POST /invites sends the link.
+      // With an email the person is INVITED; POST /invites sends the link (README decision 28).
       status: email === null ? ('UNCLAIMED' as const) : ('INVITED' as const),
     };
     actor.firm.data.people.push(person);
+    // The person belongs to the client through a membership on every unit (README decision 27).
+    const membership = {
+      ...fresh(ctx, actor.firm.data.firm.id),
+      personId: person.id,
+      role: ctx.body.role,
+      clientId,
+      consultantClientIds: null,
+      unitIds: null,
+      expiresAt: null,
+    };
+    actor.firm.data.memberships.push(membership);
     audit(ctx, actor, {
       action: 'CREATE',
       entityType: 'person',
       entityId: person.id,
       clientId,
-      after: { displayName: person.displayName },
+      after: { displayName: person.displayName, role: membership.role },
     });
     return person;
   },
@@ -719,15 +730,25 @@ export const entityHandlers: PartialHandlers<
     const person = find(actor, 'people', ctx.params.id);
     ctx.authorize({ clientId: personScope(actor, person.id) });
     const { email, ...rest } = ctx.body;
-    if (email !== undefined && person.status === 'UNCLAIMED' && email !== null) {
-      throw new MockError('VALIDATION', 'Invite an unclaimed person to give them an email', {
-        issues: [{ path: ['email'], message: 'Use POST /invites' }],
+    // README decision 28: an email makes an UNCLAIMED person INVITED, clearing it makes an INVITED person
+    // UNCLAIMED again, and an ACTIVE person keeps their email.
+    if (email === null && person.status === 'ACTIVE') {
+      throw new MockError('VALIDATION', 'An active person needs an email', {
+        issues: [{ path: ['email'], message: 'An ACTIVE person needs an email' }],
       });
     }
+    const status =
+      email === undefined
+        ? {}
+        : email !== null && person.status === 'UNCLAIMED'
+          ? { status: 'INVITED' as const }
+          : email === null && person.status === 'INVITED'
+            ? { status: 'UNCLAIMED' as const }
+            : {};
     const updated = patch(
       ctx,
       person,
-      { ...rest, ...(email === undefined ? {} : { email }) },
+      { ...rest, ...(email === undefined ? {} : { email }), ...status },
       'person',
       null,
     );

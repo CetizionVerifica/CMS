@@ -45,4 +45,4 @@ Mock API server (`@canopy/contracts/mock`, `pnpm --filter @canopy/contracts mock
 served from the firm A and firm B fixtures under `/api/v1`, with the same input validation, role checks, error
 envelope, CSRF, MFA and Idempotency-Key rules as api-conventions.md, and each response checked against its schema.
 Firm B's `EVIDENCE_ADD` audit events now name the evidence (`entityType: evidence`) and carry the instance id in
-`after`, as events.md says. README decisions 33-37. No schema changed.
+`after`, as events.md says. The stub `can()` (domain-model.md §8) ships as `can`. README decisions 33-37. No schema changed.

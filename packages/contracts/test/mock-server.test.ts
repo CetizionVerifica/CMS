@@ -120,6 +120,32 @@ describe('mock server', () => {
     expect(me.mfa.required).toBe(false);
 
     await ok(app, 'getMe', { as: null, headers: { cookie } });
+    // Each client carries what the period picker needs, so the web app does no FY maths.
+    type Summary = {
+      id: string;
+      fyStartMonth: number;
+      timeZone: string;
+      unitCount: number;
+      period: {
+        current: { fy: string; quarter: number };
+        availableFys: string[];
+        availableUntil: string | null;
+      };
+    };
+    const northwind = (await ok<{ clients: Summary[] }>(app, 'getMe', { as: PERSON.kabir }))
+      .clients[0]!;
+    expect(northwind).toMatchObject({ fyStartMonth: 4, timeZone: 'Asia/Kolkata' });
+    expect(northwind.period.current).toEqual({ fy: '2024-25', quarter: 3 });
+    expect(northwind.period.availableFys).toContain('2024-25');
+    expect(northwind.period.availableUntil).toMatch(/^\d{4}-\d{2}$/);
+    const rohanMe = await ok<{ clients: Summary[] }>(app, 'getMe', { as: PERSON.rohan });
+    expect(rohanMe.clients[0]!.unitCount).toBe(1);
+    expect(northwind.unitCount).toBeGreaterThan(1);
+    const harbour = (
+      await ok<{ clients: Summary[] }>(app, 'getMe', { as: PERSON.meera })
+    ).clients.find((c) => c.id === HARBOUR)!;
+    expect(harbour.fyStartMonth).toBe(1);
+    expect(harbour.period.current.quarter).toBe(4);
     await fails(app, 'logout', { as: null, headers: { cookie } }, 'FORBIDDEN', 403);
     await ok(app, 'logout', { as: null, headers: { cookie, 'x-csrf-token': me.csrfToken } });
     await fails(app, 'getMe', { as: null, headers: { cookie } }, 'UNAUTHENTICATED', 401);
@@ -391,12 +417,36 @@ describe('mock server', () => {
     const raviAgain = await ok<{ id: string }>(app, 'createClientPerson', {
       as: PERSON.kabir,
       params: { clientId: NORTHWIND },
-      body: { displayName: 'R. Kumar', email: 'ravi.kumar@northwind.example' },
+      body: { displayName: 'R. Kumar', email: 'ravi.kumar@northwind.example', role: 'APPROVER' },
     });
+    const raviMemberships = app.store.firms[1]!.data.memberships.filter(
+      (m) => m.personId === raviAgain.id,
+    );
+    expect(raviMemberships.map((m) => [m.role, m.clientId, m.unitIds])).toEqual([
+      ['APPROVER', NORTHWIND, null],
+    ]);
     await ok(app, 'updatePerson', {
       params: { id: ravi.id },
       body: { version: 1, displayName: 'Ravi K Kumar' },
     });
+    // An email makes an UNCLAIMED person INVITED; clearing it makes them UNCLAIMED again.
+    const invited = await ok<{ status: string }>(app, 'updatePerson', {
+      params: { id: ravi.id },
+      body: { version: 2, email: 'ravi.k@northwind.example' },
+    });
+    expect(invited.status).toBe('INVITED');
+    const unclaimed = await ok<{ status: string }>(app, 'updatePerson', {
+      params: { id: ravi.id },
+      body: { version: 3, email: null },
+    });
+    expect(unclaimed.status).toBe('UNCLAIMED');
+    await fails(
+      app,
+      'updatePerson',
+      { params: { id: PERSON.sameer }, body: { version: 1, email: null } },
+      'VALIDATION',
+      400,
+    );
 
     const membership = await ok<{ id: string }>(app, 'createMembership', {
       as: PERSON.kabir,
@@ -429,13 +479,14 @@ describe('mock server', () => {
     await ok(app, 'mergePeople', {
       as: PERSON.kabir,
       params: { id: ravi.id },
-      body: { version: 2, sourceIds: [raviAgain.id] },
+      body: { version: 4, sourceIds: [raviAgain.id] },
     });
     const memberships = await ok<{ items: unknown[] }>(app, 'listMemberships', {
       as: PERSON.kabir,
       params: { id: ravi.id },
     });
-    expect(memberships.items).toHaveLength(1);
+    // OWNER from creation and the APPROVER grant; the merged person's APPROVER membership is the same scope.
+    expect(memberships.items).toHaveLength(2);
     await ok(app, 'updateMembership', {
       as: PERSON.kabir,
       params: { id: membership.id },
@@ -678,7 +729,7 @@ describe('mock server', () => {
       {
         as: PERSON.sameer,
         params: { id: october },
-        body: { version: 1, completedOn: '2024-11-14' },
+        body: { version: 1, completedOn: '2024-11-14', comment: 'Done.' },
       },
       'FORBIDDEN',
       403,
@@ -689,7 +740,7 @@ describe('mock server', () => {
       {
         as: PERSON.rohan,
         params: { id: october },
-        body: { version: 1, completedOn: '2024-11-16' },
+        body: { version: 1, completedOn: '2024-11-16', comment: 'Done.' },
       },
       'DATE_IN_FUTURE',
       422,
@@ -700,7 +751,7 @@ describe('mock server', () => {
       {
         as: PERSON.rohan,
         params: { id: MONTHLY_REGISTER('2024-11-01') },
-        body: { version: 1, completedOn: 'yesterday' },
+        body: { version: 1, completedOn: 'yesterday', comment: 'Done.' },
       },
       'VALIDATION',
       400,
@@ -726,7 +777,7 @@ describe('mock server', () => {
       {
         as: PERSON.rohan,
         params: { id: october },
-        body: { version: 2, completedOn: '2024-11-14' },
+        body: { version: 2, completedOn: '2024-11-14', comment: 'Done.' },
       },
       'INVALID_TRANSITION',
       409,
@@ -809,7 +860,7 @@ describe('mock server', () => {
     await ok(app, 'updateInstance', {
       as: PERSON.kabir,
       params: { id: MONTHLY_REGISTER('2025-01-01') },
-      body: { version: 1, ownerId: PERSON.sameer },
+      body: { version: 1, ownerId: PERSON.sameer, reason: 'Rohan moved to Chennai.' },
     });
 
     const approvals = await ok<{ items: { id: string }[] }>(app, 'myApprovals', {
@@ -955,7 +1006,7 @@ describe('mock server', () => {
       {
         as: PERSON.rohan,
         params: { id: instanceId('SLC-TAX-001', 'Pune Plant', '2024-11-01') },
-        body: { version: 1, completedOn: '2024-11-14' },
+        body: { version: 1, completedOn: '2024-11-14', comment: 'Done.' },
       },
       'EVIDENCE_REQUIRED',
       422,
