@@ -1,5 +1,5 @@
 {
-  "id": "75fe1e14-0d99-4a32-8969-974f90c23954",
+  "id": "9b31a9fb-a18e-4b2e-a537-0c078594b394",
   "prevId": "a57652ba-a832-4862-a485-1236a100fb4a",
   "version": "7",
   "dialect": "postgresql",
@@ -4306,6 +4306,14 @@
           "name": "auth_credential_failed_attempts_check",
           "value": "failed_attempts >= 0"
         },
+        "auth_credential_password_hash_check": {
+          "name": "auth_credential_password_hash_check",
+          "value": "password_hash is null or password_hash ~ '^scrypt\\$[0-9]+\\$[0-9]+\\$[0-9]+\\$[A-Za-z0-9_-]+\\$[A-Za-z0-9_-]+$'"
+        },
+        "auth_credential_mfa_secret_check": {
+          "name": "auth_credential_mfa_secret_check",
+          "value": "mfa_sealed_secret is null or mfa_sealed_secret ~ '^v1\\.[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+$'"
+        },
         "auth_credential_mfa_check": {
           "name": "auth_credential_mfa_check",
           "value": "(mfa_enrolled_at is null or mfa_sealed_secret is not null) and (mfa_last_step is null or mfa_last_step >= 0)"
@@ -4495,8 +4503,8 @@
           "as": "PERMISSIVE",
           "for": "ALL",
           "to": ["public"],
-          "using": "firm_id = app_firm_id() and (person_id = app_person_id() or app_firm_staff() or (client_id is not null and app_can_see_client(client_id)))",
-          "withCheck": "firm_id = app_firm_id() and (person_id = app_person_id() or app_firm_staff() or (client_id is not null and app_can_see_client(client_id)))"
+          "using": "firm_id = app_firm_id() and (person_id = app_person_id() or app_firm_staff() or (client_id is not null and app_can_see_client(client_id) and exists (select 1 from person p where p.id = person_id) and not app_person_has_firm_role(person_id)))",
+          "withCheck": "firm_id = app_firm_id() and (person_id = app_person_id() or app_firm_staff() or (client_id is not null and app_can_see_client(client_id) and exists (select 1 from person p where p.id = person_id) and not app_person_has_firm_role(person_id)))"
         },
         "lookup_read": {
           "name": "lookup_read",

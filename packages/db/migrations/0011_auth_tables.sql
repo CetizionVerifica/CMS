@@ -11,6 +11,8 @@ CREATE TABLE "auth_credential" (
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
 	CONSTRAINT "auth_credential_failed_attempts_check" CHECK (failed_attempts >= 0),
+	CONSTRAINT "auth_credential_password_hash_check" CHECK (password_hash is null or password_hash ~ '^scrypt\$[0-9]+\$[0-9]+\$[0-9]+\$[A-Za-z0-9_-]+\$[A-Za-z0-9_-]+$'),
+	CONSTRAINT "auth_credential_mfa_secret_check" CHECK (mfa_sealed_secret is null or mfa_sealed_secret ~ '^v1\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$'),
 	CONSTRAINT "auth_credential_mfa_check" CHECK ((mfa_enrolled_at is null or mfa_sealed_secret is not null) and (mfa_last_step is null or mfa_last_step >= 0))
 );
 --> statement-breakpoint
@@ -97,7 +99,7 @@ CREATE INDEX "person_email_lookup_idx" ON "person" USING btree (lower("email")) 
 CREATE POLICY "lookup_read" ON "person" AS PERMISSIVE FOR SELECT TO "canopy_lookup" USING (true);--> statement-breakpoint
 CREATE POLICY "tenant_isolation" ON "auth_credential" AS PERMISSIVE FOR ALL TO public USING (firm_id = app_firm_id() and (person_id = app_person_id() or app_firm_staff())) WITH CHECK (firm_id = app_firm_id() and (person_id = app_person_id() or app_firm_staff()));--> statement-breakpoint
 CREATE POLICY "lookup_read" ON "auth_credential" AS PERMISSIVE FOR SELECT TO "canopy_lookup" USING (true);--> statement-breakpoint
-CREATE POLICY "tenant_isolation" ON "auth_invite" AS PERMISSIVE FOR ALL TO public USING (firm_id = app_firm_id() and (person_id = app_person_id() or app_firm_staff() or (client_id is not null and app_can_see_client(client_id)))) WITH CHECK (firm_id = app_firm_id() and (person_id = app_person_id() or app_firm_staff() or (client_id is not null and app_can_see_client(client_id))));--> statement-breakpoint
+CREATE POLICY "tenant_isolation" ON "auth_invite" AS PERMISSIVE FOR ALL TO public USING (firm_id = app_firm_id() and (person_id = app_person_id() or app_firm_staff() or (client_id is not null and app_can_see_client(client_id) and exists (select 1 from person p where p.id = person_id) and not app_person_has_firm_role(person_id)))) WITH CHECK (firm_id = app_firm_id() and (person_id = app_person_id() or app_firm_staff() or (client_id is not null and app_can_see_client(client_id) and exists (select 1 from person p where p.id = person_id) and not app_person_has_firm_role(person_id))));--> statement-breakpoint
 CREATE POLICY "lookup_read" ON "auth_invite" AS PERMISSIVE FOR SELECT TO "canopy_lookup" USING (true);--> statement-breakpoint
 CREATE POLICY "tenant_isolation" ON "auth_session" AS PERMISSIVE FOR ALL TO public USING (firm_id = app_firm_id() and (person_id = app_person_id() or app_firm_staff())) WITH CHECK (firm_id = app_firm_id() and (person_id = app_person_id() or app_firm_staff()));--> statement-breakpoint
 CREATE POLICY "lookup_read" ON "auth_session" AS PERMISSIVE FOR SELECT TO "canopy_lookup" USING (true);--> statement-breakpoint

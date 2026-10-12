@@ -24,6 +24,9 @@ export type TenantTx = Transaction & { readonly [tenantBrand]: true };
 /** The role every tenant transaction switches to (migration 0000). It has no BYPASSRLS. */
 export const APP_ROLE = 'canopy_app';
 
+/** Owner of the SECURITY DEFINER pre-tenant lookups (migration 0007); no request login may become it. */
+const LOOKUP_ROLE = 'canopy_lookup';
+
 export const MIGRATIONS_FOLDER = fileURLToPath(new URL('../migrations', import.meta.url));
 
 export interface DatabaseOptions {
@@ -88,6 +91,9 @@ async function privilegedReason(db: Db): Promise<string | null> {
     if (role.superuser) return `${who} is a superuser`;
     if (role.bypassrls) return `${who} has BYPASSRLS`;
     if (role.owner) return `${who} owns tables in schema public`;
+    // Owns the pre-tenant lookups, which read across firms (migrations 0007, 0012).
+    if (role.name === LOOKUP_ROLE)
+      return role.self ? 'the login is canopy_lookup' : `${who} reads across firms`;
   }
   return null;
 }

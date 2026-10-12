@@ -58,7 +58,7 @@ Decisions and their reasons: `docs/adr/0003-m3-tenant-isolation-in-postgres.md`.
   in the API and `systemContext(firmId, requestId)` in jobs and imports. `createAdminDatabase` (migrate, createFirm) is for deploy, seed and tests only.
 - Deploy: migrations run as the owner, which need not be a superuser; the one-time grants it needs are in the ADR's
   Consequences. Pre-tenant lookups are `SECURITY DEFINER` functions owned by `canopy_lookup`, never by the owner.
-- Production login: a non-owner member of `canopy_app`. With `NODE_ENV=production`, `createDatabase` refuses a login that is, or can `SET ROLE` to, a superuser, BYPASSRLS or table-owning role.
+- Production login: a non-owner member of `canopy_app`. With `NODE_ENV=production`, `createDatabase` refuses a login that is, or can `SET ROLE` to, a superuser, BYPASSRLS, table-owning or `canopy_lookup` role.
 - Repositories (`src/repositories`, exported from `@canopy/db`): one object per aggregate (`clients`, `units`, `people`,
   `memberships`, `obligations`, `assignments`, `instances`, `evidence`, `comments`, `auditEvents`, `importBatches`,
   `domainEvents`, ...). Every function takes the `TenantTx` from `withTenant` first:
@@ -80,7 +80,8 @@ Decisions and their reasons: `docs/adr/0003-m3-tenant-isolation-in-postgres.md`.
 - Imports (M8): `importBatches.create` takes an optional `id` (a UUIDv7 from `uuidv7()`, exported here) so an upload
   ticket can name the batch first; `importBatches.list` is newest first (`list` takes `order: 'asc' | 'desc'`).
 - Sign-in (M5, ADR M3-0001): `db.findLoginCandidates`, `db.findSession` and `db.findLoginToken` are the pre-tenant
-  lookups; `credentials`, `sessions`, `loginTokens` and `invites` run in `withTenant`. Tokens are stored as SHA-256 hex only.
+  lookups and return nothing inside a `withTenant` transaction; `credentials`, `sessions`, `loginTokens` and `invites` run in
+  `withTenant`. Tokens are stored as SHA-256 hex only.
 - Repositories never write audit or outbox rows themselves. The caller (M7 workflow, M8 import) calls
   `auditEvents.append(tx, ...)` and `domainEvents.enqueue(tx, ...)` in the same `withTenant` transaction as the change.
 - Client contexts create people with `people.createWithMembership` (the new person is invisible until a membership

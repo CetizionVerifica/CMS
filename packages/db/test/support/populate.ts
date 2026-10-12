@@ -412,7 +412,7 @@ export async function populateAuth(
       await one(
         tx
           .insert(s.authCredential)
-          .values({ personId: adminId, passwordHash: 'scrypt$populate' })
+          .values({ personId: adminId, passwordHash: 'scrypt$32768$8$1$salt$populate' })
           .returning({ id: s.authCredential.id }),
       ),
     );

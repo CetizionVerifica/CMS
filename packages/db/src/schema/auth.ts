@@ -65,6 +65,15 @@ export const authCredential = pgTable(
     }),
     uniqueIndex('auth_credential_person_key').on(t.personId),
     check('auth_credential_failed_attempts_check', sql`failed_attempts >= 0`),
+    // Stored shapes from M5 (passwords.ts, secretbox.ts), so a plaintext value is never kept by mistake.
+    check(
+      'auth_credential_password_hash_check',
+      sql`password_hash is null or password_hash ~ '^scrypt\\$[0-9]+\\$[0-9]+\\$[0-9]+\\$[A-Za-z0-9_-]+\\$[A-Za-z0-9_-]+$'`,
+    ),
+    check(
+      'auth_credential_mfa_secret_check',
+      sql`mfa_sealed_secret is null or mfa_sealed_secret ~ '^v1\\.[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+$'`,
+    ),
     check(
       'auth_credential_mfa_check',
       sql`(mfa_enrolled_at is null or mfa_sealed_secret is not null) and (mfa_last_step is null or mfa_last_step >= 0)`,
@@ -168,7 +177,11 @@ export const authInvite = pgTable(
       sql`role <> 'VIEWER' or membership_expires_at is not null`,
     ),
     check('auth_invite_closed_check', sql`accepted_at is null or revoked_at is null`),
-    ...selfOrStaffPolicies(sql`(client_id is not null and app_can_see_client(client_id))`),
+    // The client branch also needs the person to be visible and to hold no firm role: the person foreign key
+    // is checked without RLS, so otherwise a client context could name a firm admin (audit of #39, finding 1).
+    ...selfOrStaffPolicies(
+      sql`(client_id is not null and app_can_see_client(client_id) and exists (select 1 from person p where p.id = person_id) and not app_person_has_firm_role(person_id))`,
+    ),
   ],
 );
 

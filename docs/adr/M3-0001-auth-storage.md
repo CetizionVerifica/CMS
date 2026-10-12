@@ -18,12 +18,16 @@ cookie token, and a sign-in link by the hash of its token. Everything else runs 
    - `auth_token`: magic-link and invite links, stored as the SHA-256 of the token (unique), with `used_at`.
      An invite's link must name the invited person, enforced by a composite foreign key.
 2. **Raw tokens are never stored.** Only lower-case SHA-256 hex digests are stored, and CHECK constraints
-   enforce that shape. Email is unique per firm, not globally (`person_email_key`), so one email can have a
+   enforce that shape. The password hash (`scrypt$N$r$p$salt$key`) and the sealed MFA secret
+   (`v1.iv.tag.data`) also have shape CHECKs, so a plaintext password or unsealed secret is refused. Email is unique per firm, not globally (`person_email_key`), so one email can have a
    candidate in several firms.
 3. **Who reaches the rows (RLS).**
    - A person reaches their own rows.
    - Firm staff contexts reach every row of the firm. These are firm admins, consultants and system jobs.
-   - Client contexts also reach the invites of the clients they see, and those invites' links.
+   - Client contexts also reach the invites of the clients they see, and those invites' links, but only for a
+     person the context can already see who holds no firm role. A client context cannot plant an invite or a
+     link for a firm admin or for a person outside its clients, and `invites.accept` refuses (FORBIDDEN) a
+     client invite whose person holds a firm role.
    - M5's `can()` decides which client roles may invite. RLS has no notion of roles (ADR 0003, Limits).
 4. **Pre-tenant lookups are SECURITY DEFINER functions owned by `canopy_lookup`.** The functions are
    `canopy_login_candidates`, `canopy_find_session` and `canopy_find_login_token`, all with a fixed
@@ -32,7 +36,9 @@ cookie token, and a sign-in link by the hash of its token. Everything else runs 
    Only `canopy_app` can execute the functions, through `Database.findLoginCandidates`, `findSession` and
    `findLoginToken`. They return ids, states, the password hash and lock (which M5 needs to verify a
    password) and the session's CSRF token (useless without the cookie). The MFA secret is never granted to
-   the lookup role.
+   the lookup role. The functions answer only outside a tenant context: when `app.firm_id` is set (inside any
+   `withTenant` transaction) they return no rows, so request code cannot use them to read another firm.
+   `createDatabase` in production refuses a login that is, or is a member of, `canopy_lookup`.
 5. **The repositories match AccountStore, minus audit and outbox.** These are `credentials`, `sessions`,
    `loginTokens` and `invites` in `src/repositories/auth.ts`. As in every repository, the caller writes the
    `AuditEvent` and outbox event in the same `withTenant` transaction. The writes return what those events

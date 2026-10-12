@@ -1,5 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import { DEFAULT_CLIENT_SETTINGS } from '@canopy/contracts';
+import { sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { TenantTx } from '../src/database.js';
 import { DbError } from '../src/errors.js';
@@ -124,7 +125,7 @@ afterAll(async () => {
 
 describe('login candidates', () => {
   it('finds the email in every firm, case-insensitively, with password and lock', async () => {
-    await inA((tx) => r.credentials.setPassword(tx, memberId, 'scrypt$member'));
+    await inA((tx) => r.credentials.setPassword(tx, memberId, 'scrypt$32768$8$1$salt$member'));
     const found = await t.db.findLoginCandidates('  SHARED@example.COM ');
     expect(found.sort((x, y) => x.firmName.localeCompare(y.firmName))).toEqual([
       {
@@ -132,7 +133,7 @@ describe('login candidates', () => {
         personId: memberId,
         firmName: 'Demo Advisory',
         status: 'ACTIVE',
-        passwordHash: 'scrypt$member',
+        passwordHash: 'scrypt$32768$8$1$salt$member',
         lockedUntil: null,
       },
       {
@@ -228,9 +229,9 @@ describe('credentials', () => {
     await fail();
     await inA((tx) => r.credentials.resetFailures(tx, inviteeId));
     expect((await inA((tx) => r.credentials.get(tx, inviteeId)))?.failedAttempts).toBe(0);
-    await inA((tx) => r.credentials.setPassword(tx, inviteeId, 'scrypt$x'));
+    await inA((tx) => r.credentials.setPassword(tx, inviteeId, 'scrypt$32768$8$1$salt$x'));
     expect(await inA((tx) => r.credentials.get(tx, inviteeId))).toMatchObject({
-      passwordHash: 'scrypt$x',
+      passwordHash: 'scrypt$32768$8$1$salt$x',
       lockedUntil: null,
     });
     expect(
@@ -255,7 +256,7 @@ describe('credentials', () => {
     expect(await inA((tx) => r.credentials.acceptMfaStep(tx, adminId, 5))).toBe(false);
     await inA((tx) =>
       r.credentials.saveMfa(tx, adminId, {
-        sealedSecret: 'sealed',
+        sealedSecret: 'v1.iv.tag.sealed',
         enrolledAt: null,
         lastStep: null,
       }),
@@ -266,10 +267,14 @@ describe('credentials', () => {
     expect(await inA((tx) => r.credentials.acceptMfaStep(tx, adminId, 9))).toBe(false);
     expect(await inA((tx) => r.credentials.acceptMfaStep(tx, adminId, 11))).toBe(true);
     await inA((tx) =>
-      r.credentials.saveMfa(tx, adminId, { sealedSecret: 'sealed', enrolledAt: NOW, lastStep: 11 }),
+      r.credentials.saveMfa(tx, adminId, {
+        sealedSecret: 'v1.iv.tag.sealed',
+        enrolledAt: NOW,
+        lastStep: 11,
+      }),
     );
     expect(await inA((tx) => r.credentials.getMfa(tx, adminId))).toEqual({
-      sealedSecret: 'sealed',
+      sealedSecret: 'v1.iv.tag.sealed',
       enrolledAt: NOW,
       lastStep: 11,
     });
@@ -287,14 +292,20 @@ describe('credentials', () => {
     // A client user cannot set someone else's password; another firm cannot either.
     expect(
       await code(
-        as(asClientUser(memberId), (tx) => r.credentials.setPassword(tx, adminId, 'scrypt$evil')),
+        as(asClientUser(memberId), (tx) =>
+          r.credentials.setPassword(tx, adminId, 'scrypt$32768$8$1$salt$evil'),
+        ),
       ),
     ).not.toBe('resolved');
     expect(
-      await code(inFirm(firmB, (tx) => r.credentials.setPassword(tx, memberId, 'scrypt$evil'))),
+      await code(
+        inFirm(firmB, (tx) =>
+          r.credentials.setPassword(tx, memberId, 'scrypt$32768$8$1$salt$evil'),
+        ),
+      ),
     ).not.toBe('resolved');
     expect((await inA((tx) => r.credentials.get(tx, memberId)))?.passwordHash).toBe(
-      'scrypt$member',
+      'scrypt$32768$8$1$salt$member',
     );
   });
 });
@@ -473,7 +484,9 @@ describe('invites', () => {
       revokedAt: null,
     });
     const firstToken = hash();
-    const firstTokenId = await as(clientAdmin(), (tx) =>
+    // The invitee has no link to the client yet, so only firm staff see this invite (finding 1 on #39).
+    expect(await as(clientAdmin(), (tx) => r.invites.get(tx, first.invite.id))).toBeNull();
+    const firstTokenId = await inA((tx) =>
       r.loginTokens.create(tx, {
         personId: inviteeId,
         kind: 'INVITE',
@@ -508,7 +521,7 @@ describe('invites', () => {
           r.invites.accept(tx, {
             inviteId: second.invite.id,
             tokenId: firstTokenId,
-            passwordHash: 'scrypt$owner',
+            passwordHash: 'scrypt$32768$8$1$salt$owner',
             now: NOW,
           }),
         ),
@@ -536,7 +549,7 @@ describe('invites', () => {
       r.invites.accept(tx, {
         inviteId: second.invite.id,
         tokenId,
-        passwordHash: 'scrypt$owner',
+        passwordHash: 'scrypt$32768$8$1$salt$owner',
         now: NOW,
       }),
     );
@@ -544,7 +557,7 @@ describe('invites', () => {
     expect(accepted.membership).toMatchObject({ personId: inviteeId, role: 'OWNER', clientId });
     expect(accepted.invite.acceptedAt).toBe(NOW);
     expect(await as(invitee, (tx) => r.credentials.get(tx, inviteeId))).toMatchObject({
-      passwordHash: 'scrypt$owner',
+      passwordHash: 'scrypt$32768$8$1$salt$owner',
     });
     expect(await t.db.findLoginToken(tokenHash)).toMatchObject({ usedAt: NOW, inviteOpen: false });
     expect(
@@ -553,7 +566,7 @@ describe('invites', () => {
           r.invites.accept(tx, {
             inviteId: second.invite.id,
             tokenId,
-            passwordHash: 'scrypt$x',
+            passwordHash: 'scrypt$32768$8$1$salt$x',
             now: NOW,
           }),
         ),
@@ -563,14 +576,24 @@ describe('invites', () => {
   });
 
   it('keeps invites to the clients a context sees, and revokes open ones', async () => {
-    const person = await inA((tx) =>
-      r.people.create(tx, {
+    // Owner 02 already works in the other client (an import made them owner there), so its context sees them.
+    const person = await inA(async (tx) => {
+      const p = await r.people.create(tx, {
         displayName: 'Owner 02',
         nameNormalized: 'owner 02',
         email: null,
         status: 'UNCLAIMED',
-      }),
-    );
+      });
+      await r.memberships.create(tx, {
+        personId: p.id,
+        role: 'OWNER',
+        clientId: otherClientId,
+        consultantClientIds: null,
+        unitIds: null,
+        expiresAt: null,
+      });
+      return p;
+    });
     const created = await inA((tx) =>
       r.invites.create(
         tx,
@@ -659,3 +682,113 @@ describe('invites', () => {
     ).toBe('DUPLICATE');
   });
 });
+
+describe('audit of #39', () => {
+  const pw = (tag: string) => `scrypt$32768$8$1$salt$${tag}`;
+
+  it('finding 1: a client context cannot plant an invite for a firm admin, even with raw SQL', async () => {
+    const plant = as(asClientUser(memberId), (tx) =>
+      tx.execute(sql`
+        INSERT INTO auth_invite (person_id, email, role, client_id, created_by_id, expires_at)
+        VALUES (${adminId}, 'admin@demo.example', 'OWNER', ${clientId}, ${memberId}, now() + interval '1 day')`),
+    );
+    await expect(plant).rejects.toSatisfy((e) => sqlState(e) === '42501');
+    // A visible person without a firm role still can be invited by the client context.
+    const visible = await as(asClientUser(memberId), (tx) =>
+      tx.execute(sql`
+        INSERT INTO auth_invite (person_id, email, role, client_id, created_by_id, expires_at)
+        VALUES (${memberId}, 'shared@example.com', 'APPROVER', ${clientId}, ${memberId}, now() + interval '1 day')`),
+    );
+    expect(visible.rowCount).toBe(1);
+  });
+
+  it('finding 1: accepting a client invite never sets a firm admin password', async () => {
+    const before = (await inA((tx) => r.credentials.get(tx, adminId)))?.passwordHash ?? null;
+    const tokenHash = hash();
+    const { inviteId, tokenId } = await inA(async (tx) => {
+      const { rows } = await tx.execute<{ id: string }>(sql`
+        INSERT INTO auth_invite (person_id, email, role, client_id, created_by_id, expires_at)
+        VALUES (${adminId}, 'admin@demo.example', 'OWNER', ${clientId}, ${adminId}, now() + interval '1 day')
+        RETURNING id`);
+      const id = rows[0]!.id;
+      const token = await r.loginTokens.create(tx, {
+        personId: adminId,
+        kind: 'INVITE',
+        inviteId: id,
+        tokenHash,
+        expiresAt: '2030-01-01T00:00:00.000Z',
+      });
+      return { inviteId: id, tokenId: token };
+    });
+    expect(
+      await code(
+        inA((tx) =>
+          r.invites.accept(tx, { inviteId, tokenId, passwordHash: pw('attacker'), now: NOW }),
+        ),
+      ),
+    ).toBe('FORBIDDEN');
+    expect((await inA((tx) => r.credentials.get(tx, adminId)))?.passwordHash ?? null).toBe(before);
+    expect((await t.db.findLoginToken(tokenHash))?.usedAt).toBeNull();
+  });
+
+  it('finding 2: the pre-tenant lookups answer nothing inside a tenant transaction', async () => {
+    const sessionHash = hash();
+    await inA((tx) =>
+      r.sessions.create(tx, {
+        personId: memberId,
+        tokenHash: sessionHash,
+        csrfToken: CSRF,
+        mfaSatisfied: false,
+        expiresAt: LATER,
+        method: 'PASSWORD',
+      }),
+    );
+    expect(await t.db.findSession(sessionHash)).not.toBeNull();
+    for (const ctx of [systemContext(firmB, 'auth-test'), systemContext(firmA, 'auth-test')]) {
+      const counts = await as(ctx, async (tx) => {
+        const n = async (q: ReturnType<typeof sql>) => (await tx.execute(q)).rows.length;
+        return [
+          await n(sql`SELECT * FROM canopy_login_candidates('shared@example.com')`),
+          await n(sql`SELECT * FROM canopy_find_session(${sessionHash})`),
+          await n(sql`SELECT * FROM canopy_find_login_token(${sessionHash})`),
+        ];
+      });
+      expect(counts).toEqual([0, 0, 0]);
+    }
+    // Outside a tenant, after tenant transactions on the same pool, they answer again.
+    expect((await t.db.findLoginCandidates('shared@example.com')).length).toBe(2);
+  });
+
+  it('finding 3: only scrypt hashes and sealed secrets are stored', async () => {
+    expect(await code(inA((tx) => r.credentials.setPassword(tx, adminId, 'hunter2')))).toBe(
+      'VALIDATION',
+    );
+    expect(
+      await code(
+        inA((tx) =>
+          r.credentials.saveMfa(tx, adminId, {
+            sealedSecret: 'JBSWY3DP',
+            enrolledAt: null,
+            lastStep: null,
+          }),
+        ),
+      ),
+    ).toBe('VALIDATION');
+    for (const set of [sql`password_hash = 'hunter2'`, sql`mfa_sealed_secret = 'JBSWY3DP'`]) {
+      await expect(
+        inA((tx) =>
+          tx.execute(sql`UPDATE auth_credential SET ${set} WHERE person_id = ${adminId}`),
+        ),
+      ).rejects.toSatisfy((e) => sqlState(e) === '23514');
+    }
+  });
+});
+
+function sqlState(error: unknown): string | undefined {
+  let e: unknown = error;
+  while (e && typeof e === 'object') {
+    if ('code' in e && typeof e.code === 'string' && /^[0-9A-Z]{5}$/.test(e.code)) return e.code;
+    e = 'cause' in e ? e.cause : undefined;
+  }
+  return undefined;
+}

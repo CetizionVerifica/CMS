@@ -20,7 +20,8 @@ const at = (value: string): Date => new Date(validate(Instant, value));
 
 /** MFA state: the TOTP secret sealed by M5's SecretBox, when it was confirmed, and the last step accepted. */
 export const MfaRecord = z.strictObject({
-  sealedSecret: z.string().min(1),
+  /** SecretBox's `v1.<iv>.<tag>.<ciphertext>`; the table has the same CHECK. */
+  sealedSecret: z.string().regex(/^v1\.[\w-]+\.[\w-]+\.[\w-]+$/, 'Expected a sealed secret'),
   enrolledAt: Instant.nullable(),
   lastStep: z.int().min(0).nullable(),
 });
@@ -37,7 +38,11 @@ export interface Credential {
 export const Lockout = z.strictObject({ attempts: z.int().min(1), minutes: z.int().min(1) });
 export type Lockout = z.infer<typeof Lockout>;
 
-const PasswordHash = z.string().min(1).max(1000);
+/** M5's stored scrypt form (apps/api/src/auth/passwords.ts); the table has the same CHECK. */
+const PasswordHash = z
+  .string()
+  .max(1000)
+  .regex(/^scrypt\$\d+\$\d+\$\d+\$[\w-]+\$[\w-]+$/, 'Expected an scrypt hash');
 
 export const credentials = {
   async get(tx: TenantTx, personId: string): Promise<Credential | null> {
@@ -444,7 +449,8 @@ export const invites = {
   /**
    * Accepts an open invite with one of its unused tokens: uses the token, marks the invite accepted, sets the
    * password, makes the person ACTIVE and grants the membership. NOT_FOUND when the invite is not open or the
-   * token is used, expired or not the invite's (nothing is changed then, as the transaction rolls back).
+   * token is used, expired or not the invite's; FORBIDDEN when a client-role invite names someone who holds a
+   * firm role (nothing is changed then, as the transaction rolls back).
    */
   async accept(
     tx: TenantTx,
@@ -474,6 +480,15 @@ export const invites = {
       .returning()
       .catch(rethrow);
     if (!row) throw new DbError('NOT_FOUND', 'No open invite for this link');
+    // A client-role invite never sets the password of someone who holds a firm role (audit of #39, finding 1).
+    if (row.clientId !== null) {
+      const { rows: held } = await tx
+        .execute<{ firm: boolean }>(sql`SELECT app_person_has_firm_role(${row.personId}) AS firm`)
+        .catch(rethrow);
+      if (held[0]?.firm) {
+        throw new DbError('FORBIDDEN', 'A client invite cannot be accepted by firm staff');
+      }
+    }
     const before = await people.require(tx, row.personId);
     const after = await people.update(tx, before.id, before.version, {
       status: 'ACTIVE',

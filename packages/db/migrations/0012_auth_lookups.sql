@@ -22,6 +22,9 @@ GRANT SELECT ("id", "firm_id", "person_id", "token_hash", "csrf_token", "mfa_sat
 GRANT SELECT ("id", "firm_id", "person_id", "kind", "invite_id", "token_hash", "expires_at", "used_at") ON "auth_token" TO canopy_lookup;--> statement-breakpoint
 GRANT SELECT ("id", "firm_id", "expires_at", "accepted_at", "revoked_at") ON "auth_invite" TO canopy_lookup;--> statement-breakpoint
 
+-- All three answer only outside a tenant context (no app.firm_id), so SQL inside withTenant cannot use them to
+-- read another firm's hashes (audit of #39, finding 2). Database.find* call them with no tenant settings.
+
 -- People who may sign in with this email, across firms: ACTIVE, INVITED and DISABLED (M5 answers each), never
 -- UNCLAIMED or archived people, nor archived firms.
 CREATE FUNCTION canopy_login_candidates(p_email text)
@@ -35,6 +38,7 @@ AS $$
   LEFT JOIN auth_credential c ON c.firm_id = p.firm_id AND c.person_id = p.id
   WHERE p.email IS NOT NULL AND lower(p.email) = lower(p_email)
     AND p.archived_at IS NULL AND p.status <> 'UNCLAIMED' AND f.archived_at IS NULL
+    AND coalesce(current_setting('app.firm_id', true), '') = ''
   ORDER BY f.name, p.firm_id
 $$;
 --> statement-breakpoint
@@ -47,6 +51,7 @@ AS $$
   SELECT s.id, s.firm_id, s.person_id, s.csrf_token, s.mfa_satisfied, s.expires_at
   FROM auth_session s
   WHERE s.token_hash = p_token_hash AND s.revoked_at IS NULL
+    AND coalesce(current_setting('app.firm_id', true), '') = ''
 $$;
 --> statement-breakpoint
 -- A sign-in link by the SHA-256 of its token, with whether its invite is still open. Used and expired tokens
@@ -61,6 +66,7 @@ AS $$
   FROM auth_token t
   LEFT JOIN auth_invite i ON i.firm_id = t.firm_id AND i.id = t.invite_id
   WHERE t.token_hash = p_token_hash
+    AND coalesce(current_setting('app.firm_id', true), '') = ''
 $$;
 --> statement-breakpoint
 GRANT CREATE ON SCHEMA public TO canopy_lookup;--> statement-breakpoint
