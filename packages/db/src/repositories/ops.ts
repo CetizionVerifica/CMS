@@ -128,19 +128,25 @@ export const exportJobs = {
   },
 };
 
-export const NotificationSend = z.strictObject({
-  clientId: Id,
-  instanceId: Id.nullable(),
-  recipientId: Id,
-  kind: NotificationKind,
-  sendDate: LocalDate,
-  /**
-   * Set for an event-driven send (the domain event's id): the send is then keyed on event and
-   * recipient, so each event reaches each recipient once whatever the date. Absent or null for
-   * scheduled sends, keyed on instance, kind, date and recipient.
-   */
-  eventId: Id.nullable().optional(),
-});
+export const NotificationSend = z
+  .strictObject({
+    /** Null only for an event-driven send with no client (a magic link, a firm-role invite). */
+    clientId: Id.nullable(),
+    instanceId: Id.nullable(),
+    recipientId: Id,
+    kind: NotificationKind,
+    sendDate: LocalDate,
+    /**
+     * Set for an event-driven send (the domain event's id): the send is then keyed on event and
+     * recipient, so each event reaches each recipient once whatever the date. Absent or null for
+     * scheduled sends, keyed on instance, kind, date and recipient.
+     */
+    eventId: Id.nullable().optional(),
+  })
+  .refine((n) => n.clientId !== null || (n.eventId != null && n.instanceId === null), {
+    message: 'A send without a client answers an event and names no instance',
+    path: ['clientId'],
+  });
 export type NotificationSend = z.input<typeof NotificationSend>;
 
 /**
