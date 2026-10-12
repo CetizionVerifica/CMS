@@ -1,4 +1,4 @@
-# 0006. Sign-in, MFA and invites (M5)
+# M5-0001. Sign-in, MFA and invites (M5)
 
 - Status: accepted
 - Date: 2026-10-12

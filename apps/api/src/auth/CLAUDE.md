@@ -1,7 +1,7 @@
 # apps/api/src/auth: sessions, MFA, permissions (M5)
 
 `apps/api/CLAUDE.md` and the root `CLAUDE.md` apply. Decisions: `docs/adr/0005-m5-policy-and-request-context.md`
-(policy, context) and `docs/adr/0006-m5-sign-in-mfa-invites.md` (sign-in, MFA, invites).
+(policy, context) and `docs/adr/M5-0001-sign-in-mfa-invites.md` (sign-in, MFA, invites).
 
 ## For other modules
 
