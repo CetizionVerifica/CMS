@@ -40,7 +40,7 @@ type DataTableProps<T> = {
   rowHref?: (row: T) => string;        // title cell link + row click
   sorting?: SortingState; onSortingChange?: …;     // controlled from URL
   selection?: { enabled: boolean; bulkActions: BulkAction[] };
-  views?: { list: SavedView[]; current?: string; onSave; onRename; onDelete; onSetDefault };
+  views?: SavedViewsProps;             // see Saved views
   columnVisibility?: VisibilityState; columnOrder?: string[]; onColumnsChange?: …;
   density?: 'comfortable'|'compact';
   loading?: boolean; error?: { message: string; retry: () => void };
@@ -56,6 +56,27 @@ Radix Popover: search, list of checkboxes (title column locked on), drag handle 
 ## Saved views
 
 Radix DropdownMenu: "Default", personal views, divider, "Save current view…" (dialog with name), "Rename", "Delete" (ConfirmDialog), "Set as my default". A view stores filters, sort, columns, density. Unsaved changes to a view show "• Edited" next to its name with "Save" and "Discard".
+
+Built as `SavedViews` (also usable on its own) and passed to the table as `views`. The app stores the views and applies them; the component only shows and edits the list:
+
+```ts
+type SavedView = { id: string; name: string };
+type SavedViewsProps = {
+  list: SavedView[]; // personal views; "Default" is built in
+  current?: string; // undefined = Default
+  defaultId?: string; // the user's default ("My default" in the menu)
+  edited?: boolean; // shows "• Edited" with Save and Discard
+  onSelect: (id: string | undefined) => void;
+  onSave: (name: string) => Promise<void> | void; // "Save current view…" and Save on Default
+  onUpdate?: (id: string) => Promise<void> | void; // Save on a personal view
+  onDiscard?: () => void;
+  onRename: (id: string, name: string) => Promise<void> | void;
+  onDelete: (id: string) => Promise<void> | void; // after a danger ConfirmDialog
+  onSetDefault: (id: string | undefined) => Promise<void> | void;
+};
+```
+
+Views are a radio group in the menu (the current one checked). Rename and Delete show only for personal views. Name dialogs are ConfirmDialogs in one-line name mode (Enter confirms, 60 characters max). Focus returns to the view trigger after every dialog.
 
 ## States
 

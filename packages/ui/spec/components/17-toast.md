@@ -15,7 +15,7 @@ Card 360px max, bg `--ink`, text white `type-body`, radius `radius-card`, `--sha
 | warn    | "Saved, but 2 files are still scanning" | 8s                     | `status` |
 | error   | "Couldn't approve. Try again."          | never (manual dismiss) | `alert`  |
 
-Timers pause on hover and while focus is inside the toast. Max 3 visible; older ones collapse.
+Timers pause on hover and while focus is inside the toast. Max 3 visible; older ones collapse and do not come back. Errors are the exception: they wait behind the visible three until one closes, up to 10 queued.
 
 ## Placement
 

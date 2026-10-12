@@ -9,7 +9,7 @@ Card with title (`type-card`) and optional "View calendar" ghost link. Items (mi
 - **Date block** 44px wide, `--mist` bg, `radius-chip`: day (`type-section` 800 tabular) over month (`type-label`).
 - **Text**: title (`type-body-strong`, 1 line, truncate) · meta (`type-meta` `--muted`: unit or department · owner).
 - **Trailing** (optional): StatusPill `sm` (DUE_SOON / OVERDUE only, so the list stays calm).
-  Optional group headings: "This week", "Next week", "Later" (`type-label` `--muted`).
+  Optional group headings: "Overdue" (due before `today`), "This week", "Next week", "Later" (`type-label` `--muted`). Grouping needs the API's `today`; without it the list is not grouped and a development warning names the missing prop.
 
 ## Props
 

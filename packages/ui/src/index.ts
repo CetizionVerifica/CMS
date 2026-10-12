@@ -46,6 +46,8 @@ export { LoadingRegion, Skeleton } from './primitives/Skeleton';
 export type { LoadingRegionProps } from './primitives/Skeleton';
 export { Link, linkClasses } from './primitives/Link';
 export type { LinkProps } from './primitives/Link';
+export { DateInput } from './primitives/DateInput';
+export type { DateInputProps } from './primitives/DateInput';
 
 // 01 · AppShell
 export { AppShell } from './components/AppShell';
@@ -59,3 +61,71 @@ export type {
   UserMenuItem,
   UserMenuProps,
 } from './components/AppShell';
+
+// 02-03 · Client and period context
+export { ClientSwitcher } from './components/ClientSwitcher';
+export type { ClientSummary, ClientSwitcherProps } from './components/ClientSwitcher';
+export { PeriodPicker } from './components/PeriodPicker';
+export type { Period, PeriodPickerProps, Quarter } from './components/PeriodPicker';
+export { fyLabel, periodLabel, periodName } from './lib/period';
+
+// 04-08 · Metrics and status language
+export { KpiCard } from './components/KpiCard';
+export type { KpiCardProps } from './components/KpiCard';
+export { ScoreRing } from './components/ScoreRing';
+export type { ScoreRingProps } from './components/ScoreRing';
+export { ProgressBar } from './components/ProgressBar';
+export type { ProgressBarProps, Segment, SegmentKey } from './components/ProgressBar';
+export { categoryLabel, DERIVED_STATUSES, StatusPill, statusLabel } from './components/StatusPill';
+export type { DerivedStatus, StatusPillProps } from './components/StatusPill';
+export { CRITICALITY_LABEL, CRITICALITY_ORDER, CriticalityTag } from './components/CriticalityTag';
+export type { Criticality, CriticalityTagProps } from './components/CriticalityTag';
+export { formatDate, formatNumber, formatPercent } from './lib/format';
+export { defaultLink } from './lib/link';
+
+// 09 · DataTable
+export { DataTable } from './components/data-table/DataTable';
+export type { BulkAction, DataTableProps, Density } from './components/data-table/DataTable';
+export { SavedViews } from './components/data-table/SavedViews';
+export type { SavedView, SavedViewsProps } from './components/data-table/SavedViews';
+export type {
+  ColumnType,
+  PersonValue,
+  StatusValue,
+  TitleValue,
+} from './components/data-table/cells';
+export type { TableContext } from './components/data-table/context';
+
+// 10 · FilterBar
+export { FilterBar, summarise as summariseFilter } from './components/FilterBar';
+export type {
+  DateRange,
+  FilterBarProps,
+  FilterDef,
+  FilterOption,
+  FilterValue,
+} from './components/FilterBar';
+
+// 11, 18 · Drawer and ConfirmDialog
+export { Drawer, DrawerSection } from './components/Drawer';
+export type { DrawerProps } from './components/Drawer';
+export { ConfirmDialog } from './components/ConfirmDialog';
+export type { ConfirmDialogProps } from './components/ConfirmDialog';
+
+// 12-13 · Lists
+export { DeadlineList } from './components/DeadlineList';
+export type { DeadlineItem, DeadlineListProps } from './components/DeadlineList';
+export { TaskList } from './components/TaskList';
+export type { TaskItem, TaskListProps } from './components/TaskList';
+
+// 14, 17 · Feedback
+export { EmptyState } from './components/EmptyState';
+export type { EmptyStateProps, EmptyStateVariant } from './components/EmptyState';
+export { dismissToast, toast, Toaster } from './components/Toast';
+export type { ToastOptions, ToastTone } from './components/Toast';
+
+// 15-16 · Evidence and activity
+export { FileDrop, middleTruncate } from './components/FileDrop';
+export type { FileDropProps, UploadItem, UploadState } from './components/FileDrop';
+export { formatTimestamp, Timeline } from './components/Timeline';
+export type { AuditEventKind, TimelineEvent, TimelineProps } from './components/Timeline';

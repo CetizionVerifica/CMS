@@ -66,3 +66,31 @@
     transform: rotate(360deg);
   }
 }
+
+@keyframes canopy-toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+@keyframes canopy-indeterminate {
+  from {
+    left: -33%;
+  }
+  to {
+    left: 100%;
+  }
+}
+
+@keyframes canopy-drawer-in {
+  from {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes canopy-fade-in {
+  from {
+    opacity: 0;
+  }
+}

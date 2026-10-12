@@ -21,19 +21,20 @@ type PeriodPickerProps = {
   onChange: (p: Period) => void; // web app maps to URL
   fyStartMonth?: number; // 1-12, default 4 (April); per client
   availableFys: string[]; // e.g. ["2022-23", "2023-24"]
-  today: string; // YYYY-MM-DD in client time zone, for "This period"
+  thisPeriod?: Period; // current quarter of the current FY, from the engine via the API; omit to hide "This period"
+  availableUntil?: string; // YYYY-MM, last month with generated instances; later cells are disabled
 };
 ```
 
-The component formats labels only; FY boundaries come from `fyStartMonth` and are computed by the engine helper exposed through contracts, not reimplemented here.
+The component has no `today`: the API resolves the current period in the client's time zone (engine) and passes `thisPeriod`. The picker only lays out the twelve months of an FY in order from `fyStartMonth` (`src/lib/period.ts`), which is display arithmetic, not a compliance rule; `packages/ui` cannot import contracts or the engine (CR-11).
 
 ## States
 
-Rest / hover (1px `--forest` border) / focus ring / open. Current period button in grid: 1px `--forest` border. Selected: bg `--forest`, text white. Future months beyond `availableFys`: disabled with tooltip "No instances generated yet".
+Rest / hover (1px `--forest` border) / focus ring / open. Current period button in grid: 1px `--forest` border. Selected: bg `--forest`, text white. Months after `availableUntil`: disabled with tooltip "No instances generated yet".
 
 ## Keyboard
 
-Trigger opens with Enter/Space/ArrowDown and focuses the selected grid cell. Arrow keys move across the grid (roving tabindex), Enter selects, Tab moves between FY select, toggle group and grid, Esc closes.
+Trigger opens with Enter/Space/ArrowDown and focuses the selected grid cell, every time it opens (not the cell focused last time). Arrow keys move across the grid (roving tabindex), Enter selects, Tab moves between FY select, toggle group and grid, Esc closes.
 
 ## Accessibility
 

@@ -28,7 +28,16 @@ type ConfirmDialogProps = {
   body?: string;
   confirmLabel: string;
   tone?: 'primary' | 'danger';
-  reason?: { label: string; required: boolean; minLength?: number; helper?: string };
+  reason?: {
+    label: string;
+    required: boolean;
+    minLength?: number;
+    maxLength?: number;
+    helper?: string;
+    multiline?: boolean; // false: a one-line name field where Enter confirms (saved views)
+    initialValue?: string; // pre-fill, e.g. the current name when renaming
+  };
+  returnFocusTo?: () => HTMLElement | null | undefined; // resolved on close; for actions that remove the trigger
   onConfirm: (reason?: string) => Promise<void> | void; // dialog shows loading until it settles
 };
 ```
