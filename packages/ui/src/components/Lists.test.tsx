@@ -17,10 +17,10 @@ const deadlines: DeadlineItem[] = [
     days: 0,
     href: '/i/1',
   },
-  { id: '2', dueDate: '2027-03-14', title: 'TDS return', status: 'UPCOMING', href: '/i/2' },
+  { id: '2', dueDate: '2027-03-17', title: 'TDS return', status: 'UPCOMING', href: '/i/2' },
   {
     id: '3',
-    dueDate: '2027-03-17',
+    dueDate: '2027-03-08',
     title: 'Fire safety audit',
     status: 'OVERDUE',
     days: 2,
@@ -31,6 +31,8 @@ const deadlines: DeadlineItem[] = [
   { id: '6', dueDate: '2027-04-11', title: 'Half-yearly report', href: '/i/6' },
 ];
 
+const GROUPS = /^(Overdue|Earlier|This week|Next week|Later)$/;
+
 describe('DeadlineList', () => {
   it('names each item with its date and status and hides the date block', async () => {
     render(<DeadlineList items={deadlines} viewAllHref="/calendar" />);
@@ -38,8 +40,8 @@ describe('DeadlineList', () => {
     const links = within(screen.getAllByRole('list')[0]!).getAllByRole('link');
     expect(links.map((l) => l.getAttribute('aria-label'))).toEqual([
       'Monthly PF challan, due 10 Mar 2027, Due today',
-      'TDS return, due 14 Mar 2027, Upcoming',
-      'Fire safety audit, due 17 Mar 2027, Overdue 2 days',
+      'TDS return, due 17 Mar 2027, Upcoming',
+      'Fire safety audit, due 8 Mar 2027, Overdue 2 days',
       'Consent renewal, due 2 Apr 2027',
       'Annual return, due 10 Apr 2027',
     ]);
@@ -64,24 +66,27 @@ describe('DeadlineList', () => {
       />,
     );
     expect(screen.getByRole('heading', { level: 3 })).toBeTruthy();
-    expect(screen.getAllByText(/^(This week|Next week|Later)$/).map((e) => e.textContent)).toEqual([
+    expect(screen.getAllByText(GROUPS).map((e) => e.textContent)).toEqual([
+      'Overdue',
       'This week',
       'Next week',
       'Later',
     ]);
-    expect(screen.getAllByRole('list')).toHaveLength(3);
+    expect(screen.getAllByRole('list')).toHaveLength(4);
     expect(screen.queryByRole('link', { name: /more$/ })).toBeNull();
   });
 
   it('keeps one group per week when items arrive out of order', () => {
     const shuffled = [deadlines[2]!, deadlines[0]!, deadlines[4]!, deadlines[1]!];
-    render(<DeadlineList items={shuffled} groupBy="week" today="2027-03-10" />);
-    expect(screen.getAllByText(/^(This week|Next week|Later)$/).map((e) => e.textContent)).toEqual([
+    const more = { ...deadlines[0]!, id: '7', dueDate: '2027-03-12' };
+    render(<DeadlineList items={[...shuffled, more]} groupBy="week" today="2027-03-10" />);
+    expect(screen.getAllByText(GROUPS).map((e) => e.textContent)).toEqual([
+      'Overdue',
       'This week',
       'Next week',
       'Later',
     ]);
-    const [thisWeek, nextWeek] = screen.getAllByRole('list');
+    const [, thisWeek, nextWeek] = screen.getAllByRole('list');
     expect(within(thisWeek!).getAllByRole('link')).toHaveLength(2);
     expect(within(nextWeek!).getAllByRole('link')).toHaveLength(1);
   });
@@ -109,13 +114,46 @@ describe('DeadlineList', () => {
     );
   });
 
+  it('heads Overdue from the engine status, not the due date (audit Low on #12)', () => {
+    const items: DeadlineItem[] = [
+      // Due before today but already submitted: waiting on the approver, not overdue.
+      { id: 's', dueDate: '2027-03-09', title: 'Factory licence', status: 'SUBMITTED', href: '/s' },
+      // Due last week and sent back: earlier than this week, still not called overdue.
+      { id: 'b', dueDate: '2027-03-03', title: 'Form 21', status: 'SENT_BACK', href: '/b' },
+      // No status from the API: the date alone never makes it overdue.
+      { id: 'n', dueDate: '2027-03-01', title: 'Water cess', href: '/n' },
+      {
+        id: 'o',
+        dueDate: '2027-03-05',
+        title: 'Gratuity notice',
+        status: 'OVERDUE',
+        days: 5,
+        href: '/o',
+      },
+    ];
+    render(<DeadlineList items={items} groupBy="week" today="2027-03-10" />);
+    expect(screen.getAllByText(GROUPS).map((e) => e.textContent)).toEqual([
+      'Overdue',
+      'Earlier',
+      'This week',
+    ]);
+    const [overdue, earlier, thisWeek] = screen.getAllByRole('list');
+    const titles = (list: HTMLElement) =>
+      within(list)
+        .getAllByRole('link')
+        .map((l) => l.getAttribute('aria-label')!.split(',')[0]);
+    expect(titles(overdue!)).toEqual(['Gratuity notice']);
+    expect(titles(earlier!)).toEqual(['Form 21', 'Water cess']);
+    expect(titles(thisWeek!)).toEqual(['Factory licence']);
+  });
+
   it('warns once and does not group when week grouping has no today', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const { rerender } = render(<DeadlineList items={deadlines} groupBy="week" />);
     rerender(<DeadlineList items={deadlines.slice(1)} groupBy="week" />);
     expect(warn).toHaveBeenCalledTimes(1);
     expect(warn.mock.calls[0]![0]).toContain('needs `today`');
-    expect(screen.queryByText(/^(Overdue|This week|Next week|Later)$/)).toBeNull();
+    expect(screen.queryByText(GROUPS)).toBeNull();
     expect(screen.getAllByRole('list')).toHaveLength(1);
     warn.mockRestore();
   });
