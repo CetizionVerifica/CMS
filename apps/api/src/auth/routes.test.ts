@@ -170,13 +170,14 @@ describe('POST /auth/login', () => {
     expect(errorCode(bad)).toBe('VALIDATION');
   });
 
+  // Twelve scrypt checks (N = 2^15): quick alone, but past 5 s on a loaded CI runner.
   it(`locks the account for ${LOCKOUT.minutes} minutes after ${LOCKOUT.attempts} failures`, async () => {
     const person = await seed({ memberships: [{ role: 'OWNER' }] });
     for (let i = 0; i < LOCKOUT.attempts; i++) await login(person.email, 'wrong password!!');
     expect((await login(person.email)).statusCode).toBe(401);
     now = new Date(now.getTime() + LOCKOUT.minutes * 60_000 + 1000);
     expect((await login(person.email)).statusCode).toBe(200);
-  });
+  }, 30_000);
 
   it('asks which firm when the email and password match people in two firms', async () => {
     const a = await seed({ email: 'shared@example.com', memberships: [{ role: 'OWNER' }] });
