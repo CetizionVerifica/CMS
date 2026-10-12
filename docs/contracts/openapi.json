@@ -5006,7 +5006,7 @@
       },
       "patch": {
         "operationId": "updateInstance",
-        "summary": "Reassign owner or approver (instance.reassign) or move the due date (instance.due_date).",
+        "summary": "Reassign owner or approver (instance.reassign) or move the due date (instance.dueDate).",
         "tags": ["M7"],
         "parameters": [
           {
@@ -5034,7 +5034,7 @@
         },
         "responses": {
           "200": {
-            "description": "Reassign owner or approver (instance.reassign) or move the due date (instance.due_date).",
+            "description": "Reassign owner or approver (instance.reassign) or move the due date (instance.dueDate).",
             "headers": {
               "X-Request-Id": {
                 "$ref": "#/components/headers/RequestId"

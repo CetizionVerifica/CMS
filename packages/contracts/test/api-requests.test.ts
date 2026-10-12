@@ -290,6 +290,11 @@ describe('auth bodies', () => {
     expect(ok(ClientSummary, client)).toBe(true);
     const period = (p: object) => ({ ...client, period: { ...client.period, ...p } });
     expect(ok(ClientSummary, period({ availableUntil: null }))).toBe(true);
+    // A new client: nothing generated, only the current FY.
+    expect(ok(ClientSummary, period({ availableFys: ['2026-27'], availableUntil: null }))).toBe(
+      true,
+    );
+    expect(ok(ClientSummary, period({ availableFys: ['2025-26'] }))).toBe(false);
     expect(ok(ClientSummary, period({ availableFys: [] }))).toBe(false);
     expect(ok(ClientSummary, period({ availableUntil: '2027-13' }))).toBe(false);
     expect(ok(ClientSummary, period({ current: { fy: '2026-27', quarter: 5 } }))).toBe(false);

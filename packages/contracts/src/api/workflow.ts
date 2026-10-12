@@ -157,7 +157,7 @@ export type BulkApproveBody = z.infer<typeof BulkApproveBody>;
 
 /**
  * Reassign or move the due date of one instance. Reassigning needs `instance.reassign`, moving the due date
- * `instance.due_date`; the reason is required for a due-date change and recorded for both.
+ * `instance.dueDate`. Every change needs a reason, recorded on the audit event.
  */
 export const InstanceUpdateBody = z
   .strictObject({

@@ -33,14 +33,22 @@ export const YearMonth = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/);
  * The periods a client's period picker offers, computed by the server with the engine so the web app does no FY maths
  * (root CLAUDE.md rule 3).
  */
-export const ClientPeriods = z.strictObject({
-  /** The FY and FY quarter (1-4) containing today in the client's time zone. */
-  current: z.strictObject({ fy: FyLabel, quarter: z.int().min(1).max(4) }),
-  /** FYs that have generated instances, oldest first. */
-  availableFys: z.array(FyLabel).min(1),
-  /** The last month with generated instances, or null when none are generated yet. */
-  availableUntil: YearMonth.nullable(),
-});
+export const ClientPeriods = z
+  .strictObject({
+    /** The FY and FY quarter (1-4) containing today in the client's time zone. */
+    current: z.strictObject({ fy: FyLabel, quarter: z.int().min(1).max(4) }),
+    /**
+     * The current FY plus every FY with generated instances, oldest first. A new client with nothing generated yet
+     * has just the current FY.
+     */
+    availableFys: z.array(FyLabel).min(1),
+    /** The last month with generated instances, or null when none are generated yet. */
+    availableUntil: YearMonth.nullable(),
+  })
+  .refine((p) => p.availableFys.includes(p.current.fy), {
+    path: ['availableFys'],
+    message: 'availableFys includes the current FY',
+  });
 export type ClientPeriods = z.infer<typeof ClientPeriods>;
 
 /** A client the signed-in person may open, for the client switcher and the shell's period picker. */

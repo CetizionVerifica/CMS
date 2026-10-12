@@ -78,7 +78,8 @@ with sign-off per "How to change a contract".
     server with the engine, so the web app does no FY maths.
 27. `POST /clients/{clientId}/people` takes `role` (OWNER, APPROVER or CLIENT_ADMIN; default OWNER) and creates a
     membership on every unit, so the person belongs to the client under RLS. VIEWERs come through an invite.
-28. A person with an email is INVITED even before an invite is sent; removing the email makes them UNCLAIMED again.
-    This keeps the status rule M3's `person_email_status_check` enforces.
+28. A person with an email is INVITED even before an invite is sent; removing the email makes an INVITED person
+    UNCLAIMED again. An ACTIVE person cannot have their email cleared (`400 VALIDATION` on `email`); a DISABLED person
+    keeps their status either way. This keeps the status rule M3's `person_email_status_check` enforces.
 29. `instance.generated` is one event per created instance with `aggregateVersion: 1`, so an instance's events count
     up from its creation; there is no per-run summary event.

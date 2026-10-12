@@ -23,7 +23,7 @@ Request and response schemas for every endpoint in endpoints.md, in code (`packa
 table `ENDPOINTS` with paths, `can()` actions, role access, query, body and response schemas, Idempotency-Key flags;
 `GET /me` (`Me`); per-code error details (`ERROR_DETAILS`, `ApiErrorResponse`); `tolerant()` for client-side parsing.
 The OpenAPI 3.1 spec `openapi.json` is generated from the table. endpoints.md now spells out every path, returns lists as
-objects (calendar, portfolio) and renames `instance.dueDate` to `instance.due_date`. README decisions 16-25.
+objects (calendar, portfolio) and keeps the action `instance.dueDate`. README decisions 16-25.
 `LocalDate` now carries `format: date` in JSON Schema. `checkMembershipShape` and `checkJurisdiction` are exported for
 request bodies.
 Also in 1.1.0, after the first audit and module requests: `SubmitBody.comment` is required (domain-model.md §5);

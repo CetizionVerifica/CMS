@@ -247,12 +247,13 @@ interface AuditEvent {                              // append-only; no updatedAt
 | SUBMITTED | APPROVE | instance approver | optional `comment` | APPROVED, or NOT_APPLICABLE when pendingKind NA |
 | SUBMITTED | SEND_BACK | instance approver | `reason` | SENT_BACK |
 | APPROVED, NOT_APPLICABLE | REOPEN | CLIENT_ADMIN, CONSULTANT, FIRM_ADMIN | `reason` | OPEN |
-
 | OPEN, SENT_BACK, SUBMITTED | REASSIGN, CHANGE_DUE_DATE | FIRM_ADMIN, CONSULTANT, CLIENT_ADMIN | `reason` | same state |
 | OPEN, SENT_BACK, SUBMITTED | UPLOAD_EVIDENCE | as `evidence.write` in endpoints.md §4 | the file | same state |
 | any | COMMENT | anyone who can read the instance | `body` | same state |
 
-Every transition carries the instance `version`; stale → `409 STALE_VERSION`. Any other pair → `409 INVALID_TRANSITION`.
+Every transition (SUBMIT to REOPEN) and every REASSIGN or CHANGE_DUE_DATE carries the instance `version`; stale →
+`409 STALE_VERSION`. COMMENT and UPLOAD_EVIDENCE do not change the instance and carry no version. Any other pair →
+`409 INVALID_TRANSITION`.
 Reassign, due-date change and evidence upload are limited to `INSTANCE_EDIT_STATES` (ADR 0004 §7): an APPROVED or
 NOT_APPLICABLE instance is reopened first. `allowedActions` is these rules intersected with `can()`.
 
