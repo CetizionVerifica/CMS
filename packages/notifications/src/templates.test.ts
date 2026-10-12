@@ -1,0 +1,241 @@
+import type { LocalDate } from '@canopy/contracts';
+import { describe, expect, it } from 'vitest';
+import { escapeHtml, formatDate } from './format.js';
+import { renderEmail, type DigestClientSummary, type InstanceSummary } from './templates.js';
+
+const instance: InstanceSummary = {
+  title: 'Deposit TDS for the month',
+  actName: 'Income Tax Act, 1961',
+  unitName: 'Plant',
+  departmentName: 'Finance',
+  criticality: 'SUPER_CRITICAL',
+  dueDate: '2026-10-15' as LocalDate,
+  url: 'https://app.planetpulse.example/c/abc/register?instance=def',
+};
+
+const owner = (offsetDays: number, sentBack = false) =>
+  renderEmail({
+    kind: 'OWNER_REMINDER',
+    recipientName: 'Asha Rao',
+    clientName: 'Aditya Birla Group',
+    offsetDays,
+    sentBack,
+    instance,
+  });
+
+const approver = (offsetDays: number, awaitingApproval: boolean) =>
+  renderEmail({
+    kind: 'APPROVER_ESCALATION',
+    recipientName: 'Vikram Shah',
+    clientName: 'Aditya Birla Group',
+    offsetDays,
+    awaitingApproval,
+    instance,
+  });
+
+describe('owner reminder', () => {
+  it('uses the status wording for the subject and heading', () => {
+    expect(owner(-7).subject).toBe('Due in 7 days: Deposit TDS for the month');
+    expect(owner(-1).subject).toBe('Due tomorrow: Deposit TDS for the month');
+    expect(owner(0).subject).toBe('Due today: Deposit TDS for the month');
+    expect(owner(-3).html).toContain('>Due in 3 days</td>');
+  });
+
+  it('shows the instance details, a call to action and a plain-text alternative', () => {
+    const email = owner(-3);
+    expect(email.text).toContain('Hello Asha Rao,');
+    expect(email.text).toContain('Act: Income Tax Act, 1961');
+    expect(email.text).toContain('Criticality: Super critical');
+    expect(email.text).toContain('Due date: 15 Oct 2026 (Due in 3 days)');
+    expect(email.text).toContain(
+      'Open and submit: https://app.planetpulse.example/c/abc/register?instance=def',
+    );
+    expect(email.html).toContain(
+      'href="https://app.planetpulse.example/c/abc/register?instance=def"',
+    );
+    expect(email.html).toContain('Open and submit</a>');
+  });
+
+  it('asks a sent-back owner to resubmit', () => {
+    expect(owner(-3, true).text).toContain('was sent back');
+    expect(owner(-3, false).text).toContain('has not been submitted yet');
+  });
+});
+
+describe('approver escalation', () => {
+  it('distinguishes awaiting approval from not submitted', () => {
+    expect(approver(1, true).subject).toBe(
+      'Awaiting your approval, overdue 1 day: Deposit TDS for the month',
+    );
+    expect(approver(7, false).subject).toBe(
+      'Not submitted, overdue 7 days: Deposit TDS for the month',
+    );
+    expect(approver(0, false).subject).toBe('Not submitted, due today: Deposit TDS for the month');
+    expect(approver(1, true).text).toContain('Review submission:');
+    expect(approver(7, false).text).toContain('Please follow up with the owner.');
+  });
+
+  it('tones the due date as overdue', () => {
+    expect(approver(1, true).html).toMatch(
+      /font-weight:600;color:#A8391F">15 Oct 2026 \(Overdue 1 day\)/,
+    );
+  });
+
+  it('labels each criticality in sentence case', () => {
+    for (const [criticality, label] of [
+      ['CRITICAL', 'Critical'],
+      ['HIGH', 'High'],
+      ['MEDIUM', 'Medium'],
+      ['LOW', 'Low'],
+    ] as const) {
+      const email = renderEmail({
+        kind: 'APPROVER_ESCALATION',
+        recipientName: 'V',
+        clientName: 'C',
+        offsetDays: 1,
+        awaitingApproval: true,
+        instance: { ...instance, criticality },
+      });
+      expect(email.text).toContain(`Criticality: ${label}`);
+    }
+  });
+});
+
+describe('consultant digest', () => {
+  const digest = (clients: DigestClientSummary[]) =>
+    renderEmail({
+      kind: 'CONSULTANT_DIGEST',
+      recipientName: 'Meera Iyer',
+      asOf: '2026-10-12' as LocalDate,
+      fyLabel: '2026-27',
+      clients,
+    });
+
+  it('lists each client with score and counts', () => {
+    const email = digest([
+      {
+        clientName: 'Aditya Birla Group',
+        score: 51.3,
+        overdue: 5,
+        dueSoon: 2,
+        awaitingApproval: 1,
+        url: 'https://app.planetpulse.example/c/a/overview',
+      },
+      {
+        clientName: 'Tata Group',
+        score: null,
+        overdue: 0,
+        dueSoon: 0,
+        awaitingApproval: 0,
+        url: 'https://app.planetpulse.example/c/b/overview',
+      },
+    ]);
+    expect(email.subject).toBe('Weekly digest, 12 Oct 2026: 5 overdue');
+    expect(email.text).toContain(
+      'your 2 clients stand for FY 2026-27 as of 12 Oct 2026. 5 items are overdue.',
+    );
+    expect(email.text).toContain(
+      'Aditya Birla Group: score 51.3%, 5 overdue, 2 due soon, 1 awaiting approval.',
+    );
+    expect(email.text).toContain('Tata Group: score No items due');
+    expect(email.html).toContain('<th');
+    expect(email.html).toContain('href="https://app.planetpulse.example/c/a/overview"');
+  });
+
+  it('reads naturally for one client with one overdue item, and for none overdue', () => {
+    const one = digest([
+      {
+        clientName: 'A',
+        score: 90,
+        overdue: 1,
+        dueSoon: 0,
+        awaitingApproval: 0,
+        url: 'https://x.example/',
+      },
+    ]);
+    expect(one.text).toContain('your client stands');
+    expect(one.text).toContain('1 item is overdue.');
+    expect(one.text).toContain('score 90.0%');
+    const none = digest([
+      {
+        clientName: 'A',
+        score: 100,
+        overdue: 0,
+        dueSoon: 0,
+        awaitingApproval: 0,
+        url: 'https://x.example/',
+      },
+    ]);
+    expect(none.text).toContain('Nothing is overdue.');
+  });
+
+  it('says so when there are no clients', () => {
+    const email = digest([]);
+    expect(email.text).toContain('You have no active clients this week.');
+    expect(email.html).not.toContain('<th');
+  });
+});
+
+describe('every email', () => {
+  const all = [owner(-3), owner(0, true), approver(1, true), approver(7, false)];
+
+  it('escapes names and titles so imported text cannot inject markup', () => {
+    const email = renderEmail({
+      kind: 'OWNER_REMINDER',
+      recipientName: '<img src=x onerror=alert(1)>',
+      clientName: 'A & B "Group"',
+      offsetDays: 0,
+      sentBack: false,
+      instance: { ...instance, title: '<script>alert(1)</script>' },
+    });
+    expect(email.html).not.toContain('<script>');
+    expect(email.html).not.toContain('<img');
+    expect(email.html).toContain('&lt;script&gt;alert(1)&lt;/script&gt;');
+    expect(email.html).toContain('A &amp; B &quot;Group&quot;');
+  });
+
+  it('refuses a non-http link', () => {
+    expect(
+      () =>
+        owner(0) &&
+        renderEmail({
+          kind: 'OWNER_REMINDER',
+          recipientName: 'A',
+          clientName: 'B',
+          offsetDays: 0,
+          sentBack: false,
+          instance: { ...instance, url: 'javascript:alert(1)' },
+        }),
+    ).toThrow('http(s)');
+  });
+
+  it('carries the client-facing product name only', () => {
+    for (const email of all) {
+      expect(email.html).toContain('PlanetPulse Compliance');
+      expect(email.text).toContain('PlanetPulse Compliance');
+      expect(`${email.subject}${email.html}${email.text}`.toLowerCase()).not.toContain('canopy');
+    }
+  });
+
+  it('is a complete HTML document with a language and a preheader', () => {
+    for (const email of all) {
+      expect(email.html.startsWith('<!doctype html>')).toBe(true);
+      expect(email.html).toContain('<html lang="en">');
+      expect(email.html).toContain('display:none');
+    }
+  });
+});
+
+describe('format helpers', () => {
+  it('formats dates as "7 Oct 2026" without time zone shifts', () => {
+    expect(formatDate('2026-10-07' as LocalDate)).toBe('7 Oct 2026');
+    expect(formatDate('2027-03-31' as LocalDate)).toBe('31 Mar 2027');
+    expect(formatDate('2028-02-29' as LocalDate)).toBe('29 Feb 2028');
+  });
+
+  it('escapes the five HTML specials', () => {
+    expect(escapeHtml(`<a href="x">'&'</a>`)).toBe(
+      '&lt;a href=&quot;x&quot;&gt;&#39;&amp;&#39;&lt;/a&gt;',
+    );
+  });
+});

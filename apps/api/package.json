@@ -7,19 +7,26 @@
     "dev": "tsx watch src/main.ts",
     "start": "tsx src/main.ts",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:db": "vitest run --config src/jobs/vitest.db.config.mjs"
   },
   "dependencies": {
     "@canopy/contracts": "workspace:*",
+    "@canopy/db": "workspace:*",
+    "@canopy/engine": "workspace:*",
     "@canopy/importer": "workspace:*",
+    "@canopy/notifications": "workspace:*",
     "fastify": "catalog:",
+    "pg-boss": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
     "@canopy/tsconfig": "workspace:*",
     "@canopy/vitest-config": "workspace:*",
     "@types/node": "catalog:",
+    "@types/pg": "catalog:",
     "@vitest/coverage-v8": "catalog:",
+    "pg": "catalog:",
     "tsx": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
