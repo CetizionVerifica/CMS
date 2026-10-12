@@ -89,6 +89,10 @@ Decisions and their reasons: `docs/adr/0003-m3-tenant-isolation-in-postgres.md`.
   `withTenant`. Tokens are stored as SHA-256 hex only.
 - Idempotency (M7): `idempotencyKeys.find(tx, personId, key)` ignores expired rows; `record` writes in the caller's
   transaction, replaces an expired row and raises DUPLICATE on an unexpired one, also from a concurrent request.
+- Workflow (M7): `auditEvents.query` and `evidence.vault` page newest first with a keyset `nextCursor` (the last row's id;
+  its time is read back from the table, so microseconds survive). Their time bounds are UTC instants, half-open
+  `[from, to)`: the caller turns a client-zone date into instants with the engine helpers (root rule 4).
+  `withSavepoint(tx, fn)` runs `fn` in a savepoint that keeps the tenant context and rolls back alone on error.
 - Repositories never write audit or outbox rows themselves. The caller (M7 workflow, M8 import) calls
   `auditEvents.append(tx, ...)` and `domainEvents.enqueue(tx, ...)` in the same `withTenant` transaction as the change.
 - Client contexts create people with `people.createWithMembership` (the new person is invisible until a membership

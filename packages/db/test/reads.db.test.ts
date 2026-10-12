@@ -63,14 +63,29 @@ describe('instance export details', () => {
       row(a, 'compliance_instance', 'client0'),
       row(a, 'compliance_instance', 'client1'),
     ];
+    // Distinct comments per instance: client0 keeps 'Filed.' with a later one after it; client1's
+    // 'Filed.' is archived, so its first live comment is the new one.
+    await inFirm(a, async (tx) => {
+      for (const [instanceId, clientId, body] of [
+        [ids[0]!, a.clientIds[0], 'Later note on client 0.'],
+        [ids[1]!, a.clientIds[1], 'Client 1 note.'],
+      ] as const) {
+        await r.comments.create(tx, { instanceId, clientId, authorId: null, kind: 'NOTE', body });
+      }
+    });
+    await t.ownerQuery(
+      `UPDATE comment SET archived_at = now() WHERE instance_id = $1 AND body = 'Filed.'`,
+      [ids[1]],
+    );
     const details = await inFirm(a, (tx) => r.instances.exportDetails(tx, ids));
+    const first = { [ids[0]!]: 'Filed.', [ids[1]!]: 'Client 1 note.' };
     expect(details).toEqual(
       [...ids].sort().map((instanceId) => ({
         instanceId,
         description: 'File the annual return.',
         applicabilityText: null,
         naReason: null,
-        firstComment: 'Filed.',
+        firstComment: first[instanceId],
       })),
     );
     expect(

@@ -281,7 +281,6 @@ export const people = {
       .catch(rethrow);
     return rows.map((r) => r.id);
   },
-  /** Creates a person. Firm staff only: a client context cannot see the new row to return it. */
   /**
    * Which clients of this firm a person works in (live membership, consultant clients, assignment or
    * instance) and whether they are firm staff. Ids and a flag only; reads rows this context may not see,
@@ -303,6 +302,7 @@ export const people = {
       firmStaff: r?.firm_staff ?? false,
     };
   },
+  /** Creates a person. Firm staff only: a client context cannot see the new row to return it. */
   create: personEntity.create,
   /**
    * Creates a person with their first client membership, in any context that can see that client.
