@@ -146,7 +146,7 @@ describe.skipIf(!url)('import API on Postgres', { timeout: 60_000 }, () => {
         countryCode: 'IN',
         state: 'West Bengal',
         stateCode: 'WB',
-        city: 'Belur',
+        city: 'Riverbend',
       });
       const company = await companies.create(tx, {
         clientId: client.id,
@@ -155,7 +155,7 @@ describe.skipIf(!url)('import API on Postgres', { timeout: 60_000 }, () => {
       await units.create(tx, {
         clientId: client.id,
         companyId: company.id,
-        name: 'Belur',
+        name: 'Riverbend',
         locationId: location.id,
       });
       return { firmId, clientId: client.id, personId: person.id };
@@ -406,11 +406,11 @@ describe.skipIf(!url)('import API on Postgres', { timeout: 60_000 }, () => {
     const store = repositoryStore(db);
     const ctx = systemContext(firm.firmId, 'plan-test');
     const day = (d: string) => LocalDate.parse(d);
-    const belur = unitKey('Kestrel Aluminium', 'Belur');
-    const pune = unitKey('Novelis', 'Pune');
+    const riverbend = unitKey('Kestrel Aluminium', 'Riverbend');
+    const pune = unitKey('Kestrel Rolled Products', 'Pune');
     const existingRef = obligationRefKey('TAX-CL-033-6067-60218');
     const newRef = obligationRefKey('NEW-1');
-    const byTitle = obligationTitleKey('Factories Act, 1948', 'No source ID', belur);
+    const byTitle = obligationTitleKey('Factories Act, 1948', 'No source ID', riverbend);
     const rule = (d: string) => ({ kind: 'ONE_TIME' as const, dueDate: day(d) });
     const obligation = (key: string, externalRef: string | null, title: string, due: string) => ({
       key,
@@ -448,9 +448,9 @@ describe.skipIf(!url)('import API on Postgres', { timeout: 60_000 }, () => {
       comments: [],
       ...extra,
     });
-    const a1 = `${belur}|${existingRef}|Human Resources`;
+    const a1 = `${riverbend}|${existingRef}|Human Resources`;
     const a2 = `${pune}|${newRef}|Admin`;
-    const a3 = `${belur}|${byTitle}|Human Resources`;
+    const a3 = `${riverbend}|${byTitle}|Human Resources`;
     const plan: ImportPlan = {
       coverage: null,
       acts: [
@@ -476,16 +476,16 @@ describe.skipIf(!url)('import API on Postgres', { timeout: 60_000 }, () => {
       ],
       companies: [
         { key: companyKey('Kestrel Aluminium'), name: 'Kestrel Aluminium' },
-        { key: companyKey('Novelis'), name: 'Novelis' },
+        { key: companyKey('Kestrel Rolled Products'), name: 'Kestrel Rolled Products' },
       ],
       locations: [
         {
-          key: locationKey({ countryCode: 'IN', state: 'West Bengal', city: 'Belur' }),
+          key: locationKey({ countryCode: 'IN', state: 'West Bengal', city: 'Riverbend' }),
           country: 'India',
           countryCode: 'IN',
           state: 'West Bengal',
           stateCode: 'WB',
-          city: 'Belur',
+          city: 'Riverbend',
         },
         {
           key: locationKey({ countryCode: 'IN', state: 'Maharashtra', city: 'Pune' }),
@@ -498,14 +498,14 @@ describe.skipIf(!url)('import API on Postgres', { timeout: 60_000 }, () => {
       ],
       units: [
         {
-          key: belur,
+          key: riverbend,
           companyKey: companyKey('Kestrel Aluminium'),
-          name: 'Belur',
-          locationKey: locationKey({ countryCode: 'IN', state: 'West Bengal', city: 'Belur' }),
+          name: 'Riverbend',
+          locationKey: locationKey({ countryCode: 'IN', state: 'West Bengal', city: 'Riverbend' }),
         },
         {
           key: pune,
-          companyKey: companyKey('Novelis'),
+          companyKey: companyKey('Kestrel Rolled Products'),
           name: 'Pune',
           locationKey: locationKey({ countryCode: 'IN', state: 'Maharashtra', city: 'Pune' }),
         },
@@ -518,7 +518,7 @@ describe.skipIf(!url)('import API on Postgres', { timeout: 60_000 }, () => {
       assignments: [
         {
           key: a1,
-          unitKey: belur,
+          unitKey: riverbend,
           obligationKey: existingRef,
           department: 'Human Resources',
           defaultOwner: 'asha rao',
@@ -536,7 +536,7 @@ describe.skipIf(!url)('import API on Postgres', { timeout: 60_000 }, () => {
         },
         {
           key: a3,
-          unitKey: belur,
+          unitKey: riverbend,
           obligationKey: byTitle,
           department: 'Human Resources',
           defaultOwner: 'asha rao',
@@ -641,5 +641,76 @@ describe.skipIf(!url)('import API on Postgres', { timeout: 60_000 }, () => {
     await commit(next);
     const unchanged = await db.withTenant(ctx, (tx) => instances.require(tx, a1Instance));
     expect(unchanged.version).toBe(2);
+
+    // A monthly rule due on the 15th: May's engine period is 05-01..05-31. A row due 05-01 has no engine period,
+    // and its fallback period must not take 05-01 from the row due 05-15, in either row order or across commits.
+    const monthlyRef = obligationRefKey('MONTHLY-15');
+    const forwards = `${riverbend}|${monthlyRef}|Human Resources`;
+    const backwards = `${riverbend}|${monthlyRef}|Admin`;
+    const later = `${pune}|${monthlyRef}|Admin`;
+    const assignment = (key: string, unit: string, department: string) => ({
+      key,
+      unitKey: unit,
+      obligationKey: monthlyRef,
+      department,
+      defaultOwner: 'asha rao',
+      defaultApprover: 'admin b',
+      firstDueDate: day('2023-05-01'),
+    });
+    const monthly: ImportPlan = {
+      ...next,
+      obligations: [
+        ...next.obligations,
+        {
+          ...obligation(monthlyRef, 'MONTHLY-15', 'Monthly return', '2023-05-15'),
+          recurrenceRule: { kind: 'MONTHLY', day: 15, offsetMonths: 0 },
+        },
+      ],
+      assignments: [
+        ...next.assignments,
+        assignment(forwards, riverbend, 'Human Resources'),
+        assignment(backwards, riverbend, 'Admin'),
+        assignment(later, pune, 'Admin'),
+      ],
+      instances: [
+        ...next.instances,
+        instance(forwards, '2023-05-01'),
+        instance(forwards, '2023-05-15'),
+        instance(backwards, '2023-05-15'),
+        instance(backwards, '2023-05-01'),
+        instance(later, '2023-05-15'),
+      ],
+    };
+    const monthlyIds = (await commit(monthly)).instanceIds;
+    const withLater = {
+      ...monthly,
+      instances: [...monthly.instances, instance(later, '2023-05-01')],
+    };
+    const laterIds = (await commit(withLater)).instanceIds;
+    const periods = await db.withTenant(ctx, async (tx) => {
+      const periodOf = async (id: string | undefined) => {
+        const row = await instances.require(tx, id!);
+        return [row.periodStart, row.periodEnd, row.dueDate];
+      };
+      return {
+        forwards: [
+          await periodOf(monthlyIds.get(`${forwards}|2023-05-01`)),
+          await periodOf(monthlyIds.get(`${forwards}|2023-05-15`)),
+        ],
+        backwards: [
+          await periodOf(monthlyIds.get(`${backwards}|2023-05-01`)),
+          await periodOf(monthlyIds.get(`${backwards}|2023-05-15`)),
+        ],
+        later: [
+          await periodOf(laterIds.get(`${later}|2023-05-01`)),
+          await periodOf(laterIds.get(`${later}|2023-05-15`)),
+        ],
+      };
+    });
+    const expected = [
+      ['2023-04-30', '2023-05-01', '2023-05-01'],
+      ['2023-05-01', '2023-05-31', '2023-05-15'],
+    ];
+    expect(periods).toEqual({ forwards: expected, backwards: expected, later: expected });
   });
 });

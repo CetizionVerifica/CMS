@@ -34,7 +34,7 @@ import {
   type RegisterRow,
   type TenantTx,
 } from '@canopy/db';
-import { generateInstances, type Calendar } from '@canopy/engine';
+import { addDays, generateInstances, type Calendar } from '@canopy/engine';
 import {
   companyKey,
   fingerprintAssignment,
@@ -337,8 +337,8 @@ function newAliases(stored: readonly string[], planned: readonly string[]): stri
 
 /**
  * The period of each planned instance: the engine's period whose due date is the instance's (so the nightly
- * generator, idempotent on period start, sees the same period); otherwise, or when that period start is
- * taken on the assignment, the due date itself.
+ * generator, idempotent on period start, sees the same period). Otherwise, or when that period start is
+ * taken on the assignment, a period ending on the due date that starts on the latest free day up to it.
  */
 function periodsFor(
   rule: Obligation['recurrenceRule'],
@@ -351,14 +351,24 @@ function periodsFor(
   const generated = generateInstances(rule, { from: dates[0]!, to: dates.at(-1)! }, cal);
   const byDue = new Map(generated.map((p) => [p.dueDate, p]));
   const out = new Map<string, { periodStart: string; periodEnd: string }>();
+  // Engine periods first, so a fallback never takes the start an engine period needs, whatever the row order.
+  const rest: PlanInstance[] = [];
   for (const instance of planned) {
     const period = byDue.get(instance.dueDate);
-    const fits = period && !taken.has(period.periodStart);
-    const chosen = fits
-      ? { periodStart: period.periodStart, periodEnd: period.periodEnd }
-      : { periodStart: instance.dueDate, periodEnd: instance.dueDate };
-    taken.add(chosen.periodStart);
-    out.set(instance.key, chosen);
+    if (!period || taken.has(period.periodStart)) {
+      rest.push(instance);
+      continue;
+    }
+    taken.add(period.periodStart);
+    out.set(instance.key, { periodStart: period.periodStart, periodEnd: period.periodEnd });
+  }
+  // The rest end on their due date and start on the latest free day up to it, since a period start is unique
+  // per assignment (compliance_instance_assignment_period_key).
+  for (const instance of rest) {
+    let periodStart = instance.dueDate;
+    while (taken.has(periodStart)) periodStart = addDays(periodStart, -1);
+    taken.add(periodStart);
+    out.set(instance.key, { periodStart, periodEnd: instance.dueDate });
   }
   return out;
 }
