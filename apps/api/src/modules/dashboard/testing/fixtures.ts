@@ -64,7 +64,7 @@ export async function loadSample(store: MemoryReportsStore, firmId: string): Pro
   const analysis = analyseRecommended(await readSheet(bytes, 'sample-register.xlsx'), EMPTY_STATE);
   const { plan } = analysis;
   const clientId = randomUUID();
-  const clientName = 'Aditya Birla Group';
+  const clientName = 'Kestrel Metals Group';
   store.clientsById.set(clientId, {
     id: clientId,
     firmId,
@@ -189,7 +189,7 @@ export function makeRow(
     actId: randomUUID(),
     actName: 'Factories Act, 1948',
     criticality: 'HIGH',
-    companyName: 'Hindalco',
+    companyName: 'Kestrel Aluminium',
     unitId: randomUUID(),
     unitName: 'Plant',
     locationLabel: 'India / West Bengal / Belur',

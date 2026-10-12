@@ -1,6 +1,12 @@
 import { randomUUID } from 'node:crypto';
 import { asLocalDate } from '@canopy/engine';
-import { dryRun, fingerprintInstance } from '@canopy/importer';
+import {
+  dryRun,
+  instanceAfterCommit,
+  type ExistingInstance,
+  type ExistingState,
+  type PlanInstance,
+} from '@canopy/importer';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createTestAuth } from '../../auth/testing.js';
 import { buildServer } from '../../server.js';
@@ -88,27 +94,11 @@ describe('register export round trip', SLOW, () => {
     });
     expect(report.update.obligations).toBe(0);
     expect(report.update.assignments).toBe(0);
-    expect(report.unchanged.instances + report.update.instances).toBe(422);
+    expect(report.update.instances).toBe(0);
+    expect(report.unchanged.instances).toBe(422);
     expect(report.blockingErrors).toBe(0);
     expect(report.skippedRows).toBe(0);
-
-    // The importer's own notes from the first import (a folded duplicate row, an assumed completion date)
-    // are comments the register has no column for. An instance the dry run still counts as updated may
-    // differ from what is stored only by those notes: every field matches and the comments it brings are
-    // already on the instance, in order. Comments are append-only, so re-importing cannot change them.
-    const stored = new Map(sample.analysis.plan.instances.map((i) => [i.key, i]));
-    const updated = again.plan.instances.filter((i) => instanceOutcomes.get(i.key) === 'UPDATE');
-    expect(updated.length).toBe(report.update.instances);
-    for (const incoming of updated) {
-      const before = stored.get(incoming.key)!;
-      expect({ ...incoming, rowNumbers: [], comments: [] }).toEqual({
-        ...before,
-        rowNumbers: [],
-        comments: [],
-      });
-      expect(before.comments.slice(0, incoming.comments.length)).toEqual(incoming.comments);
-      expect(before.comments.length).toBeGreaterThan(incoming.comments.length);
-    }
+    expect([...instanceOutcomes.values()].every((o) => o === 'UNCHANGED')).toBe(true);
   });
 });
 
@@ -144,26 +134,38 @@ describe('register export round trip after work in the app', SLOW, () => {
     try {
       files.files.clear();
       const sheet = await readSheet(await exportRegister(), 'export.xlsx');
-      // The stored state after the approval; submitted and sent-back work is not in the importer's state model.
-      const approvedPlan = { ...approved.plan, workflowState: 'APPROVED' as const };
-      approvedPlan.completedOn = asLocalDate('2022-05-10');
-      const state = {
+      // The client's instances after the work: stored as the first import left them, then moved on by the app.
+      const stored = (plan: PlanInstance, work: Partial<ExistingInstance>): ExistingInstance => ({
+        ...instanceAfterCommit(plan, undefined),
+        ...work,
+      });
+      const state: ExistingState = {
         ...sample.state,
         instances: {
           ...sample.state.instances,
-          [approved.plan.key]: fingerprintInstance(approvedPlan),
+          [approved.plan.key]: stored(approved.plan, {
+            workflowState: 'APPROVED',
+            completedOn: asLocalDate('2022-05-10'),
+          }),
+          [submitted.plan.key]: stored(submitted.plan, {
+            workflowState: 'SUBMITTED',
+            completedOn: asLocalDate('2022-05-11'),
+          }),
+          [sentBack.plan.key]: stored(sentBack.plan, { workflowState: 'SENT_BACK' }),
         },
       };
       const again = analyseRecommended(sheet, state);
       const { report, instanceOutcomes } = dryRun(again, state);
       expect(report.blockingErrors).toBe(0);
       expect(report.create.instances).toBe(0);
+      expect(report.update.instances).toBe(0);
 
       // Approved in the app: "Complied" with its Activity Date, read back as the same instance.
       expect(instanceOutcomes.get(approved.plan.key)).toBe('UNCHANGED');
 
       // Submitted or sent back: the register has no word for work in progress, so the row is "Pending" with
-      // no Activity Date and reads back as the open instance it was before the work started (ADR M10-0001 §8).
+      // no Activity Date (ADR M10-0001 §8). It reads back as the open instance it was before the work started,
+      // and the importer leaves the stored workflow state where the app put it.
       const incoming = new Map(again.plan.instances.map((i) => [i.key, i]));
       for (const { plan } of [submitted, sentBack]) {
         const read = incoming.get(plan.key)!;

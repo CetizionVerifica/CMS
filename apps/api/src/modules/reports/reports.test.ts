@@ -150,7 +150,7 @@ describe('exports', () => {
     expect(submitted[7]).toBeUndefined();
     const complied = rows.find((r) => r[15] === 'Challan attached')!;
     expect(complied[8]).toBe('Complied');
-    expect(complied[12]).toBe('Beta Group/ Hindalco/ Plant');
+    expect(complied[12]).toBe('Beta Group/ Kestrel Aluminium/ Plant');
     expect(complied[13]).toBe('India/ West Bengal/ Belur');
     expect(complied[18]).toBe('Low');
   });
@@ -179,7 +179,9 @@ describe('exports', () => {
     const headers = w.as('APPROVER', { unitIds: [w.unit2] }).headers;
     const { file } = await exportFile(headers, { kind: 'REGISTER_XLSX', fy: '2026-27' });
     const rows = await sheetRows(file.bytes);
-    expect(rows.slice(1).every((r) => r[12] === 'Beta Group/ Hindalco/ Head Office')).toBe(true);
+    expect(rows.slice(1).every((r) => r[12] === 'Beta Group/ Kestrel Aluminium/ Head Office')).toBe(
+      true,
+    );
     expect(rows).toHaveLength(1 + 4);
     const outside = await startExport(headers, { kind: 'REGISTER_XLSX', unitId: w.unit1 });
     expect(outside.statusCode).toBe(404);
@@ -232,7 +234,7 @@ describe('exports', () => {
     const text = pdfText(file.bytes);
     expect(text).toContain('Compliance certificate');
     expect(text).toContain('PlanetPulse Compliance');
-    expect(text).toContain('Beta Group / Hindalco / Plant');
+    expect(text).toContain('Beta Group / Kestrel Aluminium / Plant');
     expect(text).toContain('Period: FY 2026-27. Status as at 2026-10-12.');
     expect(text).toContain('Factories Act, 1948');
     expect(text).toContain(w.rows.overdue!.externalRef!);

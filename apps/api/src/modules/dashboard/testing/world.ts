@@ -56,7 +56,7 @@ export function createWorld() {
       firmId,
       clientId,
       name,
-      companyName: 'Hindalco',
+      companyName: 'Kestrel Aluminium',
       locationLabel: 'India / West Bengal / Belur',
     });
   }
