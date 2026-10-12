@@ -26,3 +26,9 @@ The OpenAPI 3.1 spec `openapi.json` is generated from the table. endpoints.md no
 objects (calendar, portfolio) and renames `instance.dueDate` to `instance.due_date`. README decisions 16-25.
 `LocalDate` now carries `format: date` in JSON Schema. `checkMembershipShape` and `checkJurisdiction` are exported for
 request bodies.
+Also in 1.1.0, after the first audit and module requests: `SubmitBody.comment` is required (domain-model.md §5);
+`PATCH /instances/{id}` needs a `reason` for every change; `AuditQuery` compares instants by time; export `filters` are
+validated as a register query (`RegisterFilterQuery`); action names are camelCase (`instance.dueDate`);
+`INSTANCE_EDIT_STATES` (ADR 0004 §7); `ClientSummary` carries FY start, time zone, unit count and periods (M11);
+`PersonCreateBody.role` (M6); `NOTIFICATION_DEDUPE_KEY` (M9); `instance.generated` is one event per created instance
+(M9). README decisions 26-29.
