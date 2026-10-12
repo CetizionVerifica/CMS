@@ -62,7 +62,9 @@ describe('every table', () => {
             expect(expression, `${name} ${p.cmd}`).toContain(`${column} = app_firm_id()`);
         }
         if (p.cmd !== 'INSERT') expect(p.qual, `${name} ${p.cmd}`).not.toBeNull();
-        if (p.cmd !== 'SELECT') expect(p.check, `${name} ${p.cmd}`).not.toBeNull();
+        if (p.cmd !== 'SELECT' && p.cmd !== 'DELETE') {
+          expect(p.check, `${name} ${p.cmd}`).not.toBeNull();
+        }
       }
     }
   });
