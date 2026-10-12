@@ -101,7 +101,8 @@ describe('ShellFrame', () => {
     unmount();
     renderShell({ model: { ...model, roles: approver, approvalsWaiting: 4 } });
     expect(approvals().textContent).toContain('4');
-    expect(within(approvals()).getByText(/4 waiting/)).toBeTruthy();
+    // The count covers every client the user approves in, not just this one.
+    expect(within(approvals()).getByText(/4 waiting across all your clients/)).toBeTruthy();
   });
 
   it('shows the period from the URL and writes a new one into it', async () => {

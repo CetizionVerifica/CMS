@@ -111,6 +111,8 @@ export const notificationSend = pgTable(
     recipientId: uuid('recipient_id').notNull(),
     kind: notificationKindEnum('kind').notNull(),
     sendDate: date('send_date', { mode: 'string' }).notNull(),
+    /** The domain event an event-driven send answers (e.g. a send-back); null for scheduled sends. */
+    eventId: uuid('event_id'),
     sentAt: instant('sent_at'),
     failureCode: text('failure_code'),
     createdAt: instant('created_at').notNull().defaultNow(),
@@ -135,13 +137,17 @@ export const notificationSend = pgTable(
       columns: [t.firmId, t.recipientId],
       foreignColumns: [person.firmId, person.id],
     }),
-    // events.md §3: one send per (instance, kind, date, recipient), so a reassigned owner still gets theirs.
+    // events.md §3: one scheduled send per (instance, kind, date, recipient), so a reassigned owner
+    // still gets theirs. Event-driven sends are one per (event, recipient) instead.
     uniqueIndex('notification_send_instance_key')
       .on(t.instanceId, t.kind, t.sendDate, t.recipientId)
-      .where(sql`instance_id is not null`),
+      .where(sql`instance_id is not null and event_id is null`),
     uniqueIndex('notification_send_digest_key')
       .on(t.recipientId, t.kind, t.sendDate)
-      .where(sql`instance_id is null`),
+      .where(sql`instance_id is null and event_id is null`),
+    uniqueIndex('notification_send_event_key')
+      .on(t.firmId, t.eventId, t.recipientId)
+      .where(sql`event_id is not null`),
     index('notification_send_client_idx').on(t.firmId, t.clientId, t.sendDate),
     clientPolicy(),
   ],

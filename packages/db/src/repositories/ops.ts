@@ -134,6 +134,12 @@ export const NotificationSend = z.strictObject({
   recipientId: Id,
   kind: NotificationKind,
   sendDate: LocalDate,
+  /**
+   * Set for an event-driven send (the domain event's id): the send is then keyed on event and
+   * recipient, so each event reaches each recipient once whatever the date. Absent or null for
+   * scheduled sends, keyed on instance, kind, date and recipient.
+   */
+  eventId: Id.nullable().optional(),
 });
 export type NotificationSend = z.input<typeof NotificationSend>;
 
@@ -149,7 +155,14 @@ export type SendFailureCode = z.infer<typeof SendFailureCode>;
 
 /** The send-log row for a key: per instance, kind, date and recipient; digests have no instance. */
 function sendKey(n: NotificationSend) {
+  if (n.eventId) {
+    return and(
+      eq(s.notificationSend.eventId, n.eventId),
+      eq(s.notificationSend.recipientId, n.recipientId),
+    );
+  }
   return and(
+    isNull(s.notificationSend.eventId),
     eq(s.notificationSend.kind, n.kind),
     eq(s.notificationSend.sendDate, n.sendDate),
     eq(s.notificationSend.recipientId, n.recipientId),
@@ -165,7 +178,7 @@ export const notificationSends = {
     const n = validate(NotificationSend, send);
     const created = await tx
       .insert(s.notificationSend)
-      .values(n)
+      .values({ ...n, eventId: n.eventId ?? null })
       .onConflictDoNothing()
       .returning({ id: s.notificationSend.id })
       .catch(rethrow);
@@ -201,7 +214,10 @@ export const notificationSends = {
       .where(sendKey(n))
       .catch(rethrow);
   },
-  /** Recipients whose digest (no instance) for this date has an outcome, across the firm's clients. */
+  /**
+   * Recipients whose digest (no instance) for this date has an outcome, across the firm's clients.
+   * Scheduled sends only, as in `listDone`; event-driven sends are keyed by event.
+   */
   async listDoneDigests(tx: TenantTx, sendDate: string): Promise<string[]> {
     const t = s.notificationSend;
     const rows = await tx
@@ -210,6 +226,7 @@ export const notificationSends = {
       .where(
         and(
           isNull(t.instanceId),
+          isNull(t.eventId),
           eq(t.sendDate, validate(LocalDate, sendDate)),
           sql`(${t.sentAt} is not null or ${t.failureCode} is not null)`,
         ),
@@ -218,10 +235,10 @@ export const notificationSends = {
       .catch(rethrow);
     return rows.map((r) => r.id);
   },
-  /** Send-log rows of one client for one date with an outcome (sent or failed). */
+  /** Scheduled send-log rows of one client for one date with an outcome (sent or failed). */
   async listDone(tx: TenantTx, clientId: string, sendDate: string): Promise<NotificationSend[]> {
     const t = s.notificationSend;
-    return tx
+    const rows = await tx
       .select({
         clientId: t.clientId,
         instanceId: t.instanceId,
@@ -233,12 +250,14 @@ export const notificationSends = {
       .where(
         and(
           eq(t.clientId, clientId),
+          isNull(t.eventId),
           eq(t.sendDate, validate(LocalDate, sendDate)),
           sql`(${t.sentAt} is not null or ${t.failureCode} is not null)`,
         ),
       )
       .orderBy(asc(t.id))
       .catch(rethrow);
+    return rows.map((r) => ({ ...r, kind: NotificationKind.parse(r.kind) }));
   },
 };
 
