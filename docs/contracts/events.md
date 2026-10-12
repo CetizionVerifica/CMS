@@ -30,7 +30,7 @@ interface DomainEvent<T extends string, D> {
 ### Instances (producer M7; M9 generation produces `instance.generated`)
 | Type | `data` | Main consumers |
 |---|---|---|
-| `instance.generated` | `{ assignmentId, instanceIds: Id[], range: {from, to}, engineVersion }` (one per assignment per run) | M10 cache |
+| `instance.generated` | `{ instanceId, assignmentId, periodStart, periodEnd, dueDate, engineVersion }`: one per created instance, with `aggregate` the instance and `aggregateVersion: 1` (its version at creation), so each instance's events count up from 1 | M10 cache |
 | `instance.submitted` | `{ instanceId, kind: SubmissionKind, ownerId, approverId, dueDate, completedOn: LocalDate \| null }` | M9 notify approver |
 | `instance.approved` | `{ instanceId, approverId, resultState: "APPROVED" \| "NOT_APPLICABLE", delegated: boolean, completedOn }` | M9 cancel reminders, M10 |
 | `instance.sent_back` | `{ instanceId, approverId, ownerId }` | M9 notify owner |
@@ -88,4 +88,7 @@ interface DomainEvent<T extends string, D> {
 1. Add a type only through an M0 change request; never rename one (add `schemaVersion: 2` alongside instead).
 2. An event that a consumer needs to act on must be emitted from the same transaction as the change (outbox). No "fire after commit" side calls.
 3. Bulk operations emit one event per item plus at most one summary event.
-4. Importer commit emits domain events with `actor.kind = "IMPORT"`, but M9 must **not** send reminders for instances created as already APPROVED or NOT_APPLICABLE (engine already returns none for them).
+4. Notifications are deduplicated on `(instanceId, kind, sendDate, recipientId)` (`NOTIFICATION_DEDUPE_KEY`), the
+   recipient included: after a same-day reassignment the new owner or approver is still reminded. A store's unique
+   index must cover all four columns.
+5. Importer commit emits domain events with `actor.kind = "IMPORT"`, but M9 must **not** send reminders for instances created as already APPROVED or NOT_APPLICABLE (engine already returns none for them).
