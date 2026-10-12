@@ -45,8 +45,16 @@ remind for complied or not-applicable items, and reach the database only through
    case, status wording from the UI spec, a plain-text part, every interpolated value HTML-escaped, http(s) links only,
    and the client-facing product name. They carry names of the recipient, client, unit and obligation only; never
    evidence, comments or reasons. Logs carry counts and request ids only.
-10. **Mail transport** is a `Mailer` port. The SMTP or provider adapter lands with the hosting choice (M1 deviations:
-    none chosen yet); until then no dependency is added for it.
+10. **Mail transport** is a `Mailer` port with one adapter, generic SMTP (`smtp-mailer.ts`, nodemailer). Any provider
+    with an SMTP relay works, so choosing one only means filling in credentials. Settings come from the environment:
+    `SMTP_URL`, or `SMTP_HOST` with `SMTP_PORT` (default 587), `SMTP_USER`, `SMTP_PASS` and `SMTP_SECURE`, plus
+    `MAIL_FROM` and `APP_URL`.
+    - `startJobsFromEnv` boots the runner on the Postgres store. It returns null, and starts nothing, when no SMTP
+      server is set, so no send is ever recorded as done without a transport. It throws at boot on half-set settings,
+      naming the variables but never their values.
+    - The Message-ID is a hash of the send-log key, so a re-sent pending row carries the same id.
+    - `Auto-Submitted: auto-generated` marks every email.
+    - A failure throws with SMTP codes only, never the address or the content.
 
 11. **Outbox relay** (`relay-outbox`, every minute, M9 owns it). Per firm, in one transaction: claim up to 200
     unpublished events (`FOR UPDATE SKIP LOCKED`), send each consumed type to the pg-boss queue named after the type
@@ -78,7 +86,7 @@ remind for complied or not-applicable items, and reach the database only through
   state, score items, and send-log claim, mark sent (setting the event aggregate), mark failed, list done per client and
   list done digests per date.
 - M9 PR 2 wires the adapter (`apps/api/src/jobs/postgres-store.ts`, one repository call per port; audit rows take
-  their time from the database, in the same transaction as the change). The runner is not booted in a process yet:
-  with no mail transport it would record sends as done that never left. It starts in the PR that adds the transport.
+  their time from the database, in the same transaction as the change). The API process boots the jobs through
+  `startJobsFromEnv` (wired in `main.ts` by the CI thread); without SMTP settings they stay off.
 - Event consumers (notify approver on `instance.submitted`, owner on `instance.sent_back`, regenerate on
   `assignment.*` and `import.committed`) are a later M9 PR on the same ports.
