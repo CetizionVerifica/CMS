@@ -148,8 +148,12 @@ export const RegisterFilter = z.strictObject({
   hasEvidence: z.boolean().optional(),
   /** Case-insensitive match on title, external ref, Act name and comments; at least 2 characters. */
   q: z.string().trim().min(2).max(200).optional(),
-  /** Limit to these units (an owner's or approver's scope). */
+  /** Limit to these units (an owner's or approver's scope, or a multi-select). An empty list matches nothing. */
   unitIds: z.array(Id).optional(),
+  /** Multi-select filters; an empty list matches nothing. */
+  departmentIds: z.array(Id).optional(),
+  actIds: z.array(Id).optional(),
+  categoryIds: z.array(Id).optional(),
   instanceIds: z.array(Id).max(10_000).optional(),
 });
 export type RegisterFilter = z.input<typeof RegisterFilter>;
@@ -171,6 +175,13 @@ function registerConditions(clientId: string, f: z.output<typeof RegisterFilter>
   if (f.unitIds) c.push(f.unitIds.length ? inArray(i.unitId, f.unitIds) : sql`false`);
   if (f.instanceIds) c.push(f.instanceIds.length ? inArray(i.id, f.instanceIds) : sql`false`);
   if (f.departmentId) c.push(eq(s.assignment.departmentId, f.departmentId));
+  for (const [ids, column] of [
+    [f.departmentIds, s.assignment.departmentId],
+    [f.actIds, s.obligation.actId],
+    [f.categoryIds, s.obligation.categoryId],
+  ] as const) {
+    if (ids) c.push(ids.length ? inArray(column, ids) : sql`false`);
+  }
   if (f.actId) c.push(eq(s.obligation.actId, f.actId));
   if (f.categoryId) c.push(eq(s.obligation.categoryId, f.categoryId));
   if (f.ownerId) c.push(eq(i.ownerId, f.ownerId));
@@ -201,7 +212,37 @@ function registerConditions(clientId: string, f: z.output<typeof RegisterFilter>
 
 const labels = (refs: TemplateRef[]): string[] => refs.map((r) => r.label);
 
+const firstComment = sql<
+  string | null
+>`(SELECT c.body FROM comment c WHERE c.instance_id = ${s.complianceInstance.id} AND c.archived_at IS NULL ORDER BY c.created_at ASC, c.id ASC LIMIT 1)`;
+
 export const instances = {
+  /**
+   * Export columns the register rows leave out, for these instances (visible ones only, in id order).
+   * At most 10,000 ids per call.
+   */
+  async exportDetails(
+    tx: TenantTx,
+    instanceIds: readonly string[],
+  ): Promise<InstanceExportDetail[]> {
+    const ids = validate(z.array(Id).max(10_000), [...instanceIds]);
+    if (ids.length === 0) return [];
+    const i = s.complianceInstance;
+    return tx
+      .select({
+        instanceId: i.id,
+        description: s.obligation.description,
+        applicabilityText: s.obligation.applicabilityText,
+        naReason: i.naReason,
+        firstComment,
+      })
+      .from(i)
+      .innerJoin(s.assignment, eq(s.assignment.id, i.assignmentId))
+      .innerJoin(s.obligation, eq(s.obligation.id, s.assignment.obligationId))
+      .where(inArray(i.id, ids))
+      .orderBy(asc(i.id))
+      .catch(rethrow);
+  },
   get: instanceEntity.get,
   require: instanceEntity.require,
   list: (tx: TenantTx, assignmentId: string, page?: PageRequest) =>
@@ -444,6 +485,16 @@ export type NewAuditEvent = Omit<AuditEvent, 'id' | 'firmId' | 'at'>;
 
 const PLACEHOLDER_ID = '00000000-0000-7000-8000-000000000000';
 
+/** What the register export adds per instance (M10 ADR M10-0001 §8). */
+export interface InstanceExportDetail {
+  instanceId: string;
+  description: string;
+  applicabilityText: string | null;
+  naReason: string | null;
+  /** The instance's first non-archived comment, or null. */
+  firstComment: string | null;
+}
+
 export const auditEvents = {
   /**
    * Appends an audit event in the caller's transaction (root CLAUDE.md non-negotiable 2). No RETURNING,
@@ -457,6 +508,18 @@ export const auditEvents = {
       at: '2000-01-01T00:00:00Z',
     });
     await tx.insert(s.auditEvent).values(event).catch(rethrow);
+  },
+  /** The time of the latest audit event per client this context sees (clients with none are left out). */
+  async latestByClient(tx: TenantTx): Promise<{ clientId: string; at: string }[]> {
+    const t = s.auditEvent;
+    const rows = await tx
+      .select({ clientId: t.clientId, at: sql<Date>`max(${t.at})` })
+      .from(t)
+      .where(sql`${t.clientId} is not null`)
+      .groupBy(t.clientId)
+      .orderBy(asc(t.clientId))
+      .catch(rethrow);
+    return rows.map((r) => ({ clientId: r.clientId!, at: new Date(r.at).toISOString() }));
   },
   /** History of one entity, newest first. */
   async forEntity(

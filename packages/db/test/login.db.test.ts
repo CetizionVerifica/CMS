@@ -133,7 +133,12 @@ describe('privileged logins', () => {
 
 describe('idle connections', () => {
   it('a server-closed idle client (57P01) does not crash the process, and the next query reconnects', async () => {
-    const db = createDatabase({ connectionString: urlAs(login, password), max: 1 });
+    const codes: string[] = [];
+    const db = createDatabase({
+      connectionString: urlAs(login, password),
+      max: 1,
+      onIdleError: (code) => codes.push(code),
+    });
     const unhandled: unknown[] = [];
     const onError = (e: unknown) => unhandled.push(e);
     process.on('uncaughtException', onError);
@@ -149,6 +154,7 @@ describe('idle connections', () => {
       );
       expect(again.map((f) => f.id)).toEqual([firmId]);
       expect(unhandled).toEqual([]);
+      expect(codes).toEqual(['57P01']);
     } finally {
       process.off('uncaughtException', onError);
       await db.close();
