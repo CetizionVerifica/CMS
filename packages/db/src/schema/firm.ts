@@ -40,5 +40,7 @@ export const firm = pgTable(
       using: sql`id = app_firm_id() and app_firm_staff()`,
       withCheck: sql`id = app_firm_id() and app_firm_staff()`,
     }),
+    // The SECURITY DEFINER lookups run as canopy_lookup (migration 0007), which can read only the id.
+    pgPolicy('lookup_read', { for: 'select', to: 'canopy_lookup', using: sql`true` }),
   ],
 );

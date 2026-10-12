@@ -38,7 +38,8 @@ to their own client. The details below were not fixed by the spec.
    in firm A; it also keeps an instance's denormalised `client_id` and `unit_id` equal to its assignment's.
 6. **No deletes.** The app role gets SELECT, INSERT and UPDATE only (`firm`: SELECT, UPDATE; `audit_event`: SELECT,
    INSERT). A trigger rejects UPDATE, DELETE and TRUNCATE on `audit_event` for every role. Firms are created by
-   `createAdminDatabase().createFirm` on the owner connection.
+   `createAdminDatabase().createFirm` on the owner connection. The one exception is `import_issue` (migration 0009):
+   each analysis regenerates a batch's issues, so stale ones are deleted, still under RLS.
 7. **Ids and names.** UUIDv7 come from `canopy_uuid_v7()` (Postgres 16 has none built in). Name uniqueness is exact
    and among non-archived rows (Acts, categories per firm; companies, departments per client; units per company), so
    the importer's `raw` profile can hold spellings that differ only by case. `person.name_normalized` is indexed, not
@@ -77,3 +78,11 @@ to their own client. The details below were not fixed by the spec.
   until all of these are there.
 - Cross-firm jobs (nightly generation) need a way to list firms; that is added with the job, as a narrow
   `SECURITY DEFINER` function, not by giving the app role BYPASSRLS.
+- Lookups before a tenant is known (`canopy_list_firm_ids`, and M5's auth lookups) are `SECURITY DEFINER` functions
+  owned by `canopy_lookup` (migration 0007): no login, no BYPASSRLS, not a member of anything, column grants on the
+  values it returns, and `lookup_read` SELECT policies that name it alone. Owning them as the migrating user would not
+  work: FORCE RLS binds the table owner, so they would see nothing unless the owner were a superuser.
+- The owner that runs migrations need not be a superuser. An administrator prepares it once per cluster: create
+  `canopy_app` and `canopy_lookup` (or give it CREATEROLE), grant both to it, and
+  `GRANT SET ON PARAMETER app.all_clients TO <owner>` (migrations 0003 and 0005 have functions with that SET clause).
+  `test/migrations.db.test.ts` migrates as such an owner.
