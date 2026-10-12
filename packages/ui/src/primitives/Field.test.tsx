@@ -84,8 +84,8 @@ describe('Select', () => {
 });
 
 const units: ComboboxOption[] = [
-  { value: 'belur', label: 'Hindalco Belur', description: 'Metals · 1 unit' },
-  { value: 'renukoot', label: 'Hindalco Renukoot' },
+  { value: 'belur', label: 'Kestrel Aluminium Belur', description: 'Metals · 1 unit' },
+  { value: 'renukoot', label: 'Kestrel Aluminium Renukoot' },
   { value: 'taloja', label: 'Taloja plant' },
 ];
 
@@ -112,18 +112,18 @@ describe('Combobox', () => {
     const input = screen.getByRole('combobox', { name: 'Unit' });
     await user.tab();
     expect(document.activeElement).toBe(input);
-    await user.keyboard('hind');
+    await user.keyboard('kest');
     const options = screen.getAllByRole('option');
     expect(options.map((o) => o.textContent)).toEqual([
-      'Hindalco BelurMetals · 1 unit',
-      'Hindalco Renukoot',
+      'Kestrel Aluminium BelurMetals · 1 unit',
+      'Kestrel Aluminium Renukoot',
     ]);
     expect(input.getAttribute('aria-activedescendant')).toBe(options[0]!.id);
     await user.keyboard('{ArrowDown}');
     expect(input.getAttribute('aria-activedescendant')).toBe(options[1]!.id);
     await user.keyboard('{Enter}');
     expect(screen.getByTestId('value').textContent).toBe('renukoot');
-    expect((input as HTMLInputElement).value).toBe('Hindalco Renukoot');
+    expect((input as HTMLInputElement).value).toBe('Kestrel Aluminium Renukoot');
     expect(screen.queryByRole('listbox')).toBeNull();
     expect(document.activeElement).toBe(input);
   });
@@ -212,7 +212,7 @@ describe('Field review fixes', () => {
       <Combobox label="Unit" options={units.slice(0, 1)} value={null} onValueChange={() => {}} />,
     );
     const id = input.getAttribute('aria-activedescendant');
-    expect(document.getElementById(id!)?.textContent).toContain('Hindalco Belur');
+    expect(document.getElementById(id!)?.textContent).toContain('Kestrel Aluminium Belur');
     await user.keyboard('{Escape}');
     expect(input.hasAttribute('aria-controls')).toBe(false);
   });
