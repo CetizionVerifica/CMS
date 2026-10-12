@@ -103,6 +103,13 @@ describe('approval request on instance.submitted', () => {
         actor: { kind: 'SYSTEM', job: 'instance.submitted' },
         requestId: `job:instance.submitted:${e.id}`,
         aggregate: { type: 'notification_send', id: firm.sends[0]!.id },
+        data: {
+          kind: 'APPROVAL_REQUESTED',
+          recipientId: w.approver.id,
+          instanceId: w.i.id,
+          sendDate: '2026-10-12',
+          sourceEventId: e.id,
+        },
       }),
     ]);
   });

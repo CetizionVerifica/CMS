@@ -15,7 +15,7 @@ import {
   type Database,
   type TenantTx,
 } from '@canopy/db';
-import type { FirmTx, JobStore, ReminderCandidate, SendKey } from './ports.js';
+import type { FirmTx, JobStore, ReminderCandidate } from './ports.js';
 
 /**
  * The jobs' ports on M3's repositories. Every firm runs in `withTenant(systemContext(firmId, requestId))`, so RLS
@@ -80,27 +80,18 @@ function firmTx(tx: TenantTx): FirmTx {
     recipients: (personIds, clientId) => jobs.recipients(tx, personIds, clientId),
     listConsultants: () => jobs.listConsultants(tx),
     listScoreItems: (clientId, range) => jobs.listScoreItems(tx, clientId, range),
-    claimSend: (key) => notificationSends.claim(tx, logKey(key)),
+    claimSend: (key) => notificationSends.claim(tx, key),
     markSent: async (key, at, event) => {
-      const id = await notificationSends.markSent(tx, logKey(key), at);
+      const id = await notificationSends.markSent(tx, key, at);
       await domainEvents.enqueue(tx, {
         ...event,
         aggregate: { type: 'notification_send', id },
         aggregateVersion: 1,
       });
     },
-    markFailed: (key, code) => notificationSends.markFailed(tx, logKey(key), code),
+    markFailed: (key, code) => notificationSends.markFailed(tx, key, code),
     claimEvents: (limit) => domainEvents.claimUnpublished(tx, limit),
     markEventsPublished: (ids) => domainEvents.markPublished(tx, ids),
     recordEventFailure: (id) => domainEvents.recordFailure(tx, id),
   };
-}
-
-/**
- * The send-log key as M3's repository types it. Until contracts 1.4.0 lists APPROVAL_REQUESTED and SENT_BACK, its
- * `NotificationKind` lacks them; the database enum already has them (M3 migration 0017) and the repository
- * validates every key at run time, so this narrowing goes when contracts 1.4.0 lands.
- */
-function logKey(key: SendKey): Parameters<typeof notificationSends.claim>[1] {
-  return key as Parameters<typeof notificationSends.claim>[1];
 }

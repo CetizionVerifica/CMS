@@ -58,6 +58,7 @@ export async function deliver(
         recipientId: key.recipientId,
         instanceId: key.instanceId,
         sendDate: key.sendDate,
+        sourceEventId: key.eventId ?? null,
       },
     }),
   );

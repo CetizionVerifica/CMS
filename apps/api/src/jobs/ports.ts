@@ -94,21 +94,15 @@ export interface ConsultantRef {
 }
 
 /**
- * Every kind the send log takes. The database enum already has APPROVAL_REQUESTED and SENT_BACK (M3 migration
- * 0017); contracts 1.4.0 adds them to `NotificationKind`, and this alias then becomes `NotificationKind`.
- */
-export type SendKind = NotificationKind | 'APPROVAL_REQUESTED' | 'SENT_BACK';
-
-/**
  * Dedupe key of the send log. Scheduled sends are unique per instance, kind, send date and recipient (digests:
  * recipient, kind, date). Event-driven sends carry the domain event's id and are unique per event and recipient
- * whatever the date (ADR M9-0001 §13), so a second send-back on the same day is its own email.
+ * whatever the date (events.md §4 rule 4, `EVENT_NOTIFICATION_DEDUPE_KEY`; ADR M9-0001 §13), so a second send-back on the same day is its own email.
  */
 export interface SendKey {
   clientId: Id;
   instanceId: Id | null;
   recipientId: Id;
-  kind: SendKind;
+  kind: NotificationKind;
   sendDate: LocalDate;
   /** The event an event-driven send answers; absent for scheduled sends. */
   eventId?: Id | null;
