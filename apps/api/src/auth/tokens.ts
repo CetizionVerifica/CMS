@@ -16,3 +16,10 @@ export function sameToken(a: string, b: string): boolean {
   const right = Buffer.from(b);
   return left.length === right.length && timingSafeEqual(left, right);
 }
+
+/** A URL safe to log: invite tokens in the path and `token` query values are replaced. */
+export function redactUrl(url: string): string {
+  return url
+    .replace(/\/invites\/[^/?#]+/g, '/invites/[redacted]')
+    .replace(/([?&]token=)[^&#]*/g, '$1[redacted]');
+}

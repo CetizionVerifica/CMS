@@ -310,6 +310,19 @@ describe('per-route rate limit', () => {
     await limited.close();
   });
 
+  it('shares one budget between a GET route and its automatic HEAD route', async () => {
+    const limited = buildServer();
+    limited.get(
+      '/invite-ish/:token',
+      { config: { auth: 'public', routeLimit: { max: 2, timeWindow: 60_000 } } },
+      async () => ({ ok: true }),
+    );
+    expect((await limited.inject({ url: '/invite-ish/a' })).statusCode).toBe(200);
+    expect((await limited.inject({ method: 'HEAD', url: '/invite-ish/b' })).statusCode).toBe(200);
+    expect((await limited.inject({ url: '/invite-ish/c' })).statusCode).toBe(429);
+    await limited.close();
+  });
+
   it('refuses the plugin config.rateLimit, which would never fire', async () => {
     const bare = buildServer();
     expect(() =>

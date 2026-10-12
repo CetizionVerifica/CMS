@@ -23,6 +23,8 @@ export interface SessionRecord {
 /** What the request context is built from: the signed-in person and their firm. */
 export interface Principal {
   readonly status: PersonStatus;
+  /** Shown on `/me`. */
+  readonly profile: { readonly name: string; readonly email: string | null };
   /** All of the person's memberships, including archived and expired ones. */
   readonly memberships: readonly Membership[];
   readonly mfaEnrolled: boolean;

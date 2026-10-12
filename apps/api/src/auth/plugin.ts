@@ -9,7 +9,7 @@ import type {
   onRequestHookHandler,
 } from 'fastify';
 import { ZodError } from 'zod';
-import { buildRequestContext, mfaRequired, type AuthStore } from './context.js';
+import { buildRequestContext, mfaRequired, type AuthStore, type SessionRecord } from './context.js';
 import { ApiError, errorEnvelope } from './errors.js';
 import { can } from './policy.js';
 import { hashToken, sameToken } from './tokens.js';
@@ -59,6 +59,14 @@ export const DEFAULT_RATE_LIMIT = { max: 300, timeWindow: '1 minute' } as const;
 const contexts = new WeakMap<FastifyRequest, RequestContext>();
 /** Requests on `session-pre-mfa` routes whose actor still owes MFA, with whether they have enrolled. */
 const mfaPending = new WeakMap<FastifyRequest, { enrolled: boolean }>();
+const sessions = new WeakMap<FastifyRequest, SessionRecord>();
+
+/** The session behind a session route's request (auth routes use it for logout and MFA). */
+export function sessionOf(request: FastifyRequest): SessionRecord {
+  const session = sessions.get(request);
+  if (session === undefined) throw new Error('sessionOf() is only available on session routes');
+  return session;
+}
 
 function sessionHook(options: AuthOptions, auth: RouteAuth): onRequestHookHandler {
   const clock = options.clock ?? (() => new Date());
@@ -95,18 +103,29 @@ function sessionHook(options: AuthOptions, auth: RouteAuth): onRequestHookHandle
       throw new ApiError('NOT_FOUND');
 
     contexts.set(request, ctx);
+    if (session) sessions.set(request, session);
     if (principal && !ctx.mfaSatisfied && mfaRequired(principal, ctx.memberships)) {
       mfaPending.set(request, { enrolled: principal.mfaEnrolled });
     }
   };
 }
 
-function routeLimitHook(app: FastifyInstance, limit: RateLimit): onRequestHookHandler {
-  let check: ReturnType<FastifyInstance['createRateLimit']> | undefined;
+type Limiter = ReturnType<FastifyInstance['createRateLimit']>;
+
+function routeLimitHook(
+  app: FastifyInstance,
+  limiters: Map<string, Limiter>,
+  url: string,
+  limit: RateLimit,
+): onRequestHookHandler {
   return async (request) => {
-    // Created on first use: the rate-limit plugin's decorators exist once the app is ready. Each route
-    // gets its own counters.
-    check ??= app.createRateLimit(limit);
+    // Created on first use: the rate-limit plugin's decorators exist once the app is ready. Counters are
+    // per path, so a GET route and the HEAD route Fastify adds for it share one budget.
+    let check = limiters.get(url);
+    if (check === undefined) {
+      check = app.createRateLimit(limit);
+      limiters.set(url, check);
+    }
     const result = await check(request);
     if (!result.isAllowed && result.isExceeded) {
       throw new ApiError('RATE_LIMITED', { retryAfterSeconds: result.ttlInSeconds });
@@ -178,6 +197,7 @@ export function registerAuth(app: FastifyInstance, options: AuthOptions): void {
     },
   });
 
+  const routeLimiters = new Map<string, Limiter>();
   app.addHook('onRoute', (route) => {
     const auth = route.config?.auth;
     if (auth === undefined || !ROUTE_AUTH.includes(auth)) {
@@ -193,7 +213,9 @@ export function registerAuth(app: FastifyInstance, options: AuthOptions): void {
     }
     const existing = route.onRequest ?? [];
     route.onRequest = [
-      ...(route.config?.routeLimit ? [routeLimitHook(app, route.config.routeLimit)] : []),
+      ...(route.config?.routeLimit
+        ? [routeLimitHook(app, routeLimiters, route.url, route.config.routeLimit)]
+        : []),
       ...(auth === 'public' ? [] : [sessionHook(options, auth)]),
       ...(Array.isArray(existing) ? existing : [existing]),
     ];

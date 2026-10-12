@@ -32,6 +32,7 @@ function session(overrides: Partial<SessionRecord> = {}): SessionRecord {
 function principal(overrides: Partial<Principal> = {}): Principal {
   return {
     status: 'ACTIVE',
+    profile: { name: 'Asha', email: 'asha@example.com' },
     memberships: [membership({ role: 'CLIENT_ADMIN', clientId: C1 })],
     mfaEnrolled: false,
     mfaRequiredForFirmRoles: true,
