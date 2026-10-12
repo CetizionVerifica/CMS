@@ -1,10 +1,11 @@
 import { DEFAULT_FIRM_SETTINGS, FirmSettings, Id, Name } from '@canopy/contracts';
-import { eq, sql } from 'drizzle-orm';
+import { eq, sql, type SQL } from 'drizzle-orm';
 import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { migrate as runMigrations } from 'drizzle-orm/node-postgres/migrator';
 import { fileURLToPath } from 'node:url';
 import pg from 'pg';
 import { z } from 'zod';
+import { lookups, type AuthLookups } from './auth-lookups.js';
 import * as schema from './schema/index.js';
 import { tenantSettings, type TenantContext } from './tenant-context.js';
 
@@ -38,15 +39,19 @@ export interface DatabaseOptions {
   privilegedLogin?: 'refuse' | 'allow';
 }
 
-export interface Database {
+/**
+ * `findLoginCandidates`, `findSession` and `findLoginToken` (AuthLookups) are the sign-in reads made before a
+ * tenant is known: SECURITY DEFINER functions that return ids, hashes and states only (ADR M3-0001).
+ */
+export interface Database extends AuthLookups {
   /**
    * Runs `fn` in one transaction as the app role, with the tenant settings every RLS policy reads.
    * This is the only way request code reaches the database (packages/db/CLAUDE.md rule 2).
    */
   withTenant<T>(ctx: TenantContext, fn: (tx: TenantTx) => Promise<T>): Promise<T>;
   /**
-   * Ids of every firm, for scheduled jobs that then run each firm in its own `withTenant`. The only
-   * cross-tenant read; it returns ids and nothing else (ADR 0003).
+   * Ids of every firm, for scheduled jobs that then run each firm in its own `withTenant`. It returns ids
+   * and nothing else (ADR 0003).
    */
   listFirmIds(): Promise<string[]>;
   close(): Promise<void>;
@@ -104,6 +109,14 @@ export function createDatabase(options: DatabaseOptions): Database {
     });
     return loginChecked;
   };
+  /** One statement as the app role with no tenant context: only the SECURITY DEFINER lookups return rows. */
+  const asApp = async (query: SQL) => {
+    if (policy === 'refuse') await checkLogin();
+    return db.transaction(async (tx) => {
+      await tx.execute(sql.raw(`SET LOCAL ROLE ${APP_ROLE}`));
+      return tx.execute<Record<string, unknown>>(query);
+    });
+  };
   return {
     async withTenant(ctx, fn) {
       const settings = tenantSettings(ctx);
@@ -121,13 +134,10 @@ export function createDatabase(options: DatabaseOptions): Database {
       });
     },
     async listFirmIds() {
-      if (policy === 'refuse') await checkLogin();
-      return db.transaction(async (tx) => {
-        await tx.execute(sql.raw(`SET LOCAL ROLE ${APP_ROLE}`));
-        const { rows } = await tx.execute<{ id: string }>(sql`SELECT canopy_list_firm_ids() AS id`);
-        return rows.map((r) => r.id);
-      });
+      const { rows } = await asApp(sql`SELECT canopy_list_firm_ids() AS id`);
+      return rows.map((r) => r.id as string);
     },
+    ...lookups(asApp),
     close: () => pool.end(),
   };
 }

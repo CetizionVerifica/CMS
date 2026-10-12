@@ -9,6 +9,10 @@ describe('schema', () => {
     expect(TABLES.map((t) => t.name)).toEqual(
       [
         'act',
+        'auth_credential',
+        'auth_invite',
+        'auth_session',
+        'auth_token',
         'assignment',
         'audit_event',
         'category',

@@ -1,4 +1,5 @@
 import { DEFAULT_CLIENT_SETTINGS } from '@canopy/contracts';
+import { eq } from 'drizzle-orm';
 import type { Database, TenantTx } from '../../src/database.js';
 import * as s from '../../src/schema/index.js';
 import { systemContext } from '../../src/tenant-context.js';
@@ -375,4 +376,99 @@ function event(tx: TenantTx, clientId: string | null, aggregateId: string): Prom
       })
       .returning({ id: s.domainEvent.id }),
   );
+}
+
+/**
+ * Sign-in rows (migrations 0011-0012) for a firm `populateFirm` wrote: a credential and a session for the
+ * admin, an invite per client and one firm-level invite, and a magic link plus a link per invite. Added to
+ * `firm.rows`. Separate from populateFirm because the migration test populates before these tables exist.
+ */
+export async function populateAuth(
+  db: Database,
+  firm: PopulatedFirm,
+  label: string,
+): Promise<void> {
+  await db.withTenant(systemContext(firm.firmId, `populate-auth-${label}`), async (tx) => {
+    const add = (table: string, scope: 'client0' | 'client1' | 'firmLevel', id: string) => {
+      firm.rows[table] ??= { client0: [], client1: [], firmLevel: [] };
+      firm.rows[table][scope].push(id);
+    };
+    const byEmail = async (email: string) => {
+      const [row] = await tx
+        .select({ id: s.person.id })
+        .from(s.person)
+        .where(eq(s.person.email, email));
+      if (!row) throw new Error(`no person ${email}`);
+      return row.id;
+    };
+    const adminId = await byEmail(`admin@${label}.example`);
+    const ownerId = await byEmail(`owner@${label}.example`);
+    const hash = (n: number) => `${label === 'a' ? 'a' : 'b'}${n}`.padEnd(64, '0');
+    const later = new Date('2030-01-01T00:00:00Z');
+
+    add(
+      'auth_credential',
+      'firmLevel',
+      await one(
+        tx
+          .insert(s.authCredential)
+          .values({ personId: adminId, passwordHash: 'scrypt$populate' })
+          .returning({ id: s.authCredential.id }),
+      ),
+    );
+    add(
+      'auth_session',
+      'firmLevel',
+      await one(
+        tx
+          .insert(s.authSession)
+          .values({
+            personId: adminId,
+            tokenHash: hash(1),
+            csrfToken: 'c'.repeat(43),
+            method: 'PASSWORD',
+            expiresAt: later,
+          })
+          .returning({ id: s.authSession.id }),
+      ),
+    );
+    const invite = (clientId: string | null) =>
+      one(
+        tx
+          .insert(s.authInvite)
+          .values({
+            personId: ownerId,
+            email: `owner@${label}.example`,
+            role: clientId ? 'OWNER' : 'FIRM_ADMIN',
+            clientId,
+            createdById: adminId,
+            expiresAt: later,
+          })
+          .returning({ id: s.authInvite.id }),
+      );
+    const inviteIds = [
+      await invite(firm.clientIds[0]),
+      await invite(firm.clientIds[1]),
+      await invite(null),
+    ];
+    add('auth_invite', 'client0', inviteIds[0]!);
+    add('auth_invite', 'client1', inviteIds[1]!);
+    add('auth_invite', 'firmLevel', inviteIds[2]!);
+    const token = (n: number, inviteId: string | null) =>
+      one(
+        tx
+          .insert(s.authToken)
+          .values({
+            personId: ownerId,
+            kind: inviteId ? 'INVITE' : 'MAGIC_LINK',
+            inviteId,
+            tokenHash: hash(n),
+            expiresAt: later,
+          })
+          .returning({ id: s.authToken.id }),
+      );
+    add('auth_token', 'firmLevel', await token(2, null));
+    for (const [i, id] of inviteIds.entries())
+      add('auth_token', 'firmLevel', await token(3 + i, id));
+  });
 }
