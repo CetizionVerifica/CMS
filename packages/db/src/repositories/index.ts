@@ -17,6 +17,8 @@ export type { NewImportBatch, NewImportIssue, NewImportRow } from './imports.js'
 export {
   domainEvents,
   exportJobs,
+  IdempotencyRecord,
+  idempotencyKeys,
   NewDomainEvent,
   notificationSends,
   NotificationSend,

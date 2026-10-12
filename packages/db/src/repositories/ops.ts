@@ -6,7 +6,7 @@ import {
   NotificationKind,
   type JobStatus,
 } from '@canopy/contracts';
-import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm';
+import { and, asc, eq, gt, inArray, isNull, lt, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import type { TenantTx } from '../database.js';
 import { DbError, rethrow, validate } from '../errors.js';
@@ -239,5 +239,110 @@ export const notificationSends = {
       )
       .orderBy(asc(t.id))
       .catch(rethrow);
+  },
+};
+
+/** A first response kept for replay under its Idempotency-Key (M7). */
+export const IdempotencyRecord = z.strictObject({
+  personId: Id,
+  key: z.string().min(1).max(255),
+  method: z.enum(['POST', 'PUT', 'PATCH', 'DELETE']),
+  path: z.string().regex(/^\//).max(2048),
+  requestHash: z.string().regex(/^[0-9a-f]{64}$/),
+  responseStatus: z.int().min(100).max(599),
+  responseBody: z.json().nullable(),
+  createdAt: Instant,
+  expiresAt: Instant,
+});
+export type IdempotencyRecord = z.infer<typeof IdempotencyRecord>;
+
+const idempotencyColumns = {
+  personId: s.idempotencyKey.personId,
+  key: s.idempotencyKey.key,
+  method: s.idempotencyKey.method,
+  path: s.idempotencyKey.path,
+  requestHash: s.idempotencyKey.requestHash,
+  responseStatus: s.idempotencyKey.responseStatus,
+  responseBody: s.idempotencyKey.responseBody,
+  createdAt: s.idempotencyKey.createdAt,
+  expiresAt: s.idempotencyKey.expiresAt,
+};
+
+function toIdempotencyRecord(row: {
+  [K in keyof typeof idempotencyColumns]: unknown;
+}): IdempotencyRecord {
+  return IdempotencyRecord.parse({
+    ...row,
+    createdAt: (row.createdAt as Date).toISOString(),
+    expiresAt: (row.expiresAt as Date).toISOString(),
+  });
+}
+
+export const idempotencyKeys = {
+  /** The person's unexpired record for `key`, or null. An expired one is treated as absent. */
+  async find(
+    tx: TenantTx,
+    personId: string,
+    key: string,
+    now: Date = new Date(),
+  ): Promise<IdempotencyRecord | null> {
+    const [row] = await tx
+      .select(idempotencyColumns)
+      .from(s.idempotencyKey)
+      .where(
+        and(
+          eq(s.idempotencyKey.personId, personId),
+          eq(s.idempotencyKey.key, key),
+          gt(s.idempotencyKey.expiresAt, now),
+        ),
+      )
+      .catch(rethrow);
+    return row ? toIdempotencyRecord(row) : null;
+  },
+  /**
+   * Stores the first response in the caller's transaction. An expired record for the same key is
+   * replaced. DUPLICATE when an unexpired one exists, including one a concurrent request just committed
+   * (the insert waits for it, then conflicts).
+   */
+  async record(tx: TenantTx, record: IdempotencyRecord): Promise<IdempotencyRecord> {
+    const r = validate(IdempotencyRecord, record);
+    const values = { ...r, createdAt: new Date(r.createdAt), expiresAt: new Date(r.expiresAt) };
+    const [row] = await tx
+      .insert(s.idempotencyKey)
+      .values(values)
+      .onConflictDoUpdate({
+        target: [s.idempotencyKey.firmId, s.idempotencyKey.personId, s.idempotencyKey.key],
+        set: {
+          method: sql`excluded.method`,
+          path: sql`excluded.path`,
+          requestHash: sql`excluded.request_hash`,
+          responseStatus: sql`excluded.response_status`,
+          responseBody: sql`excluded.response_body`,
+          createdAt: sql`excluded.created_at`,
+          expiresAt: sql`excluded.expires_at`,
+        },
+        setWhere: sql`${s.idempotencyKey.expiresAt} <= excluded.created_at`,
+      })
+      .returning(idempotencyColumns)
+      .catch(rethrow);
+    if (!row) throw new DbError('DUPLICATE', 'DUPLICATE (idempotency_key.idempotency_key_key)');
+    return toIdempotencyRecord(row);
+  },
+  /**
+   * Deletes records that expired before `now`, up to `limit`, and returns how many went. For the M9 job
+   * in each firm's system context; a person's context only reaches their own keys.
+   */
+  async purgeExpired(tx: TenantTx, now: Date, limit = 1000): Promise<number> {
+    const doomed = tx
+      .select({ id: s.idempotencyKey.id })
+      .from(s.idempotencyKey)
+      .where(lt(s.idempotencyKey.expiresAt, now))
+      .orderBy(asc(s.idempotencyKey.expiresAt))
+      .limit(limit);
+    const result = await tx
+      .delete(s.idempotencyKey)
+      .where(inArray(s.idempotencyKey.id, doomed))
+      .catch(rethrow);
+    return result.rowCount ?? 0;
   },
 };
