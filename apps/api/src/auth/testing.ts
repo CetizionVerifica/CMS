@@ -233,6 +233,14 @@ export class InMemoryAuthStore implements AccountStore {
     this.mfa.set(`${firmId}/${personId}`, record);
   }
 
+  async acceptMfaStep(firmId: string, personId: string, step: number): Promise<boolean> {
+    const key = `${firmId}/${personId}`;
+    const record = this.mfa.get(key);
+    if (record === undefined || (record.lastStep !== null && record.lastStep >= step)) return false;
+    this.mfa.set(key, { ...record, lastStep: step });
+    return true;
+  }
+
   async requestMagicLink(firmId: string, personId: string): Promise<void> {
     this.outbox.push({ firmId, type: 'auth.magic_link_requested', data: { personId } });
   }

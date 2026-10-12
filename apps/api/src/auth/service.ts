@@ -181,16 +181,18 @@ export class AuthService {
       throw new ApiError('MFA_REQUIRED', { enrolled: false }, 'Set up MFA first.');
     }
     const step = verifyTotp(this.secrets.open(record.sealedSecret), code, now);
-    if (step === null || (record.lastStep !== null && step <= record.lastStep)) {
+    if (step === null || !(await this.store.acceptMfaStep(ctx.firmId, ctx.personId, step))) {
       throw new ApiError('VALIDATION', {
         issues: [{ path: ['code'], message: 'Code is not correct.' }],
       });
     }
-    await this.store.saveMfa(ctx.firmId, ctx.personId, {
-      ...record,
-      enrolledAt: record.enrolledAt ?? now.toISOString(),
-      lastStep: step,
-    });
+    if (record.enrolledAt === null) {
+      await this.store.saveMfa(ctx.firmId, ctx.personId, {
+        ...record,
+        enrolledAt: now.toISOString(),
+        lastStep: step,
+      });
+    }
     await this.store.markSessionMfa(session.id);
     return this.me({ ...ctx, mfaSatisfied: true }, { ...session, mfaSatisfied: true });
   }

@@ -5,9 +5,9 @@ export function newToken(): string {
   return randomBytes(32).toString('base64url');
 }
 
-/** The stored form of a token: its SHA-256. Tokens themselves are never stored or logged. */
+/** The stored form of a token: its SHA-256, lower-case hex (M3's `TokenHash`). Tokens are never stored or logged. */
 export function hashToken(token: string): string {
-  return createHash('sha256').update(token).digest('base64url');
+  return createHash('sha256').update(token).digest('hex');
 }
 
 /** Constant-time string comparison. */

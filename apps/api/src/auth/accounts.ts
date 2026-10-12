@@ -31,6 +31,11 @@ export interface AccountStore extends AuthStore {
 
   getMfa(firmId: string, personId: string): Promise<MfaRecord | null>;
   saveMfa(firmId: string, personId: string, record: MfaRecord): Promise<void>;
+  /**
+   * Records `step` as the last accepted TOTP step only if it is later than the stored one, in one statement.
+   * False for a replayed code or when a concurrent request won.
+   */
+  acceptMfaStep(firmId: string, personId: string, step: number): Promise<boolean>;
 
   /** Outbox: `auth.magic_link_requested { personId }`; M9 then calls `issueLoginToken`. */
   requestMagicLink(firmId: string, personId: string, requestId: string): Promise<void>;
