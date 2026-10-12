@@ -57,7 +57,7 @@ export function createWorld() {
       clientId,
       name,
       companyName: 'Kestrel Aluminium',
-      locationLabel: 'India / West Bengal / Belur',
+      locationLabel: 'India / West Bengal / Riverbend',
     });
   }
 

@@ -192,7 +192,7 @@ export function makeRow(
     companyName: 'Kestrel Aluminium',
     unitId: randomUUID(),
     unitName: 'Plant',
-    locationLabel: 'India / West Bengal / Belur',
+    locationLabel: 'India / West Bengal / Riverbend',
     departmentId: randomUUID(),
     departmentName: 'Safety',
     ownerId: randomUUID(),

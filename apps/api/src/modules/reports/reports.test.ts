@@ -151,7 +151,7 @@ describe('exports', () => {
     const complied = rows.find((r) => r[15] === 'Challan attached')!;
     expect(complied[8]).toBe('Complied');
     expect(complied[12]).toBe('Beta Group/ Kestrel Aluminium/ Plant');
-    expect(complied[13]).toBe('India/ West Bengal/ Belur');
+    expect(complied[13]).toBe('India/ West Bengal/ Riverbend');
     expect(complied[18]).toBe('Low');
   });
 
