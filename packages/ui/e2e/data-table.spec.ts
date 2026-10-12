@@ -86,6 +86,10 @@ test('the column chooser and row menu are axe-clean while open', async ({ page }
   await expect(page.getByRole('dialog', { name: 'Choose columns' })).toBeVisible();
   await expectNoA11yViolations(page);
   await page.keyboard.press('Escape');
+  // Wait for the chooser to finish closing: it returns focus to its trigger when it unmounts, and on a loaded runner
+  // that can land after the next focus move and steal the Enter meant for the row menu.
+  await expect(page.getByRole('dialog', { name: 'Choose columns' })).toBeHidden();
+  await expect(page.getByRole('button', { name: 'Columns' })).toBeFocused();
 
   const link = page.locator('[data-row-index="0"] [data-row-link]');
   await link.focus();
