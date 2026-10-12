@@ -62,7 +62,9 @@ const SAMPLE = new URL(
 );
 const sha = (b: Uint8Array) => createHash('sha256').update(b).digest('hex');
 
-describe.skipIf(!url)('import API on Postgres', { timeout: 60_000 }, () => {
+// The first test imports the whole sample register twice through the API (about 20 s alone); the CI db job runs
+// every package's database tests at once, which made it pass 60 s, so allow 180 s.
+describe.skipIf(!url)('import API on Postgres', { timeout: 180_000 }, () => {
   const name = `canopy_import_${randomBytes(6).toString('hex')}`;
   let db: Database;
   let app: FastifyInstance;
