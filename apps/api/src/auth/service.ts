@@ -136,14 +136,14 @@ export class AuthService {
 
   async verifyMagicLink(token: string, requestId: string): Promise<IssuedSession> {
     const found = await this.usableToken(token, 'MAGIC_LINK');
-    if (!(await this.store.consumeLoginToken(found.id, this.clock()))) {
+    if (!(await this.store.consumeLoginToken(found.firmId, found.id, this.clock()))) {
       throw new ApiError('UNAUTHENTICATED', undefined, LINK_EXPIRED);
     }
     return this.startSession(found.firmId, found.personId, 'MAGIC_LINK', requestId);
   }
 
-  async logout(sessionId: string): Promise<void> {
-    await this.store.revokeSession(sessionId);
+  async logout(session: SessionRecord): Promise<void> {
+    await this.store.revokeSession(session.firmId, session.id, this.clock());
   }
 
   /** `Me` for a session's request context. */
@@ -193,7 +193,7 @@ export class AuthService {
         lastStep: step,
       });
     }
-    await this.store.markSessionMfa(session.id);
+    await this.store.markSessionMfa(session.firmId, session.id);
     return this.me({ ...ctx, mfaSatisfied: true }, { ...session, mfaSatisfied: true });
   }
 
@@ -259,8 +259,7 @@ export class AuthService {
     const now = this.clock();
     const { found, invite } = await this.pendingInvite(token);
     const passwordHash = await hashPassword(input.password);
-    if (!(await this.store.consumeLoginToken(found.id, now))) throw new ApiError('NOT_FOUND');
-    await this.store.acceptInvite({
+    const accepted = await this.store.acceptInvite({
       firmId: invite.firmId,
       inviteId: invite.id,
       tokenId: found.id,
@@ -269,6 +268,7 @@ export class AuthService {
       requestId,
       now,
     });
+    if (!accepted) throw new ApiError('NOT_FOUND');
     return this.startSession(invite.firmId, invite.personId, 'INVITE', requestId);
   }
 

@@ -215,11 +215,11 @@ export class InMemoryAuthStore implements AccountStore {
     return record;
   }
 
-  async revokeSession(sessionId: string): Promise<void> {
+  async revokeSession(_firmId: string, sessionId: string): Promise<void> {
     for (const [hash, s] of this.sessions) if (s.id === sessionId) this.sessions.delete(hash);
   }
 
-  async markSessionMfa(sessionId: string): Promise<void> {
+  async markSessionMfa(_firmId: string, sessionId: string): Promise<void> {
     for (const [hash, s] of this.sessions) {
       if (s.id === sessionId) this.sessions.set(hash, { ...s, mfaSatisfied: true });
     }
@@ -254,9 +254,16 @@ export class InMemoryAuthStore implements AccountStore {
     return [...this.tokens.values()].find((t) => t.tokenHash === tokenHash) ?? null;
   }
 
-  async consumeLoginToken(tokenId: string, now: Date): Promise<boolean> {
+  async consumeLoginToken(firmId: string, tokenId: string, now: Date): Promise<boolean> {
     const token = this.tokens.get(tokenId);
-    if (token === undefined || token.usedAt !== null) return false;
+    if (
+      token === undefined ||
+      token.firmId !== firmId ||
+      token.usedAt !== null ||
+      Date.parse(token.expiresAt) <= now.getTime()
+    ) {
+      return false;
+    }
     this.tokens.set(tokenId, { ...token, usedAt: now.toISOString() });
     return true;
   }
@@ -353,9 +360,19 @@ export class InMemoryAuthStore implements AccountStore {
     }
   }
 
-  async acceptInvite(accept: AcceptInvite): Promise<void> {
+  async acceptInvite(accept: AcceptInvite): Promise<boolean> {
     const invite = this.invites.get(accept.inviteId);
-    if (invite === undefined || invite.firmId !== accept.firmId) throw new Error('No such invite');
+    const token = this.tokens.get(accept.tokenId);
+    if (
+      invite === undefined ||
+      invite.firmId !== accept.firmId ||
+      invite.status !== 'PENDING' ||
+      Date.parse(invite.linkExpiresAt) <= accept.now.getTime() ||
+      token?.inviteId !== invite.id ||
+      !(await this.consumeLoginToken(accept.firmId, accept.tokenId, accept.now))
+    ) {
+      return false;
+    }
     const at = accept.now.toISOString();
     this.invites.set(invite.id, { ...invite, status: 'ACCEPTED', updatedAt: at });
     const key = `${invite.firmId}/${invite.personId}`;
@@ -396,8 +413,15 @@ export class InMemoryAuthStore implements AccountStore {
     this.outbox.push({
       firmId: invite.firmId,
       type: 'membership.changed',
-      data: { membershipId: granted.id, personId: invite.personId, change: 'GRANTED' },
+      data: {
+        membershipId: granted.id,
+        personId: invite.personId,
+        role: granted.role,
+        clientId: granted.clientId,
+        change: 'GRANTED',
+      },
     });
+    return true;
   }
 
   private person(firmId: string, personId: string): StoredPerson {

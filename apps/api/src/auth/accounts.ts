@@ -26,8 +26,8 @@ export interface AccountStore extends AuthStore {
   recordLoginFailure(firmId: string, personId: string, now: Date): Promise<void>;
   /** Stores a session and resets failed attempts. Audit: `LOGIN` on the person. */
   createSession(session: NewSession): Promise<SessionRecord>;
-  revokeSession(sessionId: string): Promise<void>;
-  markSessionMfa(sessionId: string): Promise<void>;
+  revokeSession(firmId: string, sessionId: string, now: Date): Promise<void>;
+  markSessionMfa(firmId: string, sessionId: string): Promise<void>;
 
   getMfa(firmId: string, personId: string): Promise<MfaRecord | null>;
   saveMfa(firmId: string, personId: string, record: MfaRecord): Promise<void>;
@@ -41,8 +41,8 @@ export interface AccountStore extends AuthStore {
   requestMagicLink(firmId: string, personId: string, requestId: string): Promise<void>;
   createLoginToken(token: NewLoginToken): Promise<void>;
   findLoginToken(tokenHash: string): Promise<LoginToken | null>;
-  /** Marks the token used; false when it was already used (another request won). */
-  consumeLoginToken(tokenId: string, now: Date): Promise<boolean>;
+  /** Marks the token used if it is unused and unexpired; false when another request won. */
+  consumeLoginToken(firmId: string, tokenId: string, now: Date): Promise<boolean>;
 
   /** The person an invite is for, in the actor's tenant, or null. */
   findInvitee(firmId: string, personId: string): Promise<Invitee | null>;
@@ -64,11 +64,12 @@ export interface AccountStore extends AuthStore {
     now: Date,
   ): Promise<void>;
   /**
-   * Accepts a pending invite: sets the password (and the display name when given), the person ACTIVE, grants the
-   * membership, marks the invite ACCEPTED. Audit: `UPDATE` on the person and `MEMBERSHIP_CHANGE`. Outbox: `person.claimed` and
-   * `membership.changed` (GRANTED).
+   * Accepts a pending invite with one of its unused, unexpired tokens: uses the token, sets the password (and the
+   * display name when given), the person ACTIVE, grants the membership, marks the invite ACCEPTED. False, changing
+   * nothing, when the token or invite is no longer usable (another request won). Audit: `UPDATE` on the person and
+   * `MEMBERSHIP_CHANGE`. Outbox: `person.claimed` and `membership.changed` (GRANTED).
    */
-  acceptInvite(accept: AcceptInvite): Promise<void>;
+  acceptInvite(accept: AcceptInvite): Promise<boolean>;
 }
 
 export const LOCKOUT = { attempts: 10, minutes: 15 } as const;

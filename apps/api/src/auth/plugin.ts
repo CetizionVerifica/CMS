@@ -8,6 +8,7 @@ import type {
   FastifyRequest,
   onRequestHookHandler,
 } from 'fastify';
+import { DbError } from '@canopy/db';
 import { ZodError } from 'zod';
 import { buildRequestContext, mfaRequired, type AuthStore, type SessionRecord } from './context.js';
 import { ApiError, errorEnvelope } from './errors.js';
@@ -135,6 +136,8 @@ function routeLimitHook(
 
 function toApiError(error: FastifyError | Error): ApiError | null {
   if (error instanceof ApiError) return error;
+  // Repository errors carry a contract code; their messages name tables, so the default message is sent.
+  if (error instanceof DbError) return new ApiError(error.code);
   if (error instanceof ZodError) {
     return new ApiError('VALIDATION', {
       issues: error.issues.map((i) => ({

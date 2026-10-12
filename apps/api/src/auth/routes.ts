@@ -91,7 +91,7 @@ export function registerAuthRoutes(app: FastifyInstance, options: AuthRoutesOpti
       );
 
       api.post('/auth/logout', { config: { auth: 'session-pre-mfa' } }, async (req, reply) => {
-        await service.logout(sessionOf(req).id);
+        await service.logout(sessionOf(req));
         reply.clearCookie(SESSION_COOKIE, { path: '/' });
         return reply.code(204).send();
       });
