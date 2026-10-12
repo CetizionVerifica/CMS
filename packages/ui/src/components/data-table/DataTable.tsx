@@ -24,6 +24,7 @@ import {
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   type KeyboardEvent,
@@ -154,9 +155,9 @@ export function DataTable<T>({
   const [allMatching, setAllMatching] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
   const anchor = useRef<number | null>(null);
+  /** A keyboard move asked for the active row's link to take focus; cleared once it lands or the user leaves. */
   const focusPending = useRef(false);
-  /** When an open focus request gives up (performance.now() ms). */
-  const focusDeadline = useRef(0);
+  const rootRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const tbodyRef = useRef<HTMLTableSectionElement>(null);
 
@@ -283,29 +284,9 @@ export function DataTable<T>({
   const firstDataColumn = visibleColumns[0]?.id;
   const tableWidth = visibleColumns.reduce((w, c) => w + c.getSize(), selection ? SELECT_WIDTH : 0);
 
-  // Move focus to the active row's link after keyboard navigation (it may have just been rendered).
-  // While the virtual list scrolls, the row can be rendered many frames later (a jump of thousands of rows on a busy
-  // machine), so keep the request open across renders and frames until focus lands, for up to 2 seconds of time rather
-  // than a frame count, which a slow machine burns through before the row exists.
-  useEffect(() => {
-    if (!focusPending.current) return;
-    const tryFocus = () => {
-      if (!focusPending.current) return;
-      const link = tbodyRef.current?.querySelector<HTMLElement>(
-        `[data-row-index="${activeIndexRef.current}"] [data-row-link]`,
-      );
-      link?.focus();
-      if (link && document.activeElement === link) focusPending.current = false;
-      else if (performance.now() < focusDeadline.current) requestAnimationFrame(tryFocus);
-      else focusPending.current = false;
-    };
-    tryFocus();
-  });
-
   const goTo = (index: number) => {
     const i = Math.max(0, Math.min(rows.length - 1, index));
     focusPending.current = true;
-    focusDeadline.current = performance.now() + 2000;
     setActiveIndex(i);
     virtualizer.scrollToIndex(i, { align: 'auto' });
   };
@@ -430,6 +411,34 @@ export function DataTable<T>({
 
   const showBody = !loading && !error && rows.length > 0;
   const virtualRows = showBody ? virtualizer.getVirtualItems() : [];
+
+  // Keyboard navigation moves focus to the active row's link in the commit that renders it, before paint. The
+  // rangeExtractor always renders the active row, so this needs no polling or deadline: it runs again whenever the
+  // active row or the rendered rows change, until focus lands.
+  useLayoutEffect(() => {
+    if (!focusPending.current) return;
+    const link = tbodyRef.current?.querySelector<HTMLElement>(
+      `[data-row-index="${activeIndex}"] [data-row-link]`,
+    );
+    if (!link) return;
+    link.focus();
+    if (document.activeElement === link) focusPending.current = false;
+  }, [activeIndex, virtualRows]);
+
+  // The user went somewhere else (clicked or tabbed outside the table): drop the request, so a late row never pulls
+  // focus back.
+  useEffect(() => {
+    const leave = (e: Event) => {
+      if (e.target instanceof Node && !rootRef.current?.contains(e.target))
+        focusPending.current = false;
+    };
+    document.addEventListener('focusin', leave, true);
+    document.addEventListener('pointerdown', leave, true);
+    return () => {
+      document.removeEventListener('focusin', leave, true);
+      document.removeEventListener('pointerdown', leave, true);
+    };
+  }, []);
   const padBottom = showBody ? virtualizer.getTotalSize() - (virtualRows.at(-1)?.end ?? 0) : 0;
   const spacer = (key: string, height: number) =>
     height > 0 ? (
@@ -446,6 +455,7 @@ export function DataTable<T>({
 
   return (
     <div
+      ref={rootRef}
       className={cx(
         'flex flex-col overflow-hidden rounded-card border border-line bg-surface',
         className,

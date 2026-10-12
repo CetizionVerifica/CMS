@@ -472,29 +472,72 @@ describe('DataTable', () => {
     expect(document.activeElement).toBe(stops[0]);
   });
 
-  it('keeps trying to focus the target row for longer than 20 frames on a slow machine', async () => {
-    renderTable({}, 50);
+  it('focuses the target row in the commit that renders it, with no timers or animation frames', () => {
+    renderTable({}, 200);
+    // Frames never run, so focus can only come from the commit itself.
+    const raf = vi.spyOn(window, 'requestAnimationFrame').mockImplementation(() => 0);
+    try {
+      const first = rowLinks()[0]!;
+      first.focus();
+      fireEvent.keyDown(first, { key: 'End' });
+      // Synchronously after the key press: the last row is rendered and focused, and no frame was needed.
+      const last = document.querySelector<HTMLElement>('[data-row-index="199"] [data-row-link]');
+      expect(document.activeElement).toBe(last);
+      fireEvent.keyDown(last!, { key: 'Home' });
+      expect(document.activeElement).toBe(
+        document.querySelector('[data-row-index="0"] [data-row-link]'),
+      );
+    } finally {
+      raf.mockRestore();
+    }
+  });
+
+  it('drops a pending focus move when the user goes elsewhere, so it never pulls focus back (re-audit #2)', () => {
+    const { rerender } = render(
+      <>
+        <input aria-label="Search" />
+        <DataTable
+          label="Register"
+          columns={columns}
+          data={makeRows(50)}
+          rowId={(r) => r.id}
+          rowLabel={(r) => r.id}
+        />
+      </>,
+    );
     const [first, second] = rowLinks();
     first!.focus();
-    // A busy machine: the next row cannot take focus for the first 30 attempts (more than the old 20-frame budget).
+    // The next row cannot take focus yet, so the request stays open.
     const realFocus = HTMLElement.prototype.focus;
-    let refusals = 30;
+    let refuse = true;
     const focus = vi.spyOn(HTMLElement.prototype, 'focus').mockImplementation(function (
       this: HTMLElement,
     ) {
-      if (this === second && refusals-- > 0) return;
+      if (this === second && refuse) return;
       realFocus.call(this);
     });
-    const raf = vi
-      .spyOn(window, 'requestAnimationFrame')
-      .mockImplementation((cb) => window.setTimeout(() => cb(performance.now()), 1));
     try {
       fireEvent.keyDown(first!, { key: 'ArrowDown' });
-      await vi.waitFor(() => expect(document.activeElement).toBe(second), { timeout: 1500 });
-      expect(refusals).toBeLessThan(0);
+      expect(document.activeElement).toBe(first);
+      const search = screen.getByRole('textbox', { name: 'Search' });
+      search.focus();
+      refuse = false;
+      // A later commit that renders different rows would retry the request; it must stay with the user.
+      rerender(
+        <>
+          <input aria-label="Search" />
+          <DataTable
+            label="Register"
+            columns={columns}
+            data={makeRows(60)}
+            rowId={(r) => r.id}
+            rowLabel={(r) => r.id}
+          />
+        </>,
+      );
+      expect(document.activeElement).toBe(search);
     } finally {
       focus.mockRestore();
-      raf.mockRestore();
     }
   });
 
