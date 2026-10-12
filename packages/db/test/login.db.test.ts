@@ -21,6 +21,7 @@ const bypass = `${login}_bypass`;
 const bypassMember = `${login}_bym`;
 const owner = `${login}_owner`;
 const ownerMember = `${login}_ownm`;
+const lookupMember = `${login}_lkm`;
 
 function urlAs(user: string, pass: string): string {
   const url = new URL(t.url);
@@ -49,11 +50,14 @@ beforeAll(async () => {
   await t.ownerQuery(
     `CREATE ROLE ${ownerMember} LOGIN PASSWORD '${password}' IN ROLE canopy_app, ${owner}`,
   );
+  await t.ownerQuery(
+    `CREATE ROLE ${lookupMember} LOGIN PASSWORD '${password}' IN ROLE canopy_app, canopy_lookup`,
+  );
 });
 
 afterAll(async () => {
   await t?.ownerQuery('DROP TABLE IF EXISTS public.login_probe');
-  for (const role of [login, suMember, bypassMember, bypass, ownerMember, owner]) {
+  for (const role of [login, suMember, bypassMember, bypass, ownerMember, owner, lookupMember]) {
     await t?.ownerQuery(`DROP ROLE IF EXISTS ${role}`);
   }
   await t?.drop();
@@ -75,6 +79,11 @@ describe('privileged logins', () => {
     ['a superuser', () => suMember, /the login is a member of \w+, which is a superuser/],
     ['a BYPASSRLS role', () => bypassMember, /the login is a member of \w+, which has BYPASSRLS/],
     ['a table owner', () => ownerMember, /the login is a member of \w+, which owns tables/],
+    [
+      'canopy_lookup',
+      () => lookupMember,
+      /the login is a member of canopy_lookup, which reads across firms/,
+    ],
   ])('are refused when the login is a member of %s', async (_label, user, reason) => {
     const db = createDatabase({
       connectionString: urlAs(user(), password),
@@ -117,6 +126,37 @@ describe('privileged logins', () => {
       // The check runs once per Database and is cached.
       await db.withTenant(systemContext(firmId, 'r'), async () => 1);
     } finally {
+      await db.close();
+    }
+  });
+});
+
+describe('idle connections', () => {
+  it('a server-closed idle client (57P01) does not crash the process, and the next query reconnects', async () => {
+    const codes: string[] = [];
+    const db = createDatabase({
+      connectionString: urlAs(login, password),
+      max: 1,
+      onIdleError: (code) => codes.push(code),
+    });
+    const unhandled: unknown[] = [];
+    const onError = (e: unknown) => unhandled.push(e);
+    process.on('uncaughtException', onError);
+    try {
+      const pid = await db.withTenant(systemContext(firmId, 'r'), async (tx) => {
+        const { rows } = await tx.execute<{ pid: number }>(sql`SELECT pg_backend_pid() AS pid`);
+        return rows[0]!.pid;
+      });
+      await t.ownerQuery(`SELECT pg_terminate_backend(${Number(pid)})`);
+      await new Promise((r) => setTimeout(r, 100));
+      const again = await db.withTenant(systemContext(firmId, 'r'), async (tx) =>
+        tx.select({ id: s.firm.id }).from(s.firm),
+      );
+      expect(again.map((f) => f.id)).toEqual([firmId]);
+      expect(unhandled).toEqual([]);
+      expect(codes).toEqual(['57P01']);
+    } finally {
+      process.off('uncaughtException', onError);
       await db.close();
     }
   });

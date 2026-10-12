@@ -1,10 +1,17 @@
 import ExcelJS from 'exceljs';
 import { parseCsv } from './csv.js';
+import { declaredInflatedSize } from './zip.js';
 
 /** Reading an uploaded register file into sheets of raw rows. Values are kept exactly as read. */
 
 /** Uploads above this size are refused (packages/importer/CLAUDE.md). */
 export const MAX_FILE_BYTES = 20 * 1024 * 1024;
+
+/**
+ * An .xlsx may declare at most this many uncompressed bytes. A 20 MB register of text inflates to roughly
+ * 100-200 MB; a zip bomb declares far more and is refused before ExcelJS inflates it.
+ */
+export const MAX_INFLATED_BYTES = 250 * 1024 * 1024;
 
 export type RawCell = string | number | null;
 
@@ -78,6 +85,13 @@ function readCsv(bytes: Uint8Array): SourceSheet {
 }
 
 async function readXlsx(bytes: Uint8Array): Promise<SourceSheet[]> {
+  const inflated = declaredInflatedSize(bytes);
+  if (inflated === null) {
+    throw new ImportFileError('UNSUPPORTED_FILE', 'The file is not a readable .xlsx workbook');
+  }
+  if (inflated > MAX_INFLATED_BYTES) {
+    throw new ImportFileError('FILE_TOO_LARGE', 'The workbook expands to more than 250 MB');
+  }
   const workbook = new ExcelJS.Workbook();
   try {
     await workbook.xlsx.load(toArrayBuffer(bytes));
