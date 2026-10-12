@@ -196,6 +196,34 @@ describe.skipIf(!url)('database AccountStore', () => {
     );
   });
 
+  it("defaults to M3's generated range: a client without instances offers only its current FY", async () => {
+    const seeded = await firmWithClient();
+    const ca = await person(seeded, { role: 'CLIENT_ADMIN' });
+    const plain = buildServer({
+      accountStore: createDbAccountStore(db, { clock }),
+      authSecretKey: KEY,
+      clock,
+      rateLimit: { max: 10_000, timeWindow: 60_000 },
+    });
+    try {
+      const res = await plain.inject({
+        method: 'POST',
+        url: '/api/v1/auth/login',
+        payload: { email: ca.email, password: PASSWORD },
+      });
+      expect(res.statusCode).toBe(200);
+      expect(Me.parse(res.json()).clients.map((c) => c.period)).toEqual([
+        ClientPeriods.parse({
+          current: { fy: '2026-27', quarter: 3 },
+          availableFys: ['2026-27'],
+          availableUntil: null,
+        }),
+      ]);
+    } finally {
+      await plain.close();
+    }
+  });
+
   it(`locks after ${LOCKOUT.attempts} failures, then unlocks`, async () => {
     const seeded = await firmWithClient();
     const ca = await person(seeded, { role: 'CLIENT_ADMIN' });

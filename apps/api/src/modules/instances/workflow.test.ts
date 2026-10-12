@@ -332,25 +332,35 @@ describe('optimistic concurrency', () => {
 
 describe('submit checks', () => {
   it('accepts a completion dated today', () => {
-    const plan = planTransition(input(instance('OPEN'), { action: 'SUBMIT', completedOn: ASOF }));
+    const plan = planTransition(
+      input(instance('OPEN'), { action: 'SUBMIT', completedOn: ASOF, comment: ' Done. ' }),
+    );
     expect(plan.fields.completedOn).toBe(ASOF);
-    expect(plan.comment.body).toBe('Submitted for approval.');
+    expect(plan.comment.body).toBe('Done.');
   });
 
   it('rejects a completion dated tomorrow (422 DATE_IN_FUTURE)', () => {
     const error = errorOf(() =>
-      planTransition(input(instance('OPEN'), { action: 'SUBMIT', completedOn: d('2023-04-21') })),
+      planTransition(
+        input(instance('OPEN'), { action: 'SUBMIT', completedOn: d('2023-04-21'), comment: 'x' }),
+      ),
     );
     expect(error.code).toBe('DATE_IN_FUTURE');
     expect(error.statusCode).toBe(422);
     expect(error.details).toEqual({ today: '2023-04-20' });
   });
 
-  it('treats a blank comment as none', () => {
-    const plan = planTransition(
-      input(instance('OPEN'), { action: 'SUBMIT', completedOn: ASOF, comment: '   ' }),
+  it('rejects a blank comment (400 VALIDATION)', () => {
+    const error = errorOf(() =>
+      planTransition(
+        input(instance('OPEN'), { action: 'SUBMIT', completedOn: ASOF, comment: '   ' }),
+      ),
     );
-    expect(plan.comment.body).toBe('Submitted for approval.');
+    expect(error.code).toBe('VALIDATION');
+    expect(error.statusCode).toBe(400);
+    expect(error.details).toEqual({
+      issues: [{ path: ['comment'], message: 'A comment is required.' }],
+    });
   });
 
   const evidenceCases: [ScanStatus[], string | null][] = [

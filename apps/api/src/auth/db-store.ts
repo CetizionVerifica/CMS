@@ -1,9 +1,9 @@
-import type {
+import {
   LocalDate,
-  ClientSummary,
-  Membership,
-  Person,
-  RequestContext,
+  type ClientSummary,
+  type Membership,
+  type Person,
+  type RequestContext,
 } from '@canopy/contracts';
 import {
   auditEvents,
@@ -47,13 +47,15 @@ export type GeneratedRange = (
 ) => Promise<{ from: LocalDate; to: LocalDate } | null>;
 
 export interface DbAccountStoreOptions {
-  /**
-   * WIP: M3's `clients.generatedRange` (PR 5) becomes the default once it merges. Until then the default reports
-   * nothing generated, so a client offers only its current FY.
-   */
+  /** Default: M3's `clients.generatedRange`, the due dates of the client's instances the context sees. */
   readonly generatedRange?: GeneratedRange;
   readonly clock?: () => Date;
 }
+
+const defaultGeneratedRange: GeneratedRange = async (tx, clientId) => {
+  const range = await clients.generatedRange(tx, clientId);
+  return range && { from: LocalDate.parse(range.from), to: LocalDate.parse(range.to) };
+};
 
 /** Correlates the reads made before a request context exists (no request id is passed to them). */
 const LOOKUP_REQUEST = 'auth-lookup';
@@ -69,7 +71,7 @@ const normalise = (name: string) => name.toLowerCase().replace(/\s+/g, ' ').trim
  */
 export function createDbAccountStore(db: Database, options: DbAccountStoreOptions): AccountStore {
   const clock = options.clock ?? (() => new Date());
-  const generatedRange: GeneratedRange = options.generatedRange ?? (async () => null);
+  const generatedRange: GeneratedRange = options.generatedRange ?? defaultGeneratedRange;
   const asFirm = <T>(firmId: string, requestId: string, fn: (tx: TenantTx) => Promise<T>) =>
     db.withTenant(systemContext(firmId, requestId), fn);
 
