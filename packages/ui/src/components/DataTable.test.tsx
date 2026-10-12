@@ -90,7 +90,9 @@ const rowLinks = () => screen.getAllByRole('link');
 
 afterEach(() => act(() => resetToasts()));
 
-describe('DataTable', () => {
+// Interaction cases here drive dozens of renders of a full table in jsdom. On a loaded CI runner (several merge-queue
+// groups at once) the file has run 6-8x slower than locally, so allow 60s rather than the package's 20s.
+describe('DataTable', { timeout: 60_000 }, () => {
   it('renders a semantic table with counts, typed cells and row indexes', async () => {
     // Three rows cover every cell type; a short fixture keeps this axe pass fast on a loaded runner.
     renderTable({ totalCount: 424 }, 3);
