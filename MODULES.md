@@ -58,9 +58,9 @@ M1 underpins all (repo, CI)
 | M8 | Excel importer | `packages/importer`, `apps/api/src/modules/imports` | M0, M4, M3 (commit only) | Parse, map, clean, dry run, commit, mapping templates |
 | M9 | Jobs & notifications | `apps/api/src/jobs`, `packages/notifications` | M0, M3, M4 | Instance generation job, reminders and escalations, email templates, digests |
 | M10 | Dashboards & reports API | `apps/api/src/modules/{dashboard,reports}` | M0, M4, M7 | KPI and breakdown endpoints, Excel export, PDF compliance certificate |
-| M11 | Web shell & navigation | `apps/web/app/(shell)`, `apps/web/app/(auth)`, `apps/web/lib` | M0 mock, M2 | Layout, sidebar, client switcher, period picker, auth pages, API client |
-| M12 | Web register & approvals | `apps/web/app/c/[clientId]/{register,approvals,calendar,evidence}` | M0 mock, M2, M11 | Register grid, instance drawer, approvals inbox, calendar, evidence vault |
-| M13 | Web overview, import, setup, reports | `apps/web/app/portfolio`, `apps/web/app/c/[clientId]/{overview,import,setup,reports,audit}`, `apps/web/app/library` | M0 mock, M2, M11 | Portfolio, client overview, import wizard, setup screens, reports, library screens |
+| M11 | Web shell & navigation | `apps/web/app/{layout,page,not-found,global-error}.tsx`, `apps/web/app/globals.css`, app icons (`apps/web/app/{icon.svg,apple-icon.png}`, `apps/web/public`), `apps/web/app/(auth)`, the shell frame in `apps/web/app/(shell)` (its `layout`, `loading`, `error` and `[...stub]`, and the same under `(shell)/c/[clientId]`, plus that segment's `page`), `apps/web/lib`, `apps/web/{next.config.ts,postcss.config.mjs,proxy.ts,tsconfig.json,vitest.config.mjs}` | M0 mock, M2 | Layout, sidebar, client switcher, period picker, auth pages, API client |
+| M12 | Web register & approvals | `apps/web/app/(shell)/c/[clientId]/{register,approvals,calendar,evidence}` | M0 mock, M2, M11 | Register grid, instance drawer, approvals inbox, calendar, evidence vault |
+| M13 | Web overview, import, setup, reports | `apps/web/app/(shell)/portfolio`, `apps/web/app/(shell)/c/[clientId]/{overview,import,setup,reports,audit}`, `apps/web/app/(shell)/library` | M0 mock, M2, M11 | Portfolio, client overview, import wizard, setup screens, reports, library screens |
 | M14 | Integration, QA & hardening | `e2e/`, `docs/security`, perf scripts | everything | E2E suite, isolation and security review, accessibility audit, load test, pilot runbook |
 
 ---

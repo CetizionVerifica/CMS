@@ -22,6 +22,27 @@ Root `CLAUDE.md` applies. Field mapping and data quirks: `docs/requirements/exce
 - **Recurrence inference**: from each obligation's due dates infer a `RecurrenceRule` via the engine (`inferRule`); low confidence → mark rule TO_REVIEW, still import the instances as given.
 - File names inside Form/Log Sheet ("Schedule.docx") become template placeholders flagged "file not attached".
 
+## How the package is built
+- Pure functions, no I/O: `readWorkbook` (bytes → sheets), `suggestMapping` / `validateMapping`,
+  `analyseImport` (rows, issues and an `ImportPlan` keyed by natural keys), `dryRun`, `stateAfterCommit`.
+  The API module (`apps/api/src/modules/imports`) stores batches and calls these; the commit writes the plan
+  through the M3 repositories.
+- `analyseImport` takes the engine's `inferRule` as an argument (`EngineApi['inferRule']`), so no recurrence
+  maths lives here. An existing obligation keeps its library rule and is not re-inferred.
+- Decisions are inputs: re-run `analyseImport` with the stored decisions after every review change. A PENDING
+  WARNING is previewed as its proposal (so duplicate periods appear while aliases are still pending); INFO
+  issues are always accepted; ERROR issues block their rows until edited (value supplied) or rejected (row
+  skipped). `checkDecision` says which decisions each issue type allows.
+- Issue `groupKey`s are hashes, so names never reach URLs or request logs.
+- A Pending row with an Activity Date is an `UNKNOWN_ENUM` issue on `status` (ERROR, no proposal): the person
+  edits the status ("Pending" keeps the row open and moves the date into an IMPORT comment, "Complied" keeps it)
+  or skips the row. Dates outside 1950 to 2100 are `INVALID_DATE` (a year typed as a number is not a serial).
+- Every source row ends as an instance, SKIPPED or ERROR: a row that cannot be planned is never dropped.
+- Analysis stays near linear (20,000 rows in well under a second locally; `test/scale.test.ts`).
+- For the API and commit PRs: refuse commit unless `isReviewed(issues)`; cap the inflated xlsx size or parse in
+  a worker, because the 20 MB limit is on compressed bytes.
+- The golden fixture is pseudonymised (`fixtures/README.md`, ADR 0001).
+
 ## Tests
 - Golden test on `fixtures/sample-register.xlsx` asserts the counts in excel-analysis.md §5.
 - Idempotency: import twice, second run creates nothing and reports every instance unchanged (422 under the recommended profile, see docs/contracts/fixtures.md).

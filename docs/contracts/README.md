@@ -15,7 +15,7 @@ typed JSON fixtures, and the mock server.
 | [CHANGELOG.md](CHANGELOG.md) | Contract versions | everyone |
 
 ## Status
-Version `1.0.0` (`CONTRACTS_VERSION` in `packages/contracts/src/version.ts`). The domain model in §1-8 of
+Version `1.0.1` (`CONTRACTS_VERSION` in `packages/contracts/src/version.ts`). The domain model in §1-8 of
 [domain-model.md](domain-model.md) is published as v1 so wave 1 (M3, M4, M8, M11) can build against it. Each consumer
 module owner still reviews its part (MODULES.md M0 acceptance); review findings ship as additive changes or, if breaking,
 with sign-off per "How to change a contract".

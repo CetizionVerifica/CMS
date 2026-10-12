@@ -46,3 +46,12 @@ Return numbers plus the instance ids behind them, so the UI can link "5 overdue"
 ## Reminders and escalation
 `planNotifications(instance, settings, asOf)` returns what is due to send today. Defaults: owner at T-7, T-3 and T-0; approver at +1 and +7 days overdue;
 consultant digest weekly. Never return a notification for COMPLIED or NOT_APPLICABLE. The job runner dedupes by `(instanceId, kind, sendDate)`.
+
+## v1 decisions (docs/adr/0001-engine-v1-rules.md)
+- Ranges select periods by due date. Quarters and halves follow the FY start month.
+- `PERIOD_END` counts `days` back from the period end; `AFTER_PERIOD_END` counts forward.
+- Holiday policies skip Sundays and an optional `holidays` list on the calendar.
+- The sample-register golden fixture is `test/fixtures/sample-fy2022-23.json` (no names), produced by
+  `test/fixtures/extract-sample.py`; low-confidence obligations are listed in `test/golden.test.ts`.
+- `inferRule` scores over the window the register covers (`options.coverage`); importers should pass it.
+- "Today" for a client is `localDateIn(now, timeZone)`; never compare a timestamp with a due date directly.
