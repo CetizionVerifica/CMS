@@ -1,8 +1,10 @@
 import { randomUUID } from 'node:crypto';
 import { PgBoss } from 'pg-boss';
+import { CONSUMERS, OutboxEventSchema } from './consumers.js';
 import { runConsultantDigest, CONSULTANT_DIGEST } from './digest.js';
 import { GENERATE_INSTANCES, runGenerateInstances } from './generate-instances.js';
-import type { JobDeps, JobReport } from './ports.js';
+import { RELAY_OUTBOX, runRelayOutbox } from './outbox-relay.js';
+import type { EventBus, JobDeps, JobReport } from './ports.js';
 import { REMINDERS, runReminders } from './reminders.js';
 
 export interface JobDefinition {
@@ -16,13 +18,17 @@ export interface JobDefinition {
 /**
  * The schedule. Generation runs nightly at 01:00 India time and catches up once after downtime. Reminders and the
  * digest run every 15 minutes in UTC and decide per client whether its local send time has passed, so each client
- * is served in its own time zone; missed slots are skipped because the next run covers them.
+ * is served in its own time zone; missed slots are skipped because the next run covers them. The outbox relay runs
+ * every minute.
  */
 export const JOBS: readonly JobDefinition[] = [
   { name: GENERATE_INSTANCES, cron: '0 1 * * *', tz: 'Asia/Kolkata', run: runGenerateInstances },
   { name: REMINDERS, cron: '*/15 * * * *', tz: 'UTC', run: runReminders },
   { name: CONSULTANT_DIGEST, cron: '*/15 * * * *', tz: 'UTC', run: runConsultantDigest },
+  { name: RELAY_OUTBOX, cron: '* * * * *', tz: 'UTC', run: runRelayOutbox },
 ];
+
+const RETRIES = { retryLimit: 3, retryDelay: 60, retryBackoff: true, expireInSeconds: 30 * 60 };
 
 export interface JobRunnerOptions {
   connectionString: string;
@@ -53,32 +59,46 @@ export async function startJobRunner(deps: JobDeps, options: JobRunnerOptions): 
   const log = options.log ?? (() => {});
   boss.on('error', (error) => log({ job: 'pg-boss', requestId: '-', error: error.message }));
   await boss.start();
+
+  const consumed = new Set(CONSUMERS.map((c) => c.type));
+  const bus: EventBus = {
+    consumes: (type) => consumed.has(type),
+    publish: async (event) => {
+      await boss.send(event.type, event, { id: event.id });
+    },
+  };
+  const withBus: JobDeps = { ...deps, bus };
+
+  /** Runs one job, logging counts or the error message (never names, addresses or bodies). */
+  const traced = async (job: string, requestId: string, run: () => Promise<JobReport>) => {
+    try {
+      const report = await run();
+      log({ job, requestId, report });
+      return report;
+    } catch (error) {
+      log({ job, requestId, error: error instanceof Error ? error.message : 'unknown error' });
+      throw error;
+    }
+  };
+
   for (const job of JOBS) {
-    await boss.createQueue(job.name, {
-      policy: 'stately',
-      retryLimit: 3,
-      retryDelay: 60,
-      retryBackoff: true,
-      expireInSeconds: 30 * 60,
-    });
+    await boss.createQueue(job.name, { policy: 'stately', ...RETRIES });
     await boss.schedule(job.name, job.cron, null, {
       tz: job.tz,
       missed: job.name === GENERATE_INSTANCES ? 'once' : 'skip',
     });
     await boss.work(job.name, async ([pgJob]) => {
       const requestId = `job:${job.name}:${pgJob?.id ?? randomUUID()}`;
-      try {
-        const report = await job.run(deps, requestId);
-        log({ job: job.name, requestId, report });
-        return report;
-      } catch (error) {
-        log({
-          job: job.name,
-          requestId,
-          error: error instanceof Error ? error.message : 'unknown error',
-        });
-        throw error;
-      }
+      return traced(job.name, requestId, () => job.run(withBus, requestId));
+    });
+  }
+  // One queue per consumed event type (events.md §1); its job id is the event id.
+  for (const consumer of CONSUMERS) {
+    await boss.createQueue(consumer.type, { policy: 'standard', ...RETRIES });
+    await boss.work(consumer.type, async ([pgJob]) => {
+      const event = OutboxEventSchema.parse(pgJob?.data);
+      const requestId = `job:${consumer.type}:${event.id}`;
+      return traced(consumer.type, requestId, () => consumer.handle(withBus, event, requestId));
     });
   }
   return {

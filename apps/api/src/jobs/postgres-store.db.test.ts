@@ -10,15 +10,19 @@ import {
   locations,
   memberships,
   obligations,
+  domainEvents,
   people,
   systemContext,
   units,
   type TenantTx,
 } from '@canopy/db';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { CONSUMERS } from './consumers.js';
 import { runConsultantDigest } from './digest.js';
 import { runGenerateInstances } from './generate-instances.js';
 import type { JobDeps } from './ports.js';
+import { runRelayOutbox } from './outbox-relay.js';
+import type { EventBus, OutboxEvent } from './ports.js';
 import { postgresJobStore } from './postgres-store.js';
 import { runReminders } from './reminders.js';
 import { APP_URL } from './testing/builders.js';
@@ -44,6 +48,9 @@ interface FirmWorld {
   reminded: string;
   /** SUBMITTED, due 2026-10-11: +1 escalation on the 12th, to an approver with no address. */
   escalated: string;
+  /** What a second assignment needs, for the event consumer test. */
+  unitId: string;
+  obligationId: string;
 }
 
 /** Rows of `table` (aliased `x`) whose `column` names no row of `target` in the same firm. */
@@ -196,6 +203,8 @@ describe.skipIf(!url)('jobs on the Postgres store', () => {
         consultantId: consultant.id,
         reminded: reminded.id,
         escalated: escalated.id,
+        unitId: unit.id,
+        obligationId: obligation.id,
       };
     });
     return {
@@ -387,6 +396,78 @@ describe.skipIf(!url)('jobs on the Postgres store', () => {
       const again = await runConsultantDigest(deps, 'job:consultant-digest:2');
       expect(again.sent).toBe(0);
       expect(mailer.sent).toHaveLength(before + 2);
+      await expectNoStrays();
+    });
+  });
+  describe('outbox relay and event consumers', () => {
+    it("publishes each firm's consumed events with its own firm id, marks every event published, then nothing", async () => {
+      const published: OutboxEvent[] = [];
+      const consumed = new Set(CONSUMERS.map((c) => c.type));
+      const bus: EventBus = {
+        consumes: (type) => consumed.has(type),
+        publish: async (event) => void published.push(event),
+      };
+      // What M6 writes when an assignment is created: the row and its event in one transaction.
+      const added = await inFirm(a.firmId, async (tx) => {
+        const payroll = await departments.create(tx, {
+          clientId: a.clientId,
+          name: 'Payroll',
+          aliases: [],
+        });
+        const row = await assignments.create(tx, {
+          clientId: a.clientId,
+          unitId: a.unitId,
+          obligationId: a.obligationId,
+          departmentId: payroll.id,
+          defaultOwnerId: a.ownerId,
+          defaultApproverId: a.approverId,
+          applicability: 'APPLICABLE',
+          naReason: null,
+          activeFrom: '2026-04-01' as never,
+          activeTo: null,
+        });
+        await domainEvents.enqueue(tx, {
+          type: 'assignment.created',
+          clientId: a.clientId,
+          actor: { kind: 'PERSON', personId: a.ownerId },
+          requestId: 'req:m6',
+          aggregate: { type: 'assignment', id: row.id },
+          aggregateVersion: row.version,
+          data: { assignmentId: row.id },
+        });
+        return row;
+      });
+
+      const report = await runRelayOutbox({ ...deps, bus }, 'job:relay-outbox:1');
+      expect(report).toMatchObject({ firms: 2, published: 1, failed: 0 });
+      expect(published).toEqual([
+        expect.objectContaining({
+          type: 'assignment.created',
+          firmId: a.firmId,
+          clientId: a.clientId,
+          data: { assignmentId: added.id },
+        }),
+      ]);
+      for (const f of [a, b]) {
+        expect(await t.count(f.firmId, 'domain_event', 'published_at is null')).toBe(0);
+      }
+      const again = await runRelayOutbox({ ...deps, bus }, 'job:relay-outbox:2');
+      expect(again).toMatchObject({ published: 0, skipped: 0 });
+
+      // The consumer, as pg-boss would run it: the new assignment gets its two FYs in firm A only.
+      const event = published[0]!;
+      const consumer = CONSUMERS.find((c) => c.type === event.type)!;
+      const created = await consumer.handle(deps, event, `job:${event.type}:${event.id}`);
+      expect(created).toMatchObject({ clients: 1, created: 24 });
+      expect(await t.count(a.firmId, 'compliance_instance', 'assignment_id = $1', [added.id])).toBe(
+        24,
+      );
+      expect(
+        await t.count(a.firmId, 'audit_event', 'request_id = $1', [
+          `job:${event.type}:${event.id}`,
+        ]),
+      ).toBe(24);
+      expect(await t.count(b.firmId, 'compliance_instance')).toBe(3 + 24);
       await expectNoStrays();
     });
   });
