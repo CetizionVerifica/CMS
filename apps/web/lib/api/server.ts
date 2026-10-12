@@ -12,9 +12,9 @@ import { mockFetch } from './mock';
 import { apiMode } from './mode';
 import { parseSetCookie } from './set-cookie';
 
-/** True while no real API is configured and the request is local: the in-process mock answers instead. */
+/** True while no real API is configured (see mode.ts): the in-process mock answers instead. */
 export async function usingMockApi(): Promise<boolean> {
-  return apiMode(process.env, (await headers()).get('host')) === 'mock';
+  return apiMode(process.env) === 'mock';
 }
 
 async function forwardedCookie(): Promise<string | undefined> {

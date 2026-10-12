@@ -1,3 +1,4 @@
+import { companyKey, locationKey, obligationRefKey, obligationTitleKey, unitKey } from './keys.js';
 import {
   IMPORT_ISSUE_SEVERITY,
   ObligationDomain,
@@ -796,13 +797,9 @@ function parseRef(ref: string): { jurisdiction: Jurisdiction; stateCode: string 
   return stateCode === null ? null : { jurisdiction: 'STATE', stateCode };
 }
 
-function locationKeyOf(loc: NonNullable<CleanRow['location']>): string {
-  return [loc.countryCode, loc.state ?? '', loc.city ?? ''].map((p) => p.toLowerCase()).join('|');
-}
-
-function obligationKeyOf(row: CleanRow, unitKey: string): string {
-  if (row.externalRef !== null) return `ref:${row.externalRef}`;
-  return `act-title-unit:${looseKey(row.act ?? '')}|${looseKey(row.title ?? '')}|${unitKey}`;
+function obligationKeyOf(row: CleanRow, unit: string): string {
+  if (row.externalRef !== null) return obligationRefKey(row.externalRef);
+  return obligationTitleKey(row.act ?? '', row.title ?? '', unit);
 }
 
 /** Every value a planned row needs. A row without them is blocked by a pending ERROR issue or skipped. */
@@ -861,12 +858,12 @@ function buildPlan(
   const usable: Usable[] = [];
   for (const row of rows) {
     if (row.blocked || row.skipped || !isComplete(row)) continue;
-    const unitKey = `${looseKey(row.org.company)}|${looseKey(row.org.unit)}`;
-    const obligationKey = obligationKeyOf(row, unitKey);
-    const assignmentKey = `${unitKey}|${obligationKey}|${row.department ?? ''}`;
+    const unit = unitKey(row.org.company, row.org.unit);
+    const obligationKey = obligationKeyOf(row, unit);
+    const assignmentKey = `${unit}|${obligationKey}|${row.department ?? ''}`;
     usable.push({
       ...row,
-      unitKey,
+      unitKey: unit,
       obligationKey,
       assignmentKey,
       instanceKey: `${assignmentKey}|${row.dueDate}`,
@@ -877,13 +874,12 @@ function buildPlan(
   const locations = new Map<string, ImportPlan['locations'][number]>();
   const units = new Map<string, PlanUnit>();
   for (const row of usable) {
-    const companyKey = looseKey(row.org.company);
-    if (!companies.has(companyKey))
-      companies.set(companyKey, { key: companyKey, name: row.org.company });
-    const locationKey = locationKeyOf(row.location);
-    if (!locations.has(locationKey)) {
-      locations.set(locationKey, {
-        key: locationKey,
+    const company = companyKey(row.org.company);
+    if (!companies.has(company)) companies.set(company, { key: company, name: row.org.company });
+    const location = locationKey(row.location);
+    if (!locations.has(location)) {
+      locations.set(location, {
+        key: location,
         country: row.location.country,
         countryCode: row.location.countryCode,
         state: row.location.state,
@@ -892,7 +888,12 @@ function buildPlan(
       });
     }
     if (!units.has(row.unitKey)) {
-      units.set(row.unitKey, { key: row.unitKey, companyKey, name: row.org.unit, locationKey });
+      units.set(row.unitKey, {
+        key: row.unitKey,
+        companyKey: company,
+        name: row.org.unit,
+        locationKey: location,
+      });
     }
   }
 

@@ -54,6 +54,7 @@ const model: ShellModel = {
     },
   ],
   roles: { firm: ['CONSULTANT'], byClient: { c1: ['CONSULTANT'], c2: ['CONSULTANT'] } },
+  approvalsWaiting: 0,
 };
 
 function renderShell(
@@ -87,6 +88,20 @@ describe('ShellFrame', () => {
     expect(within(main).getByText('PlanetPulse Compliance')).toBeTruthy();
     expect(document.body.textContent).not.toMatch(/canopy/i);
     expect(document.title).toBe('Register · Demo Metals · PlanetPulse Compliance');
+  });
+
+  it('shows the approvals waiting as a badge on Approvals, and none at zero', () => {
+    const approver = { ...model.roles, byClient: { c1: ['APPROVER' as const] } };
+    const { unmount } = renderShell({ model: { ...model, roles: approver } });
+    const approvals = () =>
+      within(screen.getByRole('navigation', { name: 'Main' })).getByRole('link', {
+        name: /Approvals/,
+      });
+    expect(approvals().textContent).toBe('Approvals');
+    unmount();
+    renderShell({ model: { ...model, roles: approver, approvalsWaiting: 4 } });
+    expect(approvals().textContent).toContain('4');
+    expect(within(approvals()).getByText(/4 waiting/)).toBeTruthy();
   });
 
   it('shows the period from the URL and writes a new one into it', async () => {

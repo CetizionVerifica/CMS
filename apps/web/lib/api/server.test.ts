@@ -40,10 +40,12 @@ describe('server API access', () => {
     expect(await usingMockApi()).toBe(false);
   });
 
-  it('refuses the mock on a production host', async () => {
+  it('refuses the mock in production without the demo flag, whatever the Host header says', async () => {
     vi.stubEnv('NODE_ENV', 'production');
-    request.headers.set('host', 'compliance.planetpulse.life');
+    request.headers.set('host', 'localhost:3000');
     await expect(getMe()).rejects.toThrow('CANOPY_API_URL is not set');
+    vi.stubEnv('CANOPY_DEMO_API', '1');
+    expect(await usingMockApi()).toBe(true);
   });
 
   it('returns null without a session and sends the user to login with a return path', async () => {

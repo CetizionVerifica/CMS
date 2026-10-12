@@ -38,6 +38,9 @@ cookie token, and a sign-in link by the hash of its token. Everything else runs 
    password) and the session's CSRF token (useless without the cookie). The MFA secret is never granted to
    the lookup role. The functions answer only outside a tenant context: when `app.firm_id` is set (inside any
    `withTenant` transaction) they return no rows, so request code cannot use them to read another firm.
+   This guards against misuse, not against raw SQL: `app.firm_id` is a plain setting, so SQL that runs
+   `set_config('app.firm_id', '', true)` inside a transaction reaches the lookups again. That is why request code
+   never builds SQL outside `packages/db` (CLAUDE.md).
    `createDatabase` in production refuses a login that is, or is a member of, `canopy_lookup`.
 5. **The repositories match AccountStore, minus audit and outbox.** These are `credentials`, `sessions`,
    `loginTokens` and `invites` in `src/repositories/auth.ts`. As in every repository, the caller writes the
