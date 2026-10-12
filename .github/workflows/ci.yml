@@ -108,6 +108,8 @@ jobs:
       - run: node --test tooling/scripts/*.test.mjs .github/scripts/*.test.mjs
       # New ADRs are docs/adr/M<n>-NNNN-slug.md, unique per module and number (check-adrs.mjs). Also runs in the queue.
       - run: node tooling/scripts/check-adrs.mjs
+      # No tracked file may name a real client (tooling/client-names.json); lists every file that still does.
+      - run: node tooling/scripts/check-client-names.mjs
 
   # A PR titled "M<n>: ..." may only change the paths that module owns (tooling/modules.json).
   module-paths:
