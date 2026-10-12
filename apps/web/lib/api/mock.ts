@@ -22,6 +22,8 @@ export const MOCK_MFA_CODE = '123456';
 /** Tokens are at least 16 characters (contracts `InviteTokenParams`). */
 export const MOCK_INVITE_TOKEN = 'demo-invite-0001';
 export const SESSION_COOKIE = 'pp_session';
+/** What GET /me/approvals counts for an approver, so the Approvals badge shows in the demo. */
+export const MOCK_APPROVALS_WAITING = 3;
 
 const FIRM_ID = '00000000-0000-5000-8000-0000000000f1';
 const T = '2026-01-01T00:00:00.000Z';
@@ -276,6 +278,17 @@ export const mockFetch: typeof fetch = async (input, init) => {
         lastActivityAt: null,
       }));
     return json(200, { items: rows });
+  }
+  if (method === 'GET' && path === '/me/approvals') {
+    if (!me.memberships.some((m) => m.role === 'CLIENT_ADMIN' || m.role === 'APPROVER'))
+      return fail(403, 'FORBIDDEN', 'Not allowed.', { action: 'instance.read' });
+    // Counts only: the shell's badge reads `total`. The approvals page brings its own rows (M12).
+    const total = MOCK_APPROVALS_WAITING;
+    return json(200, {
+      items: [],
+      nextCursor: null,
+      ...(url.searchParams.get('count') === 'true' ? { total } : {}),
+    });
   }
   return fail(404, 'NOT_FOUND', 'Not found.');
 };

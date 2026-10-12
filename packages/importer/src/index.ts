@@ -8,4 +8,5 @@ export * from './decisions.js';
 export * from './analyse.js';
 export * from './dry-run.js';
 export * from './types.js';
+export * from './keys.js';
 export { actKey, aliasKey, principalActKey } from './aliases.js';

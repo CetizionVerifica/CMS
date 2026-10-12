@@ -12,12 +12,15 @@ import {
 } from '@canopy/contracts';
 import {
   clients,
+  companies,
   createAdminDatabase,
   createDatabase,
   credentials,
   memberships,
+  locations,
   people,
   systemContext,
+  units,
   type AdminDatabase,
   type Database,
 } from '@canopy/db';
@@ -25,10 +28,11 @@ import type { FastifyInstance, LightMyRequestResponse } from 'fastify';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { buildServer } from '../server.js';
-import { LOCKOUT } from './accounts.js';
+import { LOCKOUT, type AccountStore } from './accounts.js';
 import { createDbAccountStore } from './db-store.js';
 import { hashPassword } from './passwords.js';
 import { SecretBox } from './secretbox.js';
+import { hashToken } from './tokens.js';
 import { AuthService } from './service.js';
 import { base32Decode, hotp, totpStep } from './totp.js';
 
@@ -53,6 +57,7 @@ describe.skipIf(!url)('database AccountStore', () => {
   let owner: pg.Pool;
   let app: FastifyInstance;
   let service: AuthService;
+  let store: AccountStore;
   let address = 0;
 
   beforeAll(async () => {
@@ -68,7 +73,7 @@ describe.skipIf(!url)('database AccountStore', () => {
     await admin.migrate();
     db = createDatabase({ connectionString: target.toString(), max: 4 });
     owner = new pg.Pool({ connectionString: target.toString(), max: 2 });
-    const store = createDbAccountStore(db, {
+    store = createDbAccountStore(db, {
       generatedRange: async () => ({
         from: LocalDate.parse('2025-04-30'),
         to: LocalDate.parse('2027-03-31'),
@@ -396,5 +401,133 @@ describe.skipIf(!url)('database AccountStore', () => {
       headers: sessionHeaders(await login(stranger.email)),
     });
     expect(elsewhere.statusCode).toBe(404);
+  });
+
+  it("counts only an owner's units and leaves archived clients out of Me", async () => {
+    const seeded = await firmWithClient();
+    const ctx = systemContext(seeded.firmId, 'seed');
+    const { personId, email } = await db.withTenant(ctx, async (tx) => {
+      const company = await companies.create(tx, { clientId: seeded.clientId, name: 'Hindalco' });
+      const location = await locations.create(tx, {
+        country: 'India',
+        countryCode: 'IN',
+        state: 'West Bengal',
+        stateCode: 'WB',
+        city: 'Belur',
+      });
+      const plant = await units.create(tx, {
+        clientId: seeded.clientId,
+        companyId: company.id,
+        name: 'Belur Plant',
+        locationId: location.id,
+      });
+      await units.create(tx, {
+        clientId: seeded.clientId,
+        companyId: company.id,
+        name: 'Renukoot Plant',
+        locationId: location.id,
+      });
+      const archived = await clients.create(tx, {
+        name: 'Tata Group',
+        settings: DEFAULT_CLIENT_SETTINGS,
+      });
+      await clients.archive(tx, archived.id, archived.version);
+      const owner = await people.create(tx, {
+        displayName: 'Meera Iyer',
+        nameNormalized: 'meera iyer',
+        email: `${randomUUID().slice(0, 8)}@example.com`,
+        status: 'ACTIVE',
+      });
+      for (const clientId of [seeded.clientId, archived.id]) {
+        await memberships.create(tx, {
+          personId: owner.id,
+          role: 'OWNER',
+          clientId,
+          consultantClientIds: null,
+          unitIds: clientId === seeded.clientId ? [plant.id] : null,
+          expiresAt: null,
+        });
+      }
+      await credentials.setPassword(tx, owner.id, await hashPassword(PASSWORD));
+      return { personId: owner.id, email: owner.email! };
+    });
+    const res = await login(email);
+    expect(res.statusCode).toBe(200);
+    const me = Me.parse(res.json());
+    expect(me.person.id).toBe(personId);
+    expect(me.clients.map((c) => [c.id, c.unitCount])).toEqual([[seeded.clientId, 1]]);
+  });
+
+  it('answers unknown people, tokens and invites with nothing', async () => {
+    const seeded = await firmWithClient();
+    const unknown = randomUUID();
+    expect(await store.loadPrincipal(seeded.firmId, unknown)).toBeNull();
+    expect(await store.findInvitee(seeded.firmId, unknown)).toBeNull();
+    expect(await store.clientTimeZone(seeded.firmId, seeded.clientId)).toBe('Asia/Kolkata');
+    expect(await store.clientTimeZone(seeded.firmId, unknown)).toBeNull();
+    expect(await store.findLoginToken('0'.repeat(64))).toBeNull();
+    await expect(
+      store.revokeInvite(seeded.firmId, unknown, unknown, 'unknown-invite', now),
+    ).resolves.toBeUndefined();
+    expect(
+      await store.acceptInvite({
+        firmId: seeded.firmId,
+        inviteId: unknown,
+        tokenId: unknown,
+        passwordHash: await hashPassword(PASSWORD),
+        displayName: null,
+        requestId: 'unknown-invite',
+        now,
+      }),
+    ).toBe(false);
+  });
+
+  it('invites a consultant at firm level, named by email until they accept', async () => {
+    const seeded = await firmWithClient();
+    const fa = await person(seeded, { role: 'FIRM_ADMIN' });
+    const created = await store.createInvite({
+      firmId: seeded.firmId,
+      personId: null,
+      displayName: null,
+      email: 'consultant@example.com',
+      grant: {
+        role: 'CONSULTANT',
+        clientId: null,
+        consultantClientIds: [seeded.clientId],
+        unitIds: null,
+        expiresAt: null,
+      },
+      invitedById: fa.personId,
+      linkExpiresAt: new Date(now.getTime() + 86_400_000).toISOString(),
+      requestId: 'firm-invite',
+      now,
+    });
+    expect(created).toMatchObject({
+      displayName: 'consultant@example.com',
+      clientName: null,
+      status: 'PENDING',
+    });
+    const { token } = await service.issueLoginToken({
+      firmId: seeded.firmId,
+      personId: created.personId,
+      kind: 'INVITE',
+      inviteId: created.id,
+    });
+    const stored = await store.findLoginToken(hashToken(token));
+    expect(
+      await store.acceptInvite({
+        firmId: seeded.firmId,
+        inviteId: created.id,
+        tokenId: stored!.id,
+        passwordHash: await hashPassword(PASSWORD),
+        displayName: null,
+        requestId: 'firm-invite',
+        now,
+      }),
+    ).toBe(true);
+    expect(await store.findInvite(seeded.firmId, created.id)).toMatchObject({
+      status: 'ACCEPTED',
+      clientName: null,
+    });
   });
 });

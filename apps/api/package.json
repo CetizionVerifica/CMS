@@ -20,7 +20,9 @@
     "@canopy/notifications": "workspace:*",
     "@fastify/cookie": "catalog:",
     "@fastify/rate-limit": "catalog:",
+    "exceljs": "^4.4.0",
     "fastify": "catalog:",
+    "pdf-lib": "^1.17.1",
     "pg-boss": "catalog:",
     "zod": "catalog:"
   },

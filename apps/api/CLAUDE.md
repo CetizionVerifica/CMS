@@ -49,5 +49,5 @@ APPROVED|NOT_APPLICABLE ──reopen(client admin or consultant, reason)──�
 ## Tests
 Service tests run against a real Postgres (testcontainers) with RLS on. Postgres-backed tests are `*.db.test.ts` and run with
 `pnpm --filter @canopy/api test:db` (the CI `db` job); code that only runs against the database lives in a module's
-`service.ts` and `routes.ts`, whose coverage that run counts. Each module tests every role it allows and at least one it forbids.
+`service.ts` and `routes.ts` or in a `db-*.ts` file (e.g. `src/auth/db-store.ts`), whose coverage that run counts, file by file. Each module tests every role it allows and at least one it forbids.
 Workflow tests cover every arrow in the state machine and every invalid transition.
