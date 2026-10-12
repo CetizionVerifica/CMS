@@ -35,7 +35,6 @@ export function assignment(
 ): MemoryAssignment {
   return {
     assignmentId: randomUUID(),
-    assignmentVersion: 1,
     clientId: client.id,
     applicability: 'APPLICABLE',
     activeFrom: '2020-04-01' as LocalDate,

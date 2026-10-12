@@ -38,8 +38,6 @@ export interface ClientRef {
 /** An assignment with what generation needs from its obligation. */
 export interface GenerationTarget {
   assignmentId: Id;
-  /** The assignment's row version, for the event's `aggregateVersion`. */
-  assignmentVersion: number;
   clientId: Id;
   applicability: Applicability;
   activeFrom: LocalDate;

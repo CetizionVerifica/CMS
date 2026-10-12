@@ -24,8 +24,8 @@ remind for complied or not-applicable items, and reach the database only through
    creates those when the event is recorded) and rules still `TO_REVIEW` (an unconfirmed import guess must not create
    next year's work). Rows insert with `ON CONFLICT (assignment_id, period_start) DO NOTHING`; a generated period whose
    due date already has an instance on that assignment is skipped too, so an imported row with a different period start
-   is not twinned. Each created instance gets an `AuditEvent` (SYSTEM, CREATE) and each assignment one
-   `instance.generated` event, in the client's transaction. Engine results are memoised per (rule, range, calendar).
+   is not twinned. Each created instance gets an `AuditEvent` (SYSTEM, CREATE) and an `instance.generated`
+   event (aggregate: the instance, version 1; contracts 1.2.0), in the client's transaction. Engine results are memoised per (rule, range, calendar).
 6. **Reminders and escalations** come from `engine.planNotifications` only; the candidate query is a prefilter
    (OPEN, SENT_BACK, SUBMITTED; applicable assignment; due date inside the offset window).
 7. **Dedupe and delivery.** The send log (`notification_send`, unique per instance, kind and date; digests per
@@ -53,7 +53,6 @@ remind for complied or not-applicable items, and reach the database only through
   idempotent instance insert, audit and outbox writes, reminder candidates, recipients and consultants with membership
   state, score items, and send-log claim, mark sent (setting the event aggregate), mark failed, list done per client and
   list done digests per date.
-- `instance.generated` names the assignment as its aggregate with the assignment's current version; a later run for a
-  new FY repeats that version for a non-mutating event. M0 decides whether that stands. M9 PR 2 wires the adapter and boots the runner.
+M9 PR 2 wires the adapter and boots the runner.
 - Event consumers (notify approver on `instance.submitted`, owner on `instance.sent_back`, regenerate on
   `assignment.*` and `import.committed`) are a later M9 PR on the same ports.

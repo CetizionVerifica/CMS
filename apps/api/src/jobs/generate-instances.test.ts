@@ -53,19 +53,23 @@ describe('generate-instances', () => {
       stored!.instances.map((i) => i.id).sort(),
     );
 
-    expect(stored!.events).toEqual([
+    expect(stored!.events).toHaveLength(24);
+    const first = stored!.instances.find((i) => i.dueDate === '2026-04-07')!;
+    expect(stored!.events).toContainEqual(
       expect.objectContaining({
         type: 'instance.generated',
-        aggregate: { type: 'assignment', id: a.assignmentId },
+        aggregate: { type: 'instance', id: first.id },
         aggregateVersion: 1,
-        data: expect.objectContaining({
+        data: {
+          instanceId: first.id,
           assignmentId: a.assignmentId,
-          range: { from: '2026-04-01', to: '2028-03-31' },
+          periodStart: first.periodStart,
+          periodEnd: first.periodEnd,
+          dueDate: '2026-04-07',
           engineVersion: ENGINE_VERSION,
-        }),
+        },
       }),
-    ]);
-    expect((stored!.events[0]!.data.instanceIds as string[]).length).toBe(24);
+    );
   });
 
   it('is idempotent: a second run creates nothing and writes no audit or event', async () => {
@@ -76,7 +80,7 @@ describe('generate-instances', () => {
     expect(second.created).toBe(0);
     expect(h.store.firms[0]!.instances).toHaveLength(24);
     expect(h.store.firms[0]!.audits).toHaveLength(24);
-    expect(h.store.firms[0]!.events).toHaveLength(1);
+    expect(h.store.firms[0]!.events).toHaveLength(24);
   });
 
   it('counts a row the database already had (a concurrent run) as existing, not created', async () => {

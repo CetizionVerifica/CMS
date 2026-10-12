@@ -121,8 +121,8 @@ async function generateForClient(
   const ids = await tx.insertInstances(rows);
 
   const audits: JobAuditEvent[] = [];
-  const versions = new Map(live.map((t) => [t.assignmentId, t.assignmentVersion]));
-  const created = new Map<Id, Id[]>();
+  // One `instance.generated` per created instance (docs/contracts/events.md §3, contracts 1.2.0).
+  const events: JobDomainEvent[] = [];
   rows.forEach((row, index) => {
     const id = ids[index];
     if (!id) return;
@@ -148,17 +148,23 @@ async function generateForClient(
       },
       reason: null,
     });
-    created.set(row.assignmentId, [...(created.get(row.assignmentId) ?? []), id]);
+    events.push({
+      type: 'instance.generated',
+      clientId: client.id,
+      actor: { kind: 'SYSTEM', job: GENERATE_INSTANCES },
+      requestId,
+      aggregate: { type: 'instance', id },
+      aggregateVersion: 1,
+      data: {
+        instanceId: id,
+        assignmentId: row.assignmentId,
+        periodStart: row.periodStart,
+        periodEnd: row.periodEnd,
+        dueDate: row.dueDate,
+        engineVersion: ENGINE_VERSION,
+      },
+    });
   });
-  const events: JobDomainEvent[] = [...created].map(([assignmentId, instanceIds]) => ({
-    type: 'instance.generated',
-    clientId: client.id,
-    actor: { kind: 'SYSTEM', job: GENERATE_INSTANCES },
-    requestId,
-    aggregate: { type: 'assignment', id: assignmentId },
-    aggregateVersion: versions.get(assignmentId)!,
-    data: { assignmentId, instanceIds, range: fy, engineVersion: ENGINE_VERSION },
-  }));
   await tx.writeAudit(audits);
   await tx.writeEvents(events);
   report.created = (report.created ?? 0) + audits.length;
