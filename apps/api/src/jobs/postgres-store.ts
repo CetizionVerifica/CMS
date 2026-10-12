@@ -60,5 +60,8 @@ function firmTx(tx: TenantTx): FirmTx {
       });
     },
     markFailed: (key, code) => notificationSends.markFailed(tx, key, code),
+    claimEvents: (limit) => domainEvents.claimUnpublished(tx, limit),
+    markEventsPublished: (ids) => domainEvents.markPublished(tx, ids),
+    recordEventFailure: (id) => domainEvents.recordFailure(tx, id),
   };
 }

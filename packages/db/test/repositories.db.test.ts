@@ -855,6 +855,43 @@ describe('audit and outbox', () => {
     ]);
   });
 
+  it('keys an event-driven send on event and recipient, apart from the scheduled sends', async () => {
+    const [first] = await inA((tx) => r.instances.forAssignment(tx, world.assignmentId));
+    const eventId = '01920000-0000-7000-8000-00000000e001';
+    const send = {
+      clientId: world.clientId,
+      instanceId: first!.id,
+      recipientId: world.ownerId,
+      kind: 'OWNER_REMINDER' as const,
+      sendDate: '2022-07-01' as never,
+      eventId,
+    };
+    const scheduled = { ...send, eventId: null };
+    expect(await inA((tx) => r.notificationSends.claim(tx, send))).toBe('NEW');
+    // The same instance, kind, date and recipient as a scheduled send is a separate row.
+    expect(await inA((tx) => r.notificationSends.claim(tx, scheduled))).toBe('NEW');
+    // The event reaches the recipient once, whatever the date; another recipient is its own send.
+    const nextDay = { ...send, sendDate: '2022-07-02' as never };
+    expect(await inA((tx) => r.notificationSends.claim(tx, nextDay))).toBe('PENDING');
+    expect(
+      await inA((tx) => r.notificationSends.claim(tx, { ...send, recipientId: world.approverId })),
+    ).toBe('NEW');
+    await inA((tx) => r.notificationSends.markSent(tx, send, '2022-07-01T04:00:00.000Z'));
+    expect(await inA((tx) => r.notificationSends.claim(tx, nextDay))).toBe('DONE');
+    expect(await inA((tx) => r.notificationSends.claim(tx, scheduled))).toBe('PENDING');
+    // Date-keyed reads list scheduled sends only.
+    expect(
+      await inA((tx) => r.notificationSends.listDone(tx, world.clientId, '2022-07-01')),
+    ).toEqual([]);
+    await inA((tx) => r.notificationSends.markFailed(tx, scheduled, 'NOT_ACTIVE'));
+    expect(
+      await inA((tx) => r.notificationSends.listDone(tx, world.clientId, '2022-07-01')),
+    ).toHaveLength(1);
+    expect(await code(inA((tx) => r.notificationSends.claim(tx, { ...send, eventId: 'x' })))).toBe(
+      'VALIDATION',
+    );
+  });
+
   it('export jobs keep the storage key out of the contract shape', async () => {
     const job = await inA((tx) =>
       r.exportJobs.create(tx, {

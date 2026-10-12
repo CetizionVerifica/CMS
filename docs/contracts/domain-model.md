@@ -349,4 +349,4 @@ type Resource = { type: AuditEvent["entityType"]; clientId: Id | null; unitId?: 
 can(ctx: RequestContext, action: Action, resource: Resource): boolean
 ```
 
-The M0 stub `can()` allows according to the role matrix in `endpoints.md` §2 and is what M6, M7, M8 and M10 use until M5 merges.
+The M0 stub `can()` (`can` in `@canopy/contracts`, from contracts 1.3.0) allows according to the role matrix in `ENDPOINTS` (endpoints.md), within each membership's client and unit scope, `own` for OWNER and APPROVER, and only after MFA for firm roles. M6, M7, M8 and M10 use it until M5 merges.

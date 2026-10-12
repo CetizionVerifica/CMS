@@ -113,6 +113,20 @@
       "when": 1791776173729,
       "tag": "0015_idempotency_key_grants",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1791777299244,
+      "tag": "0016_send_log_event_id",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1791777467871,
+      "tag": "0017_notification_kinds_for_events",
+      "breakpoints": true
     }
   ]
 }

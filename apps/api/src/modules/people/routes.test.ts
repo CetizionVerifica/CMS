@@ -535,3 +535,32 @@ describe('granting a membership', () => {
     expect(res.status).toBe(201);
   });
 });
+
+describe("an email already used outside the actor's clients", () => {
+  it('is refused without revealing who holds it', async () => {
+    const { call } = testApp();
+    const held = await call('firmAdmin', 'POST', `/clients/${ids.clientB}/people`, {
+      displayName: 'Bina Owner',
+      email: 'bina@bharat.example',
+    });
+    const heldId = (held.body as { id: string }).id;
+    const res = await call('clientAdmin', 'POST', `/clients/${ids.clientA}/people`, {
+      displayName: 'Bina Again',
+      email: 'BINA@bharat.example',
+    });
+    expect(res.status).toBe(400);
+    expect(error(res.body)).toMatchObject({
+      code: 'VALIDATION',
+      details: { issues: [{ path: ['body', 'email'] }] },
+    });
+    expect(JSON.stringify(res.body)).not.toContain(heldId);
+    const seen = await call('firmAdmin', 'POST', `/clients/${ids.clientA}/people`, {
+      displayName: 'Bina Again',
+      email: 'bina@bharat.example',
+    });
+    expect(error(seen.body)).toMatchObject({
+      code: 'DUPLICATE',
+      details: { field: 'email', existingId: heldId },
+    });
+  });
+});

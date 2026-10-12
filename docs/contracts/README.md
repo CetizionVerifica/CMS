@@ -3,8 +3,8 @@
 The shared shapes every module builds against. These files describe them; the code in `packages/contracts` is the
 source of truth wherever it exists. Shipped in code so far: domain types, enums, entity Zod schemas, error codes, request/response
 schemas for every endpoint with role permissions (`packages/contracts/src/api`), the generated OpenAPI 3.1 spec
-([openapi.json](openapi.json)) and typed JSON fixtures for firms A and B (`packages/contracts/fixtures`). Still spec
-only, coming in a later M0 PR: the mock server.
+([openapi.json](openapi.json)), typed JSON fixtures for firms A and B (`packages/contracts/fixtures`) and a mock
+API server that serves every endpoint from those fixtures (`@canopy/contracts/mock`).
 
 | File | What it fixes | Main readers |
 |---|---|---|
@@ -17,7 +17,7 @@ only, coming in a later M0 PR: the mock server.
 | [CHANGELOG.md](CHANGELOG.md) | Contract versions | everyone |
 
 ## Status
-Version `1.2.0` (`CONTRACTS_VERSION` in `packages/contracts/src/version.ts`). The domain model in §1-8 of
+Version `1.3.0` (`CONTRACTS_VERSION` in `packages/contracts/src/version.ts`). The domain model in §1-8 of
 [domain-model.md](domain-model.md) is published as v1 so wave 1 (M3, M4, M8, M11) can build against it. Each consumer
 module owner still reviews its part (MODULES.md M0 acceptance); review findings ship as additive changes or, if breaking,
 with sign-off per "How to change a contract".
@@ -94,3 +94,18 @@ with sign-off per "How to change a contract".
     any real name, or a part of one, appears in copied text.
 32. For the `raw` profile the complied row with no Activity Date still counts as APPROVED with `completedOn = dueDate`;
     "raw" means no merges are accepted, not that the row is left invalid.
+33. Mock sign-in: any password signs in an ACTIVE person, any six digits pass MFA, and magic links land in
+    `GET /__mock/outbox`. Tests and scripts can skip the session with an `X-Mock-Person` header (person id or email),
+    which also skips CSRF and MFA. Nothing is logged, since URLs can carry invite tokens.
+34. Mock "today" is the real date unless pinned (`createMockServer({ today })` or `MOCK_TODAY`). Firm roles reproduce firm A's
+    golden scores by passing each row's `asOf`; firm B's states are built around 2024-11-15.
+35. The mock derives status and scores with a plain test double (`src/mock/derive.ts`, `engineVersion: "mock-1"`), not
+    the engine. It matches fixtures.md for the fixtures; anything finer belongs to M4, and the real API calls the engine.
+36. Mock imports run the whole state machine on a canned parse of the sample register (`ASPxGridView1`, the §3 issue
+    groups) whatever file is uploaded; commit reports dry-run counts but does not write rows. A new assignment gets
+    instances for every period of the client's current FY.
+37. Mock evidence: the virus scan finishes on the next read, and a file name containing "eicar" comes back INFECTED.
+    File URLs point at `https://files.mock.invalid` and are never fetched.
+38. Login answers `Me` on success whatever the firm count. An email that signs in to several firms gets 409
+    `FIRM_CHOICE_REQUIRED` listing them (only after the password matched in each), and the client retries with
+    `firmId`. Login does not apply the password policy, so an old password that predates a stricter policy still works.

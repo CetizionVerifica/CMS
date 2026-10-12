@@ -23,7 +23,7 @@ import type {
 } from './types.js';
 import { DEFAULT_CLIENT_SETTINGS, DEFAULT_FIRM_SETTINGS } from '../../src/index.js';
 import { fixtureId } from '../../src/fixtures/index.js';
-import { score, statusIds, type ScoredInstance } from './oracle.js';
+import { score, statusIds, type ScoredInstance } from '../../src/mock/derive.js';
 import { type Cell, serialToDate } from './xlsx.js';
 
 export const AS_OF_DATES = ['2022-09-30', '2022-12-15', '2023-03-31'] as const;

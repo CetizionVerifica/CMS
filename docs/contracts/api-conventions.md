@@ -52,6 +52,7 @@ Saved views store exactly this query string, so a view, a dashboard link and an 
 | `INVALID_TRANSITION` | 409 | Action not allowed from current workflow state | `{ from, action }` |
 | `DUPLICATE` | 409 | Unique rule broken (e.g. same obligation/unit/department assignment) | `{ field, existingId }` |
 | `IMPORT_STATE` | 409 | Import step called out of order | `{ status, expected }` |
+| `FIRM_CHOICE_REQUIRED` | 409 | Login without `firmId` for an email that signs in to more than one firm; sent only after the password matched in each | `{ firms: [{ id, name }] }` |
 | `FILE_TOO_LARGE` | 413 | Over 20 MB import or evidence limit (evidence 25 MB) | `{ maxBytes }` |
 | `UNSUPPORTED_FILE` | 415 | MIME/extension not allowed | `{ allowed }` |
 | `REASON_REQUIRED` | 422 | Send back, NA, reopen, archive, due-date change without reason | — |

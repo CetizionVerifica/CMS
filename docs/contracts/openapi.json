@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Canopy API",
-    "version": "1.2.0",
+    "version": "1.3.0",
     "description": "Generated from @canopy/contracts; do not edit. Conventions: docs/contracts/api-conventions.md. Role permissions per operation are in x-canopy-roles (all, own, limited); a missing role is 403."
   },
   "servers": [
@@ -9161,6 +9161,7 @@
                         "INVALID_TRANSITION",
                         "DUPLICATE",
                         "IMPORT_STATE",
+                        "FIRM_CHOICE_REQUIRED",
                         "FILE_TOO_LARGE",
                         "UNSUPPORTED_FILE",
                         "REASON_REQUIRED",
@@ -9240,6 +9241,7 @@
                         "INVALID_TRANSITION",
                         "DUPLICATE",
                         "IMPORT_STATE",
+                        "FIRM_CHOICE_REQUIRED",
                         "FILE_TOO_LARGE",
                         "UNSUPPORTED_FILE",
                         "REASON_REQUIRED",
@@ -10725,6 +10727,47 @@
                       }
                     },
                     "required": ["status", "expected"],
+                    "additionalProperties": false
+                  }
+                },
+                "required": ["code", "message"],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "code": {
+                    "type": "string",
+                    "const": "FIRM_CHOICE_REQUIRED"
+                  },
+                  "message": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "details": {
+                    "type": "object",
+                    "properties": {
+                      "firms": {
+                        "minItems": 2,
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "$ref": "#/components/schemas/Id"
+                            },
+                            "name": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 300
+                            }
+                          },
+                          "required": ["id", "name"],
+                          "additionalProperties": false
+                        }
+                      }
+                    },
+                    "required": ["firms"],
                     "additionalProperties": false
                   }
                 },
@@ -12742,8 +12785,11 @@
           },
           "password": {
             "type": "string",
-            "minLength": 12,
-            "maxLength": 200
+            "minLength": 1,
+            "maxLength": 1024
+          },
+          "firmId": {
+            "$ref": "#/components/schemas/Id"
           }
         },
         "required": ["email", "password"],
@@ -12914,6 +12960,16 @@
               }
             },
             "required": ["required", "enrolled", "satisfied"],
+            "additionalProperties": false
+          },
+          "session": {
+            "type": "object",
+            "properties": {
+              "expiresAt": {
+                "$ref": "#/components/schemas/Instant"
+              }
+            },
+            "required": ["expiresAt"],
             "additionalProperties": false
           }
         },

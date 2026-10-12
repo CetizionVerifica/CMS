@@ -3,7 +3,7 @@ import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { JOBS, startJobRunner, type JobRunner } from './runner.js';
 import { assignment, harness, instance, person, type Harness } from './testing/builders.js';
-import { memoryClient, memoryFirm } from './testing/memory-store.js';
+import { memoryClient, memoryFirm, outboxRow } from './testing/memory-store.js';
 
 // pg-boss against a real Postgres 16 (CI `db` job). Skipped when DATABASE_URL is not set (the unit run).
 const url = process.env.DATABASE_URL;
@@ -54,11 +54,12 @@ describe.skipIf(!url)('job runner on pg-boss', () => {
     }
   }
 
-  it('registers every job on its cron schedule and time zone', async () => {
+  it('registers every job on its cron schedule and time zone, the relay every minute', async () => {
     const schedules = await runner.schedules();
     expect(schedules.map((s) => [s.name, s.cron, s.tz]).sort()).toEqual(
       JOBS.map((j) => [j.name, j.cron, j.tz]).sort(),
     );
+    expect(schedules).toContainEqual({ name: 'relay-outbox', cron: '* * * * *', tz: 'UTC' });
   });
 
   it('runs generate-instances when triggered, with the job id as the request id', async () => {
@@ -94,6 +95,32 @@ describe.skipIf(!url)('job runner on pg-boss', () => {
       'a failed reminders run',
     );
     expect(logs.find((l) => l.error)!.error).toBe('reminders: 1 send(s) failed');
+  });
+
+  it('relays an outbox event to its queue and the consumer generates that assignment', async () => {
+    const firm = h.store.firms[0]!;
+    const [owner, approver] = firm.people;
+    const added = assignment(firm.clients[0]!, owner!, approver!);
+    firm.assignments.push(added);
+    const row = outboxRow({
+      type: 'assignment.created',
+      clientId: firm.clients[0]!.id,
+      actor: { kind: 'SYSTEM', job: 'test' },
+      requestId: 'req:assignment',
+      aggregate: { type: 'assignment', id: added.assignmentId },
+      aggregateVersion: 1,
+      data: { assignmentId: added.assignmentId },
+    });
+    firm.events.push(row);
+
+    await runner.trigger('relay-outbox');
+    await waitFor(() => logs.some((l) => l.job === 'assignment.created'), 'the consumer');
+    const line = logs.find((l) => l.job === 'assignment.created')!;
+    expect(line.requestId).toBe(`job:assignment.created:${row.id}`);
+    expect(line.report).toMatchObject({ created: 24 });
+    const stored = h.store.firms[0]!;
+    expect(stored.instances.filter((i) => i.assignmentId === added.assignmentId)).toHaveLength(24);
+    expect(stored.events.find((e) => e.id === row.id)!.publishedAt).not.toBeNull();
   });
 
   it('refuses an unknown job name', () => {

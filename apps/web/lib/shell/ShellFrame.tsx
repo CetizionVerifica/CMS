@@ -123,7 +123,13 @@ export function ShellFrame({ model, initialLayout, children }: ShellFrameProps) 
       href: item.href,
       icon: ICONS[item.path] ?? LayoutDashboard,
       ...(item.path === 'approvals'
-        ? { badge: { count: model.approvalsWaiting, label: `${model.approvalsWaiting} waiting` } }
+        ? {
+            // GET /me/approvals counts across every client the user approves in, so the label says so.
+            badge: {
+              count: model.approvalsWaiting,
+              label: `${model.approvalsWaiting} waiting across all your clients`,
+            },
+          }
         : {}),
     })),
   }));

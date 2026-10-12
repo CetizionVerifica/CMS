@@ -122,6 +122,24 @@ export interface JobDomainEvent {
   data: Record<string, unknown>;
 }
 
+/**
+ * An outbox row as the relay reads it: the events.md §2 envelope. The relay publishes it to the pg-boss queue
+ * named after `type`, with the event id as the job id, so a re-published event is one job.
+ */
+export interface OutboxEvent {
+  id: Id;
+  type: string;
+  schemaVersion: number;
+  occurredAt: string;
+  firmId: Id;
+  clientId: Id | null;
+  actor: Record<string, unknown>;
+  requestId: string;
+  aggregate: { type: string; id: Id };
+  aggregateVersion: number;
+  data: Record<string, unknown>;
+}
+
 /** `notification.sent` before the store fills in its aggregate (the send-log row). */
 export type NotificationSentEvent = Omit<JobDomainEvent, 'aggregate' | 'aggregateVersion'> & {
   type: 'notification.sent';
@@ -169,6 +187,21 @@ export interface FirmTx {
    */
   markSent(key: SendKey, at: string, event: NotificationSentEvent): Promise<void>;
   markFailed(key: SendKey, failureCode: SendFailureCode): Promise<void>;
+  /**
+   * Locks up to `limit` unpublished outbox events of the firm, oldest first, skipping rows another relay holds.
+   * Mark them published in the same transaction.
+   */
+  claimEvents(limit: number): Promise<OutboxEvent[]>;
+  markEventsPublished(ids: Id[]): Promise<void>;
+  /** Counts a failed publish; the event stays unpublished and the next run tries again. */
+  recordEventFailure(id: Id): Promise<void>;
+}
+
+/** Publishes an outbox event to its pg-boss queue. Idempotent on the event id. */
+export interface EventBus {
+  /** Event types that have a consumer; the relay marks every other type published without sending it. */
+  consumes(type: string): boolean;
+  publish(event: OutboxEvent): Promise<void>;
 }
 
 /** Why a notification was not sent. Stored on the send log, never the address or the message. */
@@ -194,6 +227,8 @@ export interface JobDeps {
   clock: Clock;
   /** Public web origin for links in emails, e.g. "https://app.planetpulse.life". */
   appUrl: string;
+  /** Set by the runner from pg-boss; the outbox relay needs it. */
+  bus?: EventBus;
 }
 
 /** What every job returns, for logs and tests. Counts only; no names or addresses. */
