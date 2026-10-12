@@ -296,6 +296,12 @@ export function peopleRoutes(app: FastifyInstance, deps: M6Deps): void {
     authorizeMembership(call, ctx, body.role, body.clientId);
     return store.transaction(ctx, async (tx) => {
       const person = await getLive(tx.people, call.params.id as Id);
+      // A grant links the person to another client, so the actor must already reach them; and firm staff take client
+      // roles from a firm admin only.
+      await authorizePerson(tx, call, 'membership', person.id, 'read');
+      if (!hasRole(ctx, 'FIRM_ADMIN') && (await tx.personReach(person.id)).firmStaff) {
+        throw forbidden('membership.write');
+      }
       await checkGrant(tx, body);
       const existing = (await tx.memberships.findAll({ personId: person.id })).find(
         (m) => m.role === body.role && m.clientId === body.clientId,

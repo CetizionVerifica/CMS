@@ -480,3 +480,58 @@ describe('adding a person to a client', () => {
     expect(res.status).toBe(400);
   });
 });
+
+describe('granting a membership', () => {
+  const ownerIn = (clientId: string) => ({
+    role: 'OWNER',
+    clientId,
+    consultantClientIds: null,
+    unitIds: null,
+    expiresAt: null,
+  });
+
+  it('needs the actor to reach the person already', async () => {
+    const { call, store } = testApp();
+    // consultantB works in client B; the owner belongs to client A only.
+    const res = await call(
+      'consultantB',
+      'POST',
+      `/people/${ACTORS.owner.person}/memberships`,
+      ownerIn(ids.clientB),
+    );
+    expect(res.status).toBe(404);
+    const listed = await call('consultantB', 'GET', `/clients/${ids.clientB}/people`);
+    expect(displayNames(listed.body)).not.toContain(ACTORS.owner.name);
+    expect(store.audits).toEqual([]);
+  });
+
+  it('gives firm staff client roles from a firm admin only', async () => {
+    const { call } = testApp();
+    const res = await call(
+      'consultantB',
+      'POST',
+      `/people/${ACTORS.firmAdmin.person}/memberships`,
+      {
+        ...ownerIn(ids.clientB),
+        role: 'CLIENT_ADMIN',
+      },
+    );
+    expect(res.status).toBe(403);
+    const admin = await call(
+      'firmAdmin',
+      'POST',
+      `/people/${ACTORS.consultant.person}/memberships`,
+      ownerIn(ids.clientB),
+    );
+    expect(admin.status).toBe(201);
+  });
+
+  it('lets a client admin grant another role to their own person', async () => {
+    const { call } = testApp();
+    const res = await call('clientAdmin', 'POST', `/people/${ACTORS.owner.person}/memberships`, {
+      ...ownerIn(ids.clientA),
+      role: 'APPROVER',
+    });
+    expect(res.status).toBe(201);
+  });
+});
