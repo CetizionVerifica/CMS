@@ -1,5 +1,6 @@
-// Builds fixtures/sample-register-anonymised.xlsx from fixtures/sample-register.xlsx: the real group and company
-// names in the Organization and Act columns become fictional ones ("Kestrel Metals Group", "Kestrel Aluminium").
+// Builds fixtures/sample-register-anonymised.xlsx from fixtures/sample-register.xlsx: the real group, company and town
+// names in the Organization, Location and Act columns become fictional ones ("Kestrel Metals Group", "Kestrel
+// Aluminium", "Riverbend").
 // Each name maps to one replacement, so every golden count survives; every other cell is copied unchanged.
 // Usage: node scripts/anonymise-companies.mjs <sample-register.xlsx> <out.xlsx>
 import ExcelJS from 'exceljs';
@@ -8,6 +9,7 @@ const REPLACEMENTS = [
   ['Aditya Birla Group', 'Kestrel Metals Group'],
   ['Hindalco Industries Limited', 'Kestrel Aluminium Limited'],
   ['Hindalco', 'Kestrel Aluminium'],
+  ['Belur', 'Riverbend'],
 ];
 
 const [source, out] = process.argv.slice(2);

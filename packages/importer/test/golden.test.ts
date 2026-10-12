@@ -192,12 +192,12 @@ describe('sample register: recommended profile', () => {
     expect(plan.units).toHaveLength(1);
     expect(plan.locations).toEqual([
       {
-        key: 'in|west bengal|belur',
+        key: 'in|west bengal|riverbend',
         country: 'India',
         countryCode: 'IN',
         state: 'West Bengal',
         stateCode: 'WB',
-        city: 'Belur',
+        city: 'Riverbend',
       },
     ]);
     expect(countBy(plan.instances, (i) => i.workflowState)).toEqual({
