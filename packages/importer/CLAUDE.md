@@ -42,6 +42,11 @@ Root `CLAUDE.md` applies. Field mapping and data quirks: `docs/requirements/exce
   edits the status ("Pending" keeps the row open and moves the date into an IMPORT comment, "Complied" keeps it)
   or skips the row. Dates outside 1950 to 2100 are `INVALID_DATE` (a year typed as a number is not a serial).
 - Every source row ends as an instance, SKIPPED or ERROR: a row that cannot be planned is never dropped.
+- Re-import compares instances field by field (`instanceChange` in `src/instances.ts`), not by fingerprint, because
+  work continues between imports. Comments are append-only: incoming comments already on the instance, in order, change
+  nothing and the rest are appended. A SUBMITTED or SENT_BACK instance whose row still says Pending with no Activity
+  Date is UNCHANGED; an import never moves it back to OPEN (M10 round trip). An `ExistingState` instance given as a
+  `fingerprintInstance` string is still compared as a whole until M10's round-trip test moves off it; then drop both.
 - Analysis stays near linear (32 times the rows costs under 64 times the time with a stub `inferRule`;
   `test/scale.test.ts`). The real engine adds a few milliseconds per distinct schedule, so the API should run
   parse off-request (`POST /imports/{id}/parse` is async).

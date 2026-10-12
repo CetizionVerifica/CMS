@@ -1,4 +1,5 @@
 import type { DryRunReport, ImportRowOutcome } from '@canopy/contracts';
+import { instanceAfterCommit, instanceChange, type InstanceChange } from './instances.js';
 import type {
   AnalysedRow,
   ExistingState,
@@ -37,6 +38,7 @@ export function fingerprintAssignment(a: PlanAssignment): string {
   return JSON.stringify([a.department, a.defaultOwner, a.defaultApprover]);
 }
 
+/** @deprecated Fingerprint of a planned instance; instances are compared with `instanceChange`. */
 export function fingerprintInstance(i: PlanInstance): string {
   return JSON.stringify([
     i.dueDate,
@@ -55,6 +57,8 @@ export interface DryRun {
   rows: AnalysedRow[];
   /** Instance key → what the commit does to it. */
   instanceOutcomes: Map<string, 'CREATE' | 'UPDATE' | 'UNCHANGED'>;
+  /** Instance key → the change to an existing instance, for the UPDATE ones. */
+  instanceChanges: Map<string, InstanceChange>;
 }
 
 function outcomeOf(existing: Record<string, string>, key: string, fingerprint: string) {
@@ -77,12 +81,21 @@ export function dryRun(analysis: ImportAnalysis, existing: ExistingState): DryRu
   const assignmentOutcomes = plan.assignments.map((a) =>
     outcomeOf(existing.assignments, a.key, fingerprintAssignment(a)),
   );
-  const instanceOutcomes = new Map(
-    plan.instances.map((i) => [
-      i.key,
-      outcomeOf(existing.instances, i.key, fingerprintInstance(i)),
-    ]),
-  );
+  const instanceOutcomes = new Map<string, 'CREATE' | 'UPDATE' | 'UNCHANGED'>();
+  const instanceChanges = new Map<string, InstanceChange>();
+  for (const planned of plan.instances) {
+    const stored = existing.instances[planned.key];
+    if (typeof stored === 'string') {
+      instanceOutcomes.set(
+        planned.key,
+        stored === fingerprintInstance(planned) ? 'UNCHANGED' : 'UPDATE',
+      );
+      continue;
+    }
+    const change = stored ? instanceChange(planned, stored) : null;
+    if (change) instanceChanges.set(planned.key, change);
+    instanceOutcomes.set(planned.key, !stored ? 'CREATE' : change ? 'UPDATE' : 'UNCHANGED');
+  }
   const instanceList = [...instanceOutcomes.values()];
 
   const knownPeople = new Set(existing.people.map((p) => p.nameNormalized));
@@ -117,7 +130,7 @@ export function dryRun(analysis: ImportAnalysis, existing: ExistingState): DryRu
     skippedRows: rows.filter((r) => r.outcome === 'SKIPPED').length,
     blockingErrors: rows.filter((r) => r.outcome === 'ERROR').length,
   };
-  return { report, rows, instanceOutcomes };
+  return { report, rows, instanceOutcomes, instanceChanges };
 }
 
 function mergeNames(known: KnownName[], planned: PlanNamed[]): KnownName[] {
@@ -166,7 +179,12 @@ export function stateAfterCommit(analysis: ImportAnalysis, before: ExistingState
     },
     instances: {
       ...before.instances,
-      ...Object.fromEntries(plan.instances.map((i) => [i.key, fingerprintInstance(i)])),
+      ...Object.fromEntries(
+        plan.instances.map((i) => {
+          const stored = before.instances[i.key];
+          return [i.key, instanceAfterCommit(i, typeof stored === 'string' ? undefined : stored)];
+        }),
+      ),
     },
   };
 }

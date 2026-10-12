@@ -13,6 +13,7 @@ import type {
   TemplateRef,
   TimelineType,
 } from '@canopy/contracts';
+import type { ExistingInstance } from './instances.js';
 import type { RawCell } from './read.js';
 
 /** Library value already stored for the firm or client, with its accepted aliases. */
@@ -29,7 +30,8 @@ export interface KnownPerson {
 /**
  * What the database already holds for this client, by natural key. The commit step (with M3) loads it;
  * `stateAfterCommit` derives the state a commit leaves, which makes re-import checks pure.
- * Fingerprints are opaque strings from `fingerprint*`; a different fingerprint means "update".
+ * Obligation and assignment fingerprints are opaque strings from `fingerprint*`; a different fingerprint means
+ * "update". Instances are compared field by field (`instanceChange`), since work continues on them between imports.
  */
 export interface ExistingState {
   acts: KnownName[];
@@ -41,7 +43,11 @@ export interface ExistingState {
   locations: string[];
   obligations: Record<string, string>;
   assignments: Record<string, string>;
-  instances: Record<string, string>;
+  /**
+   * A string is a `fingerprintInstance` from before field-by-field comparison, compared as a whole; kept until
+   * M10's round-trip test stops using it. New callers store `ExistingInstance`.
+   */
+  instances: Record<string, ExistingInstance | string>;
 }
 
 export const EMPTY_STATE: ExistingState = {
