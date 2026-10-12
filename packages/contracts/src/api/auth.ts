@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { Role } from '../enums.js';
-import { baseShape, Id, Instant, Name } from '../primitives.js';
+import { baseShape, FyLabel, Id, Instant, Month, Name, TimeZone } from '../primitives.js';
 import { checkMembershipShape, Membership, Person } from '../schemas/tenancy.js';
 
 /** M5 · Auth, sessions and invites (docs/contracts/endpoints.md §2). */
@@ -26,8 +26,33 @@ export const MfaVerifyBody = z.strictObject({
 });
 export type MfaVerifyBody = z.infer<typeof MfaVerifyBody>;
 
-/** A client the signed-in person may open, for the client switcher. */
-export const ClientSummary = z.strictObject({ id: Id, name: Name });
+/** A calendar month, "YYYY-MM". */
+export const YearMonth = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/);
+
+/**
+ * The periods a client's period picker offers, computed by the server with the engine so the web app does no FY maths
+ * (root CLAUDE.md rule 3).
+ */
+export const ClientPeriods = z.strictObject({
+  /** The FY and FY quarter (1-4) containing today in the client's time zone. */
+  current: z.strictObject({ fy: FyLabel, quarter: z.int().min(1).max(4) }),
+  /** FYs that have generated instances, oldest first. */
+  availableFys: z.array(FyLabel).min(1),
+  /** The last month with generated instances, or null when none are generated yet. */
+  availableUntil: YearMonth.nullable(),
+});
+export type ClientPeriods = z.infer<typeof ClientPeriods>;
+
+/** A client the signed-in person may open, for the client switcher and the shell's period picker. */
+export const ClientSummary = z.strictObject({
+  id: Id,
+  name: Name,
+  fyStartMonth: Month,
+  timeZone: TimeZone,
+  /** Units this person can see in the client. */
+  unitCount: z.int().min(0),
+  period: ClientPeriods,
+});
 export type ClientSummary = z.infer<typeof ClientSummary>;
 
 /** `GET /me`: who is signed in and what they may see. Login, magic-link verify and MFA verify return it too. */

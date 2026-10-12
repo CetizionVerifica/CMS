@@ -12830,9 +12830,64 @@
                   "type": "string",
                   "minLength": 1,
                   "maxLength": 300
+                },
+                "fyStartMonth": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 12
+                },
+                "timeZone": {
+                  "type": "string"
+                },
+                "unitCount": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "period": {
+                  "type": "object",
+                  "properties": {
+                    "current": {
+                      "type": "object",
+                      "properties": {
+                        "fy": {
+                          "type": "string",
+                          "pattern": "^\\d{4}-\\d{2}$"
+                        },
+                        "quarter": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 4
+                        }
+                      },
+                      "required": ["fy", "quarter"],
+                      "additionalProperties": false
+                    },
+                    "availableFys": {
+                      "minItems": 1,
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "pattern": "^\\d{4}-\\d{2}$"
+                      }
+                    },
+                    "availableUntil": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "pattern": "^\\d{4}-(0[1-9]|1[0-2])$"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": ["current", "availableFys", "availableUntil"],
+                  "additionalProperties": false
                 }
               },
-              "required": ["id", "name"],
+              "required": ["id", "name", "fyStartMonth", "timeZone", "unitCount", "period"],
               "additionalProperties": false
             }
           },

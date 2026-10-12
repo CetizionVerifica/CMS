@@ -29,6 +29,7 @@ import {
   Limit,
   MAX_EVIDENCE_BYTES,
   MAX_IMPORT_BYTES,
+  ClientSummary,
   Me,
   MembershipGrant,
   ObligationCreateBody,
@@ -268,11 +269,35 @@ describe('auth bodies', () => {
     expect(ok(InviteBody, without(invite, 'personId'))).toBe(false);
   });
 
+  const client = {
+    id: ID.client,
+    name: 'Aditya Birla Group',
+    fyStartMonth: 4,
+    timeZone: 'Asia/Kolkata',
+    unitCount: 1,
+    period: {
+      current: { fy: '2026-27', quarter: 3 },
+      availableFys: ['2025-26', '2026-27'],
+      availableUntil: '2027-03',
+    },
+  };
+
+  it('gives each client its periods so the web app does no FY maths', () => {
+    expect(ok(ClientSummary, client)).toBe(true);
+    const period = (p: object) => ({ ...client, period: { ...client.period, ...p } });
+    expect(ok(ClientSummary, period({ availableUntil: null }))).toBe(true);
+    expect(ok(ClientSummary, period({ availableFys: [] }))).toBe(false);
+    expect(ok(ClientSummary, period({ availableUntil: '2027-13' }))).toBe(false);
+    expect(ok(ClientSummary, period({ current: { fy: '2026-27', quarter: 5 } }))).toBe(false);
+    expect(ok(ClientSummary, { ...client, unitCount: -1 })).toBe(false);
+    expect(ok(ClientSummary, without(client, 'timeZone'))).toBe(false);
+  });
+
   it('describes the signed-in person for GET /me', () => {
     const me = {
       person: { ...person, email: 'ravi@example.com', status: 'ACTIVE' },
       memberships: [membership],
-      clients: [{ id: ID.client, name: 'Aditya Birla Group' }],
+      clients: [client],
       csrfToken: 'c'.repeat(32),
       mfa: { required: false, enrolled: false, satisfied: false },
     };

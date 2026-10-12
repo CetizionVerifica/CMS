@@ -25,6 +25,4 @@ table `ENDPOINTS` with paths, `can()` actions, role access, query, body and resp
 The OpenAPI 3.1 spec `openapi.json` is generated from the table. endpoints.md now spells out every path, returns lists as
 objects (calendar, portfolio) and renames `instance.dueDate` to `instance.due_date`. README decisions 16-25.
 `LocalDate` now carries `format: date` in JSON Schema. `checkMembershipShape` and `checkJurisdiction` are exported for
-request bodies. After audit: `SubmitBody.comment` is required (domain-model.md §5), `PATCH /instances/{id}` needs a
-`reason` for every change, `AuditQuery` compares instants by time, `ExportCreateBody.filters` is validated as a register
-query (`RegisterFilterQuery`), and the `asOf` parameter documents who may set it.
+request bodies.
