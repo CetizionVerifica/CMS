@@ -1,7 +1,6 @@
 import type {
-  Id,
-  InstanceStatusInput,
   LocalDate,
+  NotificationInput,
   PlannedNotification,
   ReminderSettings,
 } from '@canopy/contracts';
@@ -15,7 +14,7 @@ import { daysBetween, isoWeekday } from './dates.js';
  * The job runner dedupes by `(instanceId, kind, sendDate)`.
  */
 export function planNotifications(
-  i: InstanceStatusInput & { id: Id; ownerId: Id; approverId: Id },
+  i: NotificationInput,
   s: ReminderSettings,
   asOf: LocalDate,
 ): PlannedNotification[] {

@@ -16,17 +16,12 @@ export * from './score.js';
 export * from './status.js';
 export * from './version.js';
 
-/**
- * The engine as the contract describes it. planNotifications also needs the instance `id` (its result carries
- * `instanceId`); the contract change adding it is requested from M0, so it is checked separately until then.
- */
+/** The engine as the contract describes it; `satisfies` fails the build if a signature drifts from EngineApi. */
 export const engine = {
-  ...({
-    generateInstances,
-    inferRule,
-    deriveStatus,
-    computeScore,
-    ENGINE_VERSION,
-  } satisfies Omit<EngineApi, 'planNotifications'>),
+  generateInstances,
+  inferRule,
+  deriveStatus,
+  computeScore,
   planNotifications,
-};
+  ENGINE_VERSION,
+} satisfies EngineApi;
