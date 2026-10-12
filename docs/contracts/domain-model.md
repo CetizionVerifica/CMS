@@ -66,7 +66,7 @@ interface FirmSettings {
   mfaRequiredForFirmRoles: true                     // fixed true in v1
 }
 
-interface Client extends Base, Versioned {          // org group, e.g. "Aditya Birla Group"
+interface Client extends Base, Versioned {          // org group, e.g. "Kestrel Metals Group"
   name: string
   settings: ClientSettings
 }
@@ -83,7 +83,7 @@ interface ReminderSettings {
   consultantDigestWeekday: 1-7                      // default 1 (Monday)
 }
 
-interface Company extends Base, Versioned { clientId: Id; name: string }          // "Hindalco"
+interface Company extends Base, Versioned { clientId: Id; name: string }          // "Kestrel Aluminium"
 interface Location extends Base { country: string; countryCode: string; state: string | null; stateCode: string | null; city: string | null }
 interface Unit extends Base, Versioned {           // plant / site / office, e.g. "Plant"
   clientId: Id; companyId: Id; name: string; locationId: Id
@@ -106,7 +106,7 @@ interface Membership extends Base, Versioned {
 }
 ```
 
-Hierarchy paths in Excel ("Aditya Birla Group/ Hindalco/ Plant", "India/ West Bengal/ Belur") map to Client / Company / Unit and Country / State / City.
+Hierarchy paths in Excel ("Kestrel Metals Group/ Kestrel Aluminium/ Plant", "India/ West Bengal/ Belur") map to Client / Company / Unit and Country / State / City.
 
 ## 4. Library
 
