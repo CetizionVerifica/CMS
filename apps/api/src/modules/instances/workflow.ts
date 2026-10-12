@@ -213,6 +213,8 @@ function nextFields(input: TransitionInput): {
     case 'APPROVE': {
       const comment = optionalText(c.comment);
       const na = i.pendingKind === 'NA';
+      // Evidence can change after submission; a completion is approved only with what it needs now.
+      if (!na) checkEvidence(input.evidenceRequired, input.evidence);
       return {
         fields: {
           workflowState: na ? 'NOT_APPLICABLE' : 'APPROVED',

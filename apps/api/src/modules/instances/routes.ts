@@ -8,14 +8,15 @@ import type { Actor, InstanceService } from './service.js';
  * actor to the service, reply with the contract status. Errors reach M5's error handler.
  */
 
-function actor(request: FastifyRequest): Actor {
+/** The acting person and M5's `authorize` for one request. */
+export function actor(request: FastifyRequest): Actor {
   return {
     ctx: request.ctx,
     authorize: (action, resource) => authorize(request, action, resource),
   };
 }
 
-const session = { config: { auth: 'session' as const } };
+export const session = { config: { auth: 'session' as const } };
 
 export function registerInstanceRoutes(app: FastifyInstance, service: InstanceService): void {
   const e = ENDPOINTS;
