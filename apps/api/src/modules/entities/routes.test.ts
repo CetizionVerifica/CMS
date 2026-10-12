@@ -109,7 +109,7 @@ describe('locations', () => {
       ((await call('owner', 'GET', `/locations${q}`)).body as { items: unknown[] }).items.length;
     expect(await items('?countryCode=IN&stateCode=WB')).toBe(1);
     expect(await items('?stateCode=MH')).toBe(0);
-    expect(await items('?q=belur')).toBe(1);
+    expect(await items('?q=riverbend')).toBe(1);
   });
 
   it('needs the state and its code together, and refuses a duplicate path', async () => {
@@ -127,7 +127,7 @@ describe('locations', () => {
       countryCode: 'IN',
       state: 'west bengal',
       stateCode: 'WB',
-      city: 'BELUR',
+      city: 'RIVERBEND',
     });
     expect(dup.status).toBe(409);
   });

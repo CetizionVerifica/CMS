@@ -594,7 +594,7 @@ describe.skipIf(!url)('M6 on the Postgres store', () => {
               countryCode: 'IN',
               state: 'west bengal',
               stateCode: 'WB',
-              city: 'BELUR',
+              city: 'RIVERBEND',
             }),
           ).rejects.toMatchObject({ field: 'location', existingId: w.locationId });
           await expect(
