@@ -60,7 +60,7 @@ export interface UnitInfo {
   id: string;
   name: string;
   companyName: string;
-  /** e.g. "India / West Bengal / Belur". */
+  /** e.g. "India / West Bengal / Riverbend". */
   locationLabel: string;
 }
 
