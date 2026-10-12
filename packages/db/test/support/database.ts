@@ -47,6 +47,10 @@ export async function createTestDatabase(
   if (options.migrate !== false) await admin.migrate();
   const db = createDatabase({ connectionString: url.toString(), max: 4 });
   const owner = new pg.Pool({ connectionString: url.toString(), max: 2 });
+  // pool.end() resolves before every socket has closed, so DROP DATABASE WITH (FORCE) in drop() can
+  // terminate a closing client (57P01). A pool with no 'error' listener turns that into an uncaught
+  // exception that fails the run; createPool in src/database.ts has the same guard.
+  owner.on('error', () => {});
 
   return {
     url: url.toString(),
