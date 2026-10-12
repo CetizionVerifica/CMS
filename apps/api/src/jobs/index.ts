@@ -8,6 +8,7 @@ export {
   skipReason,
 } from './generate-instances.js';
 export type * from './ports.js';
+export { postgresJobStore } from './postgres-store.js';
 export { REMINDERS, runReminders } from './reminders.js';
 export {
   JOBS,

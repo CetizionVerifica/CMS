@@ -40,7 +40,7 @@ export interface WorkflowInstance extends WorkflowFields {
 }
 
 export type TransitionCommand =
-  | { action: 'SUBMIT'; completedOn: LocalDate; comment?: string | undefined }
+  | { action: 'SUBMIT'; completedOn: LocalDate; comment: string }
   | { action: 'REQUEST_NA'; reason: string }
   | { action: 'APPROVE'; comment?: string | undefined }
   | { action: 'SEND_BACK'; reason: string }
@@ -101,11 +101,8 @@ const COMMENT_KIND: Readonly<Record<TransitionAction, CommentKind>> = {
   REOPEN: 'REOPEN',
 };
 
-/** Comment body when the person gave none; every transition leaves a comment (apps/api/CLAUDE.md). */
-const DEFAULT_COMMENT: Readonly<Record<'SUBMIT' | 'APPROVE', string>> = {
-  SUBMIT: 'Submitted for approval.',
-  APPROVE: 'Approved.',
-};
+/** Approval comment when the approver gave none; every transition leaves a comment (apps/api/CLAUDE.md). */
+const DEFAULT_APPROVE_COMMENT = 'Approved.';
 
 /** Plain words for error messages people read. */
 const ACTION_WORDS: Readonly<Record<TransitionAction, string>> = {
@@ -132,6 +129,17 @@ export function canTransition(state: WorkflowState, action: TransitionAction): b
 function requireReason(reason: string): string {
   const trimmed = reason.trim();
   if (trimmed === '') throw new ApiError('REASON_REQUIRED');
+  return trimmed;
+}
+
+/** SUBMIT carries a comment (contracts 1.1.0 SubmitBody); the edge schema rejects a blank one first. */
+function requireComment(comment: string): string {
+  const trimmed = comment.trim();
+  if (trimmed === '') {
+    throw new ApiError('VALIDATION', {
+      issues: [{ path: ['comment'], message: 'A comment is required.' }],
+    });
+  }
   return trimmed;
 }
 
@@ -173,7 +181,7 @@ function nextFields(input: TransitionInput): {
         );
       }
       checkEvidence(input.evidenceRequired, input.evidence);
-      const comment = optionalText(c.comment);
+      const comment = requireComment(c.comment);
       return {
         fields: {
           workflowState: 'SUBMITTED',
@@ -183,7 +191,7 @@ function nextFields(input: TransitionInput): {
           submittedAt: now,
           approvedAt: null,
         },
-        comment: comment ?? DEFAULT_COMMENT.SUBMIT,
+        comment,
         reason: null,
       };
     }
@@ -215,7 +223,7 @@ function nextFields(input: TransitionInput): {
           submittedAt: i.submittedAt,
           approvedAt: now,
         },
-        comment: comment ?? DEFAULT_COMMENT.APPROVE,
+        comment: comment ?? DEFAULT_APPROVE_COMMENT,
         reason: comment,
       };
     }

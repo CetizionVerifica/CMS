@@ -71,6 +71,27 @@
       "when": 1791773764084,
       "tag": "0009_import_issue_delete",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1791774546028,
+      "tag": "0010_import_issue_delete_before_commit",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1791775464183,
+      "tag": "0011_auth_tables",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1791775466021,
+      "tag": "0012_auth_lookups",
+      "breakpoints": true
     }
   ]
 }
