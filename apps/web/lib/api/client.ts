@@ -44,14 +44,38 @@ export type ApiClientOptions = {
 
 export type ApiResult<T> = { data: T; setCookies: string[] };
 
+export type EndpointName = keyof typeof ENDPOINTS;
+type EndpointOf<N extends EndpointName> = (typeof ENDPOINTS)[N];
+type InputOf<S> = S extends z.ZodType ? z.input<S> : never;
+
+/** What `call(name, request)` sends: path params by name, the query as its contract input, and the body. */
+export type CallRequest<N extends EndpointName> = {
+  params?: Record<string, string>;
+  query?: InputOf<EndpointOf<N>['query']>;
+  body?: InputOf<EndpointOf<N>['body']>;
+};
+
+export type CallResponse<N extends EndpointName> = z.output<EndpointOf<N>['response']>;
+
+/** `?a=1&status=OVERDUE,DUE_SOON`: arrays comma-separated, undefined and null left out (api-conventions.md §3). */
+export function queryString(query: Record<string, unknown> | undefined): string {
+  const search = new URLSearchParams();
+  for (const [key, value] of Object.entries(query ?? {})) {
+    if (value === undefined || value === null) continue;
+    search.set(key, Array.isArray(value) ? value.map(String).join(',') : String(value));
+  }
+  const text = search.toString();
+  return text ? `?${text}` : '';
+}
+
 export function createApiClient(options: ApiClientOptions) {
   const doFetch = options.fetch ?? fetch;
   const base = options.baseUrl.replace(/\/+$/, '');
 
-  async function call<S extends z.ZodType>(
+  async function send<S extends z.ZodType>(
     endpoint: Pick<Endpoint, 'method' | 'path'>,
     schema: S,
-    request: { params?: Record<string, string>; body?: unknown } = {},
+    request: { params?: Record<string, string>; query?: unknown; body?: unknown } = {},
   ): Promise<ApiResult<z.output<S>>> {
     const { method } = endpoint;
     const { body } = request;
@@ -66,7 +90,8 @@ export function createApiClient(options: ApiClientOptions) {
     if (options.requestId) headers['x-request-id'] = options.requestId;
     if (method !== 'GET' && options.csrfToken) headers['x-csrf-token'] = options.csrfToken;
 
-    const res = await doFetch(`${base}${API_PREFIX}${path}`, {
+    const query = queryString(request.query as Record<string, unknown> | undefined);
+    const res = await doFetch(`${base}${API_PREFIX}${path}${query}`, {
       method,
       headers,
       body: body === undefined ? undefined : JSON.stringify(body),
@@ -110,22 +135,34 @@ export function createApiClient(options: ApiClientOptions) {
     return { data: parsed.data, setCookies: res.headers.getSetCookie?.() ?? [] };
   }
 
-  const E = ENDPOINTS;
+  /** Any endpoint in the contracts' table by name, e.g. `call('getInstance', { params: { id } })`. */
+  function call<N extends EndpointName>(
+    name: N,
+    request: CallRequest<N> = {},
+  ): Promise<ApiResult<CallResponse<N>>> {
+    const endpoint: Endpoint = ENDPOINTS[name];
+    return send(endpoint, endpoint.response, request) as Promise<ApiResult<CallResponse<N>>>;
+  }
+
   const token = (value: string) => ({ params: { token: value } });
 
   return {
-    me: () => call(E.getMe, E.getMe.response),
-    portfolio: () => call(E.portfolio, E.portfolio.response),
-    login: (body: LoginBody) => call(E.login, E.login.response, { body }),
-    requestMagicLink: (email: string) =>
-      call(E.requestMagicLink, E.requestMagicLink.response, { body: { email } }),
-    verifyMagicLink: (value: string) =>
-      call(E.verifyMagicLink, E.verifyMagicLink.response, { body: { token: value } }),
-    verifyMfa: (code: string) => call(E.verifyMfa, E.verifyMfa.response, { body: { code } }),
-    logout: () => call(E.logout, E.logout.response),
-    invite: (value: string) => call(E.getInvite, E.getInvite.response, token(value)),
+    call,
+    me: () => call('getMe'),
+    portfolio: () => call('portfolio'),
+    login: (body: LoginBody) => call('login', { body }),
+    requestMagicLink: (email: string) => call('requestMagicLink', { body: { email } }),
+    verifyMagicLink: (value: string) => call('verifyMagicLink', { body: { token: value } }),
+    verifyMfa: (code: string) => call('verifyMfa', { body: { code } }),
+    logout: () => call('logout'),
+    invite: (value: string) => call('getInvite', token(value)),
     acceptInvite: (value: string, body: InviteAcceptBody) =>
-      call(E.acceptInvite, E.acceptInvite.response, { ...token(value), body }),
+      call('acceptInvite', { ...token(value), body }),
+    /** SUBMITTED instances waiting on the signed-in person, for the Approvals badge. */
+    approvalsWaiting: async () => {
+      const { data } = await call('myApprovals', { query: { limit: '1', count: 'true' } });
+      return data.total ?? data.items.length;
+    },
   };
 }
 

@@ -20,6 +20,8 @@ const text = (form: FormData, name: string) => String(form.get(name) ?? '');
 /** What the form says for a field the contract schema rejects; the schema's own messages are for developers. */
 const FIELD_MESSAGES: Record<string, string> = {
   email: 'Enter a valid email address',
+  // The policy for a password being set (accepting an invite). Sign-in never shows it: any password it rejects
+  // can't belong to an account, so signIn answers as for a wrong one.
   password: 'Use 12 to 200 characters',
   code: 'Enter the 6-digit code',
   displayName: 'Enter your name',

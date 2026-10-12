@@ -21,8 +21,13 @@ Shared code for every web screen. M12 and M13 import from here; they don't chang
   the login page). It covers only the routes the shell calls; it goes away once M0's mock server or the real API
   answers. A production build uses it only with `CANOPY_DEMO_API=1` (`api/mode.ts`, server env only), so a
   deployment without `CANOPY_API_URL` fails instead of offering demo logins.
-- `api/client.ts` takes methods, paths and schemas from the contracts' `ENDPOINTS` table. Add a method there for each
-  endpoint a page calls, rather than calling `fetch` directly.
+- `api/client.ts` takes methods, paths and schemas from the contracts' `ENDPOINTS` table. Call any endpoint by name,
+  never `fetch` directly: `api.call('listInstances', { params: { clientId }, query: { status: 'OVERDUE', limit: '50' } })`.
+  `query` and `body` are typed as the contract's input, the query is serialised as api-conventions.md §3 says (arrays
+  comma-separated) and the response is parsed with the endpoint's schema.
+- The sidebar's Approvals item shows the count from `GET /me/approvals` for approvers and client admins.
+- Unit tests next to a route (`app/**/*.test.{ts,tsx}`) run with the web tests; non-page files under `app/(shell)`
+  count for coverage (pages, layouts, `loading`, `error` and `not-found` are covered by Playwright).
 - `Me.clients` carries each client's FY start, time zone, unit count and period context (contracts 1.1), which the
   switcher and the period picker read.
 

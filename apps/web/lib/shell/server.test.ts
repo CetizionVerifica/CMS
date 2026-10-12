@@ -14,6 +14,7 @@ vi.mock('next/navigation', () => nextNavigation);
 
 const { loadShell, requestPath, shellLayoutHint } = await import('./server');
 const { relayCookies, serverApi, sessionApi } = await import('../api/server');
+const { MOCK_APPROVALS_WAITING } = await import('../api/mock');
 
 async function signIn(email: string, mfa: boolean) {
   await relayCookies(
@@ -50,7 +51,25 @@ describe('shell server data', () => {
 
   it('skips the portfolio for client users', async () => {
     await signIn('owner@demo.test', false);
-    expect((await loadShell()).clients.map((c) => c.overdueCount)).toEqual([0]);
+    const model = await loadShell();
+    expect(model.clients.map((c) => c.overdueCount)).toEqual([0]);
+    expect(model.approvalsWaiting).toBe(0);
+  });
+
+  it('counts the approvals waiting for an approver', async () => {
+    await signIn('approver@demo.test', true);
+    expect((await loadShell()).approvalsWaiting).toBe(MOCK_APPROVALS_WAITING);
+  });
+
+  it('hides counts it could not load', async () => {
+    await signIn('consultant@demo.test', true);
+    const api = await serverApi();
+    vi.spyOn(api, 'portfolio').mockRejectedValue(new Error('down'));
+    const serverModule = await import('../api/server');
+    vi.spyOn(serverModule, 'serverApi').mockResolvedValue(api);
+    const model = await loadShell();
+    expect(model.clients.map((c) => c.overdueCount)).toEqual([0, 0]);
+    vi.restoreAllMocks();
   });
 
   it('guesses the layout from the cookie and headers', async () => {
