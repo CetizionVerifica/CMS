@@ -196,7 +196,11 @@ describe('entity bodies', () => {
     expect(PersonCreateBody.parse({ displayName: 'Ravi Kumar' })).toEqual({
       displayName: 'Ravi Kumar',
       email: null,
+      role: 'OWNER',
     });
+    expect(ok(PersonCreateBody, { displayName: 'Ravi Kumar', role: 'APPROVER' })).toBe(true);
+    expect(ok(PersonCreateBody, { displayName: 'Ravi Kumar', role: 'VIEWER' })).toBe(false);
+    expect(ok(PersonCreateBody, { displayName: 'Ravi Kumar', role: 'CONSULTANT' })).toBe(false);
     expect(ActCreateBody.parse({ name: 'Income Tax Act, 1961', jurisdiction: 'CENTRAL' })).toEqual({
       name: 'Income Tax Act, 1961',
       shortName: null,

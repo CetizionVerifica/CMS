@@ -31,7 +31,7 @@ Rules: no `any`; unknown keys rejected at the edge; strings trimmed; empty strin
 | Enum | Values | Notes |
 |---|---|---|
 | `Role` | `FIRM_ADMIN`, `CONSULTANT`, `CLIENT_ADMIN`, `APPROVER`, `OWNER`, `VIEWER` | Firm roles: first two. Client roles: the rest. |
-| `PersonStatus` | `UNCLAIMED`, `INVITED`, `ACTIVE`, `DISABLED` | People created by import are `UNCLAIMED` (no email). |
+| `PersonStatus` | `UNCLAIMED`, `INVITED`, `ACTIVE`, `DISABLED` | People created by import are `UNCLAIMED` (no email). A person with an email on file but not yet signed in is `INVITED`; adding an email to an UNCLAIMED person makes them INVITED, and removing it makes them UNCLAIMED again. |
 | `Criticality` | `SUPER_CRITICAL`, `CRITICAL`, `HIGH`, `MEDIUM`, `LOW` | Default weights 5/4/3/2/1 (firm setting). |
 | `TimelineType` | `TIME_BASED`, `ONGOING` | Excel "Time Based" / "On Going". |
 | `ObligationDomain` | `HRS`, `EHS`, `TAX`, `IT`, `INT`, `ENG`, `ENV`, `OTHER` | Parsed from `externalRef` prefix; `OTHER` when unknown. |

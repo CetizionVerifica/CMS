@@ -134,10 +134,17 @@ export type DepartmentUpdateBody = z.infer<typeof DepartmentUpdateBody>;
 
 export const PersonListQuery = z.strictObject({ ...pageQueryShape, q: SearchText.optional() });
 
-/** Adds an UNCLAIMED person (no email) or one ready to invite. */
+/** Client roles a person can be added with; a VIEWER comes through an invite, which sets `expiresAt`. */
+export const PersonCreateRole = z.enum(['OWNER', 'APPROVER', 'CLIENT_ADMIN']);
+
+/**
+ * Adds a person to the client with a membership in `role` covering every unit (narrow it with
+ * `PATCH /memberships/{id}`). Without an email the person is UNCLAIMED; with one, INVITED (domain-model.md §2, `PersonStatus`).
+ */
 export const PersonCreateBody = z.strictObject({
   displayName: Name,
   email: nullableEmail.default(null),
+  role: PersonCreateRole.default('OWNER'),
 });
 export type PersonCreateBody = z.input<typeof PersonCreateBody>;
 

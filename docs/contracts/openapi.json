@@ -9842,6 +9842,11 @@
                 "type": "null"
               }
             ]
+          },
+          "role": {
+            "default": "OWNER",
+            "type": "string",
+            "enum": ["OWNER", "APPROVER", "CLIENT_ADMIN"]
           }
         },
         "required": ["displayName"],

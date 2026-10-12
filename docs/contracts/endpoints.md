@@ -57,7 +57,7 @@ The `Action` column is the `can()` action name; the M5 policy table has one row 
 | Method | Path | Action | FA | CO | CA | AP | OW | VI |
 |---|---|---|---|---|---|---|---|---|
 | GET | `/people` (firm staff) | `person.read` | ✓ | ✓ | | | | |
-| GET · POST | `/clients/{clientId}/people` | `person.read` / `person.write` | ✓ | ✓ | ✓ | r | r | r |
+| GET · POST | `/clients/{clientId}/people` (POST `{ displayName, email?, role? }`: role OWNER, APPROVER or CLIENT_ADMIN, default OWNER, as a membership on every unit) | `person.read` / `person.write` | ✓ | ✓ | ✓ | r | r | r |
 | PATCH | `/people/{id}` | `person.write` | ✓ | ✓ | ✓ | | | |
 | POST | `/people/{id}/merge` `{ sourceIds }` | `person.merge` | ✓ | ✓ | ✓ | | | |
 | GET · POST | `/people/{id}/memberships` | `membership.write` | ✓ | ✓ | ✓ | | | |
