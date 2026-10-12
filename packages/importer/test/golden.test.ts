@@ -54,10 +54,7 @@ describe('sample register: reading and mapping', () => {
 
 describe('sample register: issues before review', () => {
   it('raises the expected issue groups', () => {
-    const byType = countBy(
-      pending.issues.filter((issue) => issue.type !== 'RULE_LOW_CONFIDENCE'),
-      (issue) => issue.type,
-    );
+    const byType = countBy(pending.issues, (issue) => issue.type);
     expect(byType).toEqual({
       ALIAS_ACT: 2,
       ALIAS_CATEGORY: 2,
@@ -69,9 +66,31 @@ describe('sample register: issues before review', () => {
       FILE_NOT_ATTACHED: 14,
       NULL_PLACEHOLDER: 2,
       PERSON_CASE_MERGE: 13,
+      RULE_LOW_CONFIDENCE: 6,
       UNPARSED_EXTERNAL_REF: 6,
     });
     expect(pending.counts.errors).toBe(0);
+  });
+
+  it('reads the register as FY 2022-23 and flags the low-confidence rules for review', () => {
+    expect(pending.plan.coverage).toEqual({ from: '2022-04-01', to: '2023-03-31' });
+    expect(pending.issues.filter((issue) => issue.type === 'RULE_LOW_CONFIDENCE')).toHaveLength(6);
+    // The engine's golden list (packages/engine/test/golden.test.ts) has 8: it also counts HRS-CL-014-3059-30387
+    // and HRS-CL-005-3174-30354, whose only misfit is the repeated 30 Apr row. The importer folds that row first
+    // (DUPLICATE_PERIOD), so their rules fit exactly.
+    const toReview = pending.plan.obligations
+      .filter((o) => o.ruleStatus === 'TO_REVIEW')
+      .map((o) => o.externalRef)
+      .sort();
+    expect(toReview).toEqual([
+      'EHS-CL-017-2025-20452',
+      'EHS-CL-017-2317-22813',
+      'HRS-CL-019-3058-30396',
+      'HRS-WB-032-3238-32430',
+      'TAX-CL-033-6067-60218',
+      'TAX-CL-033-6067-61259',
+    ]);
+    expect(pending.plan.obligations.filter((o) => o.ruleStatus === 'CONFIRMED')).toHaveLength(113);
   });
 
   it('normalises the four "HIGH" rows and proposes one ALIAS per spelling family', () => {

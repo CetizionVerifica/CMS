@@ -10,7 +10,7 @@ the original values, so every count in `docs/contracts/fixtures.md` §2 and §3 
 for 12 people, 11 approver spellings for 10, 21 people, one person who is both, no near-match names).
 
 Why: root `CLAUDE.md` rule 6 treats employee names as personal data, and a fixture is copied into every clone,
-CI log and test snapshot. See `docs/adr/0001-pseudonymised-sample-register.md`.
+CI log and test snapshot. See `docs/adr/0002-pseudonymised-sample-register.md`.
 
 Rebuild it from the original (kept outside the repo) with:
 

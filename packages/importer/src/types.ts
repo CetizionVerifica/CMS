@@ -154,7 +154,15 @@ export interface PlanInstance {
   comments: string[];
 }
 
+/** The span a register covers; `inferRule` scores candidate rules over it. */
+export interface Coverage {
+  from: LocalDate;
+  to: LocalDate;
+}
+
 export interface ImportPlan {
+  /** What `inferRule` was given: the input's coverage, else whole FYs around the due dates; null without rows. */
+  coverage: Coverage | null;
   acts: PlanAct[];
   categories: PlanNamed[];
   departments: PlanNamed[];
