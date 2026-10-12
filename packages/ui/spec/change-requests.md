@@ -67,3 +67,7 @@ Spec 12's week groups had no place for items due before today, which landed unde
 ## CR-15 · Toast queue
 
 Spec 17 said older toasts collapse but not whether they return. A toast pushed out of the newest three is now gone for good (it never reappears later with a fresh timer); errors wait for a slot, up to 10 queued. Spec 17 updated.
+
+## CR-16 · DeadlineList Overdue follows the engine status
+
+CR-14 put every item due before `today` under "Overdue", so the UI decided a status from the date (root rule 3) and called a submitted or sent-back item overdue. "Overdue" now holds only items whose status is `OVERDUE`. Other items due before this week go under a new "Earlier" group, and those due earlier this week stay in "This week". Spec 12 updated.
