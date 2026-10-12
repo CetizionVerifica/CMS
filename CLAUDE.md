@@ -94,7 +94,8 @@ audit comment and fix its findings.
 
 Merging is automatic (`.github/workflows/auto-merge.yml`): every ready PR gets GitHub auto-merge and joins the merge
 queue on `main` once `ci-ok` is green. Auto-merge is turned on with the `AUTOMERGE_TOKEN` secret, never `GITHUB_TOKEN`:
-a PR queued as `GITHUB_TOKEN` gets no merge-queue CI run and blocks the queue. Until that secret exists, the thread that
+a PR queued as `GITHUB_TOKEN` gets no merge-queue CI run and blocks the queue. The secret lives in the `automerge`
+environment, which only `main` may use, and only jobs that declare `environment: automerge` can read it. If it is missing, the thread that
 owns a PR turns auto-merge on itself (`PUT /repos/CetizionVerifica/CMS/pulls/<n>/ccr/auto_merge` with
 `merge_method=squash`) once the PR is ready. The queue re-runs CI on the PR combined with `main` and the PRs ahead of it, then
 squash-merges, so two PRs that pass alone but break together never both land. Changes to contracts, `packages/db`,
