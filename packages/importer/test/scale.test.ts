@@ -4,7 +4,8 @@ import { analyse, stubInferRule } from './helpers.js';
 
 /**
  * The API re-runs analyseImport after every review change, so it must stay close to linear in rows.
- * 20,000 rows took 6 s before the audit fix (quadratic issue bookkeeping) and about 0.7 s after it.
+ * 20,000 rows took 6 s before the audit fix (quadratic issue bookkeeping) and about 0.7 s after it; with
+ * quadratic bookkeeping 8 times the rows took about 20 times as long.
  * This measures the importer's own work, so it uses the stub inferRule; the engine's cost per distinct schedule
  * is the engine's (calls are memoised per run, see analyse.test.ts).
  */
@@ -61,16 +62,33 @@ function largeSheet(rows: number, people: number): SourceSheet {
   };
 }
 
-describe('scale', () => {
-  it('analyses 20,000 rows in well under the old 6 seconds', () => {
-    const sheet = largeSheet(20_000, 500);
+/** Best of `runs` timings, so one slow moment on a shared runner does not decide the result. */
+function bestTime(sheet: SourceSheet, runs: number): number {
+  let best = Number.POSITIVE_INFINITY;
+  for (let i = 0; i < runs; i++) {
     const started = performance.now();
-    const analysis = analyse(sheet, { inferRule: stubInferRule });
-    const elapsed = performance.now() - started;
+    analyse(sheet, { inferRule: stubInferRule });
+    best = Math.min(best, performance.now() - started);
+  }
+  return best;
+}
+
+describe('scale', () => {
+  it('analyses 20,000 rows completely', () => {
+    const analysis = analyse(largeSheet(20_000, 500), { inferRule: stubInferRule });
     expect(analysis.plan.instances).toHaveLength(20_000);
     expect(analysis.issues.find((i) => i.type === 'FILE_NOT_ATTACHED')?.rowNumbers).toHaveLength(
       20_000,
     );
-    expect(elapsed).toBeLessThan(3_000);
-  }, 30_000);
+  }, 60_000);
+
+  // Compares the machine with itself instead of a wall-clock limit, so a slow runner cannot fail it:
+  // 8 times the rows costs about 8 times the time when analysis is linear, and 64 times when quadratic.
+  it('grows close to linearly with the number of rows', () => {
+    const small = largeSheet(2_500, 500);
+    const large = largeSheet(20_000, 500);
+    bestTime(small, 1); // warm up the JIT
+    const ratio = bestTime(large, 2) / bestTime(small, 3);
+    expect(ratio).toBeLessThan(24);
+  }, 120_000);
 });
