@@ -10,8 +10,10 @@ on:
   # alone but break together never both land.
   merge_group:
 
+# A new push cancels the PR's older run. A re-run (attempt 2+, e.g. audit-verdict.yml re-checking the audit) gets a
+# group of its own, so it never cancels the run for a newer push, nor is cancelled by it.
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ci-${{ github.ref }}${{ github.run_attempt != '1' && format('-rerun-{0}', github.run_id) || '' }}
   cancel-in-progress: true
 
 permissions:
