@@ -54,3 +54,10 @@ details `{ firms: [{ id, name }] }`) for a login whose email signs in to more th
 
 The mock answers the §5 codes the real API sends for body rejections: 422 `REASON_REQUIRED` for a missing or blank
 `reason`, 413 `FILE_TOO_LARGE` and 415 `UNSUPPORTED_FILE` for uploads; other schema failures stay 400 `VALIDATION`.
+
+## 1.4.0 · 2026-10-12
+For M9: `NotificationKind` gains `APPROVAL_REQUESTED` (to the approver on `instance.submitted`) and `SENT_BACK` (to the
+owner on `instance.sent_back`). These event-driven kinds dedupe on `(sourceEventId, recipientId)`
+(`EVENT_NOTIFICATION_DEDUPE_KEY`, events.md §4 rule 4), and `notification.sent` carries `sourceEventId`. Additive; the
+scheduled-kind key `NOTIFICATION_DEDUPE_KEY` is unchanged. `packages/db` derives its `notification_kind` enum from
+this list, so it needs a migration adding the two values.

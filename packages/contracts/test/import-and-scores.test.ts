@@ -10,6 +10,10 @@ import {
   ImportRow,
   MappingTemplate,
   PlannedNotification,
+  EVENT_NOTIFICATION_DEDUPE_KEY,
+  EVENT_NOTIFICATION_KINDS,
+  NOTIFICATION_DEDUPE_KEY,
+  NotificationKind,
   PortfolioRow,
   RequestContext,
   Resource,
@@ -237,5 +241,16 @@ describe('request context', () => {
     };
     expect(CONTRACTS_VERSION).toBe(pkg.version);
     expect(CONTRACTS_VERSION).toMatch(/^1\./);
+  });
+});
+
+describe('notification dedupe keys', () => {
+  it('keys scheduled kinds by instance, kind, date and recipient, and event-driven kinds by source event', () => {
+    expect(NOTIFICATION_DEDUPE_KEY).toEqual(['instanceId', 'kind', 'sendDate', 'recipientId']);
+    expect(EVENT_NOTIFICATION_DEDUPE_KEY).toEqual(['sourceEventId', 'recipientId']);
+    expect(EVENT_NOTIFICATION_KINDS.every((k) => NotificationKind.options.includes(k))).toBe(true);
+    expect(NotificationKind.options).toEqual(
+      expect.arrayContaining(['APPROVAL_REQUESTED', 'SENT_BACK', 'OWNER_REMINDER']),
+    );
   });
 });

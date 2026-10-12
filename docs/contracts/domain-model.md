@@ -49,7 +49,7 @@ Rules: no `any`; unknown keys rejected at the edge; strings trimmed; empty strin
 | `ImportRowOutcome` | `PENDING`, `CREATE`, `UPDATE`, `UNCHANGED`, `SKIPPED`, `ERROR` | Set by dry run, confirmed by commit. |
 | `ImportIssueType` | see §6 | |
 | `IssueSeverity` | `INFO`, `WARNING`, `ERROR` | `ERROR` blocks the row; `WARNING` needs a decision; `INFO` is shown only. |
-| `NotificationKind` | `OWNER_REMINDER`, `APPROVER_ESCALATION`, `CONSULTANT_DIGEST`, `INVITE`, `MAGIC_LINK`, `EXPORT_READY` | |
+| `NotificationKind` | `OWNER_REMINDER`, `APPROVER_ESCALATION`, `CONSULTANT_DIGEST`, `INVITE`, `MAGIC_LINK`, `EXPORT_READY`, `APPROVAL_REQUESTED`, `SENT_BACK` | |
 | `ExportKind` | `REGISTER_XLSX`, `CERTIFICATE_PDF`, `ACT_REPORT_XLSX`, `DEPARTMENT_REPORT_XLSX`, `OVERDUE_REPORT_XLSX` | |
 | `JobStatus` | `QUEUED`, `RUNNING`, `DONE`, `FAILED` | Exports and imports. |
 

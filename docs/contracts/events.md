@@ -82,7 +82,7 @@ interface DomainEvent<T extends string, D> {
 ### Notifications (producer M9)
 | Type | `data` | Consumers |
 |---|---|---|
-| `notification.sent` | `{ kind: NotificationKind, recipientId, instanceId: Id \| null, sendDate: LocalDate }` | — (send log; dedupe key `(instanceId, kind, sendDate, recipientId)`) |
+| `notification.sent` | `{ kind: NotificationKind, recipientId, instanceId: Id \| null, sendDate: LocalDate, sourceEventId: Id \| null }` | — (send log; dedupe key per rule 4) |
 
 ## 4. Rules
 1. Add a type only through an M0 change request; never rename one (add `schemaVersion: 2` alongside instead).
@@ -90,5 +90,9 @@ interface DomainEvent<T extends string, D> {
 3. Bulk operations emit one event per item plus at most one summary event.
 4. Notifications are deduplicated on `(instanceId, kind, sendDate, recipientId)` (`NOTIFICATION_DEDUPE_KEY`), the
    recipient included: after a same-day reassignment the new owner or approver is still reminded. A store's unique
-   index must cover all four columns.
+   index must cover all four columns. That key is for scheduled kinds. Event-driven kinds (`EVENT_NOTIFICATION_KINDS`:
+   `APPROVAL_REQUESTED` to the approver on `instance.submitted`, `SENT_BACK` to the owner on `instance.sent_back`)
+   dedupe on `(sourceEventId, recipientId)` (`EVENT_NOTIFICATION_DEDUPE_KEY`), the id of the event that caused them,
+   so a redelivered event sends nothing and each new submission or send-back notifies once. `sourceEventId` is null
+   for scheduled kinds.
 5. Importer commit emits domain events with `actor.kind = "IMPORT"`, but M9 must **not** send reminders for instances created as already APPROVED or NOT_APPLICABLE (engine already returns none for them).
