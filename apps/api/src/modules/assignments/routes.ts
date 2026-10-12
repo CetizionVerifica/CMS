@@ -9,7 +9,7 @@ import type { z } from 'zod';
 import { compareDates } from '@canopy/engine';
 import type { FastifyInstance } from 'fastify';
 import { unitScope } from '../entities/http/access.js';
-import { duplicate, HttpError, invalid } from '../entities/http/errors.js';
+import { fromDuplicate, HttpError, invalid } from '../entities/http/errors.js';
 import { pageOf } from '../entities/http/page.js';
 import { mount, type M6Deps } from '../entities/http/route.js';
 import { emit } from '../entities/events.js';
@@ -88,7 +88,7 @@ export function assignmentRoutes(app: FastifyInstance, deps: M6Deps): void {
     return store.transaction(ctx, async (tx) => {
       await getLive(tx.clients, clientId);
       return pageOf(tx.assignments, query, {
-        orderBy: 'createdAt',
+        orderBy: 'id',
         where: {
           clientId,
           ...(units ? { unitId: units } : {}),
@@ -120,8 +120,7 @@ export function assignmentRoutes(app: FastifyInstance, deps: M6Deps): void {
         const created = await store.transaction(call.ctx, (tx) => create(tx, clientId, item));
         results.push({ index, ok: true, item: created });
       } catch (thrown) {
-        const error =
-          thrown instanceof DuplicateError ? duplicate(thrown.field, thrown.existingId) : thrown;
+        const error = thrown instanceof DuplicateError ? fromDuplicate(thrown) : thrown;
         if (!(error instanceof HttpError)) throw thrown;
         results.push({ index, ok: false, error: { code: error.code, message: error.message } });
       }

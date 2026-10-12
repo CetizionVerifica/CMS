@@ -108,6 +108,16 @@ export interface EventInput {
   data: Record<string, unknown>;
 }
 
+export interface PersonReach {
+  clientIds: Id[];
+  firmStaff: boolean;
+  /**
+   * True when the store could see only part of the firm, so `clientIds` may leave out clients outside the context and
+   * `firmStaff` may be false for firm staff. Person writes are then refused to everyone but a firm admin (ADR 0006).
+   */
+  partial: boolean;
+}
+
 export interface Tx {
   clients: Repo<Client>;
   companies: Repo<Company>;
@@ -128,10 +138,17 @@ export interface Tx {
   /**
    * Where a person belongs across the whole firm, whatever the caller's context: every client where they have a live
    * membership, assignment or instance, and whether they hold a firm role. M6 uses it to refuse person writes that
-   * would reach past the actor's clients; on Postgres it needs a narrow security-definer function from M3, since
-   * a client context cannot see the other clients' rows.
+   * would reach past the actor's clients.
    */
-  personReach(personId: Id): Promise<{ clientIds: Id[]; firmStaff: boolean }>;
+  personReach(personId: Id): Promise<PersonReach>;
+  /**
+   * Creates a person together with their first membership of a client. A client context can see a person only once
+   * a membership links them to its client, so the two rows go in together.
+   */
+  createPersonInClient(
+    person: NewRow<Person>,
+    membership: Omit<NewRow<Membership>, 'personId'>,
+  ): Promise<{ person: Person; membership: Membership }>;
   /** Obligations with an active assignment in a client the context can see. */
   assignedObligationIds(): Promise<Id[]>;
   /** Appends an audit row in this transaction (root CLAUDE.md non-negotiable 2). */
@@ -145,11 +162,14 @@ export interface Store {
   transaction<T>(ctx: RequestContext, fn: (tx: Tx) => Promise<T>): Promise<T>;
 }
 
-/** A unique rule was broken (409 DUPLICATE). */
+/**
+ * A unique rule was broken (409 DUPLICATE). `existingId` is null when the existing row is one the context cannot see,
+ * so its id is not revealed.
+ */
 export class DuplicateError extends Error {
   constructor(
     readonly field: string,
-    readonly existingId: Id,
+    readonly existingId: Id | null,
   ) {
     super(`Duplicate ${field}`);
     this.name = 'DuplicateError';

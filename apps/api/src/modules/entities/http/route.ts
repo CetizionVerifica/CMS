@@ -4,7 +4,7 @@ import type { z } from 'zod';
 import { ApiError, can, errorEnvelope as apiErrorEnvelope } from '../../../auth/index.js';
 import { DuplicateError, type Store } from '../store.js';
 import { authorize } from './access.js';
-import { duplicate, fromZod, HttpError } from './errors.js';
+import { fromDuplicate, fromZod, HttpError } from './errors.js';
 
 /**
  * What the M6 routes need from the app. The actor comes from M5's `req.ctx` (its session hook answers 401, MFA and
@@ -81,8 +81,7 @@ export function errorEnvelope(thrown: unknown, requestId: string) {
   if (thrown instanceof ApiError) {
     return { status: thrown.statusCode, body: apiErrorEnvelope(thrown, requestId) };
   }
-  const error =
-    thrown instanceof DuplicateError ? duplicate(thrown.field, thrown.existingId) : thrown;
+  const error = thrown instanceof DuplicateError ? fromDuplicate(thrown) : thrown;
   if (error instanceof HttpError) {
     return {
       status: error.status,

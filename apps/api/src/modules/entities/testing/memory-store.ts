@@ -1,5 +1,6 @@
-import { randomUUID } from 'node:crypto';
 import type { ComplianceInstance, Id, Membership, Person, RequestContext } from '@canopy/contracts';
+import { uuidv7 } from '@canopy/db';
+import { checkListFields } from '../list-fields.js';
 import {
   DuplicateError,
   type AuditInput,
@@ -282,7 +283,8 @@ export class MemoryStore implements Store {
       case 'firmWide':
         return scope.staff || (inserting && policy.insert === 'any');
       case 'person': {
-        if (inserting || scope.staff) return true;
+        // A client context adds a person only with their first membership (createPersonInClient).
+        if (inserting || scope.staff) return scope.staff;
         if (!this.canRead(table, row, scope) || this.hasFirmRole(row.id, scope.firmId))
           return false;
         return (
@@ -295,7 +297,8 @@ export class MemoryStore implements Store {
     }
   }
 
-  private checkUnique(table: TableName, row: Row): void {
+  /** A clash with a row the context cannot see reports no id, as on Postgres. */
+  private checkUnique(table: TableName, row: Row, scope: Scope): void {
     for (const unique of TABLES[table].uniques as Unique[]) {
       const key = unique.key(row);
       if (key === null || row.archivedAt !== null) continue;
@@ -306,10 +309,26 @@ export class MemoryStore implements Store {
           other.archivedAt === null &&
           unique.key(other) === key
         ) {
-          throw new DuplicateError(unique.field, other.id);
+          throw new DuplicateError(
+            unique.field,
+            this.canRead(table, other, scope) ? other.id : null,
+          );
         }
       }
     }
+  }
+
+  private newRow(table: TableName, values: object, scope: Scope): Row {
+    const now = this.now();
+    return {
+      ...(values as Record<string, unknown>),
+      id: uuidv7(),
+      firmId: scope.firmId,
+      createdAt: now,
+      updatedAt: now,
+      archivedAt: null,
+      ...(TABLES[table].versioned ? { version: 1 } : {}),
+    };
   }
 
   private repo<T extends { id: Id }>(table: TableName, scope: Scope): Repo<T> {
@@ -326,6 +345,7 @@ export class MemoryStore implements Store {
           .filter((r) => r.archivedAt === null && matches(r, where as Where<Row>))
           .map(out),
       list: async (query: ListQuery<T>): Promise<ListResult<T>> => {
+        checkListFields(table, query);
         const key = (r: Row) => String(r[query.orderBy] ?? '');
         const text = query.search?.text.toLowerCase();
         const filtered = visible()
@@ -354,20 +374,11 @@ export class MemoryStore implements Store {
         };
       },
       insert: async (values: NewRow<T>) => {
-        const now = this.now();
-        const row: Row = {
-          ...(values as Record<string, unknown>),
-          id: randomUUID(),
-          firmId: scope.firmId,
-          createdAt: now,
-          updatedAt: now,
-          archivedAt: null,
-          ...(TABLES[table].versioned ? { version: 1 } : {}),
-        };
+        const row = this.newRow(table, values, scope);
         if (!this.canWrite(table, row, scope, true)) {
           throw new Error(`Row-level security refused an insert into ${table}`);
         }
-        this.checkUnique(table, row);
+        this.checkUnique(table, row, scope);
         rows().set(row.id, row);
         return out(row);
       },
@@ -387,7 +398,7 @@ export class MemoryStore implements Store {
           updatedAt: this.now(),
         };
         if (!this.canWrite(table, next, scope, false)) return null;
-        this.checkUnique(table, next);
+        this.checkUnique(table, next, scope);
         rows().set(id, next);
         return out(next);
       },
@@ -471,7 +482,19 @@ export class MemoryStore implements Store {
       personReach: async (personId) => ({
         clientIds: [...this.personClients(personId, scope.firmId)],
         firmStaff: this.hasFirmRole(personId, scope.firmId),
+        partial: false,
       }),
+      createPersonInClient: async (person, membership) => {
+        const row = this.newRow('people', person, scope);
+        this.checkUnique('people', row, scope);
+        this.data.tables.people.set(row.id, row);
+        // The membership insert checks the client; a refusal rolls the person back with the transaction.
+        const created = await repo<Membership>('memberships').insert({
+          ...membership,
+          personId: row.id,
+        });
+        return { person: structuredClone(row) as unknown as Person, membership: created };
+      },
       firmStaffIds: async () =>
         [...this.data.tables.people.values()]
           .filter((p) => p.firmId === scope.firmId && this.hasFirmRole(p.id, scope.firmId))

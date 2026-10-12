@@ -15,7 +15,7 @@ import { duplicate, forbidden, HttpError, invalid, notFound } from '../entities/
 import { pageOf } from '../entities/http/page.js';
 import { mount, type Call, type M6Deps } from '../entities/http/route.js';
 import { emit } from '../entities/events.js';
-import type { Tx } from '../entities/store.js';
+import type { PersonReach, Tx } from '../entities/store.js';
 import { auditedInsert, auditedUpdate, getLive, instantOf } from '../entities/write.js';
 import { replacePersonEverywhere } from './merge.js';
 
@@ -51,7 +51,8 @@ type PersonCall = Pick<Call<never>, 'ctx' | 'authorize'>;
  * Checks a route on one person (endpoints.md §3). A firm admin reaches everyone. Anyone else, consultants included,
  * reaches only people of the clients they work in; firm staff (people holding a firm role) are changed by a firm admin
  * alone. A write must stay inside the actor's clients, because a person shared with another client is that client's
- * person too. A person the actor cannot see is 404.
+ * person too. A person the actor cannot see is 404. When the store sees only part of the firm (`reach.partial`), only
+ * a firm admin may write. Returns the person's reach, or null for a firm admin.
  */
 async function authorizePerson(
   tx: Tx,
@@ -59,11 +60,11 @@ async function authorizePerson(
   type: 'person' | 'membership',
   personId: Id,
   access: 'read' | 'write',
-): Promise<void> {
+): Promise<PersonReach | null> {
   const { ctx } = call;
   if (hasRole(ctx, 'FIRM_ADMIN')) {
     call.authorize({ type, clientId: null });
-    return;
+    return null;
   }
   const reach = await tx.personReach(personId);
   if (reach.firmStaff) {
@@ -71,16 +72,22 @@ async function authorizePerson(
     if (!isFirmStaff(ctx)) throw notFound();
     if (access === 'write') throw forbidden(`${type}.write`);
     call.authorize({ type, clientId: null });
-    return;
+    return reach;
   }
   const mine = reach.clientIds.filter((clientId) => ctx.clientIds.includes(clientId));
   if (mine.length === 0) throw notFound();
+  if (access === 'write' && reach.partial) {
+    throw new HttpError('FORBIDDEN', 'Only a firm admin can change this person.', {
+      action: `${type}.write`,
+    });
+  }
   if (access === 'write' && mine.length < reach.clientIds.length) {
     throw new HttpError('FORBIDDEN', 'This person also belongs to a client you do not manage.', {
       action: `${type}.write`,
     });
   }
   for (const clientId of mine) call.authorize({ type, clientId });
+  return reach;
 }
 
 export function peopleRoutes(app: FastifyInstance, deps: M6Deps): void {
@@ -188,34 +195,35 @@ export function peopleRoutes(app: FastifyInstance, deps: M6Deps): void {
     if (!canGrantRole(ctx, body.role, clientId)) throw forbidden('membership.write');
     return store.transaction(ctx, async (tx) => {
       await getLive(tx.clients, clientId);
-      const person = await auditedInsert(
-        tx,
-        tx.people,
-        'person',
-        {
-          displayName: body.displayName,
-          nameNormalized: normalizeName(body.displayName),
-          email: body.email,
-          status: statusForEmail(null, body.email),
-        },
-        () => clientId,
-      );
+      const values = {
+        displayName: body.displayName,
+        nameNormalized: normalizeName(body.displayName),
+        email: body.email,
+        status: statusForEmail(null, body.email),
+      };
       // A person belongs to a client through a membership (ADR 0006): the role asked for (OWNER by default, the role
       // imported people have) on every unit; PATCH /memberships/{id} narrows the units.
-      const membership = await auditedInsert(
-        tx,
-        tx.memberships,
-        'membership',
-        {
-          personId: person.id,
-          role: body.role,
+      const grant = {
+        role: body.role,
+        clientId,
+        consultantClientIds: null,
+        unitIds: null,
+        expiresAt: null,
+      };
+      const { person, membership } = await tx.createPersonInClient(values, grant);
+      for (const [entityType, entityId, after] of [
+        ['person', person.id, values],
+        ['membership', membership.id, { personId: person.id, ...grant }],
+      ] as const) {
+        await tx.audit({
           clientId,
-          consultantClientIds: null,
-          unitIds: null,
-          expiresAt: null,
-        },
-        () => clientId,
-      );
+          action: 'CREATE',
+          entityType,
+          entityId,
+          before: null,
+          after: { ...after },
+        });
+      }
       await membershipEvent(tx, membership, 'GRANTED');
       return person;
     });
@@ -298,10 +306,9 @@ export function peopleRoutes(app: FastifyInstance, deps: M6Deps): void {
       const person = await getLive(tx.people, call.params.id as Id);
       // A grant links the person to another client, so the actor must already reach them; and firm staff take client
       // roles from a firm admin only.
-      await authorizePerson(tx, call, 'membership', person.id, 'read');
-      if (!hasRole(ctx, 'FIRM_ADMIN') && (await tx.personReach(person.id)).firmStaff) {
-        throw forbidden('membership.write');
-      }
+      const reach = await authorizePerson(tx, call, 'membership', person.id, 'read');
+      // A partial reach may miss a firm role, so only a firm admin grants then.
+      if (reach !== null && (reach.firmStaff || reach.partial)) throw forbidden('membership.write');
       await checkGrant(tx, body);
       const existing = (await tx.memberships.findAll({ personId: person.id })).find(
         (m) => m.role === body.role && m.clientId === body.clientId,
