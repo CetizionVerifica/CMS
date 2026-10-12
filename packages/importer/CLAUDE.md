@@ -55,7 +55,8 @@ Root `CLAUDE.md` applies. Field mapping and data quirks: `docs/requirements/exce
 - Natural keys (`keys.ts`) are shared with the API, which derives the same keys from stored rows for
   `ExistingState`.
 - The API module (`apps/api/src/modules/imports`, ADR M8-0001) runs parse in the background and re-runs
-  `analyseImport` after every review decision. For the commit PR: refuse commit unless `isReviewed(issues)`.
+  `analyseImport` after every review decision. Commit (ADR M8-0002) needs a stored dry run, so it runs only on a
+  reviewed batch, and writes the plan in one transaction.
 - The golden fixture is pseudonymised (`fixtures/README.md`, ADR 0002).
 
 ## Tests

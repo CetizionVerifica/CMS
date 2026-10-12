@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import {
+  DryRunReport,
   ImportBatch,
   ImportIssueGroup,
   ImportRow,
@@ -145,6 +146,43 @@ describe('import API', { timeout: 30_000 }, () => {
     const res = await call('GET', `/imports/${id}/issues${query}`);
     expect(res.statusCode).toBe(200);
     return z.strictObject({ items: z.array(ImportIssueGroup) }).parse(res.json()).items;
+  }
+
+  /** Decides every pending group as the recommended profile would; ERROR rows are skipped. */
+  async function reviewed(id: string) {
+    await parsed(id);
+    return decideAll(id);
+  }
+
+  async function decideAll(id: string) {
+    for (let round = 0; round < 5; round++) {
+      const pending = await groups(id, '?decision=PENDING');
+      if (pending.length === 0) break;
+      for (const group of pending) {
+        const body =
+          group.severity === 'ERROR' || group.proposal === null
+            ? { decision: 'REJECTED' }
+            : { decision: 'ACCEPTED' };
+        await call('PATCH', `/imports/${id}/issues/${group.groupKey}`, body);
+      }
+    }
+    const batch = ImportBatch.parse((await call('GET', `/imports/${id}`)).json());
+    expect(batch.status).toBe('REVIEWED');
+    return batch;
+  }
+
+  async function dryRun(id: string) {
+    const res = await call('POST', `/imports/${id}/dry-run`);
+    expect(res.statusCode).toBe(200);
+    return DryRunReport.parse(res.json());
+  }
+
+  async function committed(id: string) {
+    const res = await call('POST', `/imports/${id}/commit`);
+    expect(res.statusCode).toBe(202);
+    expect(ImportBatch.parse(res.json()).status).toBe('COMMITTING');
+    await h.settle();
+    return ImportBatch.parse((await call('GET', `/imports/${id}`)).json());
   }
 
   it('walks the sample register from upload to REVIEWED', async () => {
@@ -400,6 +438,107 @@ describe('import API', { timeout: 30_000 }, () => {
     expect(h.store.rows.size).toBe(0);
   });
 
+  it('dry-runs, commits once and re-imports the same register unchanged', async () => {
+    const id = await upload();
+    await reviewed(id);
+    const report = await dryRun(id);
+    expect(report.create.instances).toBe(422);
+    expect(report.blockingErrors).toBe(0);
+    const ready = ImportBatch.parse((await call('GET', `/imports/${id}`)).json());
+    expect(ready).toMatchObject({ status: 'DRY_RUN_READY', dryRun: report });
+    // A dry run can be repeated until commit.
+    expect(await dryRun(id)).toEqual(report);
+
+    const batch = await committed(id);
+    expect(batch.status).toBe('COMMITTED');
+    expect(batch.committedAt).not.toBeNull();
+    expect(h.store.commits).toHaveLength(1);
+    const commit = h.store.commits[0]!;
+    expect(commit.plan.instances).toHaveLength(422);
+    expect(commit.instanceChanges.size).toBe(0);
+    const rows = [...h.store.rows.values()].filter((r) => r.batchId === id);
+    const linked = rows.filter((r) => r.targetInstanceId !== null);
+    expect(new Set(linked.map((r) => r.targetInstanceId)).size).toBe(422);
+    expect(rows.filter((r) => r.outcome === 'CREATE').length).toBeGreaterThanOrEqual(422);
+
+    // Committing again is a no-op that returns the batch.
+    const again = await call('POST', `/imports/${id}/commit`);
+    expect(again.statusCode).toBe(202);
+    expect(ImportBatch.parse(again.json()).status).toBe('COMMITTED');
+    await h.settle();
+    expect(h.store.commits).toHaveLength(1);
+    expect((await call('POST', `/imports/${id}/cancel`)).json().error.code).toBe('IMPORT_STATE');
+
+    // The same register again: nothing to create or update.
+    const second = await upload();
+    await reviewed(second);
+    const repeat = await dryRun(second);
+    expect(repeat.create.instances).toBe(0);
+    expect(repeat.update).toEqual({ obligations: 0, assignments: 0, instances: 0 });
+    expect(repeat.unchanged.instances).toBe(422);
+    await committed(second);
+    expect(h.store.commits[1]?.instanceChanges.size).toBe(0);
+    expect(h.errors).toEqual([]);
+  });
+
+  it('refuses dry run and commit out of order', async () => {
+    const id = await upload();
+    await parsed(id);
+    expect((await call('POST', `/imports/${id}/dry-run`)).json().error).toMatchObject({
+      code: 'IMPORT_STATE',
+      details: { status: 'PARSED', expected: ['REVIEWED', 'DRY_RUN_READY'] },
+    });
+    await decideAll(id);
+    expect((await call('POST', `/imports/${id}/commit`)).json().error).toMatchObject({
+      code: 'IMPORT_STATE',
+      details: { status: 'REVIEWED', expected: ['DRY_RUN_READY'] },
+    });
+    // A decision after the dry run drops it: the batch is REVIEWED again.
+    await dryRun(id);
+    const group = (await groups(id, '?type=RULE_LOW_CONFIDENCE'))[0]!;
+    await call('PATCH', `/imports/${id}/issues/${group.groupKey}`, { decision: 'ACCEPTED' });
+    const batch = ImportBatch.parse((await call('GET', `/imports/${id}`)).json());
+    expect(batch).toMatchObject({ status: 'REVIEWED', dryRun: null });
+  });
+
+  it('blocks a commit while rows have errors', async () => {
+    const id = await upload();
+    await reviewed(id);
+    await dryRun(id);
+    const issue = [...h.store.issues.values()].find((i) => i.batchId === id)!;
+    const row = [...h.store.rows.values()].find((r) => r.batchId === id)!;
+    h.store.rows.set(row.id, { ...row, outcome: 'ERROR', issueIds: [issue.id] });
+    const res = await call('POST', `/imports/${id}/commit`);
+    expect(res.statusCode).toBe(422);
+    expect(res.json().error).toMatchObject({
+      code: 'IMPORT_BLOCKED',
+      details: { blockingIssueIds: [issue.id] },
+    });
+    expect(h.store.commits).toHaveLength(0);
+  });
+
+  it('marks the batch FAILED when the commit fails, having written nothing', async () => {
+    const id = await upload();
+    await reviewed(id);
+    await dryRun(id);
+    h.store.failNextCommit = new Error('database went away');
+    const batch = await committed(id);
+    expect(batch).toMatchObject({ status: 'FAILED', failureCode: 'INTERNAL' });
+    expect(h.store.commits).toHaveLength(0);
+    expect(h.errors).toHaveLength(1);
+  });
+
+  it('starts one commit per batch', async () => {
+    const id = await upload();
+    await reviewed(id);
+    await dryRun(id);
+    await call('POST', `/imports/${id}/commit`);
+    await call('POST', `/imports/${id}/commit`);
+    await h.settle();
+    expect(h.store.commits).toHaveLength(1);
+    expect(h.store.batches.get(id)?.status).toBe('COMMITTED');
+  });
+
   describe('roles', () => {
     it('lets a consultant import for their clients only', async () => {
       const consultant = h.headers('CONSULTANT');
@@ -417,6 +556,60 @@ describe('import API', { timeout: 30_000 }, () => {
       expect((await call('GET', `/imports/${id}`, undefined, consultant)).statusCode).toBe(200);
     });
 
+    it('lets a consultant commit but keeps firm-wide templates to firm admins', async () => {
+      const consultant = h.headers('CONSULTANT');
+      const id = await upload();
+      await reviewed(id);
+      expect((await call('POST', `/imports/${id}/dry-run`, undefined, consultant)).statusCode).toBe(
+        200,
+      );
+      expect((await call('POST', `/imports/${id}/commit`, undefined, consultant)).statusCode).toBe(
+        202,
+      );
+      await h.settle();
+      const mapping = [{ sourceHeader: 'Act', field: 'act' }];
+      const firm = await call(
+        'POST',
+        `/clients/${h.clientId}/mapping-templates`,
+        { name: 'Firm wide', mapping, scope: 'FIRM' },
+        consultant,
+      );
+      expect(firm.statusCode).toBe(403);
+      const own = await call(
+        'POST',
+        `/clients/${h.clientId}/mapping-templates`,
+        { name: 'Client one', mapping, scope: 'CLIENT' },
+        consultant,
+      );
+      expect(own.statusCode).toBe(201);
+      const created = await call('POST', `/clients/${h.clientId}/mapping-templates`, {
+        name: 'Firm wide',
+        mapping,
+        scope: 'FIRM',
+      });
+      const rename = await call(
+        'PATCH',
+        `/mapping-templates/${MappingTemplate.parse(created.json()).id}`,
+        { version: 1, name: 'Mine now' },
+        consultant,
+      );
+      expect(rename.statusCode).toBe(403);
+
+      const next = await upload();
+      const preview = await uploaded(next);
+      const save = await call(
+        'PUT',
+        `/imports/${next}/mapping`,
+        {
+          sheetName: preview.sheets[0]?.name,
+          mapping: preview.suggestedMapping,
+          saveAsTemplate: { name: 'Firm grid', scope: 'FIRM' },
+        },
+        consultant,
+      );
+      expect(save.statusCode).toBe(403);
+    });
+
     it.each(['CLIENT_ADMIN', 'APPROVER', 'OWNER', 'VIEWER'] as const)(
       'forbids %s',
       async (role) => {
@@ -431,6 +624,11 @@ describe('import API', { timeout: 30_000 }, () => {
           headers,
         );
         expect(start.statusCode).toBe(403);
+        for (const step of ['dry-run', 'commit']) {
+          expect(
+            (await call('POST', `/imports/${id}/${step}`, undefined, headers)).statusCode,
+          ).toBe(403);
+        }
         expect(
           (await call('GET', `/clients/${h.clientId}/mapping-templates`, undefined, headers))
             .statusCode,

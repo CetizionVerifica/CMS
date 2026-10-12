@@ -1,11 +1,14 @@
 # apps/api/src/modules/imports: import API (M8)
 
-`apps/api/CLAUDE.md`, `packages/importer/CLAUDE.md` and the root `CLAUDE.md` apply. Decisions: `docs/adr/M8-0001-import-api.md`.
+`apps/api/CLAUDE.md`, `packages/importer/CLAUDE.md` and the root `CLAUDE.md` apply. Decisions: `docs/adr/M8-0001-import-api.md`
+(upload, parse, review) and `docs/adr/M8-0002-import-commit.md` (dry run, commit, periods, firm templates).
 
 - `steps.ts`: the steps of endpoints.md §5 over an `ImportStore`. Checks permissions (`import.*`), the client and
   the step order (`409 IMPORT_STATE`). No database code here.
 - `service.ts`: `repositoryStore(db)`, the `ImportStore` on the M3 repositories. The only database code; covered by
-  `pnpm --filter @canopy/api test:db` (`imports.db.test.ts`).
+  `pnpm --filter @canopy/api test:db` (`imports.db.test.ts`). `existingState` loads the client's stored data under
+  the importer's natural keys; `commit` writes a plan in the caller's transaction with an `AuditEvent` per change.
+- Firm-wide mapping templates (`clientId: null`) need FIRM_ADMIN; commit needs only `import.commit`.
 - `files.ts`: upload storage. `s3ImportFiles` for S3-compatible storage, `MemoryImportFiles` for tests.
 - `routes.ts`: thin routes, parsed with the contract schemas.
 - Tests: `imports.test.ts` walks every step and role on `testing/memory-store.ts`.
