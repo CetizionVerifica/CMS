@@ -16,7 +16,7 @@ export const INSTANCE_ACTION_POLICY: Readonly<Record<InstanceAction, Action>> = 
   SEND_BACK: 'instance.approve',
   REOPEN: 'instance.reopen',
   REASSIGN: 'instance.reassign',
-  CHANGE_DUE_DATE: 'instance.due_date',
+  CHANGE_DUE_DATE: 'instance.dueDate',
   COMMENT: 'comment.write',
   UPLOAD_EVIDENCE: 'evidence.write',
 };

@@ -293,7 +293,22 @@ describe('invalid transitions', () => {
 
   it('names the action in plain words', () => {
     const error = errorOf(() => planTransition(input(instance('APPROVED'), COMMANDS.SEND_BACK)));
-    expect(error.message).toBe('Cannot send back an item that is APPROVED.');
+    expect(error.message).toBe('Cannot send back an item that is approved.');
+  });
+
+  it.each([
+    [
+      'SUBMITTED',
+      'REQUEST_NA',
+      'Cannot request not applicable for an item that is waiting for approval.',
+    ],
+    ['OPEN', 'APPROVE', 'Cannot approve an item that is open.'],
+    ['SENT_BACK', 'REOPEN', 'Cannot reopen an item that is sent back.'],
+    ['NOT_APPLICABLE', 'SUBMIT', 'Cannot submit an item that is not applicable.'],
+  ] as const)('%s + %s reads in plain words', (state, action, message) => {
+    expect(errorOf(() => planTransition(input(instance(state), COMMANDS[action]))).message).toBe(
+      message,
+    );
   });
 });
 

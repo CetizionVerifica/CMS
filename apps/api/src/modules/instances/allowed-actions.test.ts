@@ -51,7 +51,7 @@ const MATRIX: Record<string, Partial<Record<Role, 'all' | 'own'>>> = {
   'instance.approve': { CLIENT_ADMIN: 'all', APPROVER: 'own' },
   'instance.reopen': { FIRM_ADMIN: 'all', CONSULTANT: 'all', CLIENT_ADMIN: 'all' },
   'instance.reassign': { FIRM_ADMIN: 'all', CONSULTANT: 'all', CLIENT_ADMIN: 'all' },
-  'instance.due_date': { FIRM_ADMIN: 'all', CONSULTANT: 'all', CLIENT_ADMIN: 'all' },
+  'instance.dueDate': { FIRM_ADMIN: 'all', CONSULTANT: 'all', CLIENT_ADMIN: 'all' },
   'comment.write': {
     FIRM_ADMIN: 'all',
     CONSULTANT: 'all',
@@ -103,7 +103,7 @@ describe('allowedActions', () => {
       new Set([
         'instance.submit',
         'instance.reassign',
-        'instance.due_date',
+        'instance.dueDate',
         'comment.write',
         'evidence.write',
       ]),

@@ -33,7 +33,8 @@ several fail, and in which states the non-transition actions (reassign, due date
 7. **Actions outside the arrows.** Reassign, change due date and upload evidence are offered only while the
    instance is `OPEN`, `SENT_BACK` or `SUBMITTED`; a complied or NA instance is reopened first, so its
    on-time result cannot be changed silently. Comments are allowed in every state.
-   `allowedActions` = these states ∩ `can()`, in contract order.
+   `allowedActions` = these states ∩ `can()`, in contract order. The due-date action is `instance.dueDate`, as in
+   endpoints.md §4 and M5's policy table; the contracts `Action` regex does not yet accept camelCase, which M0 is to align.
 8. **Errors.** M7 throws a local `ApiError` (`instances/errors.ts`) until M5's `ApiError` from `auth/index.ts`
    lands; M7 then switches to M5's and deletes its own.
 

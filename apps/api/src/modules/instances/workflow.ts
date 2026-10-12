@@ -107,6 +107,23 @@ const DEFAULT_COMMENT: Readonly<Record<'SUBMIT' | 'APPROVE', string>> = {
   APPROVE: 'Approved.',
 };
 
+/** Plain words for error messages people read. */
+const ACTION_WORDS: Readonly<Record<TransitionAction, string>> = {
+  SUBMIT: 'submit',
+  REQUEST_NA: 'request not applicable for',
+  APPROVE: 'approve',
+  SEND_BACK: 'send back',
+  REOPEN: 'reopen',
+};
+
+const STATE_WORDS: Readonly<Record<WorkflowState, string>> = {
+  OPEN: 'open',
+  SUBMITTED: 'waiting for approval',
+  SENT_BACK: 'sent back',
+  APPROVED: 'approved',
+  NOT_APPLICABLE: 'not applicable',
+};
+
 /** Whether `action` can start from `state`, before any permission or input check. */
 export function canTransition(state: WorkflowState, action: TransitionAction): boolean {
   return TRANSITION_SOURCES[action].includes(state);
@@ -258,7 +275,7 @@ export function planTransition(input: TransitionInput): TransitionPlan {
     const action: InstanceAction = command.action;
     throw new ApiError(
       'INVALID_TRANSITION',
-      `Cannot ${action.toLowerCase().replace('_', ' ')} an item that is ${instance.workflowState}.`,
+      `Cannot ${ACTION_WORDS[command.action]} an item that is ${STATE_WORDS[instance.workflowState]}.`,
       { from: instance.workflowState, action },
     );
   }
