@@ -11,6 +11,7 @@ import { ENGINE_VERSION } from './version.js';
 export * from './dates.js';
 export * from './infer.js';
 export * from './notifications.js';
+export * from './periods.js';
 export * from './recurrence.js';
 export * from './score.js';
 export * from './status.js';

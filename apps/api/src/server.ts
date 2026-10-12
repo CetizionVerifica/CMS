@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import Fastify, { type FastifyInstance } from 'fastify';
 import type { Database } from '@canopy/db';
 import { registerAuth, type AuthOptions, type AuthStore } from './auth/index.js';
+import { libraryAndEntities, type M6Deps } from './modules/entities/index.js';
 import { registerInstanceRoutes } from './modules/instances/routes.js';
 import { createInstanceService } from './modules/instances/service.js';
 
@@ -10,7 +11,9 @@ export interface ServerOptions {
   readonly authStore?: AuthStore;
   readonly clock?: () => Date;
   readonly rateLimit?: AuthOptions['rateLimit'];
-  /** Tenant database. Module routes under /api/v1 are registered only when it is given. */
+  /** M6 · Library and entities, mounted under /api/v1 when given (main.ts wires the database store). */
+  readonly libraryAndEntities?: M6Deps;
+  /** M7 · Tenant database for the instance routes, mounted under /api/v1 when given. */
   readonly database?: Database;
 }
 
@@ -33,6 +36,11 @@ export function buildServer(options: ServerOptions = {}): FastifyInstance {
   });
 
   app.get('/health', { config: { auth: 'public' } }, async () => ({ status: 'ok' }));
+
+  if (options.libraryAndEntities) {
+    const deps = options.libraryAndEntities;
+    void app.register((scope) => libraryAndEntities(scope, deps), { prefix: '/api/v1' });
+  }
 
   const { database } = options;
   if (database) {

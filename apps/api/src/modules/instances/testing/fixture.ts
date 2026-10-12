@@ -37,6 +37,8 @@ export interface TestDb {
   db: Database;
   /** Creates a firm as the owner (firms are not tenant work) and returns its id. */
   createFirm(name: string): Promise<string>;
+  /** Ids and types of a firm's audit and outbox rows, read as the database owner (no RLS), for assertions. */
+  written(firmId: string): Promise<{ audit: Map<string, string>; outbox: Map<string, string> }>;
   drop(): Promise<void>;
 }
 
@@ -54,10 +56,23 @@ export async function createTestDb(): Promise<TestDb> {
   const admin = createAdminDatabase({ connectionString: target.toString() });
   await admin.migrate();
   const db = createDatabase({ connectionString: target.toString(), max: 4 });
+  const owner = new pg.Client({ connectionString: target.toString() });
+  await owner.connect();
+  const rows = async (sql: string, firmId: string) => {
+    const result = await owner.query<{ id: string; kind: string }>(sql, [firmId]);
+    return new Map(result.rows.map((r) => [r.id, r.kind]));
+  };
   return {
     db,
     createFirm: (firmName) => admin.createFirm({ name: firmName }),
+    async written(firmId) {
+      return {
+        audit: await rows('SELECT id, action AS kind FROM audit_event WHERE firm_id = $1', firmId),
+        outbox: await rows('SELECT id, type AS kind FROM domain_event WHERE firm_id = $1', firmId),
+      };
+    },
     async drop() {
+      await owner.end();
       await Promise.all([db.close(), admin.close()]);
       const cleanup = new pg.Client({ connectionString: base.toString() });
       await cleanup.connect();

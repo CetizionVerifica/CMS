@@ -32,13 +32,15 @@ import { ApiError, can } from '../../auth/index.js';
 import { allowedActions, INSTANCE_ACTION_POLICY, instanceResource } from './allowed-actions.js';
 import { mergedPage, type RegisterSource } from './paging.js';
 import { clientsWithRole, mayChooseAsOf, unitScope } from './scope.js';
+import { commentAddedEvent, emit, transitionEvent } from './events.js';
 import { clientToday, rowStatus } from './status.js';
 import { ACTIVE_STATES, planTransition, type TransitionCommand } from './workflow.js';
 
 /**
  * Instance reads and writes for the M7 routes (docs/contracts/endpoints.md §4). Every call runs in one
- * tenant transaction; every state change writes its comment and AuditEvent in that transaction
- * (root CLAUDE.md rule 2). Status always comes from the engine via `rowStatus`.
+ * tenant transaction; every state change writes its comment, its AuditEvent and its outbox events
+ * (events.md §3) in that transaction (root CLAUDE.md rule 2). Status always comes from the engine via
+ * `rowStatus`.
  */
 
 /** Who is acting: the request context and the route's `authorize` (M5), which throws FORBIDDEN. */
@@ -253,7 +255,7 @@ export function createInstanceService(options: InstanceServiceOptions) {
       evidence: files.map((f) => f.scanStatus),
     });
     const updated = await instances.update(tx, instance.id, expectedVersion, plan.fields);
-    await comments.create(tx, {
+    const comment = await comments.create(tx, {
       instanceId: instance.id,
       clientId: instance.clientId,
       authorId: ctx.personId,
@@ -272,6 +274,15 @@ export function createInstanceService(options: InstanceServiceOptions) {
       after: plan.audit.after,
       reason: plan.audit.reason,
     });
+    const aggregate = { type: 'instance', id: updated.id, version: updated.version };
+    await emit(
+      tx,
+      ctx,
+      transitionEvent(ctx, command, instance, updated),
+      updated.clientId,
+      aggregate,
+    );
+    await emit(tx, ctx, commentAddedEvent(comment), updated.clientId, aggregate);
     return { instance: updated, asOf, cal };
   }
 
@@ -382,6 +393,27 @@ export function createInstanceService(options: InstanceServiceOptions) {
           });
         }
       }
+      const approved = results.filter((r) => r.ok).map((r) => r.id);
+      if (approved.length > 0) {
+        // The per-item instance.approved events are already written; this one summarises the request.
+        await inTenant(actor.ctx, async (tx) => {
+          const client = await clients.require(tx, clientId);
+          await emit(
+            tx,
+            actor.ctx,
+            {
+              type: 'instance.bulk_approved',
+              data: {
+                requested: body.items.length,
+                approved,
+                failed: results.filter((r) => !r.ok).map((r) => r.id),
+              },
+            },
+            clientId,
+            { type: 'client', id: client.id, version: client.version },
+          );
+        });
+      }
       return { results };
     },
 
@@ -463,12 +495,41 @@ export function createInstanceService(options: InstanceServiceOptions) {
             after,
             reason,
           });
-        if (Object.keys(people).length > 0) await audit('REASSIGN', peopleBefore, people);
+        const aggregate = { type: 'instance', id: updated.id, version: updated.version };
+        if (Object.keys(people).length > 0) {
+          await audit('REASSIGN', peopleBefore, people);
+          const change = (field: 'ownerId' | 'approverId') =>
+            field in people ? { from: instance[field], to: updated[field] } : null;
+          await emit(
+            tx,
+            ctx,
+            {
+              type: 'instance.reassigned',
+              data: {
+                instanceId: instance.id,
+                ownerId: change('ownerId'),
+                approverId: change('approverId'),
+              },
+            },
+            instance.clientId,
+            aggregate,
+          );
+        }
         if (moveDue) {
           await audit(
             'DUE_DATE_CHANGE',
             { dueDate: instance.dueDate, dueDateOverridden: instance.dueDateOverridden },
             { dueDate: body.dueDate, dueDateOverridden: true },
+          );
+          await emit(
+            tx,
+            ctx,
+            {
+              type: 'instance.due_date_changed',
+              data: { instanceId: instance.id, from: instance.dueDate, to: updated.dueDate },
+            },
+            instance.clientId,
+            aggregate,
           );
         }
 
@@ -555,18 +616,28 @@ export function createInstanceService(options: InstanceServiceOptions) {
       });
     },
 
-    /** POST /instances/{id}/comments: a NOTE. Comments do not change compliance state, so no audit event. */
+    /**
+     * POST /instances/{id}/comments: a NOTE. A note does not change compliance state (root CLAUDE.md rule 2
+     * lists what does), so it writes no AuditEvent; it does write `comment.added` (events.md §3).
+     */
     async addComment(actor: Actor, id: string, body: { body: string }): Promise<Comment> {
       return inTenant(actor.ctx, async (tx) => {
         const instance = await loadInstance(tx, actor.ctx, id);
         actor.authorize('comment.write', instanceResource(instance));
-        return comments.create(tx, {
+        const comment = await comments.create(tx, {
           instanceId: instance.id,
           clientId: instance.clientId,
           authorId: actor.ctx.personId,
           kind: 'NOTE',
           body: body.body,
         });
+        // Comments are part of the instance aggregate (they carry no version of their own).
+        await emit(tx, actor.ctx, commentAddedEvent(comment), instance.clientId, {
+          type: 'instance',
+          id: instance.id,
+          version: instance.version,
+        });
+        return comment;
       });
     },
   };
