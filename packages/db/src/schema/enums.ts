@@ -61,6 +61,11 @@ export const importIssueTypeEnum = pgEnum('import_issue_type', values(ImportIssu
 export const issueSeverityEnum = pgEnum('issue_severity', values(IssueSeverity.options));
 export const issueDecisionEnum = pgEnum('issue_decision', values(IssueDecision.options));
 export const canopyFieldEnum = pgEnum('canopy_field', values(CanopyField.options));
-export const notificationKindEnum = pgEnum('notification_kind', values(NotificationKind.options));
+// APPROVAL_REQUESTED and SENT_BACK (M9 event-driven sends) arrive in the database before contracts 1.4.0
+// lists them; the Set keeps the order stable once it does (migration 0017).
+export const notificationKindEnum = pgEnum(
+  'notification_kind',
+  values([...new Set([...NotificationKind.options, 'APPROVAL_REQUESTED', 'SENT_BACK'] as const)]),
+);
 export const exportKindEnum = pgEnum('export_kind', values(ExportKind.options));
 export const jobStatusEnum = pgEnum('job_status', values(JobStatus.options));
