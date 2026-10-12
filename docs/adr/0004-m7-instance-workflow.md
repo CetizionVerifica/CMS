@@ -36,6 +36,17 @@ several fail, and in which states the non-transition actions (reassign, due date
    `allowedActions` = these states ∩ `can()`, in contract order. The due-date action is `instance.dueDate`, as in
    endpoints.md §4 and M5's policy table; the contracts `Action` regex does not yet accept camelCase, which M0 is to align.
 8. **Errors.** M7 throws M5's `ApiError` from `auth/index.ts` (it briefly had its own copy until M5 merged).
+9. **Submit and approve comments.** Submit needs a non-blank comment (`VALIDATION` on `comment`), as the
+   workflow diagram in `apps/api/CLAUDE.md` says. Approve without a comment records "Approved.".
+10. **Register reads.** The register repository filters in SQL but cannot apply derived status, several
+    categories, departments or Acts at once, or several clients. The service reads each category as its own
+    source, merges them by `(dueDate, id)`, and filters status, departments and Acts in memory, reading up to 10
+    times per page. A sparse filter can therefore return a short page with a `nextCursor`; clients keep
+    following it until it is null. Owners and approvers see only their units; `unitId` outside them is dropped.
+    Only firm admins, consultants and viewers may choose `asOf`; the `/me` queues always use today.
+11. **Not yet built.** `Idempotency-Key` on transitions needs a key table from M3. Only `sort=dueDate` is
+    accepted (`VALIDATION` otherwise). Lists return no total count. `main.ts` does not yet pass a database to
+    `buildServer`, so the instance routes are registered only where one is given (tests, and M1's wiring later).
 
 ## Consequences
 - The service and the bulk-approve endpoint call the same planner, so per-item results match single approvals.
