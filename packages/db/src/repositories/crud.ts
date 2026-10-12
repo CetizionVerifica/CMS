@@ -1,4 +1,18 @@
-import { and, asc, eq, getTableColumns, gt, isNull, sql, type SQL } from 'drizzle-orm';
+import {
+  and,
+  asc,
+  count,
+  eq,
+  getTableColumns,
+  gt,
+  ilike,
+  inArray,
+  isNotNull,
+  isNull,
+  or,
+  sql,
+  type SQL,
+} from 'drizzle-orm';
 import type { PgColumn, PgTable } from 'drizzle-orm/pg-core';
 import type { z } from 'zod';
 import type { TenantTx } from '../database.js';
@@ -85,6 +99,35 @@ export function pageLimit(limit: number | undefined): number {
   return n;
 }
 
+/** Equality per field, or membership for an array; null matches IS NULL. Every listed field must match. */
+export type Where<T> = { [K in keyof T]?: T[K] | readonly T[K][] };
+
+/** A filtered, searched page sorted by one field then id (keyset: `after` is the last row seen). */
+export interface Query<T> {
+  where?: Where<T>;
+  /** Case-insensitive substring match on any of these fields. */
+  search?: { text: string; fields: readonly (keyof T & string)[] };
+  /** Archived rows are left out unless this is true. */
+  includeArchived?: boolean;
+  /** Sort field (default id); rows with no value sort first. */
+  orderBy?: keyof T & string;
+  /** The previous page's last row: its `orderBy` value as a string ('' for none) and id. */
+  after?: { key: string; id: string } | null;
+  limit?: number;
+  /** Also count every row matching where, search and archive filter (ignoring cursor and limit). */
+  count?: boolean;
+}
+
+export interface QueryResult<T> {
+  items: T[];
+  total?: number;
+}
+
+/** LIKE pattern for a literal substring. */
+function containsPattern(text: string): string {
+  return `%${text.replace(/[\\%_]/g, (ch) => `\\${ch}`)}%`;
+}
+
 interface TableShape {
   id: PgColumn;
   archivedAt?: PgColumn;
@@ -116,6 +159,26 @@ export function entity<T, TNew = NewEntity<T>, TPatch = Partial<TNew>>(config: E
   const parseWritten = (row: Record<string, unknown>): T => {
     return validate(schema, toWire(fromRow(row), omit));
   };
+
+  const allColumns = getTableColumns(table) as Record<string, PgColumn>;
+  /** A contract field's column; VALIDATION for a field the table does not have. */
+  function column(field: string): PgColumn {
+    const col = Object.hasOwn(allColumns, field) ? allColumns[field] : undefined;
+    if (!col || omit.includes(field)) throw new DbError('VALIDATION', `Unknown field: ${field}`);
+    return col;
+  }
+
+  function whereSql(where: Where<T>): SQL | undefined {
+    const parts = Object.entries(where as Record<string, unknown>)
+      .filter(([, value]) => value !== undefined)
+      .map(([field, value]) => {
+        const col = column(field);
+        if (value === null) return isNull(col);
+        if (Array.isArray(value)) return value.length === 0 ? sql`false` : inArray(col, value);
+        return eq(col, value);
+      });
+    return parts.length ? and(...parts) : undefined;
+  }
 
   async function selectWhere(tx: TenantTx, where: SQL | undefined): Promise<T[]> {
     const rows = await tx.select().from(table).where(where).catch(rethrow);
@@ -160,6 +223,50 @@ export function entity<T, TNew = NewEntity<T>, TPatch = Partial<TNew>>(config: E
     /** Every row matching `filter`, unpaged. For bounded sets (an instance's comments, a batch's issues). */
     all(tx: TenantTx, filter: SQL | undefined): Promise<T[]> {
       return selectWhere(tx, filter);
+    },
+
+    /** Every non-archived row matching `where`, unpaged. For small sets only. */
+    findAll(tx: TenantTx, where: Where<T>): Promise<T[]> {
+      return selectWhere(tx, and(whereSql(where), c.archivedAt ? isNull(c.archivedAt) : undefined));
+    },
+
+    /** A page by `Query`: where, search, archive filter, sort field then id, keyset cursor, total. */
+    async query(tx: TenantTx, q: Query<T> = {}): Promise<QueryResult<T>> {
+      const limit = pageLimit(q.limit);
+      const filters: (SQL | undefined)[] = [whereSql(q.where ?? {})];
+      if (!q.includeArchived && c.archivedAt) filters.push(isNull(c.archivedAt));
+      const text = q.search?.text.trim();
+      if (q.search && text) {
+        filters.push(
+          or(...q.search.fields.map((f) => ilike(sql`${column(f)}::text`, containsPattern(text)))),
+        );
+      }
+      const sortCol = column(q.orderBy ?? 'id');
+      const page = [...filters];
+      if (q.after) {
+        page.push(
+          q.after.key === ''
+            ? or(isNotNull(sortCol), and(isNull(sortCol), gt(c.id, q.after.id)))
+            : or(gt(sortCol, q.after.key), and(eq(sortCol, q.after.key), gt(c.id, q.after.id))),
+        );
+      }
+      const rows = (await tx
+        .select()
+        .from(table)
+        .where(and(...page))
+        .orderBy(sql`${sortCol} asc nulls first`, asc(c.id))
+        .limit(limit)
+        .catch(rethrow)) as Record<string, unknown>[];
+      const result: QueryResult<T> = { items: rows.map(parse) };
+      if (q.count) {
+        const [row] = await tx
+          .select({ n: count() })
+          .from(table)
+          .where(and(...filters))
+          .catch(rethrow);
+        result.total = row?.n ?? 0;
+      }
+      return result;
     },
 
     /** Inserts and returns the row; the contract schema checks it before the transaction commits. */

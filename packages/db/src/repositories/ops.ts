@@ -1,8 +1,15 @@
-import { ExportJob, Id, LocalDate, NotificationKind, type JobStatus } from '@canopy/contracts';
+import {
+  ExportJob,
+  Id,
+  Instant,
+  LocalDate,
+  NotificationKind,
+  type JobStatus,
+} from '@canopy/contracts';
 import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import type { TenantTx } from '../database.js';
-import { rethrow, validate } from '../errors.js';
+import { DbError, rethrow, validate } from '../errors.js';
 import * as s from '../schema/index.js';
 import { entity } from './crud.js';
 
@@ -130,42 +137,107 @@ export const NotificationSend = z.strictObject({
 });
 export type NotificationSend = z.input<typeof NotificationSend>;
 
+/**
+ * NEW: this call created the send-log row. PENDING: a row exists with no outcome (an earlier run crashed
+ * before recording it), so send again. DONE: sent or failed for good; skip.
+ */
+export type ClaimResult = 'NEW' | 'PENDING' | 'DONE';
+
+/** Why a notification was not sent. Stored on the send log; never the address or the message. */
+export const SendFailureCode = z.enum(['NO_EMAIL', 'NOT_ACTIVE']);
+export type SendFailureCode = z.infer<typeof SendFailureCode>;
+
+/** The send-log row for a key: per instance, kind, date and recipient; digests have no instance. */
+function sendKey(n: NotificationSend) {
+  return and(
+    eq(s.notificationSend.kind, n.kind),
+    eq(s.notificationSend.sendDate, n.sendDate),
+    eq(s.notificationSend.recipientId, n.recipientId),
+    n.instanceId === null
+      ? isNull(s.notificationSend.instanceId)
+      : eq(s.notificationSend.instanceId, n.instanceId),
+  );
+}
+
 export const notificationSends = {
-  /**
-   * Claims a send. True when this is the first claim for (instance, kind, send date), or for digests
-   * (recipient, kind, send date); false when it was already sent or claimed, so reminders never repeat.
-   */
-  async claim(tx: TenantTx, send: NotificationSend): Promise<boolean> {
+  /** Claims a send so reminders never repeat; see ClaimResult. */
+  async claim(tx: TenantTx, send: NotificationSend): Promise<ClaimResult> {
     const n = validate(NotificationSend, send);
-    const rows = await tx
+    const created = await tx
       .insert(s.notificationSend)
       .values(n)
       .onConflictDoNothing()
       .returning({ id: s.notificationSend.id })
       .catch(rethrow);
-    return rows.length === 1;
+    if (created.length === 1) return 'NEW';
+    const [row] = await tx
+      .select({ sentAt: s.notificationSend.sentAt, failureCode: s.notificationSend.failureCode })
+      .from(s.notificationSend)
+      .where(sendKey(n))
+      .catch(rethrow);
+    return row && row.sentAt === null && row.failureCode === null ? 'PENDING' : 'DONE';
   },
-  async markSent(
-    tx: TenantTx,
-    send: NotificationSend,
-    failureCode: string | null = null,
-  ): Promise<void> {
+  /**
+   * Records that the send went out at `at` (ISO instant from the job clock) and returns the send-log row
+   * id, which the caller's `notification.sent` event names as its aggregate (version 1).
+   */
+  async markSent(tx: TenantTx, send: NotificationSend, at: string): Promise<string> {
+    const n = validate(NotificationSend, send);
+    const [row] = await tx
+      .update(s.notificationSend)
+      .set({ sentAt: new Date(validate(Instant, at)), failureCode: null })
+      .where(sendKey(n))
+      .returning({ id: s.notificationSend.id })
+      .catch(rethrow);
+    if (!row) throw new DbError('NOT_FOUND', 'No claimed send for this key');
+    return row.id;
+  },
+  /** Records that the send failed for good (no address, recipient not active). */
+  async markFailed(tx: TenantTx, send: NotificationSend, code: SendFailureCode): Promise<void> {
     const n = validate(NotificationSend, send);
     await tx
       .update(s.notificationSend)
-      .set({ sentAt: failureCode ? null : sql`now()`, failureCode })
+      .set({ sentAt: null, failureCode: validate(SendFailureCode, code) })
+      .where(sendKey(n))
+      .catch(rethrow);
+  },
+  /** Recipients whose digest (no instance) for this date has an outcome, across the firm's clients. */
+  async listDoneDigests(tx: TenantTx, sendDate: string): Promise<string[]> {
+    const t = s.notificationSend;
+    const rows = await tx
+      .selectDistinct({ id: t.recipientId })
+      .from(t)
       .where(
         and(
-          eq(s.notificationSend.kind, n.kind),
-          eq(s.notificationSend.sendDate, n.sendDate),
-          n.instanceId === null
-            ? and(
-                isNull(s.notificationSend.instanceId),
-                eq(s.notificationSend.recipientId, n.recipientId),
-              )
-            : eq(s.notificationSend.instanceId, n.instanceId),
+          isNull(t.instanceId),
+          eq(t.sendDate, validate(LocalDate, sendDate)),
+          sql`(${t.sentAt} is not null or ${t.failureCode} is not null)`,
         ),
       )
+      .orderBy(asc(t.recipientId))
+      .catch(rethrow);
+    return rows.map((r) => r.id);
+  },
+  /** Send-log rows of one client for one date with an outcome (sent or failed). */
+  async listDone(tx: TenantTx, clientId: string, sendDate: string): Promise<NotificationSend[]> {
+    const t = s.notificationSend;
+    return tx
+      .select({
+        clientId: t.clientId,
+        instanceId: t.instanceId,
+        recipientId: t.recipientId,
+        kind: t.kind,
+        sendDate: t.sendDate,
+      })
+      .from(t)
+      .where(
+        and(
+          eq(t.clientId, clientId),
+          eq(t.sendDate, validate(LocalDate, sendDate)),
+          sql`(${t.sentAt} is not null or ${t.failureCode} is not null)`,
+        ),
+      )
+      .orderBy(asc(t.id))
       .catch(rethrow);
   },
 };

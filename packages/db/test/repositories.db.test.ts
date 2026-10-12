@@ -799,23 +799,57 @@ describe('audit and outbox', () => {
       kind: 'OWNER_REMINDER' as const,
       sendDate: '2022-05-31' as never,
     };
-    expect(await inA((tx) => r.notificationSends.claim(tx, send))).toBe(true);
-    expect(await inA((tx) => r.notificationSends.claim(tx, send))).toBe(false);
+    expect(await inA((tx) => r.notificationSends.claim(tx, send))).toBe('NEW');
+    // Claimed but no outcome yet (a crashed run): send again.
+    expect(await inA((tx) => r.notificationSends.claim(tx, send))).toBe('PENDING');
+    // The same reminder for a different recipient (an owner reassigned that day) is its own send.
+    const reassigned = { ...send, recipientId: world.approverId };
+    expect(await inA((tx) => r.notificationSends.claim(tx, reassigned))).toBe('NEW');
     const digest = { ...send, instanceId: null, kind: 'CONSULTANT_DIGEST' as const };
-    expect(await inA((tx) => r.notificationSends.claim(tx, digest))).toBe(true);
-    expect(await inA((tx) => r.notificationSends.claim(tx, digest))).toBe(false);
-    await inA((tx) => r.notificationSends.markSent(tx, send));
-    await inA((tx) => r.notificationSends.markSent(tx, digest, 'SMTP_DOWN'));
+    expect(await inA((tx) => r.notificationSends.claim(tx, digest))).toBe('NEW');
+    expect(
+      await inA((tx) => r.notificationSends.listDone(tx, world.clientId, '2022-05-31')),
+    ).toEqual([]);
+    const sendId = await inA((tx) =>
+      r.notificationSends.markSent(tx, send, '2022-05-31T03:30:00.000Z'),
+    );
+    expect(sendId).toMatch(/^[0-9a-f-]{36}$/);
+    expect(await inA((tx) => r.notificationSends.listDoneDigests(tx, '2022-05-31'))).toEqual([]);
+    await inA((tx) => r.notificationSends.markFailed(tx, digest, 'NO_EMAIL'));
+    expect(await inA((tx) => r.notificationSends.claim(tx, send))).toBe('DONE');
+    expect(await inA((tx) => r.notificationSends.listDoneDigests(tx, '2022-05-31'))).toEqual([
+      world.ownerId,
+    ]);
+    // markSent needs a claimed row.
+    expect(
+      await code(
+        inA((tx) =>
+          r.notificationSends.markSent(
+            tx,
+            { ...send, sendDate: '2022-06-01' as never },
+            '2022-06-01T03:30:00.000Z',
+          ),
+        ),
+      ),
+    ).toBe('NOT_FOUND');
+    expect(await inA((tx) => r.notificationSends.claim(tx, digest))).toBe('DONE');
+    expect(
+      (await inA((tx) => r.notificationSends.listDone(tx, world.clientId, '2022-05-31'))).map(
+        (k) => k.kind,
+      ),
+    ).toEqual(['OWNER_REMINDER', 'CONSULTANT_DIGEST']);
+    expect(
+      await code(inA((tx) => r.notificationSends.markFailed(tx, digest, 'SMTP_DOWN' as never))),
+    ).toBe('VALIDATION');
     const { rows } = await t.ownerQuery<{
       kind: string;
-      sent: boolean;
+      sent_at: Date | null;
       failure_code: string | null;
-    }>(
-      'SELECT kind, sent_at IS NOT NULL AS sent, failure_code FROM notification_send ORDER BY kind',
-    );
+    }>('SELECT kind, sent_at, failure_code FROM notification_send ORDER BY kind, sent_at IS NULL');
     expect(rows).toEqual([
-      { kind: 'OWNER_REMINDER', sent: true, failure_code: null },
-      { kind: 'CONSULTANT_DIGEST', sent: false, failure_code: 'SMTP_DOWN' },
+      { kind: 'OWNER_REMINDER', sent_at: new Date('2022-05-31T03:30:00.000Z'), failure_code: null },
+      { kind: 'OWNER_REMINDER', sent_at: null, failure_code: null },
+      { kind: 'CONSULTANT_DIGEST', sent_at: null, failure_code: 'NO_EMAIL' },
     ]);
   });
 

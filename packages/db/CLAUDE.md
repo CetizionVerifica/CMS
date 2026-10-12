@@ -3,27 +3,32 @@
 PostgreSQL 16 with Drizzle ORM. Root `CLAUDE.md` applies.
 
 ## Tables (v1)
+
 Tenancy and people
+
 - `firm` (consultancy tenant), `client` (org group, e.g. "Aditya Birla Group"), `company` ("Hindalco"), `unit` ("Plant", with `location_id`)
 - `location` (country, state, city; state drives state-law applicability, e.g. West Bengal)
 - `person` (name, email, `name_normalized` for dedupe, `status` e.g. unclaimed/active/disabled), `membership` (person × firm or client, role, `consultant_client_ids`, `unit_ids`, `expires_at`), `department` (per client, with `aliases text[]`)
 
 Library
+
 - `act` (name, short name, jurisdiction `CENTRAL | STATE`, state code, `aliases text[]`)
 - `obligation` (`external_ref` e.g. "TAX-CL-033-6067-60218", `domain`, `jurisdiction`, title, description, `category_id`, `criticality`, `timeline_type`, `recurrence_rule jsonb` validated by the engine schema, `applicability_text`, `forms jsonb`, `log_sheets jsonb`, `evidence_required`, `rule_status`, `library_version`)
 - `category` (name, `aliases text[]`)
 
 Work
+
 - `assignment` (obligation × unit × department, `default_owner_id`, `default_approver_id`, `applicability` `APPLICABLE | NOT_APPLICABLE | TO_ASSESS`, `na_reason`, active from/to)
 - `compliance_instance` (`assignment_id`, `period_start`, `period_end`, `due_date date`, `workflow_state`, `pending_kind`, `completed_on date`, `na_reason`, `due_date_overridden`, `version`, `owner_id`, `approver_id`, `submitted_at`, `approved_at`, unique `(assignment_id, period_start)`)
 - `evidence` (instance, storage key, file name, size, mime, sha256, scan status, uploaded by), `comment` (instance, author, body)
 - `audit_event` (append-only: actor, action, entity, entity id, before jsonb, after jsonb, at, request id)
 - `import_batch`, `import_row` (raw row jsonb, mapped jsonb, outcome), `import_issue` (per row/field issue and resolution) and `mapping_template` (saved column mappings per client) for traceable imports
-- `domain_event` (transactional outbox for the event catalogue), `export_job` (Excel/PDF exports), `notification_send` (send log, unique per instance, kind, send date)
+- `domain_event` (transactional outbox for the event catalogue), `export_job` (Excel/PDF exports), `notification_send` (send log, unique per instance, kind, send date and recipient)
 
 Field-level definitions are in `docs/contracts/domain-model.md` (M0); that file wins if it and this list differ.
 
 ## Rules
+
 1. **Every client-data table has `firm_id uuid not null`** and an RLS policy `firm_id = current_setting('app.firm_id')::uuid`. Client-scoped tables also carry `client_id` and a policy for client roles. The app connects as a role without `BYPASSRLS`.
 2. **Tenant context per transaction**: `withTenant(ctx, fn)` sets `app.firm_id`, `app.client_ids`, `app.person_id` with `SET LOCAL`. Never query outside it in request code.
 3. **Isolation test for every new table**: seed two firms, assert firm B sees zero rows of firm A through the app role.
@@ -36,7 +41,9 @@ Field-level definitions are in `docs/contracts/domain-model.md` (M0); that file 
 10. **Seeds**: `pnpm db:seed` creates two firms and loads the sample register through the importer, not with hand-written inserts.
 
 ## How it is built (M3)
+
 Decisions and their reasons: `docs/adr/0003-m3-tenant-isolation-in-postgres.md`.
+
 - Schema: `src/schema/*.ts` (Drizzle). Enums come from `@canopy/contracts`. Policies use the helpers in `src/schema/columns.ts`.
 - Migrations: `migrations/`, applied by `pnpm db:migrate`. `pnpm --filter @canopy/db db:generate` writes the schema diff;
   roles, functions, `FORCE ROW LEVEL SECURITY`, grants and triggers go in custom migrations
@@ -51,6 +58,15 @@ Decisions and their reasons: `docs/adr/0003-m3-tenant-isolation-in-postgres.md`.
   by the contract schemas. The usual set is `get` (null), `require` (NOT_FOUND), `list` (keyset `{ items, nextCursor }`),
   `create`, `update(tx, id, version, patch)` (optimistic, STALE_VERSION), `archive` and `restore`; there is no delete.
   Errors are `DbError` with `code` NOT_FOUND, DUPLICATE, VALIDATION, FORBIDDEN or STALE_VERSION.
+- Most aggregates also have `query(tx, { where, search, includeArchived, orderBy, after, limit, count })` (where is
+  equality or an array per contract field; keyset on `orderBy` then id, `after` = last row's value and id) and
+  `findAll(tx, where)`. M6 lookups: `people.idsInClient`, `people.firmStaffIds`, `assignments.obligationIds`,
+  `instances.reassignOpen` and `instances.replacePerson` (return the changed rows with before values).
+- Scheduled jobs (M9): `db.listFirmIds()` is the only cross-tenant read (ids only, a SECURITY DEFINER function);
+  each firm then runs in `withTenant(systemContext(firmId, ...))` with the `jobs` read models and
+  `notificationSends` (`claim` returns NEW, PENDING or DONE).
+- In a single-table select, Drizzle leaves columns unqualified, so a correlated subquery inside `sql` binds them to
+  the inner table. Use a join or two queries instead.
 - Repositories never write audit or outbox rows themselves. The caller (M7 workflow, M8 import) calls
   `auditEvents.append(tx, ...)` and `domainEvents.enqueue(tx, ...)` in the same `withTenant` transaction as the change.
 - Client contexts create people with `people.createWithMembership` (the new person is invisible until a membership

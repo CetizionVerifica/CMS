@@ -20,6 +20,18 @@ export {
   NewDomainEvent,
   notificationSends,
   NotificationSend,
+  SendFailureCode,
 } from './ops.js';
-export type { OutboxEvent } from './ops.js';
+export type { ClaimResult, OutboxEvent } from './ops.js';
+export { jobs } from './jobs.js';
+export type {
+  ClientRef,
+  ConsultantRef,
+  DateRange,
+  ExistingInstanceKey,
+  GenerationTarget,
+  NewGeneratedInstance,
+  Recipient,
+  ReminderCandidate,
+} from './jobs.js';
 export { MAX_LIMIT, type NewEntity, type Page, type PageRequest } from './crud.js';

@@ -9,7 +9,7 @@ import {
   Person,
   Unit,
 } from '@canopy/contracts';
-import { and, arrayContains, eq, isNull, or, sql } from 'drizzle-orm';
+import { and, arrayContains, asc, eq, inArray, isNull, or, sql } from 'drizzle-orm';
 import type { TenantTx } from '../database.js';
 import { DbError, rethrow } from '../errors.js';
 import * as s from '../schema/index.js';
@@ -46,6 +46,8 @@ const clientEntity = entity<Client>({ table: s.client, schema: Client });
 export const clients = {
   get: clientEntity.get,
   require: clientEntity.require,
+  query: clientEntity.query,
+  findAll: clientEntity.findAll,
   /** The clients this context may see. */
   list: (tx: TenantTx, page?: PageRequest) => clientEntity.list(tx, undefined, page),
   create: clientEntity.create,
@@ -58,6 +60,8 @@ const companyEntity = entity<Company>({ table: s.company, schema: Company });
 export const companies = {
   get: companyEntity.get,
   require: companyEntity.require,
+  query: companyEntity.query,
+  findAll: companyEntity.findAll,
   list: (tx: TenantTx, clientId: string, page?: PageRequest) =>
     companyEntity.list(tx, eq(s.company.clientId, clientId), page),
   async findByName(tx: TenantTx, clientId: string, name: string): Promise<Company | null> {
@@ -81,6 +85,8 @@ const locationEntity = entity<Location, Omit<Location, Exclude<ServerFields, 've
 export const locations = {
   get: locationEntity.get,
   require: locationEntity.require,
+  query: locationEntity.query,
+  findAll: locationEntity.findAll,
   list: (tx: TenantTx, page?: PageRequest) => locationEntity.list(tx, undefined, page),
   /** By country code, state and city, case-insensitively (the unique path). */
   async findByPath(
@@ -105,6 +111,8 @@ const unitEntity = entity<Unit>({ table: s.unit, schema: Unit });
 export const units = {
   get: unitEntity.get,
   require: unitEntity.require,
+  query: unitEntity.query,
+  findAll: unitEntity.findAll,
   list: (tx: TenantTx, clientId: string, page?: PageRequest) =>
     unitEntity.list(tx, eq(s.unit.clientId, clientId), page),
   async findByName(tx: TenantTx, companyId: string, name: string): Promise<Unit | null> {
@@ -124,6 +132,8 @@ const departmentEntity = entity<Department>({ table: s.department, schema: Depar
 export const departments = {
   get: departmentEntity.get,
   require: departmentEntity.require,
+  query: departmentEntity.query,
+  findAll: departmentEntity.findAll,
   list: (tx: TenantTx, clientId: string, page?: PageRequest) =>
     departmentEntity.list(tx, eq(s.department.clientId, clientId), page),
   /** By exact name or a stored alias (import resolves "HR" to "Human Resources"). */
@@ -152,6 +162,8 @@ const personEntity = entity<Person>({ table: s.person, schema: Person });
 export const people = {
   get: personEntity.get,
   require: personEntity.require,
+  query: personEntity.query,
+  findAll: personEntity.findAll,
   list: (tx: TenantTx, page?: PageRequest) => personEntity.list(tx, undefined, page),
   /** Every non-archived person with this normalised name (a name is not unique). */
   findByNormalizedName: (tx: TenantTx, nameNormalized: string): Promise<Person[]> =>
@@ -165,6 +177,42 @@ export const people = {
       and(sql`lower(${s.person.email}) = ${email.toLowerCase()}`, isNull(s.person.archivedAt)),
     );
     return row ?? null;
+  },
+  /**
+   * People with a non-archived membership, assignment or instance in the client (empty for a client the
+   * context cannot see).
+   */
+  async idsInClient(tx: TenantTx, clientId: string): Promise<string[]> {
+    const { rows } = await tx
+      .execute<{ id: string }>(
+        sql`SELECT person_id AS id FROM membership
+              WHERE client_id = ${clientId} AND archived_at IS NULL
+            UNION SELECT default_owner_id FROM assignment WHERE client_id = ${clientId} AND archived_at IS NULL
+            UNION SELECT default_approver_id FROM assignment WHERE client_id = ${clientId} AND archived_at IS NULL
+            UNION SELECT owner_id FROM compliance_instance WHERE client_id = ${clientId} AND archived_at IS NULL
+            UNION SELECT approver_id FROM compliance_instance WHERE client_id = ${clientId} AND archived_at IS NULL
+            ORDER BY 1`,
+      )
+      .catch(rethrow);
+    return rows.map((r) => r.id);
+  },
+  /**
+   * People with a non-archived FIRM_ADMIN or CONSULTANT membership. Firm-level memberships are visible to
+   * firm staff and to the person themself, so a client context gets at most its own id.
+   */
+  async firmStaffIds(tx: TenantTx): Promise<string[]> {
+    const rows = await tx
+      .selectDistinct({ id: s.membership.personId })
+      .from(s.membership)
+      .where(
+        and(
+          inArray(s.membership.role, ['FIRM_ADMIN', 'CONSULTANT']),
+          isNull(s.membership.archivedAt),
+        ),
+      )
+      .orderBy(asc(s.membership.personId))
+      .catch(rethrow);
+    return rows.map((r) => r.id);
   },
   /** Creates a person. Firm staff only: a client context cannot see the new row to return it. */
   create: personEntity.create,
@@ -202,6 +250,8 @@ const membershipEntity = entity<Membership>({
 export const memberships = {
   get: membershipEntity.get,
   require: membershipEntity.require,
+  query: membershipEntity.query,
+  findAll: membershipEntity.findAll,
   /** A person's non-archived memberships. Visible to the person themself in any context. */
   forPerson: (tx: TenantTx, personId: string): Promise<Membership[]> =>
     membershipEntity.all(
