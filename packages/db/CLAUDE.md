@@ -79,6 +79,9 @@ Decisions and their reasons: `docs/adr/0003-m3-tenant-isolation-in-postgres.md`.
   the inner table. Use a join or two queries instead.
 - Imports (M8): `importBatches.create` takes an optional `id` (a UUIDv7 from `uuidv7()`, exported here) so an upload
   ticket can name the batch first; `importBatches.list` is newest first (`list` takes `order: 'asc' | 'desc'`).
+- Reads for M10 and M5: `instances.register` takes `unitIds`, `departmentIds`, `actIds`, `categoryIds` and `domain` lists;
+  `instances.exportDetails`, `auditEvents.latestByClient`, `units.withLabels`, `units.count`, `clients.generatedRange`.
+  `people.reach` (M6) returns a person's client ids and firm-staff flag through `app_person_reach` (ids only).
 - Sign-in (M5, ADR M3-0001): `db.findLoginCandidates`, `db.findSession` and `db.findLoginToken` are the pre-tenant
   lookups and return nothing inside a `withTenant` transaction; `credentials`, `sessions`, `loginTokens` and `invites` run in
   `withTenant`. Tokens are stored as SHA-256 hex only.

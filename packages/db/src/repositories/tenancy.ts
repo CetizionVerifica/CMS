@@ -8,15 +8,23 @@ import {
   Membership,
   Person,
   Unit,
+  Id,
 } from '@canopy/contracts';
 import { and, arrayContains, asc, eq, inArray, isNull, or, sql } from 'drizzle-orm';
+import { z } from 'zod';
 import type { TenantTx } from '../database.js';
-import { DbError, rethrow } from '../errors.js';
+import { DbError, rethrow, validate } from '../errors.js';
 import * as s from '../schema/index.js';
 import { instantsToDates } from './convert.js';
 import { entity, type NewEntity, type PageRequest, type ServerFields } from './crud.js';
 
 /** Firm, clients, entities and people (domain-model.md §3). */
+
+/** A Postgres uuid[] in text form (`{a,b}`) as ids. */
+function parseUuidArray(text: string): string[] {
+  const inner = text.replace(/^\{|\}$/g, '');
+  return inner === '' ? [] : inner.split(',');
+}
 
 // The firm row is its own tenant: the contract's firmId is its id.
 const firmEntity = entity<Firm>({
@@ -50,6 +58,25 @@ export const clients = {
   findAll: clientEntity.findAll,
   /** The clients this context may see. */
   list: (tx: TenantTx, page?: PageRequest) => clientEntity.list(tx, undefined, page),
+  /**
+   * The earliest and latest period start of the client's non-archived instances this context sees, or null
+   * when there are none.
+   */
+  async generatedRange(
+    tx: TenantTx,
+    clientId: string,
+  ): Promise<{ from: string; to: string } | null> {
+    const i = s.complianceInstance;
+    const [row] = await tx
+      .select({
+        from: sql<string | null>`min(${i.periodStart})::text`,
+        to: sql<string | null>`max(${i.periodStart})::text`,
+      })
+      .from(i)
+      .where(and(eq(i.clientId, validate(Id, clientId)), isNull(i.archivedAt)))
+      .catch(rethrow);
+    return row?.from && row.to ? { from: row.from, to: row.to } : null;
+  },
   create: clientEntity.create,
   update: clientEntity.update,
   archive: clientEntity.archive,
@@ -121,6 +148,46 @@ export const units = {
       and(eq(s.unit.companyId, companyId), eq(s.unit.name, name), isNull(s.unit.archivedAt)),
     );
     return row ?? null;
+  },
+  /** A unit with its company name and location label (`country / state / city`, as in the register). */
+  async withLabels(
+    tx: TenantTx,
+    unitId: string,
+  ): Promise<{ unit: Unit; companyName: string; locationLabel: string } | null> {
+    const [row] = await tx
+      .select({
+        unit: s.unit,
+        companyName: s.company.name,
+        locationLabel: sql<string>`concat_ws(' / ', ${s.location.country}, ${s.location.state}, ${s.location.city})`,
+      })
+      .from(s.unit)
+      .innerJoin(s.company, eq(s.company.id, s.unit.companyId))
+      .innerJoin(s.location, eq(s.location.id, s.unit.locationId))
+      .where(eq(s.unit.id, validate(Id, unitId)))
+      .catch(rethrow);
+    if (!row) return null;
+    return {
+      unit: unitEntity.parse(row.unit as unknown as Record<string, unknown>),
+      companyName: row.companyName,
+      locationLabel: row.locationLabel,
+    };
+  },
+  /** Non-archived units of a client, limited to `unitIds` when given (null: all of them). */
+  async count(tx: TenantTx, clientId: string, unitIds: readonly string[] | null): Promise<number> {
+    const ids = unitIds === null ? null : validate(z.array(Id), [...unitIds]);
+    if (ids !== null && ids.length === 0) return 0;
+    const [row] = await tx
+      .select({ n: sql<number>`count(*)::int` })
+      .from(s.unit)
+      .where(
+        and(
+          eq(s.unit.clientId, validate(Id, clientId)),
+          isNull(s.unit.archivedAt),
+          ids === null ? undefined : inArray(s.unit.id, ids),
+        ),
+      )
+      .catch(rethrow);
+    return row?.n ?? 0;
   },
   create: unitEntity.create,
   update: unitEntity.update,
@@ -215,6 +282,27 @@ export const people = {
     return rows.map((r) => r.id);
   },
   /** Creates a person. Firm staff only: a client context cannot see the new row to return it. */
+  /**
+   * Which clients of this firm a person works in (live membership, consultant clients, assignment or
+   * instance) and whether they are firm staff. Ids and a flag only; reads rows this context may not see,
+   * through the SECURITY DEFINER `app_person_reach` (migration 0013). Empty for a person of another firm.
+   */
+  async reach(
+    tx: TenantTx,
+    personId: string,
+  ): Promise<{ clientIds: string[]; firmStaff: boolean }> {
+    const { rows } = await tx
+      .execute<{ client_ids: string[] | string; firm_staff: boolean }>(
+        sql`SELECT client_ids, firm_staff FROM app_person_reach(${validate(Id, personId)})`,
+      )
+      .catch(rethrow);
+    const r = rows[0];
+    const ids = r?.client_ids ?? [];
+    return {
+      clientIds: Array.isArray(ids) ? ids : parseUuidArray(ids),
+      firmStaff: r?.firm_staff ?? false,
+    };
+  },
   create: personEntity.create,
   /**
    * Creates a person with their first client membership, in any context that can see that client.
