@@ -33,7 +33,7 @@ function countBy<T>(items: readonly T[], key: (item: T) => string): Record<strin
 }
 
 beforeAll(async () => {
-  sheet = await loadSheet('sample-register.xlsx');
+  sheet = await loadSheet('sample-register-anonymised.xlsx');
   pending = analyse(sheet);
 });
 
@@ -188,16 +188,16 @@ describe('sample register: recommended profile', () => {
     expect(plan.departments).toHaveLength(9);
     expect(plan.people).toHaveLength(21);
     expect(plan.assignments).toHaveLength(119);
-    expect(plan.companies).toEqual([{ key: 'hindalco', name: 'Hindalco' }]);
+    expect(plan.companies).toEqual([{ key: 'kestrel aluminium', name: 'Kestrel Aluminium' }]);
     expect(plan.units).toHaveLength(1);
     expect(plan.locations).toEqual([
       {
-        key: 'in|west bengal|belur',
+        key: 'in|west bengal|riverbend',
         country: 'India',
         countryCode: 'IN',
         state: 'West Bengal',
         stateCode: 'WB',
-        city: 'Belur',
+        city: 'Riverbend',
       },
     ]);
     expect(countBy(plan.instances, (i) => i.workflowState)).toEqual({

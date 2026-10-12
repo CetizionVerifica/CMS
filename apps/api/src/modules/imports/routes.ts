@@ -79,6 +79,16 @@ export function importRoutes(app: FastifyInstance, steps: ImportSteps): void {
     return steps.rows(actor(request), id, ImportRowQuery.parse(request.query));
   });
 
+  app.post('/imports/:id/dry-run', SESSION, async (request) => {
+    const { id } = IdParams.parse(request.params);
+    return steps.dryRun(actor(request), id);
+  });
+
+  app.post('/imports/:id/commit', SESSION, async (request, reply) => {
+    const { id } = IdParams.parse(request.params);
+    return reply.status(202).send(await steps.commit(actor(request), id));
+  });
+
   app.post('/imports/:id/cancel', SESSION, async (request) => {
     const { id } = IdParams.parse(request.params);
     return steps.cancel(actor(request), id);

@@ -8,7 +8,7 @@ import type {
   MappingTemplate,
 } from '@canopy/contracts';
 import type { TenantContext } from '@canopy/db';
-import type { ExistingState } from '@canopy/importer';
+import type { ExistingState, ImportPlan, InstanceChange } from '@canopy/importer';
 
 /**
  * What the import service needs from the database, as one interface. `repositoryStore` implements it on the
@@ -42,6 +42,23 @@ export type NewIssue = Omit<ImportIssue, 'id'>;
 export type NewTemplate = Pick<MappingTemplate, 'clientId' | 'name' | 'mapping'>;
 export type TemplatePatch = Partial<Pick<MappingTemplate, 'name' | 'mapping'>>;
 
+/** What a commit writes: the reviewed plan and the changes the dry run found on existing instances. */
+export interface CommitRequest {
+  batchId: string;
+  clientId: string;
+  plan: ImportPlan;
+  /** Planned instance key → change, for the instances that exist and change. */
+  instanceChanges: ReadonlyMap<string, InstanceChange>;
+  /** The person committing; every audit event names them. */
+  actorId: string;
+  requestId: string;
+}
+
+export interface CommitResult {
+  /** Planned instance key → the stored instance id (created, updated or unchanged). */
+  instanceIds: Map<string, string>;
+}
+
 export interface ImportTx {
   getBatch(id: string): Promise<ImportBatch | null>;
   createBatch(input: NewBatch): Promise<ImportBatch>;
@@ -56,7 +73,10 @@ export interface ImportTx {
   addRows(batchId: string, rows: readonly NewRow[]): Promise<ImportRow[]>;
   /** In row-number order; `afterRowNumber` continues a page. */
   rows(batchId: string, page: { limit: number; afterRowNumber?: number }): Promise<Page<ImportRow>>;
-  setRow(id: string, patch: { outcome: ImportRowOutcome; issueIds: string[] }): Promise<void>;
+  setRow(
+    id: string,
+    patch: { outcome: ImportRowOutcome; issueIds?: string[]; targetInstanceId?: string | null },
+  ): Promise<void>;
 
   addIssues(batchId: string, issues: readonly NewIssue[]): Promise<ImportIssue[]>;
   issues(batchId: string): Promise<ImportIssue[]>;
@@ -78,6 +98,11 @@ export interface ImportTx {
   calendar(clientId: string): Promise<EngineCalendar>;
   /** What the firm and client already hold, by the importer's natural keys. */
   existingState(clientId: string): Promise<ExistingState>;
+  /**
+   * Writes the plan through the repositories with an IMPORT audit event per change, in this transaction.
+   * Re-running it with the same plan writes nothing new.
+   */
+  commit(request: CommitRequest): Promise<CommitResult>;
 }
 
 export interface ImportStore {
