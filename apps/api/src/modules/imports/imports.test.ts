@@ -20,7 +20,7 @@ import { MemoryImportFiles, uploadKey } from './files.js';
 import { MemoryImportStore } from './testing/memory-store.js';
 
 const SAMPLE = new URL(
-  '../../../../../packages/importer/fixtures/sample-register.xlsx',
+  '../../../../../packages/importer/fixtures/sample-register-anonymised.xlsx',
   import.meta.url,
 );
 const Page = <T extends z.ZodType>(item: T) =>

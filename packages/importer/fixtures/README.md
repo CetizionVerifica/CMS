@@ -19,3 +19,13 @@ node packages/importer/scripts/pseudonymise-sample.mjs "<original>.xlsx" package
 ```
 
 Do not edit the fixture by hand; add new fixtures instead.
+
+## sample-register-anonymised.xlsx
+
+`sample-register.xlsx` with the real group and company names replaced by fictional ones, "Kestrel Metals Group" and
+"Kestrel Aluminium" (428 cells in the Organization and Act columns). Each name maps to
+one replacement, so every golden count still holds. The importer and import API tests read this copy. Rebuild it with:
+
+```
+node packages/importer/scripts/anonymise-companies.mjs packages/importer/fixtures/sample-register.xlsx packages/importer/fixtures/sample-register-anonymised.xlsx
+```

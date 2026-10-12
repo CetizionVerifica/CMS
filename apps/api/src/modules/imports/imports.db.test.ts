@@ -57,7 +57,7 @@ import { MemoryImportFiles, uploadKey } from './files.js';
 
 const url = process.env.DATABASE_URL;
 const SAMPLE = new URL(
-  '../../../../../packages/importer/fixtures/sample-register.xlsx',
+  '../../../../../packages/importer/fixtures/sample-register-anonymised.xlsx',
   import.meta.url,
 );
 const sha = (b: Uint8Array) => createHash('sha256').update(b).digest('hex');
@@ -148,7 +148,10 @@ describe.skipIf(!url)('import API on Postgres', { timeout: 60_000 }, () => {
         stateCode: 'WB',
         city: 'Belur',
       });
-      const company = await companies.create(tx, { clientId: client.id, name: 'Hindalco' });
+      const company = await companies.create(tx, {
+        clientId: client.id,
+        name: 'Kestrel Aluminium',
+      });
       await units.create(tx, {
         clientId: client.id,
         companyId: company.id,
@@ -403,7 +406,7 @@ describe.skipIf(!url)('import API on Postgres', { timeout: 60_000 }, () => {
     const store = repositoryStore(db);
     const ctx = systemContext(firm.firmId, 'plan-test');
     const day = (d: string) => LocalDate.parse(d);
-    const belur = unitKey('Hindalco', 'Belur');
+    const belur = unitKey('Kestrel Aluminium', 'Belur');
     const pune = unitKey('Novelis', 'Pune');
     const existingRef = obligationRefKey('TAX-CL-033-6067-60218');
     const newRef = obligationRefKey('NEW-1');
@@ -472,7 +475,7 @@ describe.skipIf(!url)('import API on Postgres', { timeout: 60_000 }, () => {
         { nameNormalized: 'admin b', displayName: 'Admin b' },
       ],
       companies: [
-        { key: companyKey('Hindalco'), name: 'Hindalco' },
+        { key: companyKey('Kestrel Aluminium'), name: 'Kestrel Aluminium' },
         { key: companyKey('Novelis'), name: 'Novelis' },
       ],
       locations: [
@@ -496,7 +499,7 @@ describe.skipIf(!url)('import API on Postgres', { timeout: 60_000 }, () => {
       units: [
         {
           key: belur,
-          companyKey: companyKey('Hindalco'),
+          companyKey: companyKey('Kestrel Aluminium'),
           name: 'Belur',
           locationKey: locationKey({ countryCode: 'IN', state: 'West Bengal', city: 'Belur' }),
         },

@@ -61,7 +61,8 @@ Root `CLAUDE.md` applies. Field mapping and data quirks: `docs/requirements/exce
 - The golden fixture is pseudonymised (`fixtures/README.md`, ADR 0002).
 
 ## Tests
-- Golden test on `fixtures/sample-register.xlsx` asserts the counts in excel-analysis.md §5.
+- Golden test on `fixtures/sample-register-anonymised.xlsx` (the golden fixture with fictional company names,
+  `fixtures/README.md`) asserts the counts in excel-analysis.md §5.
 - Idempotency: import twice, second run creates nothing and reports every instance unchanged (422 under the recommended profile, see docs/contracts/fixtures.md).
 - Round trip: export the register (apps/api report) and re-import → no changes.
 - Fuzz: shuffled columns, extra columns, missing optional columns, dates as text and as Excel serials.
