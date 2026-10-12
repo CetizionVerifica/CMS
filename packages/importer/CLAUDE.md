@@ -45,8 +45,12 @@ Root `CLAUDE.md` applies. Field mapping and data quirks: `docs/requirements/exce
 - Analysis stays near linear (16 times the rows costs under 24 times the time with a stub `inferRule`;
   `test/scale.test.ts`). The real engine adds a few milliseconds per distinct schedule, so the API should run
   parse off-request (`POST /imports/{id}/parse` is async).
-- For the API and commit PRs: refuse commit unless `isReviewed(issues)`; cap the inflated xlsx size or parse in
-  a worker, because the 20 MB limit is on compressed bytes.
+- `readWorkbook` refuses an .xlsx whose zip directory declares more than `MAX_INFLATED_BYTES` (250 MB) before
+  ExcelJS inflates it, because the 20 MB limit is on compressed bytes.
+- Natural keys (`keys.ts`) are shared with the API, which derives the same keys from stored rows for
+  `ExistingState`.
+- The API module (`apps/api/src/modules/imports`, ADR M8-0001) runs parse in the background and re-runs
+  `analyseImport` after every review decision. For the commit PR: refuse commit unless `isReviewed(issues)`.
 - The golden fixture is pseudonymised (`fixtures/README.md`, ADR 0002).
 
 ## Tests
