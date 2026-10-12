@@ -47,5 +47,7 @@ APPROVED|NOT_APPLICABLE ──reopen(client admin or consultant, reason)──�
 - `exports`: Excel register and PDF certificate generated off-request, stored, link emailed.
 
 ## Tests
-Service tests run against a real Postgres (testcontainers) with RLS on. Each module tests every role it allows and at least one it forbids.
+Service tests run against a real Postgres (testcontainers) with RLS on. Postgres-backed tests are `*.db.test.ts` and run with
+`pnpm --filter @canopy/api test:db` (the CI `db` job); code that only runs against the database lives in a module's
+`service.ts` and `routes.ts`, whose coverage that run counts. Each module tests every role it allows and at least one it forbids.
 Workflow tests cover every arrow in the state machine and every invalid transition.
