@@ -1,9 +1,11 @@
+import { randomBytes } from 'node:crypto';
 import { cpSync, existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import pg from 'pg';
 import { afterEach, describe, expect, it } from 'vitest';
-import { MIGRATIONS_FOLDER } from '../src/database.js';
-import { createTestDatabase, type TestDatabase } from './support/database.js';
+import { createAdminDatabase, createDatabase, MIGRATIONS_FOLDER } from '../src/database.js';
+import { createTestDatabase, databaseUrl, type TestDatabase } from './support/database.js';
 import { populateFirm } from './support/populate.js';
 import { TABLES, tenantColumn } from './support/tables.js';
 
@@ -98,5 +100,49 @@ describe('migrations', () => {
     await t.admin.migrate();
     expect(await rowCounts(t)).toEqual(before);
     for (const [table, n] of Object.entries(before)) expect(n, table).toBeGreaterThan(0);
+  });
+
+  it('apply as a non-superuser owner, and the SECURITY DEFINER lookups still see every firm', async () => {
+    // Production owners are not superusers, and FORCE RLS binds the table owner (ADR 0003). An
+    // administrator prepares the owner once (packages/db/CLAUDE.md, Deploy); this test does the same.
+    const suffix = randomBytes(4).toString('hex');
+    const owner = `canopy_owner_${suffix}`;
+    const name = `canopy_test_owner_${suffix}`;
+    const password = randomBytes(12).toString('hex');
+    const base = new URL(databaseUrl());
+    const server = new pg.Client({ connectionString: base.toString() });
+    await server.connect();
+    await server.query(
+      `DO $$ BEGIN CREATE ROLE canopy_app NOLOGIN; EXCEPTION WHEN OTHERS THEN NULL; END $$`,
+    );
+    await server.query(
+      `DO $$ BEGIN CREATE ROLE canopy_lookup NOLOGIN; EXCEPTION WHEN OTHERS THEN NULL; END $$`,
+    );
+    await server.query(
+      `CREATE ROLE ${owner} LOGIN NOSUPERUSER NOBYPASSRLS PASSWORD '${password}' IN ROLE canopy_app, canopy_lookup`,
+    );
+    // Functions with `SET app.all_clients` (migrations 0003, 0005) need this grant on a non-superuser.
+    await server.query(`GRANT SET ON PARAMETER app.all_clients TO ${owner}`);
+    await server.query(`CREATE DATABASE ${name} OWNER ${owner}`);
+    const url = new URL(base);
+    url.username = owner;
+    url.password = password;
+    url.pathname = `/${name}`;
+    const admin = createAdminDatabase({ connectionString: url.toString() });
+    const db = createDatabase({ connectionString: url.toString(), max: 2 });
+    try {
+      await admin.migrate();
+      const firms = [
+        await admin.createFirm({ name: 'Demo Advisory' }),
+        await admin.createFirm({ name: 'Second Ledger Consulting' }),
+      ];
+      expect((await db.listFirmIds()).sort()).toEqual(firms.sort());
+    } finally {
+      await Promise.all([db.close(), admin.close()]);
+      await server.query(`DROP DATABASE IF EXISTS ${name} WITH (FORCE)`);
+      await server.query(`REVOKE SET ON PARAMETER app.all_clients FROM ${owner}`);
+      await server.query(`DROP ROLE IF EXISTS ${owner}`);
+      await server.end();
+    }
   });
 });

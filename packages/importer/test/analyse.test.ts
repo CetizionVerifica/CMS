@@ -434,6 +434,48 @@ describe('periods, conflicts and rules', () => {
     expect(unsure.plan.obligations[0]?.ruleStatus).toBe('TO_REVIEW');
     expect(only(unsure, 'RULE_LOW_CONFIDENCE').rawValues).toEqual(['2022-04-30']);
   });
+
+  it('tells inferRule the whole FYs the register covers, once per distinct schedule', () => {
+    const calls: unknown[][] = [];
+    const sure: InferredRule = {
+      rule: { kind: 'ANNUAL', month: 4, day: 30 },
+      confidence: 1,
+      mismatches: [],
+    };
+    const sheet = sheetOf(
+      { 'EY Compliance ID': 'HRS-WB-001-0001-00001', 'Due Date': '2022-04-30' },
+      { 'EY Compliance ID': 'HRS-WB-001-0001-00002', 'Due Date': '2022-04-30' },
+      { 'EY Compliance ID': 'HRS-WB-001-0001-00003', 'Due Date': '2023-05-15' },
+    );
+    const analysis = analyse(sheet, {
+      inferRule: (...args) => {
+        calls.push(args);
+        return sure;
+      },
+    });
+    const coverage = { from: '2022-04-01', to: '2024-03-31' };
+    expect(analysis.plan.coverage).toEqual(coverage);
+    expect(analysis.plan.obligations).toHaveLength(3);
+    expect(calls).toEqual([
+      [['2022-04-30'], 'TIME_BASED', { fyStartMonth: 4, holidayPolicy: 'NONE' }, { coverage }],
+      [['2023-05-15'], 'TIME_BASED', { fyStartMonth: 4, holidayPolicy: 'NONE' }, { coverage }],
+    ]);
+
+    const given = { from: '2022-01-01', to: '2023-12-31' } as typeof coverage;
+    const override = analyse(sheet, {
+      coverage: given as never,
+      inferRule: (...args) => {
+        expect(args[3]).toEqual({ coverage: given });
+        return sure;
+      },
+    });
+    expect(override.plan.coverage).toEqual(given);
+  });
+
+  it('has no coverage when no row can be planned', () => {
+    const analysis = analyse(sheetOf({ 'Due Date': null }));
+    expect(analysis.plan.coverage).toBeNull();
+  });
 });
 
 describe('dry run against an existing client', () => {

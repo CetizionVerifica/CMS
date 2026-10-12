@@ -22,6 +22,7 @@ export {
 } from './tenant-context.js';
 export * from './repositories/index.js';
 export { DbError } from './errors.js';
+export { isUuidV7, uuidv7 } from './uuid.js';
 export {
   SEED_FIRMS,
   defineSeedHook,

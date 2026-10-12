@@ -40,6 +40,28 @@ export default tseslint.config(
     },
   },
   {
+    // apps/api/CLAUDE.md: test helpers (a module's testing/, auth/testing.ts) are for tests only.
+    files: ['apps/api/src/**/*.ts'],
+    ignores: [
+      'apps/api/src/**/*.test.ts',
+      'apps/api/src/**/testing/**',
+      'apps/api/src/**/testing.ts',
+    ],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['**/testing', '**/testing.js', '**/testing/**'],
+              message: 'testing helpers are for tests only; production code must not import them.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
     // Root CLAUDE.md: ui depends on nothing in the repo.
     files: ['packages/ui/**/*.{ts,tsx}'],
     rules: {

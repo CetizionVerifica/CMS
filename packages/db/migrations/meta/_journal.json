@@ -50,6 +50,27 @@
       "when": 1791761907086,
       "tag": "0006_person_update_policy",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1791770932400,
+      "tag": "0007_list_firm_ids",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1791773375708,
+      "tag": "0008_send_log_key_and_firm_lookup",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1791773764084,
+      "tag": "0009_import_issue_delete",
+      "breakpoints": true
     }
   ]
 }
