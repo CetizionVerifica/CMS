@@ -1,4 +1,4 @@
-import type { ErrorCode } from '@canopy/contracts';
+import { ErrorCode } from '@canopy/contracts';
 import { describe, expect, it } from 'vitest';
 import { ApiError, errorEnvelope } from './errors.js';
 
@@ -7,6 +7,14 @@ describe('ApiError', () => {
     const error = new ApiError('NOT_FOUND');
     expect(error.message).toBe('Not found.');
     expect(error.statusCode).toBe(404);
+  });
+
+  it('has a message of its own for every contract code', () => {
+    for (const code of ErrorCode.options) {
+      expect(new ApiError(code).message, code).not.toBe(
+        code === 'INTERNAL' ? '' : 'Something went wrong.',
+      );
+    }
   });
 
   it('falls back to a generic message for a code added to the contract later', () => {

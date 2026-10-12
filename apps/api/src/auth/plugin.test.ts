@@ -1,3 +1,4 @@
+import { DbError } from '@canopy/db';
 import { randomUUID } from 'node:crypto';
 import Fastify from 'fastify';
 import { afterAll, describe, expect, it } from 'vitest';
@@ -34,6 +35,9 @@ app.post('/move', { config: { auth: 'session' } }, async (req) => {
 app.get('/open', { config: { auth: 'public' } }, async (req) => ({ hasCtx: hasCtx(req) }));
 app.get('/boom', { config: { auth: 'public' } }, async () => {
   throw new Error('secret detail');
+});
+app.get('/db-duplicate', { config: { auth: 'public' } }, async () => {
+  throw new DbError('DUPLICATE', 'person_email_key on person');
 });
 app.post(
   '/typed',
@@ -210,7 +214,7 @@ describe('error envelope', () => {
     });
     expect(zod.statusCode).toBe(400);
     expect(zod.json()).toMatchObject({
-      error: { code: 'VALIDATION', details: { issues: [{ path: 'clientId' }] } },
+      error: { code: 'VALIDATION', details: { issues: [{ path: ['clientId'] }] } },
     });
     const schema = await app.inject({ method: 'POST', url: '/typed', payload: {} });
     expect(schema.statusCode).toBe(400);
@@ -224,6 +228,12 @@ describe('error envelope', () => {
     const boom = await app.inject({ url: '/boom' });
     expect(boom.statusCode).toBe(500);
     expect(boom.json().error).toEqual({ code: 'INTERNAL', message: 'Something went wrong.' });
+  });
+
+  it('renders repository errors with their code and the default message', async () => {
+    const res = await app.inject({ url: '/db-duplicate' });
+    expect(res.statusCode).toBe(409);
+    expect(res.json().error).toEqual({ code: 'DUPLICATE', message: 'This already exists.' });
   });
 
   it('maps framework 4xx errors to contract codes', async () => {
@@ -307,6 +317,19 @@ describe('per-route rate limit', () => {
     });
     // Other routes keep their own (API-wide) budget.
     expect((await limited.inject({ url: '/health' })).statusCode).toBe(200);
+    await limited.close();
+  });
+
+  it('shares one budget between a GET route and its automatic HEAD route', async () => {
+    const limited = buildServer();
+    limited.get(
+      '/invite-ish/:token',
+      { config: { auth: 'public', routeLimit: { max: 2, timeWindow: 60_000 } } },
+      async () => ({ ok: true }),
+    );
+    expect((await limited.inject({ url: '/invite-ish/a' })).statusCode).toBe(200);
+    expect((await limited.inject({ method: 'HEAD', url: '/invite-ish/b' })).statusCode).toBe(200);
+    expect((await limited.inject({ url: '/invite-ish/c' })).statusCode).toBe(429);
     await limited.close();
   });
 

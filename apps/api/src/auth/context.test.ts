@@ -8,7 +8,7 @@ import {
   type SessionRecord,
 } from './context.js';
 import { ApiError } from './errors.js';
-import { membership } from './testing.js';
+import { membership, person } from './testing.js';
 
 const NOW = new Date('2026-10-11T20:00:00Z'); // 2026-10-12 01:30 in Asia/Kolkata
 const FIRM = randomUUID();
@@ -31,7 +31,7 @@ function session(overrides: Partial<SessionRecord> = {}): SessionRecord {
 
 function principal(overrides: Partial<Principal> = {}): Principal {
   return {
-    status: 'ACTIVE',
+    person: person({ id: PERSON, firmId: FIRM, email: 'asha@example.com' }),
     memberships: [membership({ role: 'CLIENT_ADMIN', clientId: C1 })],
     mfaEnrolled: false,
     mfaRequiredForFirmRoles: true,
@@ -101,7 +101,9 @@ describe('buildRequestContext', () => {
     );
     expect(codeOf(() => build(session(), null))).toBe('UNAUTHENTICATED');
     for (const status of ['UNCLAIMED', 'INVITED', 'DISABLED'] as const) {
-      expect(codeOf(() => build(session(), principal({ status })))).toBe('UNAUTHENTICATED');
+      expect(codeOf(() => build(session(), principal({ person: person({ status }) })))).toBe(
+        'UNAUTHENTICATED',
+      );
     }
   });
 
