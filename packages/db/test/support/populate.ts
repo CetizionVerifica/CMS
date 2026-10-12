@@ -1,5 +1,5 @@
 import { DEFAULT_CLIENT_SETTINGS } from '@canopy/contracts';
-import { eq } from 'drizzle-orm';
+import { eq, inArray } from 'drizzle-orm';
 import type { Database, TenantTx } from '../../src/database.js';
 import * as s from '../../src/schema/index.js';
 import { systemContext } from '../../src/tenant-context.js';
@@ -470,5 +470,40 @@ export async function populateAuth(
     add('auth_token', 'firmLevel', await token(2, null));
     for (const [i, id] of inviteIds.entries())
       add('auth_token', 'firmLevel', await token(3 + i, id));
+  });
+}
+
+/** Idempotency keys (migration 0014), one per firm admin and owner; written after populateAuth. */
+export async function populateIdempotency(
+  db: Database,
+  firm: PopulatedFirm,
+  label: string,
+): Promise<void> {
+  await db.withTenant(systemContext(firm.firmId, `populate-idempotency-${label}`), async (tx) => {
+    firm.rows['idempotency_key'] ??= { client0: [], client1: [], firmLevel: [] };
+    const people = await tx
+      .select({ id: s.person.id })
+      .from(s.person)
+      .where(inArray(s.person.email, [`admin@${label}.example`, `owner@${label}.example`]));
+    for (const [i, { id }] of people.entries()) {
+      firm.rows['idempotency_key'].firmLevel.push(
+        await one(
+          tx
+            .insert(s.idempotencyKey)
+            .values({
+              personId: id,
+              key: `populate-${label}-${i}`,
+              method: 'POST',
+              path: '/v1/instances/submit',
+              requestHash: 'f'.repeat(64),
+              responseStatus: 200,
+              responseBody: { ok: true },
+              createdAt: new Date('2029-12-31T00:00:00Z'),
+              expiresAt: new Date('2030-01-01T00:00:00Z'),
+            })
+            .returning({ id: s.idempotencyKey.id }),
+        ),
+      );
+    }
   });
 }

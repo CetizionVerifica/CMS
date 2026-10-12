@@ -40,6 +40,11 @@ export interface DatabaseOptions {
    * and CI connect as the owner).
    */
   privilegedLogin?: 'refuse' | 'allow';
+  /**
+   * Told the SQLSTATE when the server closes an idle pooled client (57P01 on a restart, failover or
+   * DROP DATABASE WITH (FORCE)). Default: a console warning with the code only, never the message.
+   */
+  onIdleError?: (sqlState: string) => void;
 }
 
 /**
@@ -60,12 +65,20 @@ export interface Database extends AuthLookups {
   close(): Promise<void>;
 }
 
+function sqlStateOf(error: unknown): string {
+  const code = (error as { code?: unknown } | null)?.code;
+  return typeof code === 'string' ? code : 'unknown';
+}
+
 function createPool(options: DatabaseOptions): pg.Pool {
   const pool = new pg.Pool({ connectionString: options.connectionString, max: options.max ?? 10 });
-  // An idle client the server closes (restart, failover, DROP DATABASE WITH (FORCE): 57P01) emits
-  // 'error' on the pool, which crashes the process when nobody listens. The pool has already removed
-  // that client and the next query opens a new one, so there is nothing to do.
-  pool.on('error', () => {});
+  // An idle client the server closes emits 'error' on the pool, which crashes the process when nobody
+  // listens. The pool has already removed that client and the next query opens a new one.
+  const report =
+    options.onIdleError ??
+    ((code: string) =>
+      console.warn(`@canopy/db: the server closed an idle connection (SQLSTATE ${code})`));
+  pool.on('error', (error) => report(sqlStateOf(error)));
   return pool;
 }
 

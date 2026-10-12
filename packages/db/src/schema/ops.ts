@@ -6,6 +6,7 @@ import {
   index,
   integer,
   jsonb,
+  pgPolicy,
   pgTable,
   text,
   uniqueIndex,
@@ -143,5 +144,58 @@ export const notificationSend = pgTable(
       .where(sql`instance_id is null`),
     index('notification_send_client_idx').on(t.firmId, t.clientId, t.sendDate),
     clientPolicy(),
+  ],
+);
+
+const ownOrStaff = sql`firm_id = app_firm_id() and (person_id = app_person_id() or app_firm_staff())`;
+
+/**
+ * Idempotency-Key replay for M7's state-changing routes: the first response to a person's key, kept until
+ * `expires_at`. A person reaches their own keys; firm staff contexts (the M9 purge) reach the firm's.
+ * The response body is what that person was already sent, so it stays behind the same RLS.
+ */
+export const idempotencyKey = pgTable(
+  'idempotency_key',
+  {
+    id: idColumn(),
+    firmId: firmIdColumn(),
+    personId: uuid('person_id').notNull(),
+    key: text('key').notNull(),
+    method: text('method').notNull(),
+    path: text('path').notNull(),
+    /** SHA-256 hex of the request, so a reused key with a different request can be refused. */
+    requestHash: text('request_hash').notNull(),
+    responseStatus: integer('response_status').notNull(),
+    responseBody: jsonb('response_body'),
+    createdAt: instant('created_at').notNull(),
+    expiresAt: instant('expires_at').notNull(),
+  },
+  (t) => [
+    foreignKey({
+      name: 'idempotency_key_person_fk',
+      columns: [t.firmId, t.personId],
+      foreignColumns: [person.firmId, person.id],
+    }),
+    uniqueIndex('idempotency_key_key').on(t.firmId, t.personId, t.key),
+    index('idempotency_key_expires_idx').on(t.firmId, t.expiresAt),
+    check('idempotency_key_key_check', sql`length(key) between 1 and 255`),
+    check('idempotency_key_method_check', sql`method in ('POST', 'PUT', 'PATCH', 'DELETE')`),
+    check('idempotency_key_path_check', sql`path ~ '^/' and length(path) <= 2048`),
+    check('idempotency_key_request_hash_check', sql`request_hash ~ '^[0-9a-f]{64}$'`),
+    check('idempotency_key_status_check', sql`response_status between 100 and 599`),
+    check('idempotency_key_expiry_check', sql`expires_at > created_at`),
+    pgPolicy('tenant_isolation', {
+      for: 'all',
+      to: 'public',
+      using: ownOrStaff,
+      withCheck: ownOrStaff,
+    }),
+    // The one other DELETE grant (CLAUDE.md rule 6): only rows already expired can go.
+    pgPolicy('delete_expired', {
+      as: 'restrictive',
+      for: 'delete',
+      to: 'public',
+      using: sql`firm_id = app_firm_id() and expires_at < now()`,
+    }),
   ],
 );

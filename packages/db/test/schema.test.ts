@@ -25,6 +25,7 @@ describe('schema', () => {
         'evidence',
         'export_job',
         'firm',
+        'idempotency_key',
         'import_batch',
         'import_issue',
         'import_row',
