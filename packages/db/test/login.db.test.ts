@@ -130,3 +130,28 @@ describe('privileged logins', () => {
     }
   });
 });
+
+describe('idle connections', () => {
+  it('a server-closed idle client (57P01) does not crash the process, and the next query reconnects', async () => {
+    const db = createDatabase({ connectionString: urlAs(login, password), max: 1 });
+    const unhandled: unknown[] = [];
+    const onError = (e: unknown) => unhandled.push(e);
+    process.on('uncaughtException', onError);
+    try {
+      const pid = await db.withTenant(systemContext(firmId, 'r'), async (tx) => {
+        const { rows } = await tx.execute<{ pid: number }>(sql`SELECT pg_backend_pid() AS pid`);
+        return rows[0]!.pid;
+      });
+      await t.ownerQuery(`SELECT pg_terminate_backend(${Number(pid)})`);
+      await new Promise((r) => setTimeout(r, 100));
+      const again = await db.withTenant(systemContext(firmId, 'r'), async (tx) =>
+        tx.select({ id: s.firm.id }).from(s.firm),
+      );
+      expect(again.map((f) => f.id)).toEqual([firmId]);
+      expect(unhandled).toEqual([]);
+    } finally {
+      process.off('uncaughtException', onError);
+      await db.close();
+    }
+  });
+});
