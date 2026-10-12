@@ -470,5 +470,79 @@ describe.skipIf(!url)('jobs on the Postgres store', () => {
       expect(await t.count(b.firmId, 'compliance_instance')).toBe(3 + 24);
       await expectNoStrays();
     });
+
+    it("emails firm B's owner once per send-back event and its approver per submission, keyed on the event", async () => {
+      const published: OutboxEvent[] = [];
+      const consumed = new Set(CONSUMERS.map((c) => c.type));
+      const bus: EventBus = {
+        consumes: (type) => consumed.has(type),
+        publish: async (event) => void published.push(event),
+      };
+      // What M7 writes: two send-backs of one instance on the same day, and a submission of another.
+      const sentBack = await inFirm(b.firmId, async (tx) => {
+        const submitted = await instances.require(tx, b.escalated);
+        const row = await instances.create(tx, {
+          clientId: b.clientId,
+          unitId: b.unitId,
+          assignmentId: submitted.assignmentId,
+          periodStart: '2026-10-13',
+          periodEnd: '2026-10-13',
+          dueDate: '2026-10-13',
+          workflowState: 'SENT_BACK',
+          pendingKind: null,
+          completedOn: null,
+          naReason: null,
+          ownerId: b.ownerId,
+          approverId: b.approverId,
+          submittedAt: null,
+          approvedAt: null,
+          dueDateOverridden: false,
+        } as unknown as Parameters<typeof instances.create>[1]);
+        const envelope = (type: string, instanceId: string, personId: string) => ({
+          type,
+          clientId: b.clientId,
+          actor: { kind: 'PERSON' as const, personId },
+          requestId: 'req:m7',
+          aggregate: { type: 'instance', id: instanceId },
+          aggregateVersion: 2,
+          data: { instanceId, ownerId: b.ownerId, approverId: b.approverId },
+        });
+        await domainEvents.enqueue(tx, envelope('instance.sent_back', row.id, b.approverId));
+        await domainEvents.enqueue(tx, envelope('instance.sent_back', row.id, b.approverId));
+        await domainEvents.enqueue(tx, envelope('instance.submitted', b.escalated, b.ownerId));
+        return row;
+      });
+
+      expect(await runRelayOutbox({ ...deps, bus }, 'job:relay-outbox:3')).toMatchObject({
+        published: 3,
+        failed: 0,
+      });
+      expect(published.every((e) => e.firmId === b.firmId)).toBe(true);
+      const before = mailer.sent.length;
+      for (const event of [...published, published[0]!]) {
+        const consumer = CONSUMERS.find((c) => c.type === event.type)!;
+        await consumer.handle(deps, event, `job:${event.type}:${event.id}`);
+      }
+
+      // Two send-backs, two emails to the owner; the repeat of the first sends nothing.
+      const sent = mailer.sent.slice(before);
+      expect(sent.map((m) => m.to.email)).toEqual([b.ownerEmail, b.ownerEmail]);
+      expect(sent[0]!.text).toContain(`/register?instance=${sentBack.id}`);
+      expect(
+        await t.count(b.firmId, 'notification_send', "kind = 'SENT_BACK' and sent_at is not null"),
+      ).toBe(2);
+      // The approver has no address yet: the submission is logged as failed, keyed on its event.
+      expect(
+        await t.count(
+          b.firmId,
+          'notification_send',
+          "kind = 'APPROVAL_REQUESTED' and failure_code = 'NO_EMAIL' and event_id = $1",
+          [published[2]!.id],
+        ),
+      ).toBe(1);
+      expect(await t.count(b.firmId, 'notification_send', 'event_id is not null')).toBe(3);
+      expect(await t.count(a.firmId, 'notification_send', 'event_id is not null')).toBe(0);
+      await expectNoStrays();
+    });
   });
 });

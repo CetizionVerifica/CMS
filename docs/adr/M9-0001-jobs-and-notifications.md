@@ -58,9 +58,17 @@ remind for complied or not-applicable items, and reach the database only through
     assignments in the pushed clients) run the nightly generation for just those assignments, at once. Generation
     only adds missing periods; it never moves or removes an instance, so a shortened `activeTo` leaves later
     instances to the module that changed the assignment.
-13. **Event-driven emails** (approver on `instance.submitted`, owner on `instance.sent_back`) dedupe on the event id,
-    not the daily key, so a second send-back on the same day still reaches the owner. They wait on the new
-    notification kinds (M0) and the send-log column (M3).
+13. **Event-driven emails.** `instance.submitted` emails the instance's current approver (`APPROVAL_REQUESTED`) and
+    `instance.sent_back` its owner (`SENT_BACK`), as soon as the relay delivers the event.
+    - **Dedupe key:** the send log's unique index on `notification_send (firm_id, event_id, recipient_id)
+      WHERE event_id IS NOT NULL` (M3 migration 0016). A redelivered event sends nothing twice. A second send-back on
+      the same day is a new event, so it still reaches the owner. Scheduled sends keep their own key and leave out
+      rows with an event id, so the day's reminder and the event email never block each other.
+    - **Stale events send nothing:** the consumer re-reads the instance, and sends only if it is still `SUBMITTED`
+      (or `SENT_BACK`) and not archived. An approval that lands before the email goes therefore stops it.
+    - **Send date** is the client's day when the email goes. It is recorded only; it is not part of the key.
+    - **Retries:** a transport failure leaves the row pending and fails the pg-boss job, which retries it (`runner.ts`
+      `RETRIES`: three times, backing off from a minute). The retry sends the pending row once.
 
 ## Consequences
 - M3 PR 2 must provide, as repository calls: list firm ids (system), clients, generation targets, instance keys,
