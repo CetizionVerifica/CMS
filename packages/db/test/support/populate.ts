@@ -44,7 +44,7 @@ export async function populateFirm(
           countryCode: 'IN',
           state: 'West Bengal',
           stateCode: 'WB',
-          city: `Belur ${label}`,
+          city: `Riverbend ${label}`,
         })
         .returning({ id: s.location.id }),
     );

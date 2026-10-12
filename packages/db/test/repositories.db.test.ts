@@ -61,7 +61,7 @@ beforeAll(async () => {
       countryCode: 'IN',
       state: 'West Bengal',
       stateCode: 'WB',
-      city: 'Belur',
+      city: 'Riverbend',
     });
     const unit = await r.units.create(tx, {
       clientId: client.id,
@@ -192,7 +192,7 @@ describe('tenancy and people', () => {
 
   it('archives and restores, and archived rows leave lists', async () => {
     const extra = await inA((tx) =>
-      r.companies.create(tx, { clientId: world.clientId, name: 'Grasim' }),
+      r.companies.create(tx, { clientId: world.clientId, name: 'Kestrel Fibres' }),
     );
     const archived = await inA((tx) => r.companies.archive(tx, extra.id, 1));
     expect(archived.archivedAt).not.toBeNull();
@@ -200,8 +200,8 @@ describe('tenancy and people', () => {
       (await inA((tx) => r.companies.list(tx, world.clientId, { includeArchived }))).items.map(
         (c) => c.name,
       );
-    expect(await names(false)).not.toContain('Grasim');
-    expect(await names(true)).toContain('Grasim');
+    expect(await names(false)).not.toContain('Kestrel Fibres');
+    expect(await names(true)).toContain('Kestrel Fibres');
     expect(await code(inA((tx) => r.companies.update(tx, extra.id, 2, { name: 'x' })))).toBe(
       'NOT_FOUND',
     );
@@ -239,7 +239,7 @@ describe('tenancy and people', () => {
           await r.locations.findByPath(tx, {
             countryCode: 'IN',
             state: 'west bengal',
-            city: 'BELUR',
+            city: 'RIVERBEND',
           })
         )?.id,
       ).toBe(world.locationId);
@@ -627,7 +627,7 @@ describe('instances', () => {
       categoryName: 'Payments',
       companyName: 'Kestrel Aluminium Industries',
       unitName: 'Plant',
-      locationLabel: 'India / West Bengal / Belur',
+      locationLabel: 'India / West Bengal / Riverbend',
       departmentName: 'Human Resources',
       ownerName: 'Owner 01',
       approverName: 'Approver 01',

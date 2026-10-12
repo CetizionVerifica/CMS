@@ -114,7 +114,7 @@ describe('units', () => {
     expect(await inFirm(a, (tx) => r.units.withLabels(tx, unitId))).toMatchObject({
       unit: { id: unitId, name: 'Plant' },
       companyName: 'Kestrel Aluminium',
-      locationLabel: 'India / West Bengal / Belur a',
+      locationLabel: 'India / West Bengal / Riverbend a',
     });
     expect(await inFirm(b, (tx) => r.units.withLabels(tx, unitId))).toBeNull();
     expect(

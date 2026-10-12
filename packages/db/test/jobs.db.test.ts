@@ -76,12 +76,12 @@ beforeAll(async () => {
       countryCode: 'IN',
       state: 'West Bengal',
       stateCode: 'WB',
-      city: 'Belur',
+      city: 'Riverbend',
     });
     const unit = await r.units.create(tx, {
       clientId: client.id,
       companyId: company.id,
-      name: 'Belur Plant',
+      name: 'Riverbend Plant',
       locationId: location.id,
     });
     const department = await r.departments.create(tx, {
@@ -304,7 +304,7 @@ describe('reminders and scores', () => {
       completedOn: '2026-06-05',
       title: 'Deposit TDS',
       actName: 'Income Tax Act, 1961',
-      unitName: 'Belur Plant',
+      unitName: 'Riverbend Plant',
       departmentName: 'Finance',
       criticality: 'HIGH',
     });

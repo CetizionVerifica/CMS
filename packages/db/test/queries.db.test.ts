@@ -78,12 +78,12 @@ beforeAll(async () => {
       countryCode: 'IN',
       state: 'West Bengal',
       stateCode: 'WB',
-      city: 'Belur',
+      city: 'Riverbend',
     });
     const unit = await r.units.create(tx, {
       clientId: client.id,
       companyId: company.id,
-      name: 'Belur Plant',
+      name: 'Riverbend Plant',
       locationId: location.id,
     });
     const departmentIds: Record<string, string> = {};
