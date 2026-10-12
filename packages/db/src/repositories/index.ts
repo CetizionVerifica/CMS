@@ -35,3 +35,17 @@ export type {
   ReminderCandidate,
 } from './jobs.js';
 export { MAX_LIMIT, type NewEntity, type Page, type PageRequest } from './crud.js';
+export {
+  credentials,
+  Grant,
+  invites,
+  Lockout,
+  loginTokens,
+  MfaRecord,
+  NewInvite,
+  NewLoginToken,
+  NewSession,
+  SessionMethod,
+  sessions,
+} from './auth.js';
+export type { Credential, Invite, PersonChange, StoredSession } from './auth.js';

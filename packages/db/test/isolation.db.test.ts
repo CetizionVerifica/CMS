@@ -5,7 +5,7 @@ import type { TenantTx } from '../src/database.js';
 import * as s from '../src/schema/index.js';
 import { systemContext, type TenantContext } from '../src/tenant-context.js';
 import { createTestDatabase, type TestDatabase } from './support/database.js';
-import { populateFirm, type PopulatedFirm } from './support/populate.js';
+import { populateAuth, populateFirm, type PopulatedFirm } from './support/populate.js';
 import { clientColumn, TABLES, tenantColumn } from './support/tables.js';
 
 /**
@@ -23,6 +23,8 @@ beforeAll(async () => {
   const firmB = await t.admin.createFirm({ name: 'Second Ledger Consulting' });
   a = await populateFirm(t.db, firmA, 'a');
   b = await populateFirm(t.db, firmB, 'b');
+  await populateAuth(t.db, a, 'a');
+  await populateAuth(t.db, b, 'b');
 }, 60_000);
 
 afterAll(async () => {
