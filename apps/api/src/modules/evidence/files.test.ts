@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   baseMimeType,
+  displayName,
   extensionOf,
   isAllowedType,
   requireAllowedType,
@@ -31,6 +32,16 @@ describe('evidence file types (api-conventions.md §6)', () => {
     expect(extensionOf('a.b.XLSX')).toBe('xlsx');
     expect(extensionOf('noext')).toBe('');
     expect(baseMimeType(' Text/Plain ; charset=UTF-8')).toBe('text/plain');
+  });
+
+  it('keeps only the last path segment of a file name', () => {
+    expect(displayName('../x.pdf')).toBe('x.pdf');
+    expect(displayName('a/b/../../etc/x.pdf')).toBe('x.pdf');
+    expect(displayName('C:\\scans\\Form 5.pdf')).toBe('Form 5.pdf');
+    expect(displayName(' Return Q1.pdf ')).toBe('Return Q1.pdf');
+    for (const bad of ['../', 'dir/..', '.', ' / ']) {
+      expect(() => displayName(bad)).toThrowError(expect.objectContaining({ code: 'VALIDATION' }));
+    }
   });
 
   it('keys each upload under its firm, client and instance', () => {

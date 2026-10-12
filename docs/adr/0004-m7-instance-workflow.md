@@ -61,7 +61,13 @@ several fail, and in which states the non-transition actions (reassign, due date
     the instance history shows them; they and the events carry ids, sizes and types, never file names, which
     can name employees. Only CLEAN files download (`EVIDENCE_NOT_READY` with the scan status otherwise).
     Removing archives the row and keeps the file; an OWNER may remove only while the instance is OPEN,
-    SENT_BACK or SUBMITTED, managers in any state. `scanned()` is the internal call for M9's scan job and
+    SENT_BACK or SUBMITTED, managers in any state. Nobody may remove the last CLEAN file of a SUBMITTED
+    completion whose obligation needs evidence (422 `EVIDENCE_REQUIRED`; send it back first), and approving a
+    completion re-checks the evidence rule, so a completion is never approved without the clean file it
+    needs. Managers (FIRM_ADMIN, CONSULTANT, CLIENT_ADMIN) may remove the last file of an APPROVED instance:
+    endpoints.md §4 allows it, the removal is audited with its reason, and the approved result stands as
+    signed off; reopen it if the evidence no longer supports it. Stored file names keep only the last path
+    segment (`../x.pdf` is stored as `x.pdf`). `scanned()` is the internal call for M9's scan job and
     keeps the first result if the job retries. Every M7 route, reads included, has a row in
     `audit-gate.db.test.ts`.
 13. **Not yet built.** `Idempotency-Key` on transitions: M3 #49 adds the key table; M7 wires it next, never storing a response that carries a signed URL. Only `sort=dueDate` is

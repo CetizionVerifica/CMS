@@ -160,6 +160,18 @@ describe('upload and confirm', () => {
     expect(list.body.items).toEqual([expect.objectContaining({ id: created.id })]);
   });
 
+  it('stores only the last path segment of the file name', async () => {
+    const i = await fresh();
+    const ticket = await upload(i);
+    const res = await call('owner', 'POST', `/instances/${i.id}/evidence`, {
+      uploadId: ticket.uploadId,
+      fileName: '../../Form 21.pdf',
+      sha256: 'c'.repeat(64),
+    });
+    expect(res.status).toBe(201);
+    expect(res.body.fileName).toBe('Form 21.pdf');
+  });
+
   it('refuses a file type outside the list, and a confirm with nothing uploaded', async () => {
     const i = await fresh();
     const exe = await call('owner', 'POST', `/instances/${i.id}/evidence/upload-url`, {
@@ -326,5 +338,57 @@ describe('remove', () => {
     expect(
       (await call('owner', 'POST', `/evidence/${file.id}/remove`, { reason: '' })).status,
     ).toBe(400);
+  });
+
+  it('keeps the last clean file of a submitted completion that needs evidence (422)', async () => {
+    const i = await fresh('SUBMITTED', 'evidence');
+    const first = await addEvidence(testDb.db, f, i);
+    const second = await addEvidence(testDb.db, f, i);
+    await addEvidence(testDb.db, f, i, 'PENDING');
+    const remove = (who: keyof Cast, id: string) =>
+      call(who, 'POST', `/evidence/${id}/remove`, { reason: 'Wrong month.' });
+
+    expect((await remove('owner', first.id)).status).toBe(200);
+    for (const who of ['owner', 'clientAdmin', 'consultant'] as const) {
+      const refused = await remove(who, second.id);
+      expect(refused.status).toBe(422);
+      expect(refused.body.error).toMatchObject({ code: 'EVIDENCE_REQUIRED' });
+    }
+    expect((await historyOf(i.id)).map((e) => e.action)).toEqual(['EVIDENCE_REMOVE']);
+  });
+
+  it('removes freely where no clean file is needed: an obligation without evidence, or an NA request', async () => {
+    const plain = await fresh('SUBMITTED');
+    const plainFile = await addEvidence(testDb.db, f, plain);
+    expect(
+      (await call('owner', 'POST', `/evidence/${plainFile.id}/remove`, { reason: 'x' })).status,
+    ).toBe(200);
+
+    const open = await fresh('OPEN', 'evidence');
+    const openFile = await addEvidence(testDb.db, f, open);
+    expect(
+      (await call('owner', 'POST', `/evidence/${openFile.id}/remove`, { reason: 'x' })).status,
+    ).toBe(200);
+  });
+});
+
+describe('approval re-checks evidence', () => {
+  const approve = (i: ComplianceInstance) =>
+    call('approver', 'POST', `/instances/${i.id}/approve`, { version: i.version });
+
+  it('refuses a completion whose evidence is no longer clean (422)', async () => {
+    const none = await fresh('SUBMITTED', 'evidence');
+    expect((await approve(none)).body.error).toMatchObject({ code: 'EVIDENCE_REQUIRED' });
+
+    const infected = await fresh('SUBMITTED', 'evidence');
+    await addEvidence(testDb.db, f, infected, 'INFECTED');
+    const refused = await approve(infected);
+    expect(refused.status).toBe(422);
+    expect(refused.body.error).toMatchObject({ code: 'EVIDENCE_REQUIRED' });
+    expect(await historyOf(infected.id)).toEqual([]);
+
+    const clean = await fresh('SUBMITTED', 'evidence');
+    await addEvidence(testDb.db, f, clean);
+    expect((await approve(clean)).body).toMatchObject({ workflowState: 'APPROVED' });
   });
 });

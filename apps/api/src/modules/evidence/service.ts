@@ -1,5 +1,6 @@
 import {
   MAX_EVIDENCE_BYTES,
+  type ComplianceInstance,
   type Evidence,
   type EvidenceView,
   type RequestContext,
@@ -8,8 +9,10 @@ import {
   type UploadTicket,
 } from '@canopy/contracts';
 import {
+  assignments,
   auditEvents,
   evidence,
+  obligations,
   instances,
   systemContext,
   tenantFromRequest,
@@ -24,7 +27,7 @@ import { emit, emitAs } from '../instances/events.js';
 import { rolesIn } from '../instances/scope.js';
 import type { Actor } from '../instances/service.js';
 import { ACTIVE_STATES } from '../instances/workflow.js';
-import { requireAllowedType, storageKey } from './files.js';
+import { displayName, requireAllowedType, storageKey } from './files.js';
 import { SIGNED_URL_SECONDS, type EvidenceStorage } from './storage.js';
 
 /**
@@ -60,6 +63,29 @@ export function createEvidenceService(options: EvidenceServiceOptions) {
     if (!(ACTIVE_STATES as readonly string[]).includes(state)) {
       throw new ApiError('INVALID_TRANSITION', { from: state, action: 'UPLOAD_EVIDENCE' });
     }
+  }
+
+  /**
+   * A completion waiting for approval keeps the clean file it was submitted with when the obligation needs
+   * evidence; send it back to change the evidence instead. Approval checks again (workflow.ts).
+   */
+  async function keepRequiredEvidence(
+    tx: TenantTx,
+    instance: ComplianceInstance,
+    file: EvidenceView,
+  ): Promise<void> {
+    if (instance.workflowState !== 'SUBMITTED' || instance.pendingKind !== 'COMPLETION') return;
+    if (file.scanStatus !== 'CLEAN') return;
+    const assignment = await assignments.require(tx, instance.assignmentId);
+    const obligation = await obligations.require(tx, assignment.obligationId);
+    if (!obligation.evidenceRequired) return;
+    const others = await evidence.forInstance(tx, instance.id);
+    if (others.some((f) => f.id !== file.id && f.scanStatus === 'CLEAN')) return;
+    throw new ApiError(
+      'EVIDENCE_REQUIRED',
+      undefined,
+      'This is the only clean evidence for a submitted completion. Send it back before removing it.',
+    );
   }
 
   /** Live evidence the actor's tenant can see, with its instance. */
@@ -110,7 +136,7 @@ export function createEvidenceService(options: EvidenceServiceOptions) {
         return found;
       });
       requireActive(instance.workflowState);
-      requireAllowedType(body.fileName, body.mimeType);
+      requireAllowedType(displayName(body.fileName), body.mimeType);
       const uploadId = uuidv7();
       const key = storageKey({
         firmId: ctx.firmId,
@@ -149,7 +175,8 @@ export function createEvidenceService(options: EvidenceServiceOptions) {
           });
         }
         // The PUT was signed for one type and size; check what arrived against the same rules.
-        requireAllowedType(body.fileName, stored.mimeType);
+        const fileName = displayName(body.fileName);
+        requireAllowedType(fileName, stored.mimeType);
         if (stored.sizeBytes < 1 || stored.sizeBytes > MAX_EVIDENCE_BYTES) {
           throw new ApiError('VALIDATION', {
             issues: [{ path: ['uploadId'], message: 'The uploaded file is empty or over 25 MB.' }],
@@ -159,7 +186,7 @@ export function createEvidenceService(options: EvidenceServiceOptions) {
           instanceId: instance.id,
           clientId: instance.clientId,
           storageKey: key,
-          fileName: body.fileName,
+          fileName,
           mimeType: stored.mimeType,
           sizeBytes: stored.sizeBytes,
           sha256: body.sha256,
@@ -240,6 +267,7 @@ export function createEvidenceService(options: EvidenceServiceOptions) {
         }
         const reason = body.reason.trim();
         if (reason === '') throw new ApiError('REASON_REQUIRED');
+        await keepRequiredEvidence(tx, instance, file);
         const archived = await evidence.archive(tx, file.id);
         await audit(tx, ctx, {
           clientId: instance.clientId,

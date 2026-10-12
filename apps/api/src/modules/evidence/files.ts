@@ -46,6 +46,22 @@ export function requireAllowedType(fileName: string, mimeType: string): void {
   }
 }
 
+/**
+ * The name shown and used in downloads: the last path segment only, so a name such as `../x.pdf` or
+ * `C:\scans\x.pdf` is stored as `x.pdf`. A name with nothing left is a validation error.
+ */
+export function displayName(fileName: string): string {
+  const name = fileName
+    .slice(Math.max(fileName.lastIndexOf('/'), fileName.lastIndexOf('\\')) + 1)
+    .trim();
+  if (name === '' || name === '.' || name === '..') {
+    throw new ApiError('VALIDATION', {
+      issues: [{ path: ['fileName'], message: 'Give the file a name.' }],
+    });
+  }
+  return name;
+}
+
 /** Where an upload is stored. Derived from the upload id, so confirming needs no extra table. */
 export function storageKey(input: {
   firmId: string;
