@@ -7,7 +7,7 @@ import type {
   WorkflowState,
 } from '@canopy/contracts';
 import { compareDates } from '@canopy/engine';
-import { ApiError } from './errors.js';
+import { ApiError } from '../../auth/index.js';
 
 /**
  * The instance state machine (apps/api/CLAUDE.md, "Instance workflow"). Pure: it reads no clock and no
@@ -131,7 +131,7 @@ export function canTransition(state: WorkflowState, action: TransitionAction): b
 
 function requireReason(reason: string): string {
   const trimmed = reason.trim();
-  if (trimmed === '') throw new ApiError('REASON_REQUIRED', 'A reason is required.');
+  if (trimmed === '') throw new ApiError('REASON_REQUIRED');
   return trimmed;
 }
 
@@ -146,11 +146,15 @@ function checkEvidence(required: boolean, evidence: readonly ScanStatus[]): void
   if (evidence.includes('PENDING')) {
     throw new ApiError(
       'EVIDENCE_NOT_READY',
-      'Evidence is still being scanned. Submit once the scan finishes.',
       { scanStatus: 'PENDING' },
+      'Evidence is still being scanned. Submit once the scan finishes.',
     );
   }
-  throw new ApiError('EVIDENCE_REQUIRED', 'This obligation needs at least one evidence file.');
+  throw new ApiError(
+    'EVIDENCE_REQUIRED',
+    undefined,
+    'This obligation needs at least one evidence file.',
+  );
 }
 
 function nextFields(input: TransitionInput): {
@@ -162,9 +166,11 @@ function nextFields(input: TransitionInput): {
   switch (c.action) {
     case 'SUBMIT': {
       if (compareDates(c.completedOn, asOf) > 0) {
-        throw new ApiError('DATE_IN_FUTURE', 'The completion date cannot be in the future.', {
-          today: asOf,
-        });
+        throw new ApiError(
+          'DATE_IN_FUTURE',
+          { today: asOf },
+          'The completion date cannot be in the future.',
+        );
       }
       checkEvidence(input.evidenceRequired, input.evidence);
       const comment = optionalText(c.comment);
@@ -265,18 +271,16 @@ export function planTransition(input: TransitionInput): TransitionPlan {
   if (input.expectedVersion !== instance.version) {
     throw new ApiError(
       'STALE_VERSION',
+      { currentVersion: instance.version },
       'This item changed since you opened it. Reload and retry.',
-      {
-        currentVersion: instance.version,
-      },
     );
   }
   if (!canTransition(instance.workflowState, command.action)) {
     const action: InstanceAction = command.action;
     throw new ApiError(
       'INVALID_TRANSITION',
-      `Cannot ${ACTION_WORDS[command.action]} an item that is ${STATE_WORDS[instance.workflowState]}.`,
       { from: instance.workflowState, action },
+      `Cannot ${ACTION_WORDS[command.action]} an item that is ${STATE_WORDS[instance.workflowState]}.`,
     );
   }
 
