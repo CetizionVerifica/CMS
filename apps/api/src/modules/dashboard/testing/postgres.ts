@@ -126,7 +126,7 @@ export async function seedFirm(db: Database, firmId: string, label: string): Pro
       countryCode: 'IN',
       state: 'West Bengal',
       stateCode: 'WB',
-      city: 'Belur',
+      city: 'Riverbend',
     });
     const client = await clients.create(tx, {
       name: `${label} Metals Group`,

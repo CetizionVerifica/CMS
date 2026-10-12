@@ -184,7 +184,7 @@ describe('PostgresReportsStore through the API', () => {
       id: a.unit2,
       name: 'Head Office',
       companyName: 'Kestrel Aluminium',
-      locationLabel: 'India / West Bengal / Belur',
+      locationLabel: 'India / West Bengal / Riverbend',
     });
     expect(await store.unit(ctxOf(a), b.clientId, a.unit2)).toBeNull();
     const res = await app.inject({
