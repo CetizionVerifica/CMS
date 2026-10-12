@@ -62,14 +62,17 @@ beforeAll(async () => {
   firmA = await t.admin.createFirm({ name: 'Demo Advisory' });
   w = await inA(async (tx) => {
     const client = await r.clients.create(tx, {
-      name: 'Aditya Birla Group',
+      name: 'Kestrel Metals Group',
       settings: DEFAULT_CLIENT_SETTINGS,
     });
     const other = await r.clients.create(tx, {
-      name: 'Tata Group',
+      name: 'Osprey Textiles Group',
       settings: DEFAULT_CLIENT_SETTINGS,
     });
-    const company = await r.companies.create(tx, { clientId: client.id, name: 'Hindalco' });
+    const company = await r.companies.create(tx, {
+      clientId: client.id,
+      name: 'Kestrel Aluminium',
+    });
     const location = await r.locations.create(tx, {
       country: 'India',
       countryCode: 'IN',

@@ -6,7 +6,7 @@ PostgreSQL 16 with Drizzle ORM. Root `CLAUDE.md` applies.
 
 Tenancy and people
 
-- `firm` (consultancy tenant), `client` (org group, e.g. "Aditya Birla Group"), `company` ("Hindalco"), `unit` ("Plant", with `location_id`)
+- `firm` (consultancy tenant), `client` (org group, e.g. "Kestrel Metals Group"), `company` ("Kestrel Aluminium"), `unit` ("Plant", with `location_id`)
 - `location` (country, state, city; state drives state-law applicability, e.g. West Bengal)
 - `person` (name, email, `name_normalized` for dedupe, `status` e.g. unclaimed/active/disabled), `membership` (person × firm or client, role, `consultant_client_ids`, `unit_ids`, `expires_at`), `department` (per client, with `aliases text[]`)
 

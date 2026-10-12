@@ -49,10 +49,13 @@ beforeAll(async () => {
   firmB = await t.admin.createFirm({ name: 'Second Ledger Consulting' });
   world = await inA(async (tx) => {
     const client = await r.clients.create(tx, {
-      name: 'Aditya Birla Group',
+      name: 'Kestrel Metals Group',
       settings: DEFAULT_CLIENT_SETTINGS,
     });
-    const company = await r.companies.create(tx, { clientId: client.id, name: 'Hindalco' });
+    const company = await r.companies.create(tx, {
+      clientId: client.id,
+      name: 'Kestrel Aluminium',
+    });
     const location = await r.locations.create(tx, {
       country: 'India',
       countryCode: 'IN',
@@ -174,9 +177,9 @@ describe('tenancy and people', () => {
 
   it('updates with optimistic concurrency', async () => {
     const updated = await inA((tx) =>
-      r.companies.update(tx, world.companyId, 1, { name: 'Hindalco Industries' }),
+      r.companies.update(tx, world.companyId, 1, { name: 'Kestrel Aluminium Industries' }),
     );
-    expect(updated).toMatchObject({ name: 'Hindalco Industries', version: 2 });
+    expect(updated).toMatchObject({ name: 'Kestrel Aluminium Industries', version: 2 });
     expect(
       await code(inA((tx) => r.companies.update(tx, world.companyId, 1, { name: 'Stale' }))),
     ).toBe('STALE_VERSION');
@@ -244,9 +247,9 @@ describe('tenancy and people', () => {
         world.ownerId,
       ]);
       expect((await r.people.findByEmail(tx, 'APPROVER01@example.com'))?.id).toBe(world.approverId);
-      expect((await r.companies.findByName(tx, world.clientId, 'Hindalco Industries'))?.id).toBe(
-        world.companyId,
-      );
+      expect(
+        (await r.companies.findByName(tx, world.clientId, 'Kestrel Aluminium Industries'))?.id,
+      ).toBe(world.companyId);
       expect((await r.units.findByName(tx, world.companyId, 'Plant'))?.id).toBe(world.unitId);
       expect((await r.obligations.findByExternalRef(tx, 'TAX-CL-033-6067-60218')).length).toBe(1);
       expect(
@@ -622,7 +625,7 @@ describe('instances', () => {
       externalRef: 'TAX-CL-033-6067-60218',
       actName: 'Income Tax Act, 1961',
       categoryName: 'Payments',
-      companyName: 'Hindalco Industries',
+      companyName: 'Kestrel Aluminium Industries',
       unitName: 'Plant',
       locationLabel: 'India / West Bengal / Belur',
       departmentName: 'Human Resources',
