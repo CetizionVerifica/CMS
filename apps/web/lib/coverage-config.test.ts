@@ -3,8 +3,13 @@
 import { createRequire } from 'node:module';
 
 import { describe, expect, it } from 'vitest';
+import type { ViteUserConfig } from 'vitest/config';
 
-import config from '../vitest.config.mjs';
+// A plain .mjs file has no types; the specifier is a variable so tsc doesn't look for them.
+const configPath = '../vitest.config.mjs';
+const { default: config } = (await import(/* @vite-ignore */ configPath)) as {
+  default: ViteUserConfig;
+};
 
 const picomatch = createRequire(createRequire(import.meta.url).resolve('vitest'))('picomatch') as (
   globs: string[],
