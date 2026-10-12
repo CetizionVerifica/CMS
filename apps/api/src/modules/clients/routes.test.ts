@@ -11,9 +11,9 @@ describe('clients', () => {
       ((await call(actor, 'GET', '/clients')).body as { items: { name: string }[] }).items.map(
         (c) => c.name,
       );
-    expect(await names('firmAdmin')).toEqual(['Aditya Group', 'Bharat Mills']);
-    expect(await names('consultant')).toEqual(['Aditya Group']);
-    expect(await names('owner')).toEqual(['Aditya Group']);
+    expect(await names('firmAdmin')).toEqual(['Bharat Mills', 'Kestrel Metals Group']);
+    expect(await names('consultant')).toEqual(['Kestrel Metals Group']);
+    expect(await names('owner')).toEqual(['Kestrel Metals Group']);
     expect(await names('otherFirmAdmin')).toEqual(['Xeno Holdings']);
   });
 
@@ -21,10 +21,13 @@ describe('clients', () => {
     const { call } = testApp();
     const first = await call('firmAdmin', 'GET', '/clients?limit=1&count=true');
     const page1 = first.body as { items: { name: string }[]; nextCursor: string; total: number };
-    expect(page1.items.map((c) => c.name)).toEqual(['Aditya Group']);
+    expect(page1.items.map((c) => c.name)).toEqual(['Bharat Mills']);
     expect(page1.total).toBe(2);
     const second = await call('firmAdmin', 'GET', `/clients?limit=1&cursor=${page1.nextCursor}`);
-    expect(second.body).toMatchObject({ items: [{ name: 'Bharat Mills' }], nextCursor: null });
+    expect(second.body).toMatchObject({
+      items: [{ name: 'Kestrel Metals Group' }],
+      nextCursor: null,
+    });
     const found = await call('firmAdmin', 'GET', '/clients?q=bhar');
     expect((found.body as { items: unknown[] }).items).toHaveLength(1);
     const bad = await call('firmAdmin', 'GET', '/clients?cursor=nonsense');
@@ -120,7 +123,7 @@ describe('clients', () => {
     const { call, store } = testApp();
     const res = await call('consultant', 'PATCH', `/clients/${ids.clientA}`, {
       version: 1,
-      name: 'Aditya Group',
+      name: 'Kestrel Metals Group',
     });
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({ version: 1 });
