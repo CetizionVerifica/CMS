@@ -4,7 +4,9 @@ import { expectNoA11yViolations, expectNoPageOverflow, openPopup } from './a11y'
 
 test('client switcher filters, navigates and is axe-clean while open', async ({ page }) => {
   await page.goto('/#/context');
-  const trigger = page.getByRole('button', { name: 'Client: Hindalco Belur, change client' });
+  const trigger = page.getByRole('button', {
+    name: 'Client: Kestrel Aluminium Belur, change client',
+  });
   await trigger.focus();
   await page.keyboard.press('ArrowDown');
   const panel = page.getByRole('dialog', { name: 'Change client' });
