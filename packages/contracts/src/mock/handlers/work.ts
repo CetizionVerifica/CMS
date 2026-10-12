@@ -94,6 +94,7 @@ function transition(
   change: Partial<InstanceRecord>,
   comment?: { kind: Row<'comments'>['kind']; body: string | undefined },
   reason?: string,
+  auditExtra: Record<string, unknown> = {},
 ): InstanceRecord {
   const actor = actorOf(ctx);
   checkVersion(instance, version);
@@ -115,12 +116,18 @@ function transition(
       workflowState: instance.workflowState,
       pendingKind: instance.pendingKind,
       completedOn: instance.completedOn,
+      ...auditExtra,
     },
     reason: reason ?? null,
   });
   if (comment?.body !== undefined) addComment(ctx, actor, instance, comment.kind, comment.body);
   return instance;
 }
+
+/** A decision by someone other than the instance's approver (a CLIENT_ADMIN) is audited as delegated. */
+const delegated = (ctx: Ctx, instance: InstanceRecord) => ({
+  delegated: actorOf(ctx).person.id !== instance.approverId,
+});
 
 function approve(ctx: Ctx, instance: InstanceRecord, version: number, comment: string | undefined) {
   const na = instance.pendingKind === 'NA';
@@ -137,6 +144,8 @@ function approve(ctx: Ctx, instance: InstanceRecord, version: number, comment: s
       approvedAt: ctx.clock.now(),
     },
     { kind: 'APPROVE', body: comment },
+    undefined,
+    delegated(ctx, instance),
   );
 }
 
@@ -240,6 +249,9 @@ export const workHandlers: PartialHandlers<
     const actor = actorOf(ctx);
     const instance = findInstance(actor, ctx.params.id);
     ctx.authorize(instanceScope(instance));
+    // Version and state first, as for every transition; then the submission's own rules.
+    checkVersion(instance, ctx.body.version);
+    requireState(instance, OPEN, 'SUBMIT');
     const today = ctx.clock.today();
     if (ctx.body.completedOn > today) {
       throw new MockError('DATE_IN_FUTURE', 'The completion date is after today', { today });
@@ -310,6 +322,7 @@ export const workHandlers: PartialHandlers<
       { workflowState: 'SENT_BACK', pendingKind: null, completedOn: null, naReason: null },
       { kind: 'SEND_BACK', body: ctx.body.reason },
       ctx.body.reason,
+      delegated(ctx, instance),
     );
     return detail(ctx, instance);
   },
@@ -339,7 +352,8 @@ export const workHandlers: PartialHandlers<
 
   bulkApprove(ctx) {
     const actor = actorOf(ctx);
-    ctx.authorize({ clientId: ctx.params.clientId! });
+    // `own` (APPROVER) access is checked per item below.
+    ctx.authorize({ clientId: ctx.params.clientId!, ownPerItem: true });
     return {
       results: ctx.body.items.map(({ id, version }) => {
         try {
@@ -467,6 +481,7 @@ export const workHandlers: PartialHandlers<
     const actor = actorOf(ctx);
     const instance = findInstance(actor, ctx.params.id);
     ctx.authorize(instanceScope(instance));
+    requireState(instance, INSTANCE_EDIT_STATES, 'UPLOAD_EVIDENCE');
     const upload = actor.firm.pendingUploads.get(ctx.body.uploadId);
     if (upload === undefined || upload.instanceId !== instance.id) {
       throw new MockError('VALIDATION', 'Unknown upload', {
@@ -546,9 +561,9 @@ export const workHandlers: PartialHandlers<
 
   evidenceDownloadUrl(ctx) {
     const actor = actorOf(ctx);
-    finishScans(actor.firm);
     const { evidence, instance } = findEvidence(actor, ctx.params.id);
     ctx.authorize(instanceScope(instance));
+    finishScans(actor.firm);
     if (evidence.scanStatus !== 'CLEAN') {
       throw new MockError('EVIDENCE_NOT_READY', 'This file has not passed the virus scan', {
         scanStatus: evidence.scanStatus,

@@ -110,6 +110,8 @@ function findInvite(store: MockStore, token: string, now: string) {
 const addDays = (instant: string, days: number) =>
   new Date(Date.parse(instant) + days * 86_400_000).toISOString().replace(/\.\d{3}Z$/, 'Z');
 
+const MFA_ISSUER = 'PlanetPulse Compliance';
+
 export const authHandlers: PartialHandlers<
   | 'login'
   | 'requestMagicLink'
@@ -170,8 +172,11 @@ export const authHandlers: PartialHandlers<
 
   enrollMfa(ctx) {
     const actor = actorOf(ctx);
-    const label = encodeURIComponent(`Canopy:${actor.person.email ?? actor.person.displayName}`);
-    return { otpauthUrl: `otpauth://totp/${label}?secret=JBSWY3DPEHPK3PXP&issuer=Canopy` };
+    // The client-facing product name, as the real provider uses (never the internal working name).
+    const label = `${encodeURIComponent(MFA_ISSUER)}:${encodeURIComponent(actor.person.email ?? actor.person.displayName)}`;
+    return {
+      otpauthUrl: `otpauth://totp/${label}?secret=JBSWY3DPEHPK3PXP&issuer=${encodeURIComponent(MFA_ISSUER)}`,
+    };
   },
 
   verifyMfa(ctx) {

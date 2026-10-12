@@ -134,9 +134,9 @@ function archive<
 }
 
 /** The client a person-scoped call acts in: one the person belongs to that the actor can see. */
-function personScope(actor: Actor, personId: string): string | null {
-  const d = actor.firm.data;
-  const clients = new Set<string>([
+/** The clients a person belongs to: memberships, and owner or approver of their work. */
+function personClients(d: FirmData, personId: string): Set<string> {
+  return new Set<string>([
     ...d.memberships
       .filter((m) => m.personId === personId && m.clientId !== null)
       .map((m) => m.clientId!),
@@ -147,6 +147,25 @@ function personScope(actor: Actor, personId: string): string | null {
       .filter((a) => a.defaultOwnerId === personId || a.defaultApproverId === personId)
       .map((a) => a.clientId),
   ]);
+}
+
+/** Firm staff: people with a live firm-role membership. */
+const isFirmStaff = (d: FirmData, personId: string) =>
+  d.memberships.some((m) => m.personId === personId && m.archivedAt === null && isFirmRole(m.role));
+
+/**
+ * A FIRM_ADMIN may manage anyone in the firm. Anyone else may manage a person only when that person is not firm
+ * staff and every client the person belongs to is one the actor can see.
+ */
+function canManagePerson(actor: Actor, personId: string): boolean {
+  if (hasRole(actor, null, FIRM_ROLE_ADMIN)) return true;
+  const d = actor.firm.data;
+  const visible = new Set(visibleClientIds(actor));
+  return !isFirmStaff(d, personId) && [...personClients(d, personId)].every((c) => visible.has(c));
+}
+
+function personScope(actor: Actor, personId: string): string | null {
+  const clients = personClients(actor.firm.data, personId);
   const visible = visibleClientIds(actor).filter((id) => clients.has(id));
   if (visible.length > 0) return visible[0]!;
   if (hasRole(actor, null, ['FIRM_ADMIN', 'CONSULTANT'])) return null;
@@ -293,11 +312,15 @@ function mergeNamed<
   repoint: (sourceId: string) => void,
 ): T {
   checkVersion(target, body.version);
-  for (const sourceId of body.sourceIds) {
+  // Check every source before changing anything, so a bad id leaves the data as it was.
+  const sources = body.sourceIds.map((sourceId) => {
     const source = rows.find(
       (r) => r.id === sourceId && r.archivedAt === null && r.id !== target.id,
     );
     if (source === undefined) throw unknownRef('sourceIds', entityType);
+    return source;
+  });
+  for (const source of sources) {
     target.aliases = [...new Set([...target.aliases, source.name, ...source.aliases])];
     source.archivedAt = ctx.clock.now();
     touch(source, ctx.clock);
@@ -425,11 +448,12 @@ export const entityHandlers: PartialHandlers<
     const client = actor.firm.data.clients.find(
       (c) => c.id === ctx.params.clientId && c.archivedAt !== null,
     );
-    if (client === undefined || !hasRole(actor, null, FIRM_ROLE_ADMIN)) throw notFound();
+    if (client === undefined) throw notFound();
+    // Firm-level check: the archived client is not visible yet, and nothing changes before this passes.
+    ctx.authorize({ clientId: null });
     checkVersion(client, ctx.body.version);
     client.archivedAt = null;
     touch(client, ctx.clock);
-    ctx.authorize({ clientId: client.id });
     audit(ctx, actor, {
       action: 'RESTORE',
       entityType: 'client',
@@ -660,8 +684,10 @@ export const entityHandlers: PartialHandlers<
 
   listFirmPeople(ctx) {
     ctx.authorize({ clientId: null });
-    const rows = live(actorOf(ctx).firm.data.people).filter((p) =>
-      matches(ctx.query.q, p.displayName, p.email),
+    const d = actorOf(ctx).firm.data;
+    // Firm staff only (endpoints.md); client people are listed per client.
+    const rows = live(d.people).filter(
+      (p) => isFirmStaff(d, p.id) && matches(ctx.query.q, p.displayName, p.email),
     );
     return paginate(
       [...rows].sort((a, b) => a.displayName.localeCompare(b.displayName)),
@@ -763,22 +789,42 @@ export const entityHandlers: PartialHandlers<
     ctx.authorize({ clientId: personScope(actor, target.id) });
     checkVersion(target, ctx.body.version);
     const d = actor.firm.data;
-    for (const sourceId of ctx.body.sourceIds) {
+    // Check every source before changing anything, so a bad or out-of-scope id leaves the data as it was.
+    const sources = ctx.body.sourceIds.map((sourceId) => {
       const source = d.people.find(
         (p) => p.id === sourceId && p.archivedAt === null && p.id !== target.id,
       );
-      if (source === undefined) throw unknownRef('sourceIds', 'person');
-      for (const i of d.instances) {
-        if (i.ownerId === sourceId) i.ownerId = target.id;
-        if (i.approverId === sourceId) i.approverId = target.id;
+      if (source === undefined || !canManagePerson(actor, source.id)) {
+        throw unknownRef('sourceIds', 'person');
       }
-      for (const a of d.assignments) {
-        if (a.defaultOwnerId === sourceId) a.defaultOwnerId = target.id;
-        if (a.defaultApproverId === sourceId) a.defaultApproverId = target.id;
-      }
-      for (const m of d.memberships)
-        if (m.personId === sourceId && m.archivedAt === null) m.archivedAt = ctx.clock.now();
-      source.archivedAt = ctx.clock.now();
+      return source;
+    });
+    const merged = new Set(sources.map((p) => p.id));
+    const now = ctx.clock.now();
+    for (const i of d.instances) {
+      if (!merged.has(i.ownerId) && !merged.has(i.approverId)) continue;
+      const before = { ownerId: i.ownerId, approverId: i.approverId };
+      if (merged.has(i.ownerId)) i.ownerId = target.id;
+      if (merged.has(i.approverId)) i.approverId = target.id;
+      touch(i, ctx.clock);
+      audit(ctx, actor, {
+        action: 'REASSIGN',
+        entityType: 'instance',
+        entityId: i.id,
+        clientId: i.clientId,
+        before,
+        after: { ownerId: i.ownerId, approverId: i.approverId },
+        reason: 'People merged',
+      });
+    }
+    for (const a of d.assignments) {
+      if (merged.has(a.defaultOwnerId)) a.defaultOwnerId = target.id;
+      if (merged.has(a.defaultApproverId)) a.defaultApproverId = target.id;
+    }
+    for (const m of d.memberships)
+      if (merged.has(m.personId) && m.archivedAt === null) m.archivedAt = now;
+    for (const source of sources) {
+      source.archivedAt = now;
       touch(source, ctx.clock);
     }
     touch(target, ctx.clock);
@@ -810,6 +856,7 @@ export const entityHandlers: PartialHandlers<
     const actor = actorOf(ctx);
     const person = find(actor, 'people', ctx.params.id);
     ctx.authorize({ clientId: ctx.body.clientId });
+    if (!canManagePerson(actor, person.id)) throw notFound();
     if (isFirmRole(ctx.body.role) && !hasRole(actor, null, FIRM_ROLE_ADMIN)) {
       throw new MockError('FORBIDDEN', 'Only a firm admin grants firm roles', {
         action: 'membership.create',

@@ -51,3 +51,6 @@ Auth, additive, for M5 (#33): `LoginBody` takes an optional `firmId`, and its pa
 12-character policy stays on `InviteAcceptBody`, where a password is set). New error code `FIRM_CHOICE_REQUIRED` (409,
 details `{ firms: [{ id, name }] }`) for a login whose email signs in to more than one firm. `Me` gains an optional
 `session.expiresAt`.
+
+The mock answers the §5 codes the real API sends for body rejections: 422 `REASON_REQUIRED` for a missing or blank
+`reason`, 413 `FILE_TOO_LARGE` and 415 `UNSUPPORTED_FILE` for uploads; other schema failures stay 400 `VALIDATION`.

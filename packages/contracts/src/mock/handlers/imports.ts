@@ -524,7 +524,8 @@ export const importHandlers: PartialHandlers<
   decideImportIssue(ctx) {
     const state = findBatch(actorOf(ctx), ctx.params.id);
     ctx.authorize({ clientId: state.batch.clientId });
-    requireStatus(state, ['PARSED', 'REVIEWED']);
+    // Deciding after a dry run sends the batch back for a fresh dry run.
+    requireStatus(state, ['PARSED', 'REVIEWED', 'DRY_RUN_READY']);
     const issues = state.issues.filter((i) => i.groupKey === ctx.params.groupKey);
     if (issues.length === 0) throw notFound();
     for (const issue of issues) {
@@ -554,12 +555,6 @@ export const importHandlers: PartialHandlers<
     const state = findBatch(actor, ctx.params.id);
     ctx.authorize({ clientId: state.batch.clientId });
     requireStatus(state, ['PARSED', 'REVIEWED', 'DRY_RUN_READY']);
-    const blockers = blocking(state);
-    if (blockers.length > 0) {
-      throw new MockError('IMPORT_BLOCKED', 'Decide every warning before the dry run', {
-        blockingIssueIds: blockers.map((i) => i.id),
-      });
-    }
     state.batch.dryRun = dryRun(actor.firm, state.batch.clientId, state);
     setStatus(ctx, state, 'DRY_RUN_READY');
     return state.batch.dryRun;
@@ -569,7 +564,15 @@ export const importHandlers: PartialHandlers<
     const actor = actorOf(ctx);
     const state = findBatch(actor, ctx.params.id);
     ctx.authorize({ clientId: state.batch.clientId });
+    // Commit is idempotent: committing a committed batch returns it unchanged.
+    if (state.batch.status === 'COMMITTED') return state.batch;
     requireStatus(state, ['DRY_RUN_READY']);
+    const blockers = blocking(state);
+    if (blockers.length > 0) {
+      throw new MockError('IMPORT_BLOCKED', 'Decide every blocking issue before committing', {
+        blockingIssueIds: blockers.map((i) => i.id),
+      });
+    }
     state.batch.committedAt = ctx.clock.now();
     setStatus(ctx, state, 'COMMITTED');
     audit(ctx, actor, {

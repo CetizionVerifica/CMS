@@ -888,8 +888,8 @@ describe('mock server', () => {
         params: { id: MONTHLY_REGISTER('2025-01-01') },
         body: { version: 1, dueDate: '2025-02-10' },
       },
-      'VALIDATION',
-      400,
+      'REASON_REQUIRED',
+      422,
     );
     await ok(app, 'updateInstance', {
       as: PERSON.kabir,
@@ -996,8 +996,23 @@ describe('mock server', () => {
         params: { id: instance },
         body: { fileName: 'register.exe', mimeType: 'application/octet-stream', sizeBytes: 1000 },
       },
-      'VALIDATION',
-      400,
+      'UNSUPPORTED_FILE',
+      415,
+    );
+    await fails(
+      app,
+      'evidenceUploadUrl',
+      {
+        as: PERSON.rohan,
+        params: { id: instance },
+        body: {
+          fileName: 'register.pdf',
+          mimeType: 'application/pdf',
+          sizeBytes: 26 * 1024 * 1024,
+        },
+      },
+      'FILE_TOO_LARGE',
+      413,
     );
     const evidence = await ok<{ id: string; scanStatus: string }>(app, 'confirmEvidence', {
       as: PERSON.rohan,
@@ -1094,7 +1109,9 @@ describe('mock server', () => {
     });
     expect(parsed.counts.rows).toBe(422);
     await ok(app, 'getImport', { params: { id: ticket.batchId } });
-    await fails(app, 'dryRunImport', { params: { id: ticket.batchId } }, 'IMPORT_BLOCKED', 422);
+    // A dry run works with undecided warnings; the commit is what they block.
+    await ok(app, 'dryRunImport', { params: { id: ticket.batchId } });
+    await fails(app, 'commitImport', { params: { id: ticket.batchId } }, 'IMPORT_BLOCKED', 422);
 
     const issues = await ok<{
       items: { groupKey: string; severity: string; proposal: string | null }[];
@@ -1119,6 +1136,11 @@ describe('mock server', () => {
       headers: { 'idempotency-key': '6a1d4e1c-3d0f-4a5e-8f39-0c7a2b5f9e11' },
     });
     expect(committed.status).toBe('COMMITTED');
+    // Commit is idempotent, with or without a key.
+    const recommitted = await ok<{ status: string }>(app, 'commitImport', {
+      params: { id: ticket.batchId },
+    });
+    expect(recommitted.status).toBe('COMMITTED');
     await fails(app, 'cancelImport', { params: { id: ticket.batchId } }, 'IMPORT_STATE', 409);
 
     const second = await ok<{ batchId: string }>(app, 'createImport', {
@@ -1280,5 +1302,174 @@ describe('mock server golden numbers (fixtures.md §4)', () => {
       golden.map((r) => [r.label, r.result.score]),
     );
     await app.close();
+  });
+});
+
+describe('mock server: scope, ordering and audit details', () => {
+  let app: App;
+  const firmB = () => app.store.firms[1]!.data;
+  const instanceWhere = (test: (i: ReturnType<typeof firmB>['instances'][number]) => boolean) =>
+    firmB().instances.find(test)!;
+  beforeAll(async () => {
+    app = createMockServer({ today: TODAY });
+    await app.ready();
+  });
+  afterAll(async () => {
+    await app.close();
+  });
+
+  it('lets an approver bulk-approve their own items and refuses others per item', async () => {
+    const divya = b('person:divya');
+    const own = instanceWhere((i) => i.workflowState === 'SUBMITTED' && i.approverId === divya);
+    const result = await ok<{ results: { id: string; ok: boolean; error?: { code: string } }[] }>(
+      app,
+      'bulkApprove',
+      {
+        as: divya,
+        params: { clientId: NORTHWIND },
+        body: {
+          items: [
+            { id: own.id, version: own.version },
+            { id: TDS_SUBMITTED, version: 2 },
+          ],
+        },
+      },
+    );
+    expect(result.results.map((r) => [r.ok, r.error?.code])).toEqual([
+      [true, undefined],
+      [false, 'FORBIDDEN'],
+    ]);
+    expect(firmB().auditEvents.findLast((e) => e.entityId === own.id)!.after).toMatchObject({
+      workflowState: 'NOT_APPLICABLE',
+      delegated: false,
+    });
+
+    // A client admin approves as a delegate.
+    await ok(app, 'approveInstance', {
+      as: PERSON.kabir,
+      params: { id: TDS_SUBMITTED },
+      body: { version: 2 },
+    });
+    expect(firmB().auditEvents.findLast((e) => e.entityId === TDS_SUBMITTED)!.after).toMatchObject({
+      workflowState: 'APPROVED',
+      delegated: true,
+    });
+  });
+
+  it('checks version and state before the submission rules', async () => {
+    const approved = instanceWhere(
+      (i) => i.workflowState === 'APPROVED' && i.clientId === NORTHWIND,
+    );
+    await fails(
+      app,
+      'submitInstance',
+      {
+        as: approved.ownerId,
+        params: { id: approved.id },
+        body: { version: approved.version, completedOn: TODAY, comment: 'Done.' },
+      },
+      'INVALID_TRANSITION',
+      409,
+    );
+    await fails(
+      app,
+      'confirmEvidence',
+      {
+        as: approved.ownerId,
+        params: { id: approved.id },
+        body: {
+          uploadId: '00000000-0000-4000-8000-000000000000',
+          fileName: 'late.pdf',
+          sha256: 'b'.repeat(64),
+        },
+      },
+      'INVALID_TRANSITION',
+      409,
+    );
+  });
+
+  it('names the product, not the working name, in the MFA enrolment', async () => {
+    const { otpauthUrl } = await ok<{ otpauthUrl: string }>(app, 'enrollMfa', {
+      as: PERSON.meera,
+    });
+    expect(otpauthUrl).toContain('issuer=PlanetPulse%20Compliance');
+    expect(otpauthUrl).not.toMatch(/canopy/i);
+  });
+
+  it('keeps people management inside the actor’s clients', async () => {
+    const staff = await ok<{ items: { id: string }[] }>(app, 'listFirmPeople', {
+      as: PERSON.meera,
+    });
+    expect(staff.items.map((p) => p.id).sort()).toEqual(
+      [PERSON.meera, PERSON.arjun, PERSON.leela].sort(),
+    );
+
+    const grant = {
+      role: 'OWNER',
+      clientId: NORTHWIND,
+      consultantClientIds: null,
+      unitIds: null,
+      expiresAt: null,
+    };
+    for (const person of [PERSON.arjun, b('person:priya')]) {
+      await fails(
+        app,
+        'createMembership',
+        { as: PERSON.kabir, params: { id: person }, body: grant },
+        'NOT_FOUND',
+        404,
+      );
+    }
+
+    // One source outside the client fails the whole merge, and nothing changes.
+    const target = firmB().people.find((p) => p.id === PERSON.farhan)!;
+    const ishaan = b('person:ishaan');
+    await fails(
+      app,
+      'mergePeople',
+      {
+        as: PERSON.kabir,
+        params: { id: target.id },
+        body: { version: target.version, sourceIds: [ishaan, b('person:priya')] },
+      },
+      'VALIDATION',
+      400,
+    );
+    expect(firmB().people.find((p) => p.id === ishaan)!.archivedAt).toBeNull();
+
+    const sameersWork = firmB().instances.filter(
+      (i) => i.ownerId === PERSON.sameer || i.approverId === PERSON.sameer,
+    ).length;
+    expect(sameersWork).toBeGreaterThan(0);
+    const before = firmB().auditEvents.length;
+    await ok(app, 'mergePeople', {
+      as: PERSON.kabir,
+      params: { id: target.id },
+      body: { version: target.version, sourceIds: [PERSON.sameer] },
+    });
+    const written = firmB().auditEvents.slice(before);
+    expect(written.filter((e) => e.action === 'REASSIGN')).toHaveLength(sameersWork);
+    expect(written.at(-1)!.action).toBe('MERGE_ALIAS');
+  });
+
+  it('answers the import and file error codes at the right step', async () => {
+    await fails(
+      app,
+      'createImport',
+      { params: { clientId: NORTHWIND }, body: { fileName: 'register.csv', sizeBytes: 1000 } },
+      'UNSUPPORTED_FILE',
+      415,
+    );
+    const tooBig = await fails(
+      app,
+      'createImport',
+      {
+        params: { clientId: NORTHWIND },
+        body: { fileName: 'register.xlsx', sizeBytes: 21 * 1024 * 1024 },
+      },
+      'FILE_TOO_LARGE',
+      413,
+    );
+    expect(tooBig.error.details).toEqual({ maxBytes: 20 * 1024 * 1024 });
   });
 });

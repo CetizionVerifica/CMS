@@ -4,6 +4,7 @@ import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest }
 import type { z } from 'zod';
 import { ENDPOINTS, type Endpoint } from '../api/endpoints.js';
 import { ApiErrorResponse } from '../api/error-details.js';
+import { EVIDENCE_EXTENSIONS } from '../api/workflow.js';
 import { SESSION_COOKIE } from '../api/openapi.js';
 import { ERROR_HTTP_STATUS } from '../errors.js';
 import {
@@ -56,6 +57,33 @@ function cookie(request: FastifyRequest, name: string): string | undefined {
 function header(request: FastifyRequest, name: string): string | undefined {
   const value = request.headers[name];
   return Array.isArray(value) ? value[0] : value;
+}
+
+/**
+ * Body rejections that api-conventions.md §5 gives their own code, as the real API answers them: a missing or blank
+ * `reason` is 422 REASON_REQUIRED, a file over the limit is 413 FILE_TOO_LARGE, and a file type not allowed is 415
+ * UNSUPPORTED_FILE. Anything else is 400 VALIDATION.
+ */
+function bodyError(error: z.ZodError, id: EndpointId): MockError | undefined {
+  const top = (issue: z.core.$ZodIssue) => (issue.path.length === 1 ? issue.path[0] : undefined);
+  const tooBig = error.issues.find((i) => top(i) === 'sizeBytes' && i.code === 'too_big');
+  if (tooBig !== undefined && tooBig.code === 'too_big') {
+    return new MockError('FILE_TOO_LARGE', 'The file is too large', {
+      maxBytes: Number(tooBig.maximum),
+    });
+  }
+  if (error.issues.some((i) => top(i) === 'fileName' && i.code === 'custom')) {
+    const allowed = id === 'createImport' ? ['xlsx', 'xls'] : [...EVIDENCE_EXTENSIONS];
+    return new MockError('UNSUPPORTED_FILE', 'This file type is not allowed', { allowed });
+  }
+  if (
+    error.issues.some(
+      (i) => top(i) === 'reason' && (i.code === 'too_small' || i.code === 'invalid_type'),
+    )
+  ) {
+    return new MockError('REASON_REQUIRED', 'A reason is required');
+  }
+  return undefined;
 }
 
 function validation(error: z.ZodError, prefix: string): MockError {
@@ -177,7 +205,8 @@ export function createMockServer(
         const query = ep.query?.safeParse(request.query ?? {});
         if (query !== undefined && !query.success) throw validation(query.error, 'query');
         const body = ep.body?.safeParse(request.body ?? {});
-        if (body !== undefined && !body.success) throw validation(body.error, 'body');
+        if (body !== undefined && !body.success)
+          throw bodyError(body.error, id) ?? validation(body.error, 'body');
 
         const idempotencyKey = ep.idempotent ? header(request, 'idempotency-key') : undefined;
         const cacheKey =

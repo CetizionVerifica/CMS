@@ -132,6 +132,8 @@ export interface Scope {
   unitId?: string;
   ownerId?: string;
   approverId?: string;
+  /** Bulk endpoints: an `own` role passes here and each item is checked on its own. */
+  ownPerItem?: boolean;
 }
 
 /**
@@ -154,7 +156,7 @@ export function authorize(actor: Actor, ep: Endpoint, scope: Scope): void {
   const allowed = inScope.some((m) => {
     const access = ep.roles[m.role];
     if (access === undefined) return false;
-    if (access !== 'own') return true;
+    if (access !== 'own' || scope.ownPerItem === true) return true;
     if (m.role === 'OWNER') return scope.ownerId === actor.person.id;
     if (m.role === 'APPROVER') return scope.approverId === actor.person.id;
     return false;
@@ -578,7 +580,7 @@ export function diff(
 }
 
 /** Host of the mock's presigned URLs. Nothing listens there: the mock never stores file bytes. */
-export const MOCK_FILE_HOST = 'https://files.mock.canopy.invalid';
+export const MOCK_FILE_HOST = 'https://files.mock.invalid';
 
 export function fileUrl(path: string): string {
   return `${MOCK_FILE_HOST}/${path}`;

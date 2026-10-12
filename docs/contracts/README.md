@@ -105,7 +105,7 @@ with sign-off per "How to change a contract".
     groups) whatever file is uploaded; commit reports dry-run counts but does not write rows. A new assignment gets
     instances for every period of the client's current FY.
 37. Mock evidence: the virus scan finishes on the next read, and a file name containing "eicar" comes back INFECTED.
-    File URLs point at `https://files.mock.canopy.invalid` and are never fetched.
+    File URLs point at `https://files.mock.invalid` and are never fetched.
 38. Login answers `Me` on success whatever the firm count. An email that signs in to several firms gets 409
     `FIRM_CHOICE_REQUIRED` listing them (only after the password matched in each), and the client retries with
     `firmId`. Login does not apply the password policy, so an old password that predates a stricter policy still works.
