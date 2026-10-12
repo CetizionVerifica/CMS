@@ -20,6 +20,7 @@
   },
   "dependencies": {
     "@canopy/contracts": "workspace:*",
+    "@canopy/engine": "workspace:*",
     "exceljs": "^4.4.0",
     "zod": "catalog:"
   }

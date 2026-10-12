@@ -1,4 +1,4 @@
-# 0001. The golden sample register is pseudonymised
+# 0002. The golden sample register is pseudonymised
 
 Date: 2026-10-11. Module: M8 (Excel importer). Status: accepted.
 

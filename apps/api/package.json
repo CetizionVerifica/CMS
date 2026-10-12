@@ -17,16 +17,20 @@
     "@canopy/db": "workspace:*",
     "@canopy/engine": "workspace:*",
     "@canopy/importer": "workspace:*",
+    "@canopy/notifications": "workspace:*",
     "@fastify/cookie": "catalog:",
     "@fastify/rate-limit": "catalog:",
     "fastify": "catalog:",
+    "pg-boss": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
     "@canopy/tsconfig": "workspace:*",
     "@canopy/vitest-config": "workspace:*",
     "@types/node": "catalog:",
+    "@types/pg": "catalog:",
     "@vitest/coverage-v8": "catalog:",
+    "pg": "catalog:",
     "tsx": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"

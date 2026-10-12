@@ -4,6 +4,7 @@ import type { TenantTx } from '../src/database.js';
 import { DbError } from '../src/errors.js';
 import * as r from '../src/repositories/index.js';
 import { systemContext, type TenantContext } from '../src/tenant-context.js';
+import { uuidv7 } from '../src/uuid.js';
 import { createTestDatabase, type TestDatabase } from './support/database.js';
 
 /** Repository behaviour against Postgres: contract shapes out, versioning, idempotency, tenancy. */
@@ -799,23 +800,57 @@ describe('audit and outbox', () => {
       kind: 'OWNER_REMINDER' as const,
       sendDate: '2022-05-31' as never,
     };
-    expect(await inA((tx) => r.notificationSends.claim(tx, send))).toBe(true);
-    expect(await inA((tx) => r.notificationSends.claim(tx, send))).toBe(false);
+    expect(await inA((tx) => r.notificationSends.claim(tx, send))).toBe('NEW');
+    // Claimed but no outcome yet (a crashed run): send again.
+    expect(await inA((tx) => r.notificationSends.claim(tx, send))).toBe('PENDING');
+    // The same reminder for a different recipient (an owner reassigned that day) is its own send.
+    const reassigned = { ...send, recipientId: world.approverId };
+    expect(await inA((tx) => r.notificationSends.claim(tx, reassigned))).toBe('NEW');
     const digest = { ...send, instanceId: null, kind: 'CONSULTANT_DIGEST' as const };
-    expect(await inA((tx) => r.notificationSends.claim(tx, digest))).toBe(true);
-    expect(await inA((tx) => r.notificationSends.claim(tx, digest))).toBe(false);
-    await inA((tx) => r.notificationSends.markSent(tx, send));
-    await inA((tx) => r.notificationSends.markSent(tx, digest, 'SMTP_DOWN'));
+    expect(await inA((tx) => r.notificationSends.claim(tx, digest))).toBe('NEW');
+    expect(
+      await inA((tx) => r.notificationSends.listDone(tx, world.clientId, '2022-05-31')),
+    ).toEqual([]);
+    const sendId = await inA((tx) =>
+      r.notificationSends.markSent(tx, send, '2022-05-31T03:30:00.000Z'),
+    );
+    expect(sendId).toMatch(/^[0-9a-f-]{36}$/);
+    expect(await inA((tx) => r.notificationSends.listDoneDigests(tx, '2022-05-31'))).toEqual([]);
+    await inA((tx) => r.notificationSends.markFailed(tx, digest, 'NO_EMAIL'));
+    expect(await inA((tx) => r.notificationSends.claim(tx, send))).toBe('DONE');
+    expect(await inA((tx) => r.notificationSends.listDoneDigests(tx, '2022-05-31'))).toEqual([
+      world.ownerId,
+    ]);
+    // markSent needs a claimed row.
+    expect(
+      await code(
+        inA((tx) =>
+          r.notificationSends.markSent(
+            tx,
+            { ...send, sendDate: '2022-06-01' as never },
+            '2022-06-01T03:30:00.000Z',
+          ),
+        ),
+      ),
+    ).toBe('NOT_FOUND');
+    expect(await inA((tx) => r.notificationSends.claim(tx, digest))).toBe('DONE');
+    expect(
+      (await inA((tx) => r.notificationSends.listDone(tx, world.clientId, '2022-05-31'))).map(
+        (k) => k.kind,
+      ),
+    ).toEqual(['OWNER_REMINDER', 'CONSULTANT_DIGEST']);
+    expect(
+      await code(inA((tx) => r.notificationSends.markFailed(tx, digest, 'SMTP_DOWN' as never))),
+    ).toBe('VALIDATION');
     const { rows } = await t.ownerQuery<{
       kind: string;
-      sent: boolean;
+      sent_at: Date | null;
       failure_code: string | null;
-    }>(
-      'SELECT kind, sent_at IS NOT NULL AS sent, failure_code FROM notification_send ORDER BY kind',
-    );
+    }>('SELECT kind, sent_at, failure_code FROM notification_send ORDER BY kind, sent_at IS NULL');
     expect(rows).toEqual([
-      { kind: 'OWNER_REMINDER', sent: true, failure_code: null },
-      { kind: 'CONSULTANT_DIGEST', sent: false, failure_code: 'SMTP_DOWN' },
+      { kind: 'OWNER_REMINDER', sent_at: new Date('2022-05-31T03:30:00.000Z'), failure_code: null },
+      { kind: 'OWNER_REMINDER', sent_at: null, failure_code: null },
+      { kind: 'CONSULTANT_DIGEST', sent_at: null, failure_code: 'NO_EMAIL' },
     ]);
   });
 
@@ -971,5 +1006,99 @@ describe('imports', () => {
         ),
       ),
     ).toBe('NOT_FOUND');
+  });
+
+  it('creates a batch under a ticket id, lists newest first, and removes issue groups', async () => {
+    const base = {
+      clientId: world.clientId,
+      createdById: world.approverId,
+      fileName: 'register.xlsx',
+      sheetName: null,
+      mapping: [],
+      mappingTemplateId: null,
+      counts: null,
+      dryRun: null,
+      committedAt: null,
+      failureCode: null,
+    };
+    const older = await inA((tx) =>
+      r.importBatches.create(tx, { ...base, fileSha256: 'd'.repeat(64) }),
+    );
+    // The upload ticket's id: batches sort by when their id was made.
+    await new Promise((resolve) => setTimeout(resolve, 2));
+    const ticket = uuidv7();
+    const batch = await inA((tx) =>
+      r.importBatches.create(tx, { ...base, id: ticket, fileSha256: 'e'.repeat(64) }),
+    );
+    expect(batch.id).toBe(ticket);
+    expect(
+      await code(
+        inA((tx) =>
+          r.importBatches.create(tx, { ...base, id: ticket, fileSha256: 'f'.repeat(64) }),
+        ),
+      ),
+    ).toBe('DUPLICATE');
+    expect(
+      await code(
+        inA((tx) =>
+          r.importBatches.create(tx, {
+            ...base,
+            id: '01920000-0000-4000-8000-000000000001',
+            fileSha256: 'f'.repeat(64),
+          }),
+        ),
+      ),
+    ).toBe('VALIDATION');
+    const first = await inA((tx) => r.importBatches.list(tx, world.clientId, { limit: 1 }));
+    expect(first.items.map((b) => b.id)).toEqual([batch.id]);
+    const next = await inA((tx) =>
+      r.importBatches.list(tx, world.clientId, { cursor: first.nextCursor, limit: 200 }),
+    );
+    expect(next.items.map((b) => b.id)).toContain(older.id);
+    expect(next.items.map((b) => b.id)).not.toContain(batch.id);
+    const oldestFirst = await inA((tx) =>
+      r.importBatches.list(tx, world.clientId, { order: 'asc', limit: 200 }),
+    );
+    expect(oldestFirst.items.at(-1)!.id).toBe(batch.id);
+
+    const issue = (groupKey: string, batchId: string) => ({
+      batchId,
+      groupKey,
+      type: 'ALIAS_DEPARTMENT' as const,
+      severity: 'WARNING' as const,
+      rowNumbers: [2],
+      field: 'department' as const,
+      rawValues: ['HR'],
+      proposal: 'Human Resources',
+    });
+    await inA((tx) =>
+      r.importIssues.createMany(tx, batch.id, [
+        issue('g1', batch.id),
+        issue('g1', batch.id),
+        issue('g2', batch.id),
+        issue('g3', batch.id),
+      ]),
+    );
+    await inA((tx) => r.importIssues.createMany(tx, older.id, [issue('g1', older.id)]));
+    // Another firm, or a client context of another client, deletes nothing.
+    expect(await inB((tx) => r.importIssues.removeGroups(tx, batch.id, ['g1', 'g2']))).toBe(0);
+    const otherClient: TenantContext = {
+      firmId: firmA,
+      personId: null,
+      clientIds: [uuidv7()],
+      requestId: 'repo-test',
+    };
+    expect(
+      await t.db.withTenant(otherClient, (tx) => r.importIssues.removeGroups(tx, batch.id, ['g1'])),
+    ).toBe(0);
+    expect(await inA((tx) => r.importIssues.removeGroups(tx, batch.id, []))).toBe(0);
+    expect(await inA((tx) => r.importIssues.removeGroups(tx, batch.id, ['g1', 'g2']))).toBe(3);
+    expect(
+      (await inA((tx) => r.importIssues.forBatch(tx, batch.id))).map((i) => i.groupKey),
+    ).toEqual(['g3']);
+    // The same group key in another batch stays.
+    expect(
+      (await inA((tx) => r.importIssues.forBatch(tx, older.id))).map((i) => i.groupKey),
+    ).toEqual(['g1']);
   });
 });

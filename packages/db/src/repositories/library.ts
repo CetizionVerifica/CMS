@@ -10,6 +10,8 @@ const actEntity = entity<Act>({ table: s.act, schema: Act });
 export const acts = {
   get: actEntity.get,
   require: actEntity.require,
+  query: actEntity.query,
+  findAll: actEntity.findAll,
   list: (tx: TenantTx, page?: PageRequest) => actEntity.list(tx, undefined, page),
   /** By exact name or a stored alias. */
   async findByNameOrAlias(tx: TenantTx, name: string): Promise<Act | null> {
@@ -29,6 +31,8 @@ const categoryEntity = entity<Category>({ table: s.category, schema: Category })
 export const categories = {
   get: categoryEntity.get,
   require: categoryEntity.require,
+  query: categoryEntity.query,
+  findAll: categoryEntity.findAll,
   list: (tx: TenantTx, page?: PageRequest) => categoryEntity.list(tx, undefined, page),
   async findByNameOrAlias(tx: TenantTx, name: string): Promise<Category | null> {
     const rows = await categoryEntity.all(
@@ -51,6 +55,8 @@ const obligationEntity = entity<Obligation>({ table: s.obligation, schema: Oblig
 export const obligations = {
   get: obligationEntity.get,
   require: obligationEntity.require,
+  query: obligationEntity.query,
+  findAll: obligationEntity.findAll,
   list: (tx: TenantTx, page?: PageRequest) => obligationEntity.list(tx, undefined, page),
   /** Non-archived obligations with this source ID (data, not a key: there may be several). */
   findByExternalRef: (tx: TenantTx, externalRef: string): Promise<Obligation[]> =>
