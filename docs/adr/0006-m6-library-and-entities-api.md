@@ -17,9 +17,10 @@ in parallel. Shared API helpers (`apps/api/src/lib/`) belong to no module yet.
    writes. The Postgres implementation is an adapter over M3's repositories, added when they merge. Route tests run
    on `MemoryStore`, which mimics the RLS policies and rolls back a failed transaction; it does not replace M3's
    isolation tests on Postgres.
-3. **Two authorisation checks.** Each call checks the endpoint's role table and `can()`. Until M5 merges, `can` is
-   `stubCan`, built from the same table. A client the actor cannot see is 404; a visible one the role may not touch
-   is 403. The "limited" rows are enforced in the routes: a client admin may PUT only `reminders`; only a firm admin
+3. **Two authorisation checks.** Every route declares `config.auth: 'session'`, so M5's hook answers 401, MFA and
+   CSRF first, and each call checks the endpoint's role table and M5's `can()`. A client the actor cannot see is 404;
+   a visible one the role may not touch is 403. Lists across clients check each of a client role's clients; routes on
+   one person check the actor's client that person belongs to (firm staff act firm-wide). The "limited" rows are enforced in the routes: a client admin may PUT only `reminders`; only a firm admin
    grants, changes or ends firm roles; consultants and client admins manage client roles in their own clients.
 4. **HTTP helpers stay in M6's paths** (`modules/entities/http/`): error envelope, cursor pagination, request id.
    They can move to `lib/` in a tooling PR once another module needs them.
@@ -43,5 +44,5 @@ in parallel. Shared API helpers (`apps/api/src/lib/`) belong to no module yet.
 
 ## Consequences
 - When M3's repositories merge, M6 adds the Postgres `Store` adapter plus `test:db` tests, and `main.ts` mounts M6
-  with it. When M5 merges, `can` and `context` come from `auth/`.
+  with it.
 - If M0 settles the open points differently, the change is local to one route each.

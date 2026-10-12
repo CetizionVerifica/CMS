@@ -1,5 +1,4 @@
 import {
-  ENDPOINTS,
   type Action,
   type Can,
   type Endpoint,
@@ -13,7 +12,7 @@ import { forbidden, notFound } from './errors.js';
 
 /**
  * Who may call what, for the M6 routes. The endpoint table in @canopy/contracts names the roles per endpoint; M5's
- * `can()` decides per action. Until M5 merges, `stubCan` stands in for it, built from the same table.
+ * `can()` decides per action.
  */
 
 function active(ctx: RequestContext): Membership[] {
@@ -29,8 +28,9 @@ export function isFirmStaff(ctx: RequestContext): boolean {
   return hasRole(ctx, 'FIRM_ADMIN', 'CONSULTANT');
 }
 
+/** `ctx.clientIds` holds every client the actor sees, a firm admin's whole firm included (M5). */
 export function canSeeClient(ctx: RequestContext, clientId: Id): boolean {
-  return hasRole(ctx, 'FIRM_ADMIN') || ctx.clientIds.includes(clientId);
+  return ctx.clientIds.includes(clientId);
 }
 
 function membershipApplies(m: Membership, clientId: Id | null, unitId?: Id): boolean {
@@ -70,22 +70,6 @@ export function unitScope(ctx: RequestContext, clientId: Id): Id[] | null {
   }
   return [...units];
 }
-
-const ROLES_BY_ACTION = new Map<string, Set<Role>>();
-for (const endpoint of Object.values(ENDPOINTS) as Endpoint[]) {
-  for (const action of endpoint.actions) {
-    const roles = ROLES_BY_ACTION.get(action) ?? new Set<Role>();
-    (Object.keys(endpoint.roles) as Role[]).forEach((r) => roles.add(r));
-    ROLES_BY_ACTION.set(action, roles);
-  }
-}
-
-/** Stand-in for M5's `can()`: an action is allowed when a role that reaches the resource has it anywhere in the table. */
-export const stubCan: Can = (ctx, action, resource) => {
-  const allowed = ROLES_BY_ACTION.get(action);
-  if (!allowed) return false;
-  return rolesFor(ctx, resource.clientId, resource.unitId).some((r) => allowed.has(r));
-};
 
 /**
  * Checks an endpoint call against its role table and `can()`. A client the actor cannot see is 404, never 403

@@ -7,15 +7,14 @@ import {
   type RequestContext,
   type Role,
 } from '@canopy/contracts';
-import type { FastifyInstance, FastifyRequest } from 'fastify';
+import type { FastifyInstance } from 'fastify';
+import { createTestAuth } from '../../../auth/testing.js';
 import { buildServer } from '../../../server.js';
-import { stubCan } from '../http/access.js';
-import { HttpError } from '../http/errors.js';
 import { MemoryStore } from './memory-store.js';
 
 /**
  * A small two-firm world for the M6 route tests: firm A has two clients (A and B), firm B one. Each actor is a
- * person with one membership; tests pick an actor with the `x-test-actor` header (M5's session stands in here).
+ * person with one membership, signed in through M5's real session hook and policy.
  */
 
 export const uid = (n: number): Id => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
@@ -410,6 +409,8 @@ export function seedWorld(store: MemoryStore): void {
 export interface TestApp {
   app: FastifyInstance;
   store: MemoryStore;
+  /** The session cookie and CSRF headers for an actor. */
+  headers(actor: ActorName): Record<string, string>;
   call(
     actor: ActorName | null,
     method: string,
@@ -418,32 +419,41 @@ export interface TestApp {
   ): Promise<{ status: number; body: unknown; headers: Record<string, unknown> }>;
 }
 
-/** A server over a freshly seeded world. Requests without `x-test-actor` are unauthenticated. */
+/** The firm's clients, which a firm admin sees. */
+const firmClientIds = (firm: Id): Id[] =>
+  firm === FIRM_A ? [ids.clientA, ids.clientB] : [ids.clientX];
+
+/** A server over a freshly seeded world, behind M5's auth. A `null` actor sends no session. */
 export function testApp(): TestApp {
   const store = new MemoryStore({ now: () => NOW });
   seedWorld(store);
+  const auth = createTestAuth();
+  const sessions = Object.fromEntries(
+    ACTOR_NAMES.map((actor) => {
+      const a = ACTORS[actor];
+      const signedIn = auth.signIn({
+        firmId: a.firm,
+        personId: a.person,
+        memberships: [membershipOf(actor)],
+        principal: { firmClientIds: firmClientIds(a.firm) },
+      });
+      return [actor, signedIn.headers];
+    }),
+  ) as Record<ActorName, Record<string, string>>;
   const app = buildServer({
-    libraryAndEntities: {
-      store,
-      can: stubCan,
-      now: () => NOW,
-      context: async (request: FastifyRequest) => {
-        const actor = request.headers['x-test-actor'];
-        if (typeof actor !== 'string' || !(actor in ACTORS)) {
-          throw new HttpError('UNAUTHENTICATED', 'Sign in first.');
-        }
-        return contextOf(actor as ActorName, String(request.headers['x-request-id'] ?? 'req-test'));
-      },
-    },
+    authStore: auth.store,
+    clock: () => NOW,
+    libraryAndEntities: { store, now: () => NOW },
   });
   return {
     app,
     store,
+    headers: (actor) => sessions[actor],
     async call(actor, method, url, body) {
       const res = await app.inject({
         method: method as 'GET',
         url: `/api/v1${url}`,
-        headers: actor ? { 'x-test-actor': actor } : {},
+        headers: actor ? sessions[actor] : {},
         ...(body === undefined ? {} : { payload: body as object }),
       });
       return {

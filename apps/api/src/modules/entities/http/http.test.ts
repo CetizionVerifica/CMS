@@ -3,7 +3,8 @@ import { describe, expect, it } from 'vitest';
 import { DuplicateError, type Repo, type Tx } from '../store.js';
 import { contextOf, ids } from '../testing/world.js';
 import { auditedUpdate } from '../write.js';
-import { authorize, rolesFor, stubCan, unitScope } from './access.js';
+import { can } from '../../../auth/index.js';
+import { authorize, rolesFor, unitScope } from './access.js';
 import { decodeCursor, encodeCursor } from './page.js';
 import { errorEnvelope } from './route.js';
 
@@ -123,19 +124,13 @@ describe('access', () => {
     expect(rolesFor(contextOf('consultant'), ids.clientB)).toEqual([]);
   });
 
-  it('denies an action no endpoint names', () => {
-    expect(
-      stubCan(contextOf('firmAdmin'), 'nothing.here', { type: 'client', clientId: null }),
-    ).toBe(false);
-  });
-
   it('checks the policy as well as the role table', () => {
     const endpoint = ENDPOINTS.listClients as Endpoint;
     expect(() =>
       authorize(contextOf('firmAdmin'), endpoint, { type: 'client', clientId: null }, () => false),
     ).toThrow(/Not allowed: client.read/);
     expect(() =>
-      authorize(contextOf('owner'), endpoint, { type: 'client', clientId: ids.clientB }, stubCan),
+      authorize(contextOf('owner'), endpoint, { type: 'client', clientId: ids.clientB }, can),
     ).toThrow(/Not found/);
   });
 });

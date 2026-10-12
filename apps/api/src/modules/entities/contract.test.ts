@@ -71,7 +71,7 @@ describe('M6 contract', () => {
         expect(res.status).toBe(endpoint.status);
         expect(store.audits.length).toBeGreaterThan(0);
         for (const audit of store.audits) {
-          expect(audit.requestId).toBe('req-test');
+          expect(audit.requestId).toBe(res.headers['x-request-id']);
           expect(audit.firmId).toBeTruthy();
           expect(audit.after ?? audit.before).not.toBeNull();
         }

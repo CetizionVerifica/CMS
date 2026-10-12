@@ -1,17 +1,17 @@
-import type { Can, Endpoint, RequestContext, Resource, Role } from '@canopy/contracts';
+import type { Endpoint, RequestContext, Resource, Role } from '@canopy/contracts';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { z } from 'zod';
+import { ApiError, can, errorEnvelope as apiErrorEnvelope } from '../../../auth/index.js';
 import { DuplicateError, type Store } from '../store.js';
 import { authorize } from './access.js';
 import { duplicate, fromZod, HttpError } from './errors.js';
 
-/** What the M6 routes need from the app: the database, the policy and the request context (M5). */
+/**
+ * What the M6 routes need from the app. The actor comes from M5's `req.ctx` (its session hook answers 401, MFA and
+ * CSRF before a handler runs) and permissions from M5's `can()`.
+ */
 export interface M6Deps {
   store: Store;
-  /** M5's policy check; `stubCan` until M5 merges. */
-  can: Can;
-  /** The signed-in actor. Throws HttpError UNAUTHENTICATED (or MFA_REQUIRED) when there is none. */
-  context(request: FastifyRequest): Promise<RequestContext>;
   /** Clock for archive timestamps; tests pin it. */
   now?: () => Date;
 }
@@ -48,8 +48,12 @@ export function mount<E extends Endpoint>(
   app.route({
     method: endpoint.method,
     url,
+    // Every M6 endpoint needs a signed-in actor with MFA done (apps/api/src/auth/CLAUDE.md).
+    config: { auth: 'session' },
     handler: async (request: FastifyRequest, reply: FastifyReply) => {
-      const ctx = await deps.context(request);
+      // Audit rows carry the id the response echoes (a well-formed X-Request-Id, else the server's own).
+      const requestId = String(reply.getHeader('x-request-id') ?? request.ctx.requestId);
+      const ctx: RequestContext = { ...request.ctx, requestId };
       const params = endpoint.params
         ? (parse(endpoint.params, request.params, 'params') as Record<string, string>)
         : {};
@@ -64,7 +68,7 @@ export function mount<E extends Endpoint>(
         params,
         query,
         body,
-        authorize: (resource) => authorize(ctx, endpoint, resource, deps.can),
+        authorize: (resource) => authorize(ctx, endpoint, resource, can),
       });
       return reply.status(endpoint.status).send(result);
     },
@@ -73,6 +77,10 @@ export function mount<E extends Endpoint>(
 
 /** The `{ error, requestId }` envelope for anything a route throws (api-conventions.md §4). */
 export function errorEnvelope(thrown: unknown, requestId: string) {
+  // M5's session hook (401, MFA, CSRF, a client outside the actor's clients) throws its own ApiError.
+  if (thrown instanceof ApiError) {
+    return { status: thrown.statusCode, body: apiErrorEnvelope(thrown, requestId) };
+  }
   const error =
     thrown instanceof DuplicateError ? duplicate(thrown.field, thrown.existingId) : thrown;
   if (error instanceof HttpError) {

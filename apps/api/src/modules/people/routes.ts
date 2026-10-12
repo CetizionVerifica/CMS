@@ -9,8 +9,8 @@ import {
   type Role,
 } from '@canopy/contracts';
 import type { FastifyInstance } from 'fastify';
-import { canSeeClient, hasRole } from '../entities/http/access.js';
-import { duplicate, forbidden, invalid } from '../entities/http/errors.js';
+import { canSeeClient, hasRole, isFirmStaff } from '../entities/http/access.js';
+import { duplicate, forbidden, invalid, notFound } from '../entities/http/errors.js';
 import { pageOf } from '../entities/http/page.js';
 import { mount, type M6Deps } from '../entities/http/route.js';
 import { emit } from '../entities/events.js';
@@ -42,6 +42,18 @@ export function statusForEmail(person: Pick<Person, 'status'> | null, email: str
     ]);
   }
   return current;
+}
+
+/**
+ * The client a route on one person is checked in. Firm staff act on people firm-wide (`null`); a client role acts on
+ * people of its own client, so the person must belong to one of the actor's clients (404 otherwise).
+ */
+async function personClient(tx: Tx, ctx: RequestContext, personId: Id): Promise<Id | null> {
+  if (isFirmStaff(ctx)) return null;
+  for (const clientId of ctx.clientIds) {
+    if ((await tx.clientPersonIds(clientId)).includes(personId)) return clientId;
+  }
+  throw notFound();
 }
 
 export function peopleRoutes(app: FastifyInstance, deps: M6Deps): void {
@@ -183,9 +195,9 @@ export function peopleRoutes(app: FastifyInstance, deps: M6Deps): void {
 
   mount(app, deps, ENDPOINTS.updatePerson, async (call) => {
     const { body } = call;
-    call.authorize({ type: 'person', clientId: null });
     return store.transaction(call.ctx, async (tx) => {
       const row = await getLive(tx.people, call.params.id as Id);
+      call.authorize({ type: 'person', clientId: await personClient(tx, call.ctx, row.id) });
       const email = body.email === undefined ? row.email : body.email;
       return auditedUpdate({
         tx,
@@ -207,9 +219,9 @@ export function peopleRoutes(app: FastifyInstance, deps: M6Deps): void {
 
   mount(app, deps, ENDPOINTS.mergePeople, async (call) => {
     const { body, ctx } = call;
-    call.authorize({ type: 'person', clientId: null });
     return store.transaction(ctx, async (tx) => {
       const target = await getLive(tx.people, call.params.id as Id);
+      call.authorize({ type: 'person', clientId: await personClient(tx, ctx, target.id) });
       return replacePersonEverywhere({
         tx,
         target,
@@ -224,9 +236,9 @@ export function peopleRoutes(app: FastifyInstance, deps: M6Deps): void {
 
   mount(app, deps, ENDPOINTS.listMemberships, async (call) => {
     const { ctx } = call;
-    call.authorize({ type: 'membership', clientId: null });
     return store.transaction(ctx, async (tx) => {
       const person = await getLive(tx.people, call.params.id as Id);
+      call.authorize({ type: 'membership', clientId: await personClient(tx, ctx, person.id) });
       const all = await tx.memberships.findAll({ personId: person.id });
       // Consultants and client admins see the memberships of their clients only.
       const items = hasRole(ctx, 'FIRM_ADMIN')

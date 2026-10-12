@@ -1,6 +1,6 @@
 import { DEFAULT_CLIENT_SETTINGS, ENDPOINTS, type Client } from '@canopy/contracts';
 import type { FastifyInstance } from 'fastify';
-import { canSeeClient, hasRole } from '../entities/http/access.js';
+import { canSeeClient, isFirmStaff } from '../entities/http/access.js';
 import { forbidden, notFound } from '../entities/http/errors.js';
 import { pageOf } from '../entities/http/page.js';
 import { mount, type M6Deps } from '../entities/http/route.js';
@@ -31,12 +31,15 @@ export function clientRoutes(app: FastifyInstance, deps: M6Deps): void {
   }
 
   mount(app, deps, ENDPOINTS.listClients, async (call) => {
-    call.authorize({ type: 'client', clientId: null });
     const { query, ctx } = call;
+    // Firm staff list from the firm; a client role is checked in each client it belongs to.
+    for (const clientId of isFirmStaff(ctx) ? [null] : ctx.clientIds) {
+      call.authorize({ type: 'client', clientId });
+    }
     return store.transaction(ctx, (tx) =>
       pageOf(tx.clients, query, {
         orderBy: 'name',
-        where: hasRole(ctx, 'FIRM_ADMIN') ? {} : { id: ctx.clientIds },
+        where: { id: ctx.clientIds },
         ...(query.q ? { search: { text: query.q, fields: ['name'] as const } } : {}),
       }),
     );

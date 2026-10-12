@@ -55,23 +55,49 @@ describe('clients', () => {
   });
 
   it('rejects a malformed JSON body as VALIDATION', async () => {
-    const { app } = testApp();
+    const { app, headers } = testApp();
     const res = await app.inject({
       method: 'POST',
       url: '/api/v1/clients',
-      headers: { 'x-test-actor': 'firmAdmin', 'content-type': 'application/json' },
+      headers: { ...headers('firmAdmin'), 'content-type': 'application/json' },
       payload: '{"name":',
     });
     expect(res.statusCode).toBe(400);
     expect(error(res.json()).code).toBe('VALIDATION');
   });
 
+  it("is behind M5's session checks: a write without the CSRF token is refused", async () => {
+    const { app, headers, store } = testApp();
+    const { cookie } = headers('firmAdmin');
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/v1/clients',
+      headers: { cookie: cookie! },
+      payload: { name: 'Sneaky Ltd' },
+    });
+    expect(res.statusCode).toBe(403);
+    expect(error(res.json()).code).toBe('FORBIDDEN');
+    expect(store.audits).toEqual([]);
+  });
+
+  it('uses the request id the response echoes in the audit row', async () => {
+    const { app, headers, store } = testApp();
+    const res = await app.inject({
+      method: 'PATCH',
+      url: `/api/v1/clients/${ids.clientA}`,
+      headers: { ...headers('firmAdmin'), 'x-request-id': 'trace-7' },
+      payload: { version: 1, name: 'Renamed' },
+    });
+    expect(res.headers['x-request-id']).toBe('trace-7');
+    expect(store.audits.map((a) => a.requestId)).toEqual(['trace-7']);
+  });
+
   it('echoes a well-formed X-Request-Id', async () => {
-    const { app } = testApp();
+    const { app, headers } = testApp();
     const res = await app.inject({
       method: 'GET',
       url: '/api/v1/clients',
-      headers: { 'x-test-actor': 'firmAdmin', 'x-request-id': 'abc-123' },
+      headers: { ...headers('firmAdmin'), 'x-request-id': 'abc-123' },
     });
     expect(res.headers['x-request-id']).toBe('abc-123');
   });

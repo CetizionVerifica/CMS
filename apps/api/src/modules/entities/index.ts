@@ -6,7 +6,6 @@ import { peopleRoutes } from '../people/routes.js';
 import { errorEnvelope, type M6Deps } from './http/route.js';
 import { entityRoutes } from './routes.js';
 
-export { stubCan } from './http/access.js';
 export { HttpError } from './http/errors.js';
 export type { M6Deps } from './http/route.js';
 export type { Store, Tx } from './store.js';
