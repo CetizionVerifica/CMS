@@ -34,3 +34,4 @@ export { redactUrl } from './tokens.js';
 export { sessionOf } from './plugin.js';
 export { AuthService, type IssuedSession } from './service.js';
 export { registerAuthRoutes, type AuthRoutesOptions } from './routes.js';
+export { createDbAccountStore, type DbAccountStoreOptions, type GeneratedRange } from './db-store.js';

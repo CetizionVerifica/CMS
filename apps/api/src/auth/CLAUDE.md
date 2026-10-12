@@ -30,4 +30,5 @@
 - Tokens (sessions, CSRF, magic links, invites) are random 256-bit values; only their SHA-256 is stored. Never log a
   token, a password or an MFA secret.
 - Storage goes through `AccountStore` (`accounts.ts`). Each method is one transaction and writes the audit and outbox
-  rows its comment names. `InMemoryAuthStore` in `testing.ts` is the reference behaviour for the database adapter.
+  rows its comment names. `InMemoryAuthStore` in `testing.ts` is the reference behaviour; `createDbAccountStore`
+  (`db-store.ts`) is the database adapter on M3's repositories, tested end to end in `db-store.db.test.ts`.

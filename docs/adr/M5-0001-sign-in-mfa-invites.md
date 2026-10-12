@@ -42,9 +42,10 @@ people in two firms.
    Fastify's `trustProxy` so per-IP limits see the client address behind a load balancer.
 9. Per-route limits count per path, so a GET route and the HEAD route Fastify adds for it share one budget.
 10. Storage is the `AccountStore` interface (`accounts.ts`). Each method is one transaction and writes its audit and
-    outbox rows, as its comment says. M3 adds the credential, session and token tables with SECURITY DEFINER lookups
-    by email and token hash; until then the routes run only with the in-memory store, and `buildServer` serves them
-    only when an `accountStore` is passed.
+    outbox rows, as its comment says. `createDbAccountStore` implements it on M3's auth tables (ADR M3-0001): firm-keyed
+    calls run in the firm's system context, because they happen before a request context exists or change people a
+    client context cannot; `can()` has already decided the actor may. `Me.clients` periods come from the engine's
+    `clientPeriods` over the client's generated due dates.
 
 ## Open
 

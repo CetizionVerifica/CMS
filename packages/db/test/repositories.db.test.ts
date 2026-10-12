@@ -1,4 +1,5 @@
 import { DEFAULT_CLIENT_SETTINGS, DEFAULT_FIRM_SETTINGS } from '@canopy/contracts';
+import { sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { TenantTx } from '../src/database.js';
 import { DbError } from '../src/errors.js';
@@ -1080,8 +1081,16 @@ describe('imports', () => {
       ]),
     );
     await inA((tx) => r.importIssues.createMany(tx, older.id, [issue('g1', older.id)]));
-    // Another firm, or a client context of another client, deletes nothing.
-    expect(await inB((tx) => r.importIssues.removeGroups(tx, batch.id, ['g1', 'g2']))).toBe(0);
+    // Another firm, or a client context of another client, does not see the batch and deletes nothing.
+    expect(await code(inB((tx) => r.importIssues.removeGroups(tx, batch.id, ['g1', 'g2'])))).toBe(
+      'NOT_FOUND',
+    );
+    expect(
+      await inB(async (tx) => {
+        const raw = await tx.execute(sql`DELETE FROM import_issue WHERE batch_id = ${batch.id}`);
+        return raw.rowCount;
+      }),
+    ).toBe(0);
     const otherClient: TenantContext = {
       firmId: firmA,
       personId: null,
@@ -1089,14 +1098,32 @@ describe('imports', () => {
       requestId: 'repo-test',
     };
     expect(
-      await t.db.withTenant(otherClient, (tx) => r.importIssues.removeGroups(tx, batch.id, ['g1'])),
-    ).toBe(0);
+      await code(
+        t.db.withTenant(otherClient, (tx) => r.importIssues.removeGroups(tx, batch.id, ['g1'])),
+      ),
+    ).toBe('NOT_FOUND');
     expect(await inA((tx) => r.importIssues.removeGroups(tx, batch.id, []))).toBe(0);
     expect(await inA((tx) => r.importIssues.removeGroups(tx, batch.id, ['g1', 'g2']))).toBe(3);
     expect(
       (await inA((tx) => r.importIssues.forBatch(tx, batch.id))).map((i) => i.groupKey),
     ).toEqual(['g3']);
     // The same group key in another batch stays.
+    expect(
+      (await inA((tx) => r.importIssues.forBatch(tx, older.id))).map((i) => i.groupKey),
+    ).toEqual(['g1']);
+    expect(await code(inA((tx) => r.importIssues.removeGroups(tx, uuidv7(), ['g1'])))).toBe(
+      'NOT_FOUND',
+    );
+    // From COMMITTING on, issues are the record of the cleaning: the repository and RLS both keep them.
+    for (const status of ['COMMITTING', 'COMMITTED', 'FAILED', 'CANCELLED'] as const) {
+      const removed = await inA(async (tx) => {
+        await tx.execute(sql`UPDATE import_batch SET status = ${status} WHERE id = ${older.id}`);
+        const refused = await code(r.importIssues.removeGroups(tx, older.id, ['g1']));
+        const raw = await tx.execute(sql`DELETE FROM import_issue WHERE batch_id = ${older.id}`);
+        return { refused, rows: raw.rowCount };
+      });
+      expect(removed, status).toEqual({ refused: 'FORBIDDEN', rows: 0 });
+    }
     expect(
       (await inA((tx) => r.importIssues.forBatch(tx, older.id))).map((i) => i.groupKey),
     ).toEqual(['g1']);
