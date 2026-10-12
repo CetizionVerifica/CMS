@@ -53,7 +53,12 @@ export interface Database {
 }
 
 function createPool(options: DatabaseOptions): pg.Pool {
-  return new pg.Pool({ connectionString: options.connectionString, max: options.max ?? 10 });
+  const pool = new pg.Pool({ connectionString: options.connectionString, max: options.max ?? 10 });
+  // An idle client the server closes (restart, failover, DROP DATABASE WITH (FORCE): 57P01) emits
+  // 'error' on the pool, which crashes the process when nobody listens. The pool has already removed
+  // that client and the next query opens a new one, so there is nothing to do.
+  pool.on('error', () => {});
+  return pool;
 }
 
 /**
