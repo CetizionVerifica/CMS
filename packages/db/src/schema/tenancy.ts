@@ -17,7 +17,7 @@ import { personStatusEnum, roleEnum } from './enums.js';
 
 /** Tenancy, entities and people (docs/contracts/domain-model.md §3). */
 
-/** Customer organisation group, e.g. "Aditya Birla Group". Its own id is the client scope. */
+/** Customer organisation group, e.g. "Kestrel Metals Group". Its own id is the client scope. */
 export const client = pgTable(
   'client',
   {
@@ -60,7 +60,7 @@ export const location = pgTable(
   ],
 );
 
-/** e.g. "Hindalco". */
+/** e.g. "Kestrel Aluminium". */
 export const company = pgTable(
   'company',
   {

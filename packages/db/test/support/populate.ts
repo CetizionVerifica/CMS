@@ -44,7 +44,7 @@ export async function populateFirm(
           countryCode: 'IN',
           state: 'West Bengal',
           stateCode: 'WB',
-          city: `Belur ${label}`,
+          city: `Riverbend ${label}`,
         })
         .returning({ id: s.location.id }),
     );
@@ -166,7 +166,10 @@ async function populateClient(
 ): Promise<void> {
   const { clientId, scope, add } = p;
   const companyId = await one(
-    tx.insert(s.company).values({ clientId, name: 'Hindalco' }).returning({ id: s.company.id }),
+    tx
+      .insert(s.company)
+      .values({ clientId, name: 'Kestrel Aluminium' })
+      .returning({ id: s.company.id }),
   );
   add('company', scope, companyId);
   const unitId = await one(

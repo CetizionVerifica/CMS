@@ -55,11 +55,11 @@ beforeAll(async () => {
   firmB = await t.admin.createFirm({ name: 'Second Ledger Consulting' });
   await inA(async (tx) => {
     const client = await r.clients.create(tx, {
-      name: 'Aditya Birla Group',
+      name: 'Kestrel Metals Group',
       settings: DEFAULT_CLIENT_SETTINGS,
     });
     const other = await r.clients.create(tx, {
-      name: 'Tata Group',
+      name: 'Osprey Textiles Group',
       settings: DEFAULT_CLIENT_SETTINGS,
     });
     clientId = client.id;

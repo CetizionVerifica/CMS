@@ -55,11 +55,11 @@ beforeAll(async () => {
   firmB = await t.admin.createFirm({ name: 'Second Ledger Consulting' });
   w = await inA(async (tx) => {
     const client = await r.clients.create(tx, {
-      name: 'Aditya Birla Group',
+      name: 'Kestrel Metals Group',
       settings: DEFAULT_CLIENT_SETTINGS,
     });
     const other = await r.clients.create(tx, {
-      name: 'Tata Group',
+      name: 'Osprey Textiles Group',
       settings: DEFAULT_CLIENT_SETTINGS,
     });
     const archived = await r.clients.create(tx, {
@@ -67,18 +67,21 @@ beforeAll(async () => {
       settings: DEFAULT_CLIENT_SETTINGS,
     });
     await r.clients.archive(tx, archived.id, archived.version);
-    const company = await r.companies.create(tx, { clientId: client.id, name: 'Hindalco' });
+    const company = await r.companies.create(tx, {
+      clientId: client.id,
+      name: 'Kestrel Aluminium',
+    });
     const location = await r.locations.create(tx, {
       country: 'India',
       countryCode: 'IN',
       state: 'West Bengal',
       stateCode: 'WB',
-      city: 'Belur',
+      city: 'Riverbend',
     });
     const unit = await r.units.create(tx, {
       clientId: client.id,
       companyId: company.id,
-      name: 'Belur Plant',
+      name: 'Riverbend Plant',
       locationId: location.id,
     });
     const department = await r.departments.create(tx, {
@@ -218,7 +221,10 @@ describe('firms', () => {
 describe('generation', () => {
   it('lists non-archived clients with settings', async () => {
     const clients = await inA((tx) => r.jobs.listClients(tx));
-    expect(clients.map((c) => c.name).sort()).toEqual(['Aditya Birla Group', 'Tata Group']);
+    expect(clients.map((c) => c.name).sort()).toEqual([
+      'Kestrel Metals Group',
+      'Osprey Textiles Group',
+    ]);
     expect(clients[0]!.settings).toEqual(DEFAULT_CLIENT_SETTINGS);
   });
 
@@ -298,7 +304,7 @@ describe('reminders and scores', () => {
       completedOn: '2026-06-05',
       title: 'Deposit TDS',
       actName: 'Income Tax Act, 1961',
-      unitName: 'Belur Plant',
+      unitName: 'Riverbend Plant',
       departmentName: 'Finance',
       criticality: 'HIGH',
     });
