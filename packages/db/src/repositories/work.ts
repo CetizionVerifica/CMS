@@ -26,10 +26,71 @@ import { entity, pageLimit, toWire, type NewEntity, type Page, type PageRequest 
 
 /** Work: assignments, instances, evidence, comments, audit (domain-model.md §5). */
 
+/** An instance whose owner or approver changed, with the values before the change. */
+export interface ReassignedInstance {
+  id: string;
+  clientId: string;
+  /** Version after the change. */
+  version: number;
+  before: { ownerId: string; approverId: string };
+  after: { ownerId: string; approverId: string };
+}
+
+type People = { ownerId: string; approverId: string };
+
+/** Locks the matching instances, then rewrites owner/approver on the ones `next` changes, bumping version. */
+async function reassign(
+  tx: TenantTx,
+  where: SQL | undefined,
+  next: (row: People) => People,
+): Promise<ReassignedInstance[]> {
+  const i = s.complianceInstance;
+  const rows = await tx
+    .select({ id: i.id, clientId: i.clientId, ownerId: i.ownerId, approverId: i.approverId })
+    .from(i)
+    .where(where)
+    .orderBy(asc(i.id))
+    .for('update')
+    .catch(rethrow);
+  const changed: ReassignedInstance[] = [];
+  for (const row of rows) {
+    const after = next(row);
+    if (after.ownerId === row.ownerId && after.approverId === row.approverId) continue;
+    const [updated] = await tx
+      .update(i)
+      .set({ ...after, version: sql`${i.version} + 1` })
+      .where(eq(i.id, row.id))
+      .returning({ version: i.version })
+      .catch(rethrow);
+    // Visible but not updatable: the update policy refused it.
+    if (!updated) throw new DbError('FORBIDDEN', 'Not allowed to change this row');
+    changed.push({
+      id: row.id,
+      clientId: row.clientId,
+      version: updated.version,
+      before: { ownerId: row.ownerId, approverId: row.approverId },
+      after,
+    });
+  }
+  return changed;
+}
+
 const assignmentEntity = entity<Assignment>({ table: s.assignment, schema: Assignment });
 export const assignments = {
+  /** Obligations with a non-archived assignment in a client this context can see. */
+  async obligationIds(tx: TenantTx): Promise<string[]> {
+    const rows = await tx
+      .selectDistinct({ id: s.assignment.obligationId })
+      .from(s.assignment)
+      .where(isNull(s.assignment.archivedAt))
+      .orderBy(asc(s.assignment.obligationId))
+      .catch(rethrow);
+    return rows.map((r) => r.id);
+  },
   get: assignmentEntity.get,
   require: assignmentEntity.require,
+  query: assignmentEntity.query,
+  findAll: assignmentEntity.findAll,
   list: (tx: TenantTx, clientId: string, page?: PageRequest) =>
     assignmentEntity.list(tx, eq(s.assignment.clientId, clientId), page),
   /** The non-archived assignment for (unit, obligation, department), the unique key. */
@@ -185,6 +246,50 @@ export const instances = {
   update: instanceEntity.update,
   archive: instanceEntity.archive,
   restore: instanceEntity.restore,
+
+  /**
+   * Sets owner and/or approver on the assignment's non-archived OPEN and SENT_BACK instances (M6, after
+   * an assignment change). Returns the rows that changed, with the values before; callers write audit.
+   */
+  reassignOpen(
+    tx: TenantTx,
+    assignmentId: string,
+    to: { ownerId?: string; approverId?: string },
+  ): Promise<ReassignedInstance[]> {
+    const i = s.complianceInstance;
+    return reassign(
+      tx,
+      and(
+        eq(i.assignmentId, assignmentId),
+        inArray(i.workflowState, ['OPEN', 'SENT_BACK']),
+        isNull(i.archivedAt),
+      ),
+      (row) => ({
+        ownerId: to.ownerId ?? row.ownerId,
+        approverId: to.approverId ?? row.approverId,
+      }),
+    );
+  },
+
+  /**
+   * Moves every non-archived instance where `fromPersonId` is owner or approver to `toPersonId`, in any
+   * state (M6, merging two people). Returns the rows that changed, with the values before.
+   */
+  replacePerson(
+    tx: TenantTx,
+    fromPersonId: string,
+    toPersonId: string,
+  ): Promise<ReassignedInstance[]> {
+    const i = s.complianceInstance;
+    return reassign(
+      tx,
+      and(or(eq(i.ownerId, fromPersonId), eq(i.approverId, fromPersonId)), isNull(i.archivedAt)),
+      (row) => ({
+        ownerId: row.ownerId === fromPersonId ? toPersonId : row.ownerId,
+        approverId: row.approverId === fromPersonId ? toPersonId : row.approverId,
+      }),
+    );
+  },
 
   /**
    * The register: flattened rows for one client, ordered by due date then id, keyset-paged. Callers add

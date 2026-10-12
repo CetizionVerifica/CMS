@@ -1,6 +1,6 @@
 import { ERROR_HTTP_STATUS, type ErrorCode, type ErrorEnvelope } from '@canopy/contracts';
 
-const DEFAULT_MESSAGES: Record<ErrorCode, string> = {
+const DEFAULT_MESSAGES: Partial<Record<ErrorCode, string>> = {
   VALIDATION: 'The request is not valid.',
   UNAUTHENTICATED: 'Sign in to continue.',
   MFA_REQUIRED: 'Two-step verification is required.',
@@ -34,7 +34,7 @@ export class ApiError extends Error {
   readonly details: Record<string, unknown> | undefined;
 
   constructor(code: ErrorCode, details?: Record<string, unknown>, message?: string) {
-    super(message ?? DEFAULT_MESSAGES[code]);
+    super(message ?? DEFAULT_MESSAGES[code] ?? 'Something went wrong.');
     this.name = 'ApiError';
     this.code = code;
     this.statusCode = ERROR_HTTP_STATUS[code];

@@ -55,3 +55,7 @@ consultant digest weekly. Never return a notification for COMPLIED or NOT_APPLIC
   `test/fixtures/extract-sample.py`; low-confidence obligations are listed in `test/golden.test.ts`.
 - `inferRule` scores over the window the register covers (`options.coverage`); importers should pass it.
 - "Today" for a client is `localDateIn(now, timeZone)`; never compare a timestamp with a due date directly.
+- `clientPeriods({ today, fyStartMonth, generatedFrom, generatedTo })` feeds the period picker (contracts `ClientPeriods`):
+  current FY and quarter, the current FY plus every FY from the first to the last generated date (generation is
+  contiguous), and the last generated month. FY labels follow `fyLabel` (start year, then the next year's two digits)
+  for every start month.
