@@ -61,7 +61,7 @@ with sign-off per "How to change a contract".
     a bare array, so fields can be added. This changed the calendar and portfolio responses in endpoints.md §6.
 18. `POST /clients/{clientId}/imports` returns `{ batchId, url, headers, expiresAt }`. The batch becomes readable at
     `POST /imports/{id}/uploaded`, which records the hash, so `ImportBatch.fileSha256` is never empty.
-19. `can()` action names follow the `Action` pattern: `instance.dueDate` is `instance.due_date`. Import actions are
+19. `can()` action names are `<resource>.<verb>` in lower camelCase (`Action`), e.g. `instance.dueDate`. Import actions are
     `import.read`, `import.create`, `import.write` and `import.commit`.
 20. Bulk create (`/assignments/bulk`) reports results by request `index`; bulk approve reports them by instance `id`.
 21. Login, magic-link verify, MFA verify and invite accept all return `Me`, so the client has the CSRF token at once.

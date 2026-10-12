@@ -5066,7 +5066,7 @@
         ],
         "x-canopy-module": "M7",
         "x-canopy-auth": "action",
-        "x-canopy-actions": ["instance.reassign", "instance.due_date"],
+        "x-canopy-actions": ["instance.reassign", "instance.dueDate"],
         "x-canopy-roles": {
           "FIRM_ADMIN": "all",
           "CONSULTANT": "all",
@@ -10526,7 +10526,7 @@
                     "properties": {
                       "action": {
                         "type": "string",
-                        "pattern": "^[a-z_]+\\.[a-z_]+$"
+                        "pattern": "^[a-z][a-zA-Z]*\\.[a-z][a-zA-Z]*$"
                       }
                     },
                     "required": ["action"],

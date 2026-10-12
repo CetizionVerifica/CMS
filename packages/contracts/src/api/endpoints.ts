@@ -911,7 +911,7 @@ export const ENDPOINTS = {
     path: '/instances/{id}',
     summary:
       'Reassign owner or approver (instance.reassign) or move the due date (instance.due_date).',
-    action: ['instance.reassign', 'instance.due_date'],
+    action: ['instance.reassign', 'instance.dueDate'],
     roles: 'FA CO CA',
     body: work.InstanceUpdateBody,
     response: InstanceDetail,
