@@ -37,10 +37,15 @@ test('sorting 10,000 rows stays fast', async ({ page }) => {
   await page.goto('/#/data-table');
   const header = page.getByRole('columnheader', { name: 'Due date' });
   await expect(header).toBeVisible();
-  // Timed inside the page against a baseline from the same run, so a loaded runner (several merge-queue groups at once)
-  // slows both alike. The baseline is the median of five n log n sorts of 10,000 date strings. A healthy click costs
-  // about 50-90 baselines (rendering included), unloaded or at 4-6x CPU throttling. An O(n²) sort makes ~50M
-  // comparisons, at least 2.4s even with TanStack's cheapest comparator, so it fails both limits under any load.
+  // Two checks. Work: the demo's Due date column counts its comparisons. An n log n sort of 10,000 rows makes about
+  // 120,000 (n·log2 n is 133,000) and a quadratic one tens of millions, so the 4·n·log2 n cap catches a quadratic
+  // sort at any load, as long as it compares through the column's sortingFn (TanStack's sort does). Time: measured
+  // inside the page against a baseline from the same run, so a loaded runner (several merge-queue groups at once)
+  // slows both alike; it guards the render, not the sort's complexity. The baseline is the median of five sorts of
+  // 10,000 date strings; a healthy click costs about 50-90 of them, unloaded or at 4-6x CPU throttling.
+  await page.evaluate(() => {
+    (window as Window & { dueDateComparisons?: number }).dueDateComparisons = 0;
+  });
   const { baseline, elapsed } = await header.evaluate(async (th) => {
     const dates = Array.from({ length: 10_000 }, (_, i) =>
       new Date(Date.UTC(2026, 3, 1) + ((i * 7919) % 730) * 86_400_000).toISOString().slice(0, 10),
@@ -64,6 +69,11 @@ test('sorting 10,000 rows stays fast', async ({ page }) => {
     return { baseline: runs.sort((a, b) => a - b)[2]!, elapsed: performance.now() - started };
   });
   await expect(header).toHaveAttribute('aria-sort', 'ascending');
+  const comparisons = await page.evaluate(
+    () => (window as Window & { dueDateComparisons?: number }).dueDateComparisons ?? 0,
+  );
+  expect(comparisons).toBeGreaterThan(10_000);
+  expect(comparisons).toBeLessThan(4 * 10_000 * Math.log2(10_000));
   expect(
     elapsed,
     `sort took ${Math.round(elapsed)}ms; baseline ${baseline.toFixed(1)}ms`,
@@ -76,6 +86,10 @@ test('the column chooser and row menu are axe-clean while open', async ({ page }
   await expect(page.getByRole('dialog', { name: 'Choose columns' })).toBeVisible();
   await expectNoA11yViolations(page);
   await page.keyboard.press('Escape');
+  // Wait for the chooser to finish closing: it returns focus to its trigger when it unmounts, and on a loaded runner
+  // that can land after the next focus move and steal the Enter meant for the row menu.
+  await expect(page.getByRole('dialog', { name: 'Choose columns' })).toBeHidden();
+  await expect(page.getByRole('button', { name: 'Columns' })).toBeFocused();
 
   const link = page.locator('[data-row-index="0"] [data-row-link]');
   await link.focus();

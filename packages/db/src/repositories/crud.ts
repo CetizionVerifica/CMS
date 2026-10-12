@@ -128,7 +128,7 @@ export interface QueryResult<T> {
 }
 
 /** LIKE pattern for a literal substring. */
-function containsPattern(text: string): string {
+export function containsPattern(text: string): string {
   return `%${text.replace(/[\\%_]/g, (ch) => `\\${ch}`)}%`;
 }
 

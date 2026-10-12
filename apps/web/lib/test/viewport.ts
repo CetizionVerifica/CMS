@@ -12,7 +12,7 @@ function matches(query: string): boolean {
   });
 }
 
-window.matchMedia = (query: string): MediaQueryList => {
+function matchMedia(query: string): MediaQueryList {
   const listeners = new Set<Listener>();
   const mql = {
     media: query,
@@ -28,7 +28,10 @@ window.matchMedia = (query: string): MediaQueryList => {
   } as unknown as MediaQueryList;
   lists.add({ query, listeners, mql });
   return mql;
-};
+}
+
+// Node-environment tests (server code) have no window.
+if (typeof window !== 'undefined') window.matchMedia = matchMedia;
 
 export function setViewport(px: number): void {
   width = px;

@@ -408,6 +408,41 @@ describe('submit checks', () => {
   });
 });
 
+describe('approve checks', () => {
+  const approveCases: [ScanStatus[], string | null][] = [
+    [[], 'EVIDENCE_REQUIRED'],
+    [['INFECTED'], 'EVIDENCE_REQUIRED'],
+    [['PENDING'], 'EVIDENCE_NOT_READY'],
+    [['CLEAN'], null],
+  ];
+
+  it.each(approveCases)(
+    'a completion that needs evidence, with files %j now → %s',
+    (evidence, code) => {
+      const run = () =>
+        planTransition(
+          input(instance('SUBMITTED'), COMMANDS.APPROVE, { evidenceRequired: true, evidence }),
+        );
+      if (code === null) {
+        expect(run().fields.workflowState).toBe('APPROVED');
+      } else {
+        const error = errorOf(run);
+        expect(error.code).toBe(code);
+        expect(error.statusCode).toBe(422);
+      }
+    },
+  );
+
+  it('approves an NA request without evidence', () => {
+    const plan = planTransition(
+      input(instance('SUBMITTED', { pendingKind: 'NA', completedOn: null }), COMMANDS.APPROVE, {
+        evidenceRequired: true,
+      }),
+    );
+    expect(plan.fields.workflowState).toBe('NOT_APPLICABLE');
+  });
+});
+
 describe('reasons', () => {
   it.each([
     ['REQUEST_NA', 'OPEN'],

@@ -353,12 +353,12 @@ describe.skipIf(!url)('M6 on the Postgres store', () => {
         version: 3,
       });
       expect(restored.body).toMatchObject({ archivedAt: null, version: 4 });
-      expect((await audits(w.firmA, 'client', created.id)).map((a) => a.action)).toEqual([
-        'RESTORE',
-        'ARCHIVE',
-        'UPDATE',
-        'CREATE',
-      ]);
+      const rows = await audits(w.firmA, 'client', created.id);
+      expect(rows.map((a) => a.action)).toEqual(['RESTORE', 'ARCHIVE', 'UPDATE', 'CREATE']);
+      // The audit row records the archive time the database stored, not the app clock.
+      expect(rows[1]?.after).toEqual({
+        archivedAt: (archived.body as { archivedAt: string }).archivedAt,
+      });
     });
 
     it('answers 409 DUPLICATE with the existing id, and the failed request leaves nothing behind', async () => {

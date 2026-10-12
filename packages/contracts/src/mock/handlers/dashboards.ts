@@ -19,6 +19,7 @@ import {
   visibleInstances,
 } from '../core.js';
 import { daysBetween } from '../derive.js';
+import { addDays } from '../periods.js';
 import { actorOf, type PartialHandlers } from '../handler.js';
 import type { InstanceRecord } from '../store.js';
 import { SIGNED_URL_TTL_SECONDS } from '../../api/common.js';
@@ -132,6 +133,11 @@ export const dashboardHandlers: PartialHandlers<
               i.dueDate >= asOf &&
               daysBetween(asOf, i.dueDate) < 7,
           ).length,
+          dueThisWeekFilter: {
+            dueFrom: asOf,
+            dueTo: addDays(asOf, 6),
+            workflowState: ['OPEN' as const, 'SENT_BACK' as const],
+          },
           lastActivityAt: updated.at(-1) ?? null,
         };
       }),

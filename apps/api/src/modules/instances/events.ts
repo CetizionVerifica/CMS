@@ -5,7 +5,7 @@ import type {
   Role,
   WorkflowState,
 } from '@canopy/contracts';
-import { domainEvents, type TenantTx } from '@canopy/db';
+import { domainEvents, type NewDomainEvent, type TenantTx } from '@canopy/db';
 import { rolesIn } from './scope.js';
 import type { TransitionCommand } from './workflow.js';
 
@@ -83,10 +83,15 @@ export function commentAddedEvent(comment: Comment): InstanceEvent {
   };
 }
 
-/** Writes `event` to the outbox in the caller's transaction. */
-export function emit(
+export interface EventSource {
+  actor: NewDomainEvent['actor'];
+  requestId: string;
+}
+
+/** Writes `event` to the outbox in the caller's transaction, as `source` (a person or a job). */
+export function emitAs(
   tx: TenantTx,
-  ctx: RequestContext,
+  source: EventSource,
   event: InstanceEvent,
   clientId: string,
   aggregate: { type: string; id: string; version: number },
@@ -94,10 +99,25 @@ export function emit(
   return domainEvents.enqueue(tx, {
     type: event.type,
     clientId,
-    actor: { kind: 'PERSON', personId: ctx.personId },
-    requestId: ctx.requestId,
+    actor: source.actor,
+    requestId: source.requestId,
     aggregate: { type: aggregate.type, id: aggregate.id },
     aggregateVersion: aggregate.version,
     data: event.data,
   });
+}
+
+/** Writes `event` to the outbox in the caller's transaction, as the person making the request. */
+export function emit(
+  tx: TenantTx,
+  ctx: RequestContext,
+  event: InstanceEvent,
+  clientId: string,
+  aggregate: { type: string; id: string; version: number },
+): Promise<void> {
+  const source = {
+    actor: { kind: 'PERSON' as const, personId: ctx.personId },
+    requestId: ctx.requestId,
+  };
+  return emitAs(tx, source, event, clientId, aggregate);
 }

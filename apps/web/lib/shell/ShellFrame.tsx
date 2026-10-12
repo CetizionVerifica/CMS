@@ -223,7 +223,9 @@ export function ShellFrame({ model, initialLayout, children }: ShellFrameProps) 
 /**
  * The route's title, applied once the new page's h1 is in the DOM. AppShell focuses the h1 and announces the title
  * when the title changes; during a client navigation the URL changes first and the page streams in after the
- * loading skeleton, so changing the title straight away would focus the old page's h1, or none.
+ * loading skeleton, so changing the title straight away would focus the old page's h1, or none. However slowly the
+ * page loads, the title waits for an h1 outside a loading state (`aria-busy`); `fallbackMs` only covers the case
+ * where both pages share the same h1, which never mutates.
  */
 export function useSettledTitle(title: string, fallbackMs = 1500): string {
   const [settled, setSettled] = useState(title);
@@ -237,10 +239,13 @@ export function useSettledTitle(title: string, fallbackMs = 1500): string {
   useEffect(() => {
     if (title === settled) return;
     const main = document.querySelector('main');
+    // After `fallbackMs` an unchanged h1 counts as the new page's (one client's page to the same page of another).
+    let sameH1Allowed = false;
     const ready = () => {
       const h1 = main?.querySelector('h1');
-      if (!h1 || (h1 === lastH1.current.node && h1.textContent === lastH1.current.text))
-        return false;
+      if (!h1 || main?.querySelector('[aria-busy="true"]')) return false;
+      const unchanged = h1 === lastH1.current.node && h1.textContent === lastH1.current.text;
+      if (unchanged && !sameH1Allowed) return false;
       lastH1.current = { node: h1, text: h1.textContent };
       setSettled(title);
       return true;
@@ -250,14 +255,11 @@ export function useSettledTitle(title: string, fallbackMs = 1500): string {
       if (ready()) observer.disconnect();
     });
     if (main) observer.observe(main, { childList: true, subtree: true, characterData: true });
-    // The same h1 text on both pages (one client to another) never mutates; apply the title anyway.
+    // The same h1 text on both pages never mutates; accept it once the wait is over. A page still loading (no h1, or
+    // a skeleton) keeps the observer running until its h1 arrives.
     const timer = setTimeout(() => {
-      observer.disconnect();
-      lastH1.current = {
-        node: main?.querySelector('h1') ?? null,
-        text: main?.querySelector('h1')?.textContent ?? null,
-      };
-      setSettled(title);
+      sameH1Allowed = true;
+      if (ready()) observer.disconnect();
     }, fallbackMs);
     return () => {
       observer.disconnect();

@@ -9,6 +9,9 @@ import { MemoryExportFiles, type ExportFiles } from './modules/reports/files.js'
 import { registerReportRoutes } from './modules/reports/routes.js';
 import { IdempotencyCache, InProcessRunner, type ExportRunner } from './modules/reports/service.js';
 import { libraryAndEntities, type M6Deps } from './modules/entities/index.js';
+import { registerEvidenceRoutes } from './modules/evidence/routes.js';
+import { createEvidenceService } from './modules/evidence/service.js';
+import type { EvidenceStorage } from './modules/evidence/storage.js';
 import { imports, type ImportOptions } from './modules/imports/index.js';
 import { registerInstanceRoutes } from './modules/instances/routes.js';
 import { createInstanceService } from './modules/instances/service.js';
@@ -31,6 +34,8 @@ export interface ServerOptions {
   readonly imports?: ImportOptions;
   /** M7 · Tenant database for the instance routes, mounted under /api/v1 when given. */
   readonly database?: Database;
+  /** M7 · Evidence file storage; with `database`, the evidence routes are mounted too. */
+  readonly evidenceStorage?: EvidenceStorage;
 }
 
 const NO_SESSIONS: AuthStore = {
@@ -79,6 +84,13 @@ export function buildServer(options: ServerOptions = {}): FastifyInstance {
     void app.register(
       async (api) => {
         registerInstanceRoutes(api, createInstanceService({ db: database, clock: options.clock }));
+        if (options.evidenceStorage) {
+          const storage = options.evidenceStorage;
+          registerEvidenceRoutes(
+            api,
+            createEvidenceService({ db: database, storage, clock: options.clock }),
+          );
+        }
       },
       { prefix: '/api/v1' },
     );

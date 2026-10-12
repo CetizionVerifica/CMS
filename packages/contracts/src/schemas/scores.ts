@@ -63,11 +63,30 @@ export const Breakdown = z.strictObject({
 });
 export type Breakdown = z.infer<typeof Breakdown>;
 
+/**
+ * The register filter behind a portfolio row's "due this week" count: open work (OPEN, SENT_BACK) due from `asOf`
+ * through six days later. Its fields are register query parameters (`GET /clients/{clientId}/instances`), so the web
+ * app can link to the register filtered to exactly those items.
+ */
+export const DueThisWeekFilter = z
+  .strictObject({
+    dueFrom: LocalDate,
+    dueTo: LocalDate,
+    workflowState: z.array(WorkflowState).min(1),
+  })
+  .refine((f) => f.dueFrom <= f.dueTo, {
+    path: ['dueTo'],
+    message: 'dueTo is on or after dueFrom',
+  });
+export type DueThisWeekFilter = z.infer<typeof DueThisWeekFilter>;
+
 export const PortfolioRow = z.strictObject({
   clientId: Id,
   clientName: Name,
   result: ScoreResult,
   dueThisWeek: z.int().min(0),
+  /** The register filter that lists the `dueThisWeek` items. Optional so existing providers stay valid. */
+  dueThisWeekFilter: DueThisWeekFilter.optional(),
   lastActivityAt: Instant.nullable(),
 });
 export type PortfolioRow = z.infer<typeof PortfolioRow>;
@@ -83,8 +102,8 @@ export const PlannedNotification = z.strictObject({
 export type PlannedNotification = z.infer<typeof PlannedNotification>;
 
 /**
- * A notification is sent at most once per these fields (events.md §4 rule 4). `recipientId` is part of the key, so a person who
- * becomes owner or approver on the day another was reminded is still reminded.
+ * A scheduled notification is sent at most once per these fields (events.md §4 rule 4). `recipientId` is part of the
+ * key, so a person who becomes owner or approver on the day another was reminded is still reminded.
  */
 export const NOTIFICATION_DEDUPE_KEY = [
   'instanceId',
@@ -92,6 +111,18 @@ export const NOTIFICATION_DEDUPE_KEY = [
   'sendDate',
   'recipientId',
 ] as const satisfies readonly (keyof PlannedNotification)[];
+
+/** Kinds sent in reaction to a domain event rather than on a schedule. */
+export const EVENT_NOTIFICATION_KINDS = [
+  'APPROVAL_REQUESTED',
+  'SENT_BACK',
+] as const satisfies readonly NotificationKind[];
+
+/**
+ * An event-driven notification is sent at most once per source event and recipient (events.md §4 rule 4), so a
+ * redelivered event sends nothing new, while a second submission (a new event) notifies again.
+ */
+export const EVENT_NOTIFICATION_DEDUPE_KEY = ['sourceEventId', 'recipientId'] as const;
 
 export const ExportJob = z.strictObject({
   ...baseShape,
