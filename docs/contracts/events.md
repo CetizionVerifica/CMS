@@ -30,7 +30,7 @@ interface DomainEvent<T extends string, D> {
 ### Instances (producer M7; M9 generation produces `instance.generated`)
 | Type | `data` | Main consumers |
 |---|---|---|
-| `instance.generated` | `{ assignmentId, instanceIds: Id[], range: {from, to}, engineVersion }` (one per assignment per run) | M10 cache |
+| `instance.generated` | `{ instanceId, assignmentId, periodStart, periodEnd, dueDate, engineVersion }`: one per created instance, with `aggregate` the instance and `aggregateVersion: 1` (its version at creation), so each instance's events count up from 1 | M10 cache |
 | `instance.submitted` | `{ instanceId, kind: SubmissionKind, ownerId, approverId, dueDate, completedOn: LocalDate \| null }` | M9 notify approver |
 | `instance.approved` | `{ instanceId, approverId, resultState: "APPROVED" \| "NOT_APPLICABLE", delegated: boolean, completedOn }` | M9 cancel reminders, M10 |
 | `instance.sent_back` | `{ instanceId, approverId, ownerId }` | M9 notify owner |
