@@ -1,10 +1,11 @@
 import { DEFAULT_FIRM_SETTINGS, FirmSettings, Id, Name } from '@canopy/contracts';
-import { eq, sql } from 'drizzle-orm';
+import { eq, sql, type SQL } from 'drizzle-orm';
 import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { migrate as runMigrations } from 'drizzle-orm/node-postgres/migrator';
 import { fileURLToPath } from 'node:url';
 import pg from 'pg';
 import { z } from 'zod';
+import { lookups, type AuthLookups } from './auth-lookups.js';
 import * as schema from './schema/index.js';
 import { tenantSettings, type TenantContext } from './tenant-context.js';
 
@@ -23,6 +24,9 @@ export type TenantTx = Transaction & { readonly [tenantBrand]: true };
 /** The role every tenant transaction switches to (migration 0000). It has no BYPASSRLS. */
 export const APP_ROLE = 'canopy_app';
 
+/** Owner of the SECURITY DEFINER pre-tenant lookups (migration 0007); no request login may become it. */
+const LOOKUP_ROLE = 'canopy_lookup';
+
 export const MIGRATIONS_FOLDER = fileURLToPath(new URL('../migrations', import.meta.url));
 
 export interface DatabaseOptions {
@@ -36,24 +40,46 @@ export interface DatabaseOptions {
    * and CI connect as the owner).
    */
   privilegedLogin?: 'refuse' | 'allow';
+  /**
+   * Told the SQLSTATE when the server closes an idle pooled client (57P01 on a restart, failover or
+   * DROP DATABASE WITH (FORCE)). Default: a console warning with the code only, never the message.
+   */
+  onIdleError?: (sqlState: string) => void;
 }
 
-export interface Database {
+/**
+ * `findLoginCandidates`, `findSession` and `findLoginToken` (AuthLookups) are the sign-in reads made before a
+ * tenant is known: SECURITY DEFINER functions that return ids, hashes and states only (ADR M3-0001).
+ */
+export interface Database extends AuthLookups {
   /**
    * Runs `fn` in one transaction as the app role, with the tenant settings every RLS policy reads.
    * This is the only way request code reaches the database (packages/db/CLAUDE.md rule 2).
    */
   withTenant<T>(ctx: TenantContext, fn: (tx: TenantTx) => Promise<T>): Promise<T>;
   /**
-   * Ids of every firm, for scheduled jobs that then run each firm in its own `withTenant`. The only
-   * cross-tenant read; it returns ids and nothing else (ADR 0003).
+   * Ids of every firm, for scheduled jobs that then run each firm in its own `withTenant`. It returns ids
+   * and nothing else (ADR 0003).
    */
   listFirmIds(): Promise<string[]>;
   close(): Promise<void>;
 }
 
+function sqlStateOf(error: unknown): string {
+  const code = (error as { code?: unknown } | null)?.code;
+  return typeof code === 'string' ? code : 'unknown';
+}
+
 function createPool(options: DatabaseOptions): pg.Pool {
-  return new pg.Pool({ connectionString: options.connectionString, max: options.max ?? 10 });
+  const pool = new pg.Pool({ connectionString: options.connectionString, max: options.max ?? 10 });
+  // An idle client the server closes emits 'error' on the pool, which crashes the process when nobody
+  // listens. The pool has already removed that client and the next query opens a new one.
+  const report =
+    options.onIdleError ??
+    ((code: string) =>
+      console.warn(`@canopy/db: the server closed an idle connection (SQLSTATE ${code})`));
+  pool.on('error', (error) => report(sqlStateOf(error)));
+  return pool;
 }
 
 /**
@@ -83,6 +109,9 @@ async function privilegedReason(db: Db): Promise<string | null> {
     if (role.superuser) return `${who} is a superuser`;
     if (role.bypassrls) return `${who} has BYPASSRLS`;
     if (role.owner) return `${who} owns tables in schema public`;
+    // Owns the pre-tenant lookups, which read across firms (migrations 0007, 0012).
+    if (role.name === LOOKUP_ROLE)
+      return role.self ? 'the login is canopy_lookup' : `${who} reads across firms`;
   }
   return null;
 }
@@ -104,6 +133,14 @@ export function createDatabase(options: DatabaseOptions): Database {
     });
     return loginChecked;
   };
+  /** One statement as the app role with no tenant context: only the SECURITY DEFINER lookups return rows. */
+  const asApp = async (query: SQL) => {
+    if (policy === 'refuse') await checkLogin();
+    return db.transaction(async (tx) => {
+      await tx.execute(sql.raw(`SET LOCAL ROLE ${APP_ROLE}`));
+      return tx.execute<Record<string, unknown>>(query);
+    });
+  };
   return {
     async withTenant(ctx, fn) {
       const settings = tenantSettings(ctx);
@@ -121,13 +158,10 @@ export function createDatabase(options: DatabaseOptions): Database {
       });
     },
     async listFirmIds() {
-      if (policy === 'refuse') await checkLogin();
-      return db.transaction(async (tx) => {
-        await tx.execute(sql.raw(`SET LOCAL ROLE ${APP_ROLE}`));
-        const { rows } = await tx.execute<{ id: string }>(sql`SELECT canopy_list_firm_ids() AS id`);
-        return rows.map((r) => r.id);
-      });
+      const { rows } = await asApp(sql`SELECT canopy_list_firm_ids() AS id`);
+      return rows.map((r) => r.id as string);
     },
+    ...lookups(asApp),
     close: () => pool.end(),
   };
 }

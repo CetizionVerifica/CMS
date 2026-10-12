@@ -6,7 +6,12 @@ import pg from 'pg';
 import { afterEach, describe, expect, it } from 'vitest';
 import { createAdminDatabase, createDatabase, MIGRATIONS_FOLDER } from '../src/database.js';
 import { createTestDatabase, databaseUrl, type TestDatabase } from './support/database.js';
-import { populateFirm } from './support/populate.js';
+import {
+  populateAuth,
+  populateFirm,
+  populateIdempotency,
+  type PopulatedFirm,
+} from './support/populate.js';
 import { TABLES, tenantColumn } from './support/tables.js';
 
 /**
@@ -30,10 +35,18 @@ const POPULATE: Record<string, (t: TestDatabase) => Promise<void>> = {
       ['Demo Advisory', 'a'],
       ['Second Ledger Consulting', 'b'],
     ] as const) {
-      await populateFirm(t.db, await t.admin.createFirm({ name }), label);
+      populated[label] = await populateFirm(t.db, await t.admin.createFirm({ name }), label);
     }
   },
+  '0012_auth_lookups': async (t) => {
+    for (const label of ['a', 'b'] as const) await populateAuth(t.db, populated[label]!, label);
+  },
+  '0015_idempotency_key_grants': async (t) => {
+    for (const label of ['a', 'b'] as const)
+      await populateIdempotency(t.db, populated[label]!, label);
+  },
 };
+const populated: Record<string, PopulatedFirm> = {};
 
 /** A migrations folder holding only the first `count` journal entries. */
 function folderWithFirst(count: number): string {

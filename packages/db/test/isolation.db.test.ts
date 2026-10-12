@@ -5,7 +5,12 @@ import type { TenantTx } from '../src/database.js';
 import * as s from '../src/schema/index.js';
 import { systemContext, type TenantContext } from '../src/tenant-context.js';
 import { createTestDatabase, type TestDatabase } from './support/database.js';
-import { populateFirm, type PopulatedFirm } from './support/populate.js';
+import {
+  populateAuth,
+  populateFirm,
+  populateIdempotency,
+  type PopulatedFirm,
+} from './support/populate.js';
 import { clientColumn, TABLES, tenantColumn } from './support/tables.js';
 
 /**
@@ -23,6 +28,10 @@ beforeAll(async () => {
   const firmB = await t.admin.createFirm({ name: 'Second Ledger Consulting' });
   a = await populateFirm(t.db, firmA, 'a');
   b = await populateFirm(t.db, firmB, 'b');
+  await populateAuth(t.db, a, 'a');
+  await populateAuth(t.db, b, 'b');
+  await populateIdempotency(t.db, a, 'a');
+  await populateIdempotency(t.db, b, 'b');
 }, 60_000);
 
 afterAll(async () => {
@@ -104,8 +113,8 @@ describe.each(TABLES.map((x) => x.name))('%s', (table) => {
   });
 
   it('the app role cannot delete, not even its own rows', async () => {
-    if (table === 'import_issue') {
-      // The one deletable table (migration 0009): RLS still limits DELETE to the firm.
+    if (table === 'import_issue' || table === 'idempotency_key') {
+      // The deletable tables (migrations 0009, 0015): RLS still limits DELETE to the firm.
       const other = sql.raw(`DELETE FROM "${table}" WHERE ${col} = '${a.firmId}'`);
       const result = await t.db.withTenant(asFirm(b), (tx) => tx.execute(other));
       expect(result.rowCount).toBe(0);

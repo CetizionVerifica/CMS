@@ -23,6 +23,9 @@ export default defineConfig({
       command: 'pnpm --filter @canopy/web start',
       url: 'http://localhost:3000',
       reuseExistingServer: !ci,
+      // The journeys run against the M0 mock API, which a production build serves only with this flag. Set here, so
+      // turbo's env filtering for test:e2e can't strip it.
+      env: { CANOPY_DEMO_API: '1' },
     },
   ],
 });
