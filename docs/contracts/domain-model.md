@@ -329,7 +329,7 @@ interface ScoreResult {
   instanceIds: Record<DerivedStatus, Id[]>          // so every number links to exactly those rows
 }
 interface Breakdown { by: "department" | "act" | "criticality" | "unit" | "owner"; rows: { key: string; label: string; result: ScoreResult }[] }
-interface PortfolioRow { clientId: Id; clientName: string; result: ScoreResult; dueThisWeek: number; lastActivityAt: Instant | null }
+interface PortfolioRow { clientId: Id; clientName: string; result: ScoreResult; dueThisWeek: number; dueThisWeekFilter?: { dueFrom: LocalDate; dueTo: LocalDate; workflowState: WorkflowState[] }; lastActivityAt: Instant | null }
 interface PlannedNotification { kind: NotificationKind; recipientId: Id; instanceId: Id; sendDate: LocalDate; offsetDays: number }
 interface ExportJob extends Base { clientId: Id; kind: ExportKind; params: Record<string, unknown>; status: JobStatus; fileName: string | null; requestedById: Id }
 ```

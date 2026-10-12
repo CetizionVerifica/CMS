@@ -63,11 +63,30 @@ export const Breakdown = z.strictObject({
 });
 export type Breakdown = z.infer<typeof Breakdown>;
 
+/**
+ * The register filter behind a portfolio row's "due this week" count: open work (OPEN, SENT_BACK) due from `asOf`
+ * through six days later. Its fields are register query parameters (`GET /clients/{clientId}/instances`), so the web
+ * app can link to the register filtered to exactly those items.
+ */
+export const DueThisWeekFilter = z
+  .strictObject({
+    dueFrom: LocalDate,
+    dueTo: LocalDate,
+    workflowState: z.array(WorkflowState).min(1),
+  })
+  .refine((f) => f.dueFrom <= f.dueTo, {
+    path: ['dueTo'],
+    message: 'dueTo is on or after dueFrom',
+  });
+export type DueThisWeekFilter = z.infer<typeof DueThisWeekFilter>;
+
 export const PortfolioRow = z.strictObject({
   clientId: Id,
   clientName: Name,
   result: ScoreResult,
   dueThisWeek: z.int().min(0),
+  /** The register filter that lists the `dueThisWeek` items. Optional so existing providers stay valid. */
+  dueThisWeekFilter: DueThisWeekFilter.optional(),
   lastActivityAt: Instant.nullable(),
 });
 export type PortfolioRow = z.infer<typeof PortfolioRow>;

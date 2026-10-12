@@ -13469,6 +13469,27 @@
             "minimum": 0,
             "maximum": 9007199254740991
           },
+          "dueThisWeekFilter": {
+            "type": "object",
+            "properties": {
+              "dueFrom": {
+                "$ref": "#/components/schemas/LocalDate"
+              },
+              "dueTo": {
+                "$ref": "#/components/schemas/LocalDate"
+              },
+              "workflowState": {
+                "minItems": 1,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "enum": ["OPEN", "SUBMITTED", "SENT_BACK", "APPROVED", "NOT_APPLICABLE"]
+                }
+              }
+            },
+            "required": ["dueFrom", "dueTo", "workflowState"],
+            "additionalProperties": false
+          },
           "lastActivityAt": {
             "anyOf": [
               {

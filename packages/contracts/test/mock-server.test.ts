@@ -1184,10 +1184,23 @@ describe('mock server', () => {
   });
 
   it('serves dashboards, reports and exports', async () => {
-    const portfolio = await ok<{ items: { clientId: string }[] }>(app, 'portfolio', {
-      as: PERSON.arjun,
-    });
+    const portfolio = await ok<{
+      items: { clientId: string; dueThisWeek: number; dueThisWeekFilter: unknown }[];
+    }>(app, 'portfolio', { as: PERSON.arjun });
     expect(portfolio.items.map((r) => r.clientId)).toEqual([NORTHWIND]);
+    // The filter lists exactly the items counted as due this week.
+    const week = portfolio.items[0]!;
+    expect(week.dueThisWeekFilter).toEqual({
+      dueFrom: TODAY,
+      dueTo: '2024-11-21',
+      workflowState: ['OPEN', 'SENT_BACK'],
+    });
+    const filtered = await ok<{ items: unknown[] }>(app, 'listInstances', {
+      as: PERSON.arjun,
+      params: { clientId: NORTHWIND },
+      query: { dueFrom: TODAY, dueTo: '2024-11-21', workflowState: 'OPEN,SENT_BACK', limit: '200' },
+    });
+    expect(filtered.items).toHaveLength(week.dueThisWeek);
     const overview = await ok<{ myTasks: { ownerId: string }[] }>(app, 'clientOverview', {
       as: PERSON.rohan,
       params: { clientId: NORTHWIND },

@@ -61,3 +61,7 @@ owner on `instance.sent_back`). These event-driven kinds dedupe on `(sourceEvent
 (`EVENT_NOTIFICATION_DEDUPE_KEY`, events.md §4 rule 4), and `notification.sent` carries `sourceEventId`. Additive; the
 scheduled-kind key `NOTIFICATION_DEDUPE_KEY` is unchanged. `packages/db` derives its `notification_kind` enum from
 this list, so it needs a migration adding the two values.
+
+For M13: `PortfolioRow.dueThisWeekFilter` (optional, `DueThisWeekFilter`) gives the register filter behind
+`dueThisWeek` (`dueFrom` = `asOf`, `dueTo` = `asOf` + 6 days, `workflowState` OPEN and SENT_BACK), so the portfolio can
+link to the register showing exactly those items. The mock fills it.

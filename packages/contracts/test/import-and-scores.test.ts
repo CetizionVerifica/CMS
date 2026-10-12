@@ -188,6 +188,26 @@ describe('scores', () => {
         lastActivityAt: null,
       }).success,
     ).toBe(true);
+    const dueThisWeekFilter = {
+      dueFrom: '2024-11-15',
+      dueTo: '2024-11-21',
+      workflowState: ['OPEN', 'SENT_BACK'],
+    };
+    const row = {
+      clientId: ID.client,
+      clientName: 'Aditya Birla Group',
+      result,
+      dueThisWeek: 3,
+      dueThisWeekFilter,
+      lastActivityAt: null,
+    };
+    expect(PortfolioRow.safeParse(row).success).toBe(true);
+    expect(
+      PortfolioRow.safeParse({
+        ...row,
+        dueThisWeekFilter: { ...dueThisWeekFilter, dueTo: '2024-11-14' },
+      }).success,
+    ).toBe(false);
     expect(
       PlannedNotification.safeParse({
         kind: 'OWNER_REMINDER',
