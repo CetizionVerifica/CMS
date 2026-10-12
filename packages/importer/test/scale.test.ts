@@ -5,7 +5,7 @@ import { analyse, stubInferRule } from './helpers.js';
 /**
  * The API re-runs analyseImport after every review change, so it must stay close to linear in rows.
  * 20,000 rows took 6 s before the audit fix (quadratic issue bookkeeping) and about 0.7 s after it; with
- * quadratic bookkeeping 8 times the rows took about 20 times as long.
+ * quadratic bookkeeping 16 times the rows took about 44 times as long.
  * This measures the importer's own work, so it uses the stub inferRule; the engine's cost per distinct schedule
  * is the engine's (calls are memoised per run, see analyse.test.ts).
  */
@@ -82,11 +82,12 @@ describe('scale', () => {
     );
   }, 60_000);
 
-  // Compares the machine with itself instead of a wall-clock limit, so a slow runner cannot fail it:
-  // 8 times the rows costs about 8 times the time when analysis is linear, and 64 times when quadratic.
+  // Compares the machine with itself instead of a wall-clock limit, so a slow runner cannot fail it.
+  // 16 times the rows costs about 10 times the time here when analysis is linear, and about 44 times with
+  // the quadratic issue bookkeeping restored (rowNumbers.includes in IssueBook.add), which this test fails.
   it('grows close to linearly with the number of rows', () => {
     const small = largeSheet(2_500, 500);
-    const large = largeSheet(20_000, 500);
+    const large = largeSheet(40_000, 500);
     bestTime(small, 1); // warm up the JIT
     const ratio = bestTime(large, 2) / bestTime(small, 3);
     expect(ratio).toBeLessThan(24);
