@@ -73,3 +73,8 @@ generator fails if a real organisation name reaches any firm A file. Regeneratin
 JSON back in line with its generator: pseudonyms map to register people in the generator's order and Windows line
 breaks in a few descriptions became plain ones; counts, states and expected scores are unchanged. The mock import's
 Organization and Location columns now come from the fixture instead of hard-coded text.
+
+## 1.4.2 · 2026-10-12
+Fixtures only: firm A's site names are fictional too. The unit's town is "Kestrelganj" (was the company's real plant
+town), and the other company site named in three owner comments is "Kestrelpur". The generator's real-name guard and the
+fixture test now cover the company's site names as well as its organisation names (fixtures.md §7).

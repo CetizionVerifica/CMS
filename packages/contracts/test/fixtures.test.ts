@@ -151,11 +151,12 @@ describe('firm A (sample register, recommended profile)', () => {
     expect(states).toMatchObject({ APPROVED: 209, OPEN: 201, NOT_APPLICABLE: 12 });
   });
 
-  it('names a fictional client and company, not the real ones from the register (fixtures.md §7)', () => {
+  it('names a fictional client, company and sites, not the real ones from the register (fixtures.md §7)', () => {
     expect(firmA.clients.map((c) => c.name)).toEqual(['Kestrel Metals Group']);
     expect(firmA.companies.map((c) => c.name)).toEqual(['Kestrel Aluminium']);
+    expect(firmA.locations.map((l) => l.city)).toEqual(['Kestrelganj']);
     const files = JSON.stringify([firmA, expected, dueDates]);
-    expect(files).not.toMatch(/hindalco|birla|aditya/i);
+    expect(files).not.toMatch(/hindalco|birla|aditya|belur|renukoot|hirakud/i);
   });
 
   it('replaces every person from the register with a pseudonym (fixtures.md §7)', () => {
