@@ -6,6 +6,7 @@ export {
   MIGRATIONS_FOLDER,
   createAdminDatabase,
   createDatabase,
+  withSavepoint,
   type AdminDatabase,
   type Database,
   type DatabaseOptions,

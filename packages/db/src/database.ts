@@ -21,6 +21,15 @@ declare const tenantBrand: unique symbol;
  */
 export type TenantTx = Transaction & { readonly [tenantBrand]: true };
 
+/**
+ * Runs `fn` in a savepoint of `tx`: if it throws, only its changes roll back and the error is rethrown,
+ * so the outer transaction can go on (bulk approve: one savepoint per item, then one summary event).
+ * The tenant settings and role are those of `tx`; `SET LOCAL` inside a savepoint is undone with it.
+ */
+export function withSavepoint<T>(tx: TenantTx, fn: (tx: TenantTx) => Promise<T>): Promise<T> {
+  return tx.transaction((inner) => fn(inner as TenantTx));
+}
+
 /** The role every tenant transaction switches to (migration 0000). It has no BYPASSRLS. */
 export const APP_ROLE = 'canopy_app';
 
