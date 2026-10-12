@@ -92,7 +92,8 @@ afterEach(() => act(() => resetToasts()));
 
 describe('DataTable', () => {
   it('renders a semantic table with counts, typed cells and row indexes', async () => {
-    renderTable({ totalCount: 424 });
+    // Three rows cover every cell type; a short fixture keeps this axe pass fast on a loaded runner.
+    renderTable({ totalCount: 424 }, 3);
     const table = screen.getByRole('table', { name: 'Register' });
     expect(table.getAttribute('aria-rowcount')).toBe('425');
     expect(screen.getByText('424 instances')).toBeTruthy();
