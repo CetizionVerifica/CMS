@@ -55,7 +55,12 @@ const filters: FilterDef[] = [
       { value: 'week', label: 'This week', range: { from: '2027-03-08', to: '2027-03-14' } },
     ],
   },
-  { key: 'unit', label: 'Unit', kind: 'multi', options: [{ value: 'belur', label: 'Belur' }] },
+  {
+    key: 'unit',
+    label: 'Unit',
+    kind: 'multi',
+    options: [{ value: 'riverbend', label: 'Riverbend' }],
+  },
 ];
 
 function Harness(props: Partial<FilterBarProps> & { initial?: Record<string, FilterValue> }) {
@@ -202,8 +207,8 @@ describe('FilterBar', () => {
     await user.click(screen.getByRole('menuitem', { name: 'Unit' }));
     await act(() => new Promise((r) => requestAnimationFrame(() => r(null))));
     expect(screen.getByRole('dialog', { name: 'Unit filter' })).toBeTruthy();
-    await user.click(screen.getByRole('checkbox', { name: 'Belur' }));
-    expect(current()).toEqual({ unit: ['belur'] });
+    await user.click(screen.getByRole('checkbox', { name: 'Riverbend' }));
+    expect(current()).toEqual({ unit: ['riverbend'] });
   });
 
   it('keeps three chips inline under 1100px', () => {

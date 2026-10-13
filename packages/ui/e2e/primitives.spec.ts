@@ -60,11 +60,11 @@ test('select, combobox and checkbox work from the keyboard', async ({ page }) =>
   const unit = page.getByRole('combobox', { name: 'Unit', exact: true });
   await unit.focus();
   await unit.fill('');
-  await page.keyboard.type('hira');
+  await page.keyboard.type('high');
   await expect(page.getByRole('option')).toHaveCount(1);
   await expectNoA11yViolations(page);
   await page.keyboard.press('Enter');
-  await expect(unit).toHaveValue('Hirakud smelter');
+  await expect(unit).toHaveValue('Highmoor smelter');
 
   const overdue = page.getByRole('checkbox', { name: 'Overdue' });
   await overdue.focus();

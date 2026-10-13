@@ -12,7 +12,7 @@ const deadlines: DeadlineItem[] = [
     id: '1',
     dueDate: '2027-03-10',
     title: 'Monthly PF challan',
-    meta: 'Belur · Priya Rane',
+    meta: 'Riverbend · Priya Rane',
     status: 'DUE_SOON',
     days: 0,
     href: '/i/1',
@@ -49,7 +49,7 @@ describe('DeadlineList', () => {
     // Pills only for due soon and overdue.
     expect(links[0]!.textContent).toContain('Due today');
     expect(links[1]!.textContent).not.toContain('Upcoming');
-    expect(links[0]!.textContent).toContain('Belur · Priya Rane');
+    expect(links[0]!.textContent).toContain('Riverbend · Priya Rane');
     expect(screen.getByRole('link', { name: '+ 1 more' }).getAttribute('href')).toBe('/calendar');
     expect(screen.getByRole('link', { name: 'View calendar' })).toBeTruthy();
     await expectNoAxeViolations();

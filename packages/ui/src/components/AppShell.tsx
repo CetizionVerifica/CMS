@@ -74,7 +74,7 @@ export type AppShellProps = {
   };
   helpCard?: { title: string; body: string; href?: string; linkLabel?: string };
   /**
-   * Full document title ("Register · Kestrel Aluminium Belur · PlanetPulse Compliance"). When it changes, the shell sets document.title,
+   * Full document title ("Register · Kestrel Aluminium Riverbend · PlanetPulse Compliance"). When it changes, the shell sets document.title,
    * moves focus to the page h1 and announces it.
    */
   title?: string;
