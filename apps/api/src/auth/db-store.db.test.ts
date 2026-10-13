@@ -41,13 +41,15 @@ const url = process.env.DATABASE_URL;
 
 const KEY = Buffer.alloc(32, 7).toString('base64');
 const PASSWORD = 'a long enough password';
-let now = new Date('2026-10-12T04:00:00Z');
+// Ten years ahead: M3's tables check that a session or token expires after its row is created (database time), so a
+// clock in the past would fail once the wall clock passes it.
+let now = new Date('2036-10-12T04:00:00Z');
 const clock = () => now;
-// 2026-10-12 in Asia/Kolkata is in Q3 of FY 2026-27; instances due Apr 2025 to Mar 2027 make two FYs available.
+// 2036-10-12 in Asia/Kolkata is in Q3 of FY 2036-37; instances due Apr 2035 to Mar 2037 make two FYs available.
 const PERIODS = ClientPeriods.parse({
-  current: { fy: '2026-27', quarter: 3 },
-  availableFys: ['2025-26', '2026-27'],
-  availableUntil: '2027-03',
+  current: { fy: '2036-37', quarter: 3 },
+  availableFys: ['2035-36', '2036-37'],
+  availableUntil: '2037-03',
 });
 
 describe.skipIf(!url)('database AccountStore', () => {
@@ -73,10 +75,13 @@ describe.skipIf(!url)('database AccountStore', () => {
     await admin.migrate();
     db = createDatabase({ connectionString: target.toString(), max: 4 });
     owner = new pg.Pool({ connectionString: target.toString(), max: 2 });
+    // DROP DATABASE ... WITH (FORCE) in afterAll can end a client mid-close; without a listener the pool
+    // re-emits that 57P01 as an unhandled error (the guard @canopy/db's createPool has).
+    owner.on('error', () => {});
     store = createDbAccountStore(db, {
       generatedRange: async () => ({
-        from: LocalDate.parse('2025-04-30'),
-        to: LocalDate.parse('2027-03-31'),
+        from: LocalDate.parse('2035-04-30'),
+        to: LocalDate.parse('2037-03-31'),
       }),
       clock,
     });
@@ -219,8 +224,8 @@ describe.skipIf(!url)('database AccountStore', () => {
       expect(res.statusCode).toBe(200);
       expect(Me.parse(res.json()).clients.map((c) => c.period)).toEqual([
         ClientPeriods.parse({
-          current: { fy: '2026-27', quarter: 3 },
-          availableFys: ['2026-27'],
+          current: { fy: '2036-37', quarter: 3 },
+          availableFys: ['2036-37'],
           availableUntil: null,
         }),
       ]);
