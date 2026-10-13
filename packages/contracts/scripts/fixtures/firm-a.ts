@@ -1,6 +1,6 @@
 // Firm A: the sample register as the importer would load it (docs/contracts/fixtures.md §1-§4).
 // People are replaced by pseudonyms keyed by normalised name (fixtures.md §7); real names never reach the JSON.
-// The register's real client and company are replaced by fictional ones, in names and in copied text alike.
+// The register's real client, company and sites are replaced by fictional ones, in names and in copied text alike.
 import type {
   Act,
   Assignment,
@@ -104,17 +104,25 @@ function lookup<T>(table: Record<string, T>, value: string, column: string, rowN
   return found;
 }
 
-/** Fictional organisation names used in place of the register's real ones (fixtures.md §7). */
+/** Fictional organisation and site names used in place of the register's real ones (fixtures.md §7). */
 const FIRM_A_ORGANISATION = {
   client: 'Kestrel Metals Group',
   company: 'Kestrel Aluminium',
+  /** The unit's town. */
+  city: 'Kestrelganj',
+  /** Another site of the same company, named in owner comments. */
+  otherSite: 'Kestrelpur',
 } as const;
 const REAL_ORGANISATION_TEXT: [RegExp, string][] = [
   [/Hindalco Industries Limited/g, 'Kestrel Aluminium Limited'],
   [/Aditya Birla Group/g, FIRM_A_ORGANISATION.client],
   [/Hindalco/g, FIRM_A_ORGANISATION.company],
+  [/Belur/g, FIRM_A_ORGANISATION.city],
+  [/Renukoot/g, FIRM_A_ORGANISATION.otherSite],
+  [/Hirakud/g, FIRM_A_ORGANISATION.otherSite],
 ];
-const REAL_ORGANISATION_PARTS = /hindalco|birla|aditya/i;
+/** The register's real organisation and the company's sites; none may reach the fixture. */
+const REAL_ORGANISATION_PARTS = /hindalco|birla|aditya|belur|renukoot|hirakud/i;
 const fictionalise = (text: string) =>
   REAL_ORGANISATION_TEXT.reduce((t, [real, fake]) => t.replace(real, fake), text);
 
@@ -348,7 +356,7 @@ export function buildFirmA(sheet: Cell[][], sourceName: string): FirmA {
     countryCode: 'IN',
     state: 'West Bengal',
     stateCode: 'WB',
-    city: 'Belur',
+    city: FIRM_A_ORGANISATION.city,
   };
   const unit = {
     ...versioned(k('unit'), firmId),

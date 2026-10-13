@@ -9,7 +9,7 @@ import type {
   JobReport,
   OutboxEvent,
   Recipient,
-  ReminderCandidate,
+  NoticeInstance,
   SendKey,
 } from './ports.js';
 import { instanceUrl } from './reminders.js';
@@ -22,16 +22,16 @@ interface WorkflowEmail {
   type: 'instance.submitted' | 'instance.sent_back';
   /** The state the event left the instance in. Once it has moved on, the email would be stale, so none is sent. */
   state: WorkflowState;
-  recipient: (i: ReminderCandidate) => Id;
+  recipient: (i: NoticeInstance) => Id;
   /** Who acted when the event names no person: the owner submits, the approver sends back. */
-  defaultActor: (i: ReminderCandidate) => Id;
+  defaultActor: (i: NoticeInstance) => Id;
   message: (m: {
     recipientName: string;
     actorName: string;
     clientName: string;
     offsetDays: number;
     instance: InstanceSummary;
-    candidate: ReminderCandidate;
+    candidate: NoticeInstance;
   }) => EmailMessage;
 }
 
@@ -44,8 +44,8 @@ const unknownPerson = (personId: Id): Recipient => ({
 
 /**
  * Emails one person as soon as an instance changes hands, answering the outbox event. The instance is read again
- * first: if it has left the state the event put it in (approved before the email went, or resubmitted), nothing is
- * sent. The send log dedupes on the event id and recipient (ADR M9-0001 §13), so a redelivered event sends nothing
+ * first: if it has changed since the event (its version moved on: approved before the email went, resubmitted, or
+ * sent back again), nothing is sent. The send log dedupes on the event id and recipient (ADR M9-0001 §13), so a redelivered event sends nothing
  * twice while a second send-back on the same day, a new event, is a new email.
  */
 async function sendWorkflowEmail(
@@ -59,7 +59,15 @@ async function sendWorkflowEmail(
   const actor = PersonActor.safeParse(event.actor);
   const found = await deps.store.withFirm(event.firmId, requestId, async (tx) => {
     const instance = await tx.findInstance(instanceId);
-    if (!instance || instance.workflowState !== spec.state) return null;
+    // The event names the version it left the instance at: any later change (a resubmit and a second send-back,
+    // an approval, a reassignment) makes this email stale, and that later change has its own event if it needs one.
+    if (
+      !instance ||
+      instance.version !== event.aggregateVersion ||
+      instance.workflowState !== spec.state
+    ) {
+      return null;
+    }
     const client = (await tx.listClients()).find((c) => c.id === instance.clientId);
     if (!client) return null;
     const actorId = actor.success ? actor.data.personId : spec.defaultActor(instance);

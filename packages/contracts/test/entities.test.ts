@@ -128,7 +128,7 @@ describe('entities', () => {
         countryCode: 'IN',
         state: 'West Bengal',
         stateCode: 'WB',
-        city: 'Belur',
+        city: 'Kestrelganj',
       }).success,
     ).toBe(true);
     expect(
