@@ -46,10 +46,12 @@ const record = (personId: string, key: string, created: string, expires: string)
 });
 const code = (e: unknown) => (e instanceof DbError ? e.code : String(e));
 const NOW = new Date('2026-10-12T10:00:00.000Z');
+// purgeExpired's policy compares with the database clock, so rows meant to stay live expire far ahead of it.
+const LIVE = '2099-01-01T00:00:00.000Z';
 
 describe('idempotencyKeys', () => {
   it('records a response and finds it for the same person only', async () => {
-    const rec = record(ownerId, 'k-find', '2026-10-12T09:00:00.000Z', '2026-10-13T09:00:00.000Z');
+    const rec = record(ownerId, 'k-find', '2026-10-12T09:00:00.000Z', LIVE);
     expect(await as(asPerson(ownerId), (tx) => r.idempotencyKeys.record(tx, rec))).toEqual(rec);
     expect(
       await as(asPerson(ownerId), (tx) => r.idempotencyKeys.find(tx, ownerId, 'k-find', NOW)),
@@ -73,13 +75,13 @@ describe('idempotencyKeys', () => {
   });
 
   it('refuses a second record of an unexpired key, also from a concurrent transaction', async () => {
-    const rec = record(ownerId, 'k-dup', '2026-10-12T09:00:00.000Z', '2026-10-13T09:00:00.000Z');
+    const rec = record(ownerId, 'k-dup', '2026-10-12T09:00:00.000Z', LIVE);
     await as(asPerson(ownerId), (tx) => r.idempotencyKeys.record(tx, rec));
     await expect(
       as(asPerson(ownerId), (tx) => r.idempotencyKeys.record(tx, { ...rec, responseStatus: 409 })),
     ).rejects.toSatisfy((e) => code(e) === 'DUPLICATE');
 
-    const race = record(ownerId, 'k-race', '2026-10-12T09:00:00.000Z', '2026-10-13T09:00:00.000Z');
+    const race = record(ownerId, 'k-race', '2026-10-12T09:00:00.000Z', LIVE);
     const results = await Promise.allSettled(
       [0, 1].map(() =>
         as(asPerson(ownerId), async (tx) => {
@@ -101,7 +103,7 @@ describe('idempotencyKeys', () => {
       await as(asPerson(ownerId), (tx) => r.idempotencyKeys.find(tx, ownerId, 'k-old', NOW)),
     ).toBeNull();
     const fresh = {
-      ...record(ownerId, 'k-old', '2026-10-12T09:00:00.000Z', '2026-10-13T09:00:00.000Z'),
+      ...record(ownerId, 'k-old', '2026-10-12T09:00:00.000Z', LIVE),
       responseStatus: 200,
     };
     expect(await as(asPerson(ownerId), (tx) => r.idempotencyKeys.record(tx, fresh))).toEqual(fresh);
@@ -117,7 +119,7 @@ describe('idempotencyKeys', () => {
     await as(asPerson(approverId), (tx) =>
       r.idempotencyKeys.record(tx, past('p-other', approverId)),
     );
-    const live = record(ownerId, 'p-live', '2026-10-12T09:00:00.000Z', '2099-01-01T00:00:00.000Z');
+    const live = record(ownerId, 'p-live', '2026-10-12T09:00:00.000Z', LIVE);
     await as(asPerson(ownerId), (tx) => r.idempotencyKeys.record(tx, live));
 
     // The owner's context purges the owner's expired row only.
@@ -135,7 +137,7 @@ describe('idempotencyKeys', () => {
   });
 
   it('validates input and the database refuses malformed rows', async () => {
-    const rec = record(ownerId, 'k-bad', '2026-10-12T09:00:00.000Z', '2026-10-13T09:00:00.000Z');
+    const rec = record(ownerId, 'k-bad', '2026-10-12T09:00:00.000Z', LIVE);
     for (const bad of [
       { ...rec, requestHash: 'not-a-hash' },
       { ...rec, key: '' },
