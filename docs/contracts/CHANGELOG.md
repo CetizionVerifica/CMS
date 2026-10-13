@@ -78,3 +78,8 @@ Organization and Location columns now come from the fixture instead of hard-code
 Fixtures only: firm A's site names are fictional too. The unit's town is "Kestrelganj" (was the company's real plant
 town), and the other company site named in three owner comments is "Kestrelpur". The generator's real-name guard and the
 fixture test now cover the company's site names as well as its organisation names (fixtures.md §7).
+
+## 1.4.3 · 2026-10-13
+For M11 and M13: `FIRM_B_AS_OF` (2024-11-15) names firm B's "today". Nothing in its data happens after it, and a mock
+serving firm B should pin `today` to it. With an earlier date the demo showed "No items due" next to complied
+counts, and its FY 2022-23 periods held no firm B items (fixtures.md §6). Additive; no schema change.

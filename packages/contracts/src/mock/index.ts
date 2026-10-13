@@ -3,3 +3,4 @@
 export { createMockServer, HANDLERS, MOCK_BASE_PATH, type MockServerOptions } from './server.js';
 export { MockStore, type OutboxMessage } from './store.js';
 export { MOCK_ENGINE_VERSION, MOCK_FILE_HOST } from './core.js';
+export { FIRM_B_AS_OF } from '../fixtures/index.js';

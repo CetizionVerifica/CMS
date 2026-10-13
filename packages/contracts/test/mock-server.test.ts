@@ -3,14 +3,14 @@ import { ENDPOINTS, type Endpoint } from '../src/api/endpoints.js';
 import { ApiErrorResponse } from '../src/api/error-details.js';
 import { SESSION_COOKIE } from '../src/api/openapi.js';
 import { DEFAULT_CLIENT_SETTINGS } from '../src/defaults.js';
-import { fixtureId, loadExpected } from '../src/fixtures/index.js';
+import { FIRM_B_AS_OF, fixtureId, loadExpected } from '../src/fixtures/index.js';
 import { createMockServer, HANDLERS, MOCK_BASE_PATH } from '../src/mock/index.js';
 import { SAMPLE_COLUMNS, SAMPLE_SHEET } from '../src/mock/handlers/imports.js';
 
 type Id = keyof typeof ENDPOINTS;
 type App = ReturnType<typeof createMockServer>;
 
-const TODAY = '2024-11-15';
+const TODAY = FIRM_B_AS_OF;
 const b = (key: string) => fixtureId(`firm-b:${key}`);
 const PERSON = {
   meera: b('person:meera'), // FIRM_ADMIN
@@ -1207,6 +1207,20 @@ describe('mock server', () => {
       query: { fy: '2024-25' },
     });
     expect(overview.myTasks.every((r) => r.ownerId === PERSON.rohan)).toBe(true);
+    // At firm B's as-of date the overview score and its counts agree, and every row stays inside the period asked for.
+    const quarter = await ok<{
+      result: { score: number | null; counts: { COMPLIED: number; OVERDUE: number } };
+      upcoming: { dueDate: string }[];
+    }>(app, 'clientOverview', {
+      params: { clientId: NORTHWIND },
+      query: { from: '2024-10-01', to: '2024-12-31' },
+    });
+    expect(quarter.result.counts.COMPLIED + quarter.result.counts.OVERDUE).toBeGreaterThan(0);
+    expect(quarter.result.score).not.toBeNull();
+    expect(quarter.upcoming.length).toBeGreaterThan(0);
+    for (const row of quarter.upcoming) {
+      expect(row.dueDate >= TODAY && row.dueDate <= '2024-12-31').toBe(true);
+    }
     await ok(app, 'breakdown', {
       as: PERSON.kabir,
       params: { clientId: NORTHWIND },

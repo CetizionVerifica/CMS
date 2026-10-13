@@ -93,6 +93,8 @@ Contents:
 - Evidence in every `ScanStatus`; one obligation with `evidenceRequired`.
 - People for every role: FA, two consultants (one assigned to Harbour only), CA, AP and OW per unit, an OW limited to one unit, a VIEWER with `expiresAt` in the past and one in the future, one UNCLAIMED person.
 
+As-of date: `FIRM_B_AS_OF` (2024-11-15, exported from `@canopy/contracts/fixtures` and `@canopy/contracts/mock`). Nothing in the data happens after it. A mock serving firm B should pin `today` to it. With an earlier date (for example the fixture's creation date, 2023-03-15) nothing is due yet, so the score reads "No items due" while items approved later already count as complied, and no period before FY 2023-24 has any items. At this date it is FY 2024-25 Q3 for Northwind and FY 2024 Q4 for Harbour.
+
 ## 7. Personal data
 The sample contains real employee names. The xlsx stays as the golden import file (root `CLAUDE.md`), but `firm-a.sample.json` replaces each person with a deterministic pseudonym ("Owner 01", "Approver 03", …) keyed by normalised name, so names do not spread into every test, snapshot and mock. Owner Comments are kept (they hold no names in this sample; re-checked when the JSON is generated).
 
