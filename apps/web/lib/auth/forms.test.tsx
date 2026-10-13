@@ -46,6 +46,44 @@ describe('auth forms', () => {
     expect((screen.getByLabelText('Work email') as HTMLInputElement).value).toBe('x');
   });
 
+  it('offers the firms when the email signs in to more than one', async () => {
+    const firms = [
+      { id: 'f1', name: 'Demo Advisory' },
+      { id: 'f2', name: 'Demo Partners' },
+    ];
+    results.signIn = {
+      status: 'choose-firm',
+      message: 'This email signs in to more than one firm.',
+      values: { email: 'twofirms@demo.test' },
+      firms,
+    };
+    render(<LoginForm />);
+    expect(screen.queryByRole('group', { name: 'Firm' })).toBeNull();
+    await userEvent.click(screen.getByRole('button', { name: 'Sign in' }));
+    expect((await screen.findByRole('status')).textContent).toContain('more than one firm');
+    const group = screen.getByRole('group', { name: 'Firm' });
+    const radios = screen.getAllByRole('radio') as HTMLInputElement[];
+    expect(radios.map((r) => [r.name, r.value, r.checked])).toEqual([
+      ['firmId', 'f1', false],
+      ['firmId', 'f2', false],
+    ]);
+    expect(group.getAttribute('aria-describedby')).toBeNull();
+
+    results.signIn = {
+      status: 'invalid',
+      fieldErrors: { firmId: 'Choose the firm to sign in to' },
+      values: { email: 'twofirms@demo.test' },
+      firms,
+    };
+    await userEvent.click(screen.getByRole('button', { name: 'Sign in' }));
+    const error = await screen.findByText('Choose the firm to sign in to');
+    expect(screen.getByRole('group', { name: 'Firm' }).getAttribute('aria-describedby')).toBe(
+      error.id,
+    );
+    await userEvent.click(screen.getByLabelText('Demo Partners'));
+    expect((screen.getByLabelText('Demo Partners') as HTMLInputElement).checked).toBe(true);
+  });
+
   it('switches to a magic link and confirms it was sent', async () => {
     results.sendMagicLink = {
       status: 'done',

@@ -2,11 +2,12 @@
 // Auth page forms. Each posts to a Server Action, works without JavaScript (plain form post) and shows field errors
 // next to the field, plus one summary message that is announced.
 import { Button, Input } from '@canopy/ui';
+import { AlertCircle } from 'lucide-react';
 import NextLink from 'next/link';
 import { useActionState, useState } from 'react';
 
 import { acceptInvite, sendMagicLink, signIn, redeemMagicLink, verifyMfa } from './actions';
-import { IDLE, type FormState } from './form-state';
+import { IDLE, type FirmChoice, type FormState } from './form-state';
 
 const typed = (state: FormState, name: string) => state.values?.[name];
 
@@ -18,6 +19,13 @@ function FormMessage({ state }: { state: FormState }) {
   if (state.status === 'error') {
     return (
       <p role="alert" className="rounded-control bg-crit-soft px-3 py-2 text-body text-crit-ink">
+        {state.message}
+      </p>
+    );
+  }
+  if (state.status === 'choose-firm') {
+    return (
+      <p role="status" className="rounded-control bg-mist px-3 py-2 text-body text-ink">
         {state.message}
       </p>
     );
@@ -84,6 +92,9 @@ export function LoginForm({ next }: { next?: string }) {
         required
         error={fieldError(state, 'email')}
       />
+      {state.firms ? (
+        <FirmChoiceField firms={state.firms} error={fieldError(state, 'firmId')} />
+      ) : null}
       <Input
         label="Password"
         name="password"
@@ -103,6 +114,40 @@ export function LoginForm({ next }: { next?: string }) {
         Email me a sign-in link instead
       </button>
     </form>
+  );
+}
+
+/**
+ * The firms an email signs in to, as native radios so the form still posts without JavaScript. Nothing is picked
+ * first: signing in to the wrong firm by default would be easy to miss.
+ */
+function FirmChoiceField({ firms, error }: { firms: FirmChoice[]; error?: string }) {
+  const errorId = 'firm-choice-error';
+  return (
+    <fieldset className="flex flex-col gap-1" {...(error ? { 'aria-describedby': errorId } : {})}>
+      <legend className="mb-1 text-meta text-ink">Firm</legend>
+      {firms.map((firm) => (
+        <label
+          key={firm.id}
+          className="flex min-h-control cursor-pointer items-center gap-2 text-body text-ink pointer-coarse:min-h-control-touch"
+        >
+          <input
+            type="radio"
+            name="firmId"
+            value={firm.id}
+            required
+            className="size-4 accent-forest"
+          />
+          {firm.name}
+        </label>
+      ))}
+      {error ? (
+        <p id={errorId} className="flex items-center gap-1 text-meta text-crit-ink">
+          <AlertCircle aria-hidden size={16} className="shrink-0" />
+          {error}
+        </p>
+      ) : null}
+    </fieldset>
   );
 }
 
