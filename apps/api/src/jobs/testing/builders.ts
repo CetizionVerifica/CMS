@@ -71,6 +71,7 @@ export function instance(
     ownerId: a.ownerId,
     approverId: a.approverId,
     archived: false,
+    version: 1,
     ...overrides,
   };
 }

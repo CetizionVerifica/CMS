@@ -435,6 +435,21 @@ export const invites = {
       .catch(rethrow);
     return row ? toInvite(row, await firmName(tx)) : null;
   },
+  /**
+   * The person's open invites (not accepted, revoked or expired at `now`), oldest first; empty when the person or
+   * the invites are not visible here. For M5's invitee check: the roles an invite offers count like held ones.
+   */
+  async openForPerson(tx: TenantTx, personId: string, now: string): Promise<Invite[]> {
+    const rows = await tx
+      .select()
+      .from(s.authInvite)
+      .where(and(eq(s.authInvite.personId, validate(Id, personId)), isOpen(at(now))))
+      .orderBy(s.authInvite.createdAt, s.authInvite.id)
+      .catch(rethrow);
+    if (rows.length === 0) return [];
+    const name = await firmName(tx);
+    return rows.map((row) => toInvite(row, name));
+  },
   /** Revokes an open invite (its tokens stop working); null when it is not open or not visible here. */
   async revoke(tx: TenantTx, inviteId: string, now: string): Promise<Invite | null> {
     const when = at(now);

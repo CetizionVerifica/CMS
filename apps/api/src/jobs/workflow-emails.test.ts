@@ -9,7 +9,7 @@ import { memoryClient, memoryFirm } from './testing/memory-store.js';
 // 12 Oct 2026, 07:00 IST. The instance is due 15 Oct 2026, three days away.
 function setup(state: 'SUBMITTED' | 'SENT_BACK' = 'SUBMITTED') {
   const firm = memoryFirm();
-  const client = memoryClient('Aditya Birla Group');
+  const client = memoryClient('Kestrel Metals Group');
   const owner = person({
     displayName: 'Asha Rao',
     email: 'asha@example.com',
@@ -52,7 +52,7 @@ function event(
     actor,
     requestId: 'req:1',
     aggregate: { type: 'compliance_instance', id: w.i.id },
-    aggregateVersion: 2,
+    aggregateVersion: w.h.store.firms[0]!.instances[0]?.version ?? 1,
     data:
       type === 'instance.submitted'
         ? {
@@ -81,7 +81,7 @@ describe('approval request on instance.submitted', () => {
     const [email] = w.h.mailer.sent;
     expect(email!.to).toEqual({ name: 'Vikram Shah', email: 'vikram@example.com' });
     expect(email!.subject).toBe('Awaiting your approval: Deposit TDS for the month');
-    expect(email!.text).toContain('Asha Rao submitted this obligation for Aditya Birla Group.');
+    expect(email!.text).toContain('Asha Rao submitted this obligation for Kestrel Metals Group.');
     expect(email!.text).toContain('(Due in 3 days)');
     expect(email!.text).toContain(`/c/${w.client.id}/register?instance=${w.i.id}`);
     expect(email!.idempotencyKey).toBe(`event:${e.id}:${w.approver.id}`);
@@ -149,7 +149,8 @@ describe('approval request on instance.submitted', () => {
     expect(await handle(w, event(w, 'instance.submitted'))).toEqual({ sent: 0, skippedStale: 1 });
   });
 
-  it('emails the current approver after a reassignment', async () => {
+  it('emails the approver the instance names when the event was raised', async () => {
+    // The submission itself can carry a new approver (a delegated approval); the email follows the instance.
     const w = setup();
     const next = person({
       displayName: 'Meera Iyer',
@@ -161,6 +162,13 @@ describe('approval request on instance.submitted', () => {
     firm.instances[0]!.approverId = next.id;
     await handle(w, event(w, 'instance.submitted'));
     expect(w.h.mailer.sent.map((m) => m.to.email)).toEqual(['meera@example.com']);
+  });
+
+  it('sends nothing when the instance was reassigned after the event; the daily escalation covers it', async () => {
+    const w = setup();
+    const e = event(w, 'instance.submitted');
+    w.h.store.firms[0]!.instances[0]!.version += 1;
+    expect(await handle(w, e)).toEqual({ sent: 0, skippedStale: 1 });
   });
 
   it('falls back to the owner when the event names no person, and to "The owner" when no name is found', async () => {
@@ -217,7 +225,9 @@ describe('send-back email on instance.sent_back', () => {
     const [email] = w.h.mailer.sent;
     expect(email!.to.email).toBe('asha@example.com');
     expect(email!.subject).toBe('Sent back: Deposit TDS for the month');
-    expect(email!.text).toContain('Vikram Shah sent back your submission for Aditya Birla Group.');
+    expect(email!.text).toContain(
+      'Vikram Shah sent back your submission for Kestrel Metals Group.',
+    );
     expect(w.h.store.firms[0]!.sends[0]).toMatchObject({
       kind: 'SENT_BACK',
       recipientId: w.owner.id,
@@ -227,6 +237,8 @@ describe('send-back email on instance.sent_back', () => {
   it('sends a second send-back on the same day: it is a new event', async () => {
     const w = setup('SENT_BACK');
     await handle(w, event(w, 'instance.sent_back'));
+    // Resubmitted, then sent back again: two more versions.
+    w.h.store.firms[0]!.instances[0]!.version += 2;
     await handle(w, event(w, 'instance.sent_back'));
     expect(w.h.mailer.sent).toHaveLength(2);
     expect(w.h.store.firms[0]!.sends).toHaveLength(2);
@@ -239,6 +251,17 @@ describe('send-back email on instance.sent_back', () => {
     w.h.store.firms[0]!.people.find((p) => p.id === w.approver.id)!.displayName = '';
     await handle(w, event(w, 'instance.sent_back'));
     expect(w.h.mailer.sent[1]!.text).toContain('The approver sent back');
+  });
+
+  it('sends nothing for a send-back the instance has moved past: resubmitted and sent back again', async () => {
+    const w = setup('SENT_BACK');
+    const first = event(w, 'instance.sent_back');
+    // The owner resubmits and the approver sends it back again before the first event is handled.
+    w.h.store.firms[0]!.instances[0]!.version += 2;
+    const second = event(w, 'instance.sent_back');
+    expect(await handle(w, first)).toEqual({ sent: 0, skippedStale: 1 });
+    expect(await handle(w, second)).toEqual({ sent: 1 });
+    expect(w.h.mailer.sent).toHaveLength(1);
   });
 
   it('sends nothing once the owner has resubmitted', async () => {

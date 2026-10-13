@@ -70,11 +70,21 @@ several fail, and in which states the non-transition actions (reassign, due date
     segment (`../x.pdf` is stored as `x.pdf`). `scanned()` is the internal call for M9's scan job and
     keeps the first result if the job retries. Every M7 route, reads included, has a row in
     `audit-gate.db.test.ts`.
-13. **Not yet built.** `Idempotency-Key` on transitions: M3 #49 adds the key table; M7 wires it next, never storing a response that carries a signed URL. Only `sort=dueDate` is
-    accepted (`VALIDATION` otherwise). Lists return no total count. The evidence vault and both audit-trail
-    routes wait for M3's `evidence.vault` and `auditEvents.query` (requested), and bulk approve's summary
-    event moves into the items' transaction once M3 adds a savepoint helper (requested). `main.ts` does not yet pass a database to
-    `buildServer`, so the instance routes are registered only where one is given (tests, and M1's wiring later).
+13. **Idempotency-Key.** The five transitions and bulk approve honour `Idempotency-Key` (a UUID; anything
+    else is `400 VALIDATION`) through M3's `idempotency_key` table, per person, for 24 hours. The key is
+    checked and the response stored in the same transaction as the change, so a key is never kept for a
+    change that rolled back. A repeat with the same method, path and body (hashed with sorted keys) gets
+    the first response and writes nothing; the same key on a different request is `400 VALIDATION`.
+    Only successful responses are kept: a refused request changed nothing, so a corrected repeat runs. A
+    request that loses a race to a concurrent one with the same key (its insert is `DUPLICATE`, or its
+    change is `STALE_VERSION` behind the winner's) answers with the winner's response. No idempotent M7
+    route returns a signed URL, so no signed URL is ever stored (root CLAUDE.md rule 6).
+14. **Bulk approve in one transaction.** Each item runs in its own savepoint (`withSavepoint`), so a refused
+    item rolls back alone and `instance.bulk_approved` commits with the approvals it lists.
+15. **Not yet built.** Only `sort=dueDate` is accepted (`VALIDATION` otherwise). Lists return no total
+    count. The evidence vault and both audit-trail routes come next, on M3's `evidence.vault` and
+    `auditEvents.query`. `main.ts` does not yet pass a database to `buildServer`, so the instance routes
+    are registered only where one is given (tests, and M1's wiring later).
 
 ## Consequences
 - The service and the bulk-approve endpoint call the same planner, so per-item results match single approvals.

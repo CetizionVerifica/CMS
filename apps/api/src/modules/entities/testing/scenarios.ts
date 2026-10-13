@@ -29,7 +29,7 @@ export const SCENARIOS: Record<string, ScenarioFor> = {
   getClient: () => ({ url: `/clients/${ids.clientA}` }),
   updateClient: () => ({
     url: `/clients/${ids.clientA}`,
-    body: { ...v1, name: 'Aditya Group Ltd' },
+    body: { ...v1, name: 'Kestrel Metals Group Ltd' },
   }),
   archiveClient: () => ({ url: `/clients/${ids.clientA}/archive`, body: { ...v1, reason } }),
   restoreClient: () => ({
@@ -50,11 +50,11 @@ export const SCENARIOS: Record<string, ScenarioFor> = {
   listCompanies: () => ({ url: `/clients/${ids.clientA}/companies` }),
   createCompany: () => ({
     url: `/clients/${ids.clientA}/companies`,
-    body: { name: 'Aditya Power' },
+    body: { name: 'Kestrel Power' },
   }),
   updateCompany: () => ({
     url: `/companies/${ids.companyA}`,
-    body: { ...v1, name: 'Hindalco Ltd' },
+    body: { ...v1, name: 'Kestrel Aluminium Ltd' },
   }),
   archiveCompany: () => ({
     url: `/companies/${ids.companyEmpty}/archive`,

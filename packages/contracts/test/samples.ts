@@ -93,7 +93,7 @@ export const instanceRow = {
   companyName: 'Kestrel Aluminium',
   unitId: ID.unit,
   unitName: 'Plant',
-  locationLabel: 'India / West Bengal / Belur',
+  locationLabel: 'India / West Bengal / Kestrelganj',
   departmentId: ID.department,
   departmentName: 'Finance',
   ownerId: ID.owner,

@@ -21,7 +21,7 @@ describe.skipIf(!url)('job runner on pg-boss', () => {
 
   beforeAll(async () => {
     const firm = memoryFirm();
-    const client = memoryClient('Aditya Birla Group');
+    const client = memoryClient('Kestrel Metals Group');
     const owner = person({ clientIds: [client.id] });
     const approver = person({ clientIds: [client.id] });
     firm.clients.push(client);
@@ -125,5 +125,39 @@ describe.skipIf(!url)('job runner on pg-boss', () => {
 
   it('refuses an unknown job name', () => {
     expect(() => runner.trigger('drop-tables')).toThrow('Unknown job');
+  });
+});
+
+describe.skipIf(!url)('jobs booted from the environment', () => {
+  it('starts on the Postgres store with the SMTP mailer, registers the schedule, and stops', async () => {
+    const { createJobTestDatabase } = await import('./testing/postgres.js');
+    const { startFakeSmtp } = await import('./testing/fake-smtp.js');
+    const { startJobsFromEnv } = await import('./start.js');
+    const t = await createJobTestDatabase(url!);
+    const smtp = await startFakeSmtp();
+    const schema = `pgboss_env_${randomUUID().replaceAll('-', '').slice(0, 12)}`;
+    try {
+      const runner = await startJobsFromEnv(
+        {
+          SMTP_HOST: '127.0.0.1',
+          SMTP_PORT: String(smtp.port),
+          MAIL_FROM: 'PlanetPulse Compliance <no-reply@planetpulse.example>',
+          APP_URL: 'https://app.planetpulse.example',
+        },
+        { db: t.db, connectionString: url!, schema },
+      );
+      expect(runner).not.toBeNull();
+      expect((await runner!.schedules()).map((s) => s.name).sort()).toEqual(
+        JOBS.map((j) => j.name).sort(),
+      );
+      await runner!.stop();
+    } finally {
+      await smtp.close();
+      const client = new pg.Client({ connectionString: url });
+      await client.connect();
+      await client.query(`DROP SCHEMA IF EXISTS ${schema} CASCADE`);
+      await client.end();
+      await t.drop();
+    }
   });
 });

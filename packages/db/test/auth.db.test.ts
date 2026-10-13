@@ -55,11 +55,11 @@ beforeAll(async () => {
   firmB = await t.admin.createFirm({ name: 'Second Ledger Consulting' });
   await inA(async (tx) => {
     const client = await r.clients.create(tx, {
-      name: 'Aditya Birla Group',
+      name: 'Kestrel Metals Group',
       settings: DEFAULT_CLIENT_SETTINGS,
     });
     const other = await r.clients.create(tx, {
-      name: 'Tata Group',
+      name: 'Osprey Textiles Group',
       settings: DEFAULT_CLIENT_SETTINGS,
     });
     clientId = client.id;
@@ -608,6 +608,21 @@ describe('invites', () => {
       ),
     );
     expect(await as(clientAdmin(), (tx) => r.invites.get(tx, created.invite.id))).toBeNull();
+    const open = (ctx: () => Promise<r.Invite[]>) => ctx().then((xs) => xs.map((x) => x.id));
+    expect(await open(() => inA((tx) => r.invites.openForPerson(tx, person.id, NOW)))).toEqual([
+      created.invite.id,
+    ]);
+    expect(
+      await open(() => as(clientAdmin(), (tx) => r.invites.openForPerson(tx, person.id, NOW))),
+    ).toEqual([]);
+    expect(
+      await open(() => inFirm(firmB, (tx) => r.invites.openForPerson(tx, person.id, NOW))),
+    ).toEqual([]);
+    const expired = '2026-10-19T03:00:00.000Z';
+    expect(await open(() => inA((tx) => r.invites.openForPerson(tx, person.id, expired)))).toEqual(
+      [],
+    );
+    expect(await code(inA((tx) => r.invites.openForPerson(tx, 'nope', NOW)))).toBe('VALIDATION');
     expect(
       await as(asClientUser(null, [otherClientId]), (tx) => r.invites.get(tx, created.invite.id)),
     ).not.toBeNull();
@@ -618,6 +633,9 @@ describe('invites', () => {
     expect(await inFirm(firmB, (tx) => r.invites.revoke(tx, created.invite.id, NOW))).toBeNull();
     const revoked = await inA((tx) => r.invites.revoke(tx, created.invite.id, LATER));
     expect(revoked).toMatchObject({ id: created.invite.id, revokedAt: LATER });
+    expect(await open(() => inA((tx) => r.invites.openForPerson(tx, person.id, LATER)))).toEqual(
+      [],
+    );
     expect(await inA((tx) => r.invites.revoke(tx, created.invite.id, LATER))).toBeNull();
     // A client admin cannot invite into a client it does not see.
     expect(

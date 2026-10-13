@@ -151,7 +151,7 @@ export async function seedFixture(db: Database, firmId: string, label: string): 
       name: `${label} group`,
       settings: DEFAULT_CLIENT_SETTINGS,
     });
-    const company = await companies.create(tx, { clientId: client.id, name: 'Hindalco' });
+    const company = await companies.create(tx, { clientId: client.id, name: 'Kestrel Aluminium' });
     const unitA = await units.create(tx, {
       clientId: client.id,
       companyId: company.id,

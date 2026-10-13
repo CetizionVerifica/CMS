@@ -106,7 +106,7 @@ interface Membership extends Base, Versioned {
 }
 ```
 
-Hierarchy paths in Excel ("Kestrel Metals Group/ Kestrel Aluminium/ Plant", "India/ West Bengal/ Belur") map to Client / Company / Unit and Country / State / City.
+Hierarchy paths in Excel ("Kestrel Metals Group/ Kestrel Aluminium/ Plant", "India/ West Bengal/ Kestrelganj") map to Client / Company / Unit and Country / State / City.
 
 ## 4. Library
 
@@ -200,7 +200,7 @@ interface InstanceRow {
   id: Id; version: number
   obligationId: Id; externalRef: string | null; title: string; timelineType: TimelineType
   categoryName: string; actId: Id; actName: string; criticality: Criticality
-  clientId: Id; companyName: string; unitId: Id; unitName: string; locationLabel: string   // "India / West Bengal / Belur"
+  clientId: Id; companyName: string; unitId: Id; unitName: string; locationLabel: string   // "India / West Bengal / Kestrelganj"
   departmentId: Id; departmentName: string
   ownerId: Id; ownerName: string; approverId: Id; approverName: string
   periodStart: LocalDate; periodEnd: LocalDate; dueDate: LocalDate; completedOn: LocalDate | null

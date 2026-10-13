@@ -4,6 +4,7 @@ import {
   type ColumnMapping,
   type EngineCalendar,
   type ImportBatch,
+  type DryRunReport,
   type ImportBatchStatus,
   type ImportIssue,
   type ImportRow,
@@ -29,6 +30,7 @@ import { DbError, tenantFromRequest, uuidv7, type TenantContext } from '@canopy/
 import {
   analyseImport,
   checkDecision,
+  dryRun,
   fileFormatOf,
   firstNonEmptySheet,
   ImportFileError,
@@ -38,6 +40,7 @@ import {
   validateMapping,
   type Decisions,
   type DraftIssue,
+  type DryRun,
   type ImportAnalysis,
   type InferRule,
   type SourceSheet,
@@ -66,9 +69,9 @@ export interface ImportStepsOptions {
   /** The engine's `inferRule` (with its `coverage` option). */
   readonly inferRule: InferRule;
   readonly clock?: () => Date;
-  /** Runs parse after the response. Default: on a later tick. Tests pass one they can await. */
+  /** Runs parse and commit after the response. Default: on a later tick. Tests pass one they can await. */
   readonly runInBackground?: (task: () => Promise<void>) => void;
-  /** Called when a background parse fails, with the batch id. Never pass row data to a logger. */
+  /** Called when a background parse or commit fails, with the batch id. Never pass row data to a logger. */
   readonly onBackgroundError?: (error: unknown, batchId: string) => void;
 }
 
@@ -84,6 +87,7 @@ const BEFORE_COMMIT: readonly ImportBatchStatus[] = [
   'FAILED',
 ];
 const REVIEWABLE: readonly ImportBatchStatus[] = ['PARSED', 'REVIEWED', 'DRY_RUN_READY'];
+const COMMITTED_OR_COMMITTING: readonly ImportBatchStatus[] = ['COMMITTING', 'COMMITTED'];
 
 /** inferRule costs milliseconds and review re-runs the analysis, so results are kept across runs. */
 const INFER_CACHE_MAX = 50_000;
@@ -96,6 +100,11 @@ function requireStatus(batch: ImportBatch, expected: readonly ImportBatchStatus[
   if (!expected.includes(batch.status)) {
     throw new ApiError('IMPORT_STATE', { status: batch.status, expected: [...expected] });
   }
+}
+
+/** Firm-wide mapping templates are shared by every client, so only a firm admin writes them. */
+function requireFirmAdmin(actor: Actor): void {
+  if (!actor.ctx.memberships.some((m) => m.role === 'FIRM_ADMIN')) throw new ApiError('FORBIDDEN');
 }
 
 function validation(path: (string | number)[], message: string): ApiError {
@@ -168,6 +177,7 @@ export class ImportSteps {
   private readonly clock: () => Date;
   private readonly runInBackground: (task: () => Promise<void>) => void;
   private readonly parsing = new Set<string>();
+  private readonly committing = new Set<string>();
   private readonly inferCache = new Map<string, InferredRule>();
 
   constructor(private readonly options: ImportStepsOptions) {
@@ -279,6 +289,7 @@ export class ImportSteps {
       let mappingTemplateId: string | null = null;
       if (body.saveAsTemplate) {
         const templateClient = body.saveAsTemplate.scope === 'FIRM' ? null : current.clientId;
+        if (templateClient === null) requireFirmAdmin(actor);
         actor.authorize('import.write', { type: 'import_batch', clientId: templateClient });
         const template = await tx.createTemplate({
           clientId: templateClient,
@@ -376,6 +387,45 @@ export class ImportSteps {
     });
   }
 
+  /**
+   * Step 5: what a commit would create, update and leave unchanged, against the client's data now. Stores the
+   * report and each row's outcome; the batch is DRY_RUN_READY. Allowed again until commit.
+   */
+  async dryRun(actor: Actor, id: string): Promise<DryRunReport> {
+    return this.transaction(actor, async (tx) => {
+      const batch = await this.loadBatch(tx, actor, id, 'import.write');
+      requireStatus(batch, ['REVIEWED', 'DRY_RUN_READY']);
+      const { run } = await this.plan(tx, batch);
+      await tx.updateBatch(batch.id, batch.version, {
+        status: 'DRY_RUN_READY',
+        dryRun: run.report,
+      });
+      return run.report;
+    });
+  }
+
+  /**
+   * Step 6: applies the reviewed plan off-request (COMMITTING, then COMMITTED in the commit's transaction).
+   * Refused with IMPORT_BLOCKED while rows still have errors. Calling it again returns the batch.
+   */
+  async commit(actor: Actor, id: string): Promise<ImportBatch> {
+    const batch = await this.transaction(actor, async (tx) => {
+      const current = await this.loadBatch(tx, actor, id, 'import.commit');
+      if (COMMITTED_OR_COMMITTING.includes(current.status)) return current;
+      requireStatus(current, ['DRY_RUN_READY']);
+      const issues = await tx.issues(id);
+      const blocking = await blockingIssueIds(tx, id, issues);
+      if (blocking.length > 0) throw new ApiError('IMPORT_BLOCKED', { blockingIssueIds: blocking });
+      return tx.updateBatch(current.id, current.version, { status: 'COMMITTING' });
+    });
+    if (batch.status === 'COMMITTING' && !this.committing.has(batch.id)) {
+      this.committing.add(batch.id);
+      const tenant = tenantFromRequest(actor.ctx);
+      this.runInBackground(() => this.runCommit(tenant, batch));
+    }
+    return batch;
+  }
+
   async rows(
     actor: Actor,
     id: string,
@@ -452,6 +502,7 @@ export class ImportSteps {
   ): Promise<MappingTemplate> {
     const templateClient = body.scope === 'FIRM' ? null : clientId;
     actor.authorize('import.write', { type: 'import_batch', clientId });
+    if (templateClient === null) requireFirmAdmin(actor);
     actor.authorize('import.write', { type: 'import_batch', clientId: templateClient });
     return this.transaction(actor, (tx) =>
       tx.createTemplate({ clientId: templateClient, name: body.name, mapping: body.mapping }),
@@ -467,6 +518,7 @@ export class ImportSteps {
       const template = await tx.getTemplate(id);
       if (!template) throw new ApiError('NOT_FOUND');
       if (template.clientId !== null) requireClient(actor.ctx, template.clientId);
+      else requireFirmAdmin(actor);
       actor.authorize('import.write', { type: 'import_batch', clientId: template.clientId });
       const { version, ...patch } = body;
       return tx.updateTemplate(id, version, patch);
@@ -589,6 +641,78 @@ export class ImportSteps {
   }
 
   /**
+   * The batch's analysis with its stored decisions against the client's data now, and its dry run. Row
+   * outcomes that changed are stored.
+   */
+  private async plan(
+    tx: ImportTx,
+    batch: ImportBatch,
+  ): Promise<{ analysis: ImportAnalysis; run: DryRun; rows: ImportRow[] }> {
+    const rows = await allRows(tx, batch.id);
+    const issues = await tx.issues(batch.id);
+    const analysis = await this.analyse(tx, batch, sheetFromRows(batch, rows), decisionsOf(issues));
+    const run = dryRun(analysis, await tx.existingState(batch.clientId));
+    const outcome = new Map(run.rows.map((r) => [r.rowNumber, r.outcome]));
+    for (const row of rows) {
+      const next = outcome.get(row.rowNumber);
+      if (next !== undefined && next !== row.outcome) await tx.setRow(row.id, { outcome: next });
+    }
+    return { analysis, run, rows };
+  }
+
+  /** The background half of step 6: one transaction writes the plan, the row links and COMMITTED. */
+  private async runCommit(tenant: TenantContext, batch: ImportBatch): Promise<void> {
+    try {
+      await this.transaction(tenant, async (tx) => {
+        const current = await tx.getBatch(batch.id);
+        if (!current || current.version !== batch.version || current.status !== 'COMMITTING')
+          return;
+        const { analysis, run, rows } = await this.plan(tx, current);
+        const { instanceIds } = await tx.commit({
+          batchId: current.id,
+          clientId: current.clientId,
+          plan: analysis.plan,
+          instanceChanges: run.instanceChanges,
+          actorId: tenant.personId ?? current.createdById,
+          requestId: tenant.requestId,
+        });
+        const outcome = new Map(run.rows.map((r) => [r.rowNumber, r]));
+        for (const row of rows) {
+          const analysed = outcome.get(row.rowNumber);
+          const instanceKey = analysed?.instanceKey ?? null;
+          const targetInstanceId =
+            instanceKey !== null && analysed?.outcome !== 'SKIPPED'
+              ? (instanceIds.get(instanceKey) ?? null)
+              : null;
+          if (targetInstanceId !== row.targetInstanceId) {
+            await tx.setRow(row.id, {
+              outcome: analysed?.outcome ?? row.outcome,
+              targetInstanceId,
+            });
+          }
+        }
+        await tx.updateBatch(current.id, current.version, {
+          status: 'COMMITTED',
+          dryRun: run.report,
+          committedAt: this.clock().toISOString(),
+        });
+      });
+    } catch (error) {
+      this.options.onBackgroundError?.(error, batch.id);
+      const failureCode =
+        error instanceof ApiError ? error.code : error instanceof DbError ? error.code : 'INTERNAL';
+      await this.transaction(tenant, async (tx) => {
+        const current = await tx.getBatch(batch.id);
+        if (current?.status === 'COMMITTING') {
+          await tx.updateBatch(current.id, current.version, { status: 'FAILED', failureCode });
+        }
+      }).catch((e: unknown) => this.options.onBackgroundError?.(e, batch.id));
+    } finally {
+      this.committing.delete(batch.id);
+    }
+  }
+
+  /**
    * Makes the stored issues and row links match a fresh analysis. Groups whose rows, values or proposal
    * changed are replaced (their decision carries over through `decisions`); groups no longer raised go.
    */
@@ -646,6 +770,19 @@ async function allRows(tx: ImportTx, batchId: string): Promise<ImportRow[]> {
     if (page.nextCursor === null) return rows;
     afterRowNumber = Number(page.nextCursor);
   }
+}
+
+/** Issues on rows the stored dry run left in ERROR, and any still PENDING. */
+async function blockingIssueIds(
+  tx: ImportTx,
+  batchId: string,
+  issues: readonly ImportIssue[],
+): Promise<string[]> {
+  const ids = new Set(issues.filter((i) => i.decision === 'PENDING').map((i) => i.id));
+  for (const row of await allRows(tx, batchId)) {
+    if (row.outcome === 'ERROR') for (const id of row.issueIds) ids.add(id);
+  }
+  return [...ids];
 }
 
 /** The parsed sheet again, from the stored raw rows (the workbook is read once, at parse). */

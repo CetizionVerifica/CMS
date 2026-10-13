@@ -113,8 +113,8 @@ describe('units', () => {
     const unitId = row(a, 'unit', 'client0');
     expect(await inFirm(a, (tx) => r.units.withLabels(tx, unitId))).toMatchObject({
       unit: { id: unitId, name: 'Plant' },
-      companyName: 'Hindalco',
-      locationLabel: 'India / West Bengal / Belur a',
+      companyName: 'Kestrel Aluminium',
+      locationLabel: 'India / West Bengal / Riverbend a',
     });
     expect(await inFirm(b, (tx) => r.units.withLabels(tx, unitId))).toBeNull();
     expect(

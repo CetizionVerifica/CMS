@@ -1,6 +1,7 @@
 import { ClientParams, ENDPOINTS, IdParams } from '@canopy/contracts';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { authorize } from '../../auth/index.js';
+import { keyedRequest, type KeyedRequest } from './idempotency.js';
 import type { Actor, InstanceService } from './service.js';
 
 /**
@@ -18,6 +19,11 @@ export function actor(request: FastifyRequest): Actor {
 
 export const session = { config: { auth: 'session' as const } };
 
+/** The request's `Idempotency-Key`, with the path and body it is for (api-conventions.md §2). */
+function keyOf(request: FastifyRequest): KeyedRequest | undefined {
+  return keyedRequest(request.headers['idempotency-key'], request.url, request.body);
+}
+
 export function registerInstanceRoutes(app: FastifyInstance, service: InstanceService): void {
   const e = ENDPOINTS;
 
@@ -34,53 +40,83 @@ export function registerInstanceRoutes(app: FastifyInstance, service: InstanceSe
   app.post('/instances/:id/submit', session, async (request) => {
     const { id } = IdParams.parse(request.params);
     const body = e.submitInstance.body.parse(request.body);
-    return service.transition(actor(request), id, body.version, {
-      action: 'SUBMIT',
-      completedOn: body.completedOn,
-      comment: body.comment,
-    });
+    return service.transition(
+      actor(request),
+      id,
+      body.version,
+      {
+        action: 'SUBMIT',
+        completedOn: body.completedOn,
+        comment: body.comment,
+      },
+      keyOf(request),
+    );
   });
 
   app.post('/instances/:id/request-na', session, async (request) => {
     const { id } = IdParams.parse(request.params);
     const body = e.requestNa.body.parse(request.body);
-    return service.transition(actor(request), id, body.version, {
-      action: 'REQUEST_NA',
-      reason: body.reason,
-    });
+    return service.transition(
+      actor(request),
+      id,
+      body.version,
+      {
+        action: 'REQUEST_NA',
+        reason: body.reason,
+      },
+      keyOf(request),
+    );
   });
 
   app.post('/instances/:id/approve', session, async (request) => {
     const { id } = IdParams.parse(request.params);
     const body = e.approveInstance.body.parse(request.body);
-    return service.transition(actor(request), id, body.version, {
-      action: 'APPROVE',
-      comment: body.comment,
-    });
+    return service.transition(
+      actor(request),
+      id,
+      body.version,
+      {
+        action: 'APPROVE',
+        comment: body.comment,
+      },
+      keyOf(request),
+    );
   });
 
   app.post('/instances/:id/send-back', session, async (request) => {
     const { id } = IdParams.parse(request.params);
     const body = e.sendBackInstance.body.parse(request.body);
-    return service.transition(actor(request), id, body.version, {
-      action: 'SEND_BACK',
-      reason: body.reason,
-    });
+    return service.transition(
+      actor(request),
+      id,
+      body.version,
+      {
+        action: 'SEND_BACK',
+        reason: body.reason,
+      },
+      keyOf(request),
+    );
   });
 
   app.post('/instances/:id/reopen', session, async (request) => {
     const { id } = IdParams.parse(request.params);
     const body = e.reopenInstance.body.parse(request.body);
-    return service.transition(actor(request), id, body.version, {
-      action: 'REOPEN',
-      reason: body.reason,
-    });
+    return service.transition(
+      actor(request),
+      id,
+      body.version,
+      {
+        action: 'REOPEN',
+        reason: body.reason,
+      },
+      keyOf(request),
+    );
   });
 
   app.post('/clients/:clientId/instances/bulk-approve', session, async (request) => {
     const { clientId } = ClientParams.parse(request.params);
     const body = e.bulkApprove.body.parse(request.body);
-    return service.bulkApprove(actor(request), clientId, body);
+    return service.bulkApprove(actor(request), clientId, body, keyOf(request));
   });
 
   app.patch('/instances/:id', session, async (request) => {
