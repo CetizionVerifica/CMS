@@ -228,7 +228,7 @@ export class AuthService {
     const { personId, displayName, email, ...grant } = body;
     this.authorizeGrant(ctx, grant);
     if (personId !== undefined) {
-      const invitee = await this.store.findInvitee(ctx.firmId, personId);
+      const invitee = await this.store.findInvitee(ctx.firmId, personId, this.clock());
       // Claiming the account brings every role the person holds, so the inviter must be able to grant each one;
       // otherwise the person is outside their scope and reads as not found.
       if (invitee === null || invitee.roles.some((r) => !canGrantRole(ctx, r.role, r.clientId))) {

@@ -317,17 +317,15 @@ export function createDbAccountStore(db: Database, options: DbAccountStoreOption
       );
     },
 
-    async findInvitee(firmId: string, personId: string): Promise<Invitee | null> {
+    async findInvitee(firmId: string, personId: string, now: Date): Promise<Invitee | null> {
       return asFirm(firmId, LOOKUP_REQUEST, async (tx) => {
         const person = await people.get(tx, personId);
         if (person === null || person.archivedAt !== null) return null;
         const held = await memberships.forPerson(tx, personId);
-        // M3 has no repository read for a person's open invites; this one runs under the same RLS.
-        const invited = await tx.query.authInvite.findMany({
-          columns: { role: true, clientId: true },
-          where: (t, { and, eq, isNull }) =>
-            and(eq(t.personId, personId), isNull(t.acceptedAt), isNull(t.revokedAt)),
-        });
+        // The firm's system context sees every invite of the person, whoever sent it.
+        const invited = (await invites.openForPerson(tx, personId, now.toISOString())).map(
+          (i) => i.grant,
+        );
         return {
           personId,
           status: person.status,
