@@ -18,6 +18,7 @@ import {
   exportState,
   loadFacets,
   loadPage,
+  pinToLoaded,
   startExport,
 } from './register-api';
 
@@ -210,6 +211,20 @@ describe('bulk approve', () => {
     ).toBe(
       'Approved 0 instances. Not approved: 1 isn’t waiting for approval, 2 aren’t yours to approve.',
     );
+  });
+});
+
+describe('pinToLoaded', () => {
+  it('keeps the version the page loaded, and the version just read for rows not loaded', () => {
+    const waiting = [
+      { id: 'a', version: 3 },
+      { id: 'b', version: 1 },
+    ];
+    expect(pinToLoaded(waiting, new Map([['a', 2]]))).toEqual([
+      { id: 'a', version: 2 },
+      { id: 'b', version: 1 },
+    ]);
+    expect(pinToLoaded([], new Map([['a', 2]]))).toEqual([]);
   });
 });
 

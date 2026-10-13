@@ -49,18 +49,25 @@ export async function loadMoreRows(
 
 export type ApproveResult = { tone: 'success' | 'warn'; message: string };
 
-/** Approves the selected rows, or with `'all'` every matching row that is waiting for approval. */
+/**
+ * Every row in the view that is waiting for approval now, with its current version: what "Select all N" would approve.
+ * The page shows the count in a confirmation and then sends exactly these items, so a row that changes before the
+ * person confirms comes back STALE_VERSION instead of being approved unseen.
+ */
+export async function waitingRows(
+  clientId: string,
+  query: string,
+): Promise<{ id: string; version: number }[]> {
+  return approvableItems(await serverApi(), Id.parse(clientId), QueryString.parse(query));
+}
+
+/** Approves the given rows at the versions the person saw; a row changed since then is skipped, not approved. */
 export async function bulkApproveRows(
   clientId: string,
-  selection: { items: { id: string; version: number }[] } | { all: true; query: string },
+  items: { id: string; version: number }[],
 ): Promise<ApproveResult> {
   const id = Id.parse(clientId);
-  const api = await sessionApi();
-  const items =
-    'all' in selection
-      ? await approvableItems(api, id, QueryString.parse(selection.query))
-      : Items.parse(selection.items);
-  const outcome = await approveItems(api, id, items);
+  const outcome = await approveItems(await sessionApi(), id, Items.parse(items));
   if (outcome.approved > 0) revalidatePath(`/c/${id}`, 'layout');
   return bulkMessage(outcome);
 }

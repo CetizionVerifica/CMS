@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Toaster } from '@canopy/ui';
 import type { ReactNode } from 'react';
@@ -26,6 +26,7 @@ const actions = vi.hoisted(() => ({
   bulkApproveRows: vi.fn(),
   startRegisterExport: vi.fn(),
   registerExportState: vi.fn(),
+  waitingRows: vi.fn(),
 }));
 vi.mock('../actions', () => actions);
 
@@ -108,21 +109,66 @@ describe('RegisterView', () => {
     renderView({ page: { rows, nextCursor: null, total: 3 }, canApprove: true });
     await user.click(screen.getByRole('checkbox', { name: 'Select TAX-CL-0002, Obligation 2' }));
     await user.click(screen.getByRole('button', { name: 'Approve' }));
-    expect(actions.bulkApproveRows).toHaveBeenCalledWith(CLIENT_ID, {
-      items: [{ id: rows[2]!.id, version: 6 }],
-    });
+    expect(actions.bulkApproveRows).toHaveBeenCalledWith(CLIENT_ID, [
+      { id: rows[2]!.id, version: 6 },
+    ]);
     expect(await screen.findByText('Approved 1 instance.')).toBeTruthy();
   });
 
-  it('approves every matching row on the server for "Select all"', async () => {
+  it('asks before "Select all", then approves the waiting rows at the versions the page loaded', async () => {
     const user = userEvent.setup();
-    actions.bulkApproveRows.mockResolvedValue({ tone: 'warn', message: 'Approved 410 instances.' });
-    renderView({ page: { rows: makeRows(3), nextCursor: 'c1', total: 424 }, canApprove: true });
+    const rows = makeRows(3).map((r) => ({ ...r, version: 2 }));
+    // Row 0 changed since the page loaded it; the unloaded row goes at the version just read.
+    actions.waitingRows.mockResolvedValue([
+      { id: rows[0]!.id, version: 3 },
+      { id: 'unloaded', version: 5 },
+    ]);
+    actions.bulkApproveRows.mockResolvedValue({ tone: 'warn', message: 'Approved 1 of 2.' });
+    renderView({ page: { rows, nextCursor: 'c1', total: 424 }, canApprove: true });
     await user.click(screen.getByRole('checkbox', { name: 'Select all rows' }));
     await user.click(screen.getByRole('button', { name: 'Select all 424' }));
     await user.click(screen.getByRole('button', { name: 'Approve' }));
-    expect(actions.bulkApproveRows).toHaveBeenCalledWith(CLIENT_ID, { all: true, query: QUERY });
-    expect(await screen.findByText('Approved 410 instances.')).toBeTruthy();
+    expect(actions.waitingRows).toHaveBeenCalledWith(CLIENT_ID, QUERY);
+    const dialog = await screen.findByRole('alertdialog', { name: 'Approve 2 instances?' });
+    expect(dialog.textContent).toContain('These are all 2 instances in this view waiting');
+    expect(actions.bulkApproveRows).not.toHaveBeenCalled();
+    await user.click(within(dialog).getByRole('button', { name: 'Approve' }));
+    expect(actions.bulkApproveRows).toHaveBeenCalledWith(CLIENT_ID, [
+      { id: rows[0]!.id, version: 2 },
+      { id: 'unloaded', version: 5 },
+    ]);
+    expect(await screen.findByText('Approved 1 of 2.')).toBeTruthy();
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull());
+  });
+
+  it('approves nothing when "Select all" is cancelled, finds nothing waiting, or can’t list the rows', async () => {
+    const user = userEvent.setup();
+    renderView({ page: { rows: makeRows(3), nextCursor: 'c1', total: 9 }, canApprove: true });
+    const approveAll = async () => {
+      const box = screen.getByRole('checkbox', { name: 'Select all rows' });
+      if (box.getAttribute('aria-checked') !== 'true' && !(box as HTMLInputElement).checked) {
+        await user.click(box);
+      }
+      const all = screen.queryByRole('button', { name: 'Select all 9' });
+      if (all) await user.click(all);
+      await user.click(screen.getByRole('button', { name: 'Approve' }));
+    };
+
+    actions.waitingRows.mockResolvedValue([{ id: 'x', version: 1 }]);
+    await approveAll();
+    const dialog = await screen.findByRole('alertdialog', { name: 'Approve 1 instance?' });
+    expect(dialog.textContent).toContain('This is the one instance');
+    await user.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull());
+
+    actions.waitingRows.mockResolvedValue([]);
+    await approveAll();
+    expect(await screen.findByText('Nothing in this view is waiting for approval.')).toBeTruthy();
+
+    actions.waitingRows.mockRejectedValue(new Error('down'));
+    await approveAll();
+    expect(await screen.findByText('The rows to approve didn’t load. Try again.')).toBeTruthy();
+    expect(actions.bulkApproveRows).not.toHaveBeenCalled();
   });
 
   it('says so when the approvals fail, and offers no approve without the role', async () => {

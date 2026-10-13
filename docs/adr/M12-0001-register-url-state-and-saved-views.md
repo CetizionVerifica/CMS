@@ -37,9 +37,12 @@ Two things get in the way: the shell's period picker already writes `q` (quarter
    count; "Show more" loads the next page through a Server Action with the same query. A new URL starts again from
    its first page. The grid stays virtualised however many pages are loaded.
 10. **Bulk approve sends at most 200 items per request**, each with the version the person saw, so a row changed
-    since then is refused (`STALE_VERSION`) rather than approved blind. "Select all N" resolves on the server: every
-    matching row in workflow state `SUBMITTED`, read page by page with its current version. One toast says how many
-    were approved and why any were not.
+    since then is refused (`STALE_VERSION`) rather than approved blind. "Select all N" first lists every matching row
+    in workflow state `SUBMITTED`, page by page with its current version, then asks "Approve N instances?". Confirming
+    sends exactly that list: a row the page has loaded keeps the version the person saw, any other row the version
+    just listed, so nothing that changes after the person looked or after they were asked is approved unseen. One
+    toast says how many were approved and why any were not. (Revised after #88's audit: the first version approved
+    whatever was waiting when the request ran, with no confirmation.)
 11. **Export** starts a `REGISTER_XLSX` export with the register's API query as its filters, so the file matches the
     view, polls it, and opens the 5-minute download link when it is ready. The link is never logged.
 

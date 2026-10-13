@@ -2,7 +2,7 @@
 // The register page's interactive part: the grid with the rows the server loaded, more pages on request, bulk approve
 // and export through the Server Actions. The server re-renders the first page whenever the URL changes.
 import type { InstanceRow } from '@canopy/contracts';
-import { toast } from '@canopy/ui';
+import { ConfirmDialog, formatNumber, toast } from '@canopy/ui';
 import { useCallback, useState } from 'react';
 
 import {
@@ -10,8 +10,9 @@ import {
   loadMoreRows,
   registerExportState,
   startRegisterExport,
+  waitingRows,
 } from '../actions';
-import type { RegisterPage } from '../_lib/register-api';
+import { pinToLoaded, type ApproveItem, type RegisterPage } from '../_lib/register-api';
 import { RegisterGrid, type RegisterFacets } from './RegisterGrid';
 
 export type RegisterViewProps = {
@@ -69,31 +70,52 @@ export function RegisterView({
     }
   }, [clientId, loaded]);
 
+  // "Select all N" asks first: the dialog names how many rows are waiting now, and Approve sends exactly those.
+  const [confirmAll, setConfirmAll] = useState<ApproveItem[] | null>(null);
+
+  const send = useCallback(
+    async (items: ApproveItem[]) => {
+      try {
+        toast(await bulkApproveRows(clientId, items));
+      } catch {
+        toast({ tone: 'error', message: 'The approvals didn’t go through. Try again.' });
+      }
+    },
+    [clientId],
+  );
+
   const approve = useCallback(
     async (ids: string[] | 'all') => {
       if (busy) return;
       setBusy(true);
       try {
         const versions = new Map(loaded.rows.map((r) => [r.id, r.version]));
-        const result = await bulkApproveRows(
-          clientId,
-          ids === 'all'
-            ? { all: true, query: loaded.query }
-            : {
-                items: ids.flatMap((id) => {
-                  const version = versions.get(id);
-                  return version === undefined ? [] : [{ id, version }];
-                }),
-              },
-        );
-        toast(result);
-      } catch {
-        toast({ tone: 'error', message: 'The approvals didn’t go through. Try again.' });
+        if (ids !== 'all') {
+          await send(
+            ids.flatMap((id) => {
+              const version = versions.get(id);
+              return version === undefined ? [] : [{ id, version }];
+            }),
+          );
+          return;
+        }
+        let waiting: ApproveItem[];
+        try {
+          waiting = pinToLoaded(await waitingRows(clientId, loaded.query), versions);
+        } catch {
+          toast({ tone: 'error', message: 'The rows to approve didn’t load. Try again.' });
+          return;
+        }
+        if (waiting.length === 0) {
+          toast({ tone: 'warn', message: 'Nothing in this view is waiting for approval.' });
+          return;
+        }
+        setConfirmAll(waiting);
       } finally {
         setBusy(false);
       }
     },
-    [busy, clientId, loaded],
+    [busy, clientId, loaded, send],
   );
 
   const exportView = useCallback(async () => {
@@ -119,17 +141,32 @@ export function RegisterView({
     }
   }, [busy, clientId, loaded.query]);
 
+  const count = confirmAll?.length ?? 0;
   return (
-    <RegisterGrid
-      clientId={clientId}
-      personId={personId}
-      rows={loaded.rows}
-      totalCount={page.total}
-      facets={facets}
-      refetching={busy}
-      onBulkApprove={canApprove ? (ids) => void approve(ids) : undefined}
-      onExport={canExport ? () => void exportView() : undefined}
-      more={loaded.nextCursor ? { loading: loadingMore, onLoad: () => void loadMore() } : undefined}
-    />
+    <>
+      <RegisterGrid
+        clientId={clientId}
+        personId={personId}
+        rows={loaded.rows}
+        totalCount={page.total}
+        facets={facets}
+        refetching={busy}
+        onBulkApprove={canApprove ? (ids) => void approve(ids) : undefined}
+        onExport={canExport ? () => void exportView() : undefined}
+        more={
+          loaded.nextCursor ? { loading: loadingMore, onLoad: () => void loadMore() } : undefined
+        }
+      />
+      <ConfirmDialog
+        open={confirmAll !== null}
+        onOpenChange={(open) => {
+          if (!open) setConfirmAll(null);
+        }}
+        title={`Approve ${formatNumber(count)} ${count === 1 ? 'instance' : 'instances'}?`}
+        body={`${count === 1 ? 'This is the one instance' : `These are all ${formatNumber(count)} instances`} in this view waiting for your approval. Any that change before you confirm are left as they are.`}
+        confirmLabel="Approve"
+        onConfirm={() => send(confirmAll ?? [])}
+      />
+    </>
   );
 }
