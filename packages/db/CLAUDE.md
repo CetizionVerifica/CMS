@@ -23,7 +23,7 @@ Work
 - `evidence` (instance, storage key, file name, size, mime, sha256, scan status, uploaded by), `comment` (instance, author, body)
 - `audit_event` (append-only: actor, action, entity, entity id, before jsonb, after jsonb, at, request id)
 - `import_batch`, `import_row` (raw row jsonb, mapped jsonb, outcome), `import_issue` (per row/field issue and resolution) and `mapping_template` (saved column mappings per client) for traceable imports
-- `domain_event` (transactional outbox for the event catalogue), `export_job` (Excel/PDF exports), `notification_send` (send log: scheduled sends unique per instance, kind, send date and recipient; event-driven sends, with `event_id`, unique per event and recipient)
+- `domain_event` (transactional outbox for the event catalogue), `export_job` (Excel/PDF exports), `notification_send` (send log: scheduled sends unique per instance, kind, send date and recipient; event-driven sends, with `event_id`, unique per event and recipient; only these may have a null `client_id`, seen by firm-wide contexts only)
 - `idempotency_key` (M7's Idempotency-Key replay: the first response per person and key, until `expires_at`)
 
 Sign-in (M5)

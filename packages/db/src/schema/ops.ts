@@ -106,7 +106,8 @@ export const notificationSend = pgTable(
   {
     id: idColumn(),
     firmId: firmIdColumn(),
-    clientId: uuid('client_id').notNull(),
+    /** Null only for an event-driven send with no client (a magic link, a firm-role invite). */
+    clientId: uuid('client_id'),
     instanceId: uuid('instance_id'),
     recipientId: uuid('recipient_id').notNull(),
     kind: notificationKindEnum('kind').notNull(),
@@ -149,6 +150,14 @@ export const notificationSend = pgTable(
       .on(t.firmId, t.eventId, t.recipientId)
       .where(sql`event_id is not null`),
     index('notification_send_client_idx').on(t.firmId, t.clientId, t.sendDate),
+    // A send without a client answers an event and names no instance (the instance foreign key, like any
+    // composite key, is not checked when client_id is null).
+    check(
+      'notification_send_client_check',
+      sql`client_id is not null or (event_id is not null and instance_id is null)`,
+    ),
+    // A null client is visible to firm-wide contexts only (app_can_see_client), so client roles never
+    // read or write these rows.
     clientPolicy(),
   ],
 );
