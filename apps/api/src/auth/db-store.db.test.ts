@@ -384,6 +384,24 @@ describe.skipIf(!url)('database AccountStore', () => {
         [elsewhere.personId, offered.personId],
       ]),
     ).toEqual([{ n: 1 }]);
+
+    // Once that invite's link has expired it no longer counts, and the client admin may invite the person.
+    now = new Date(now.getTime() + 2 * 86_400_000);
+    const later = await app.inject({
+      method: 'POST',
+      url: '/api/v1/invites',
+      headers: sessionHeaders(await login(ca.email)),
+      payload: {
+        personId: offered.personId,
+        email: 'offered@example.com',
+        role: 'OWNER',
+        clientId: seeded.clientId,
+        consultantClientIds: null,
+        unitIds: null,
+        expiresAt: null,
+      },
+    });
+    expect(later.statusCode).toBe(201);
   });
 
   it('invites an imported person, who claims the account and signs in', async () => {
@@ -564,7 +582,7 @@ describe.skipIf(!url)('database AccountStore', () => {
     const seeded = await firmWithClient();
     const unknown = randomUUID();
     expect(await store.loadPrincipal(seeded.firmId, unknown)).toBeNull();
-    expect(await store.findInvitee(seeded.firmId, unknown)).toBeNull();
+    expect(await store.findInvitee(seeded.firmId, unknown, now)).toBeNull();
     expect(await store.clientTimeZone(seeded.firmId, seeded.clientId)).toBe('Asia/Kolkata');
     expect(await store.clientTimeZone(seeded.firmId, unknown)).toBeNull();
     expect(await store.findLoginToken('0'.repeat(64))).toBeNull();

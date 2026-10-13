@@ -57,9 +57,9 @@ export interface AccountStore extends AuthStore {
 
   /**
    * The person an invite is for, in the actor's firm, with the roles they hold or are invited to (non-archived
-   * memberships and open invites), or null.
+   * memberships, and invites still open at `now`), or null.
    */
-  findInvitee(firmId: string, personId: string): Promise<Invitee | null>;
+  findInvitee(firmId: string, personId: string, now: Date): Promise<Invitee | null>;
   /** The person in the firm who has this email (case-insensitive), or null. */
   findPersonIdByEmail(firmId: string, email: string): Promise<string | null>;
   /**

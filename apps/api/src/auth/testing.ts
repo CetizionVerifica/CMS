@@ -280,13 +280,17 @@ export class InMemoryAuthStore implements AccountStore {
     return true;
   }
 
-  async findInvitee(firmId: string, personId: string): Promise<Invitee | null> {
+  async findInvitee(firmId: string, personId: string, now: Date): Promise<Invitee | null> {
     const key = `${firmId}/${personId}`;
     const stored = this.people.get(key);
     if (!stored) return null;
     const held = (this.principals.get(key)?.memberships ?? []).filter((m) => m.archivedAt === null);
     const invited = [...this.invites.values()].filter(
-      (i) => i.firmId === firmId && i.personId === personId && i.status === 'PENDING',
+      (i) =>
+        i.firmId === firmId &&
+        i.personId === personId &&
+        i.status === 'PENDING' &&
+        Date.parse(i.linkExpiresAt) > now.getTime(),
     );
     return {
       personId,
