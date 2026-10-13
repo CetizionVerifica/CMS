@@ -29,6 +29,16 @@ describe('routes the shell mock does not answer go to M0’s mock server', () =>
     expect(JSON.stringify(data)).not.toContain(CLIENT_MAP[0]!.theirs);
   });
 
+  it('runs M0’s mock at firm B’s "today", so its work has come due', async () => {
+    const owner = await sessionFor('owner@demo.test');
+    const { data } = await api(owner).call('listInstances', {
+      params: { clientId: MOCK_CLIENTS.demoMetals },
+      query: { status: 'OVERDUE', limit: '1', count: 'true' },
+    });
+    // At the old 2023-03-15 nothing in firm B's data was due yet, so nothing could be overdue.
+    expect(data.total).toBeGreaterThan(0);
+  });
+
   it('answers the client overview for a firm user, with our client name', async () => {
     const consultant = await sessionFor('consultant@demo.test', true);
     const { data } = await api(consultant).call('clientOverview', {
