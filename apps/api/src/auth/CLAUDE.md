@@ -1,8 +1,10 @@
 # apps/api/src/auth: sessions, MFA, permissions (M5)
 
-`apps/api/CLAUDE.md` and the root `CLAUDE.md` apply. Decisions: `docs/adr/0005-m5-policy-and-request-context.md`.
+`apps/api/CLAUDE.md` and the root `CLAUDE.md` apply. Decisions: `docs/adr/0005-m5-policy-and-request-context.md`
+(policy, context) and `docs/adr/M5-0001-sign-in-mfa-invites.md` (sign-in, MFA, invites).
 
 ## For other modules
+
 - Import only from `./index.ts`.
 - Every route declares `config: { auth: 'public' | 'session' | 'session-pre-mfa' }`; registration throws without it.
 - On session routes `req.ctx` is the M0 `RequestContext`. Missing session, MFA, expired access, CSRF and a `:clientId`
@@ -17,10 +19,16 @@
 - Stricter per-route rate limits use `config.routeLimit: { max, timeWindow }`. The plugin's `config.rateLimit` is
   refused, because the API-wide limiter would make it a no-op.
 - Throw `ApiError(code, details?)` for contract errors.
+- M9: when sending a magic-link or invite email, call `AuthService.issueLoginToken` for the raw token; it is never
+  stored or put in an event.
 - Tests: `createTestAuth()` from `./testing.ts`; `signIn({ memberships })` returns headers for `app.inject`.
 
 ## Rules here
+
 - `POLICY` in `policy.ts` is the only permission table. Adding an action means a row there and a row in the matrix
   test (`policy.test.ts`), both following `docs/contracts/endpoints.md`.
 - Tokens (sessions, CSRF, magic links, invites) are random 256-bit values; only their SHA-256 is stored. Never log a
   token, a password or an MFA secret.
+- Storage goes through `AccountStore` (`accounts.ts`). Each method is one transaction and writes the audit and outbox
+  rows its comment names. `InMemoryAuthStore` in `testing.ts` is the reference behaviour; `createDbAccountStore`
+  (`db-store.ts`) is the database adapter on M3's repositories, tested end to end in `db-store.db.test.ts`.

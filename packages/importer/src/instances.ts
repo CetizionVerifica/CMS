@@ -5,11 +5,12 @@ import type { PlanInstance } from './types.js';
  * Re-importing a register over instances that already exist (packages/importer/CLAUDE.md "Re-import").
  * The register is a snapshot, while the app keeps working on the instances in between, so a planned
  * instance is compared field by field rather than by fingerprint:
- * - Comments are append-only. Incoming comments already on the instance, in order, change nothing;
- *   the others are appended.
- * - An instance someone has submitted or sent back stays where the workflow put it when the register
- *   still says Pending with no Activity Date (the register is older than that step). It is never moved
- *   back to OPEN by an import.
+ * - Comments are append-only. Incoming comments already on the instance (each counted once, in any
+ *   order) change nothing; the others are appended.
+ * - An instance that has moved on from OPEN (submitted, sent back, approved or not applicable) stays
+ *   where the workflow put it when the register still says Pending with no Activity Date: the register
+ *   is older than that step. An import never moves it back to OPEN; reopening closed work needs a
+ *   reason, so it goes through the workflow's reopen (ADR M8-0002).
  */
 
 /** A stored instance as the importer compares it. Owner and approver are person `nameNormalized`. */
@@ -34,16 +35,25 @@ export interface InstanceChange {
   newComments: string[];
 }
 
-const WORKFLOW_KEEPS: readonly WorkflowState[] = ['SUBMITTED', 'SENT_BACK'];
+const WORKFLOW_KEEPS: readonly WorkflowState[] = [
+  'SUBMITTED',
+  'SENT_BACK',
+  'APPROVED',
+  'NOT_APPLICABLE',
+];
 
-/** Incoming comments not already on the instance as an in-order subsequence of its comments. */
+/**
+ * Incoming comments not already on the instance. Each stored comment matches one incoming comment of the
+ * same body, in any order, so a register that lists the same comments in another order appends nothing.
+ */
 export function commentsToAppend(incoming: readonly string[], stored: readonly string[]): string[] {
+  const unmatched = new Map<string, number>();
+  for (const body of stored) unmatched.set(body, (unmatched.get(body) ?? 0) + 1);
   const missing: string[] = [];
-  let next = 0;
   for (const body of incoming) {
-    const found = stored.indexOf(body, next);
-    if (found === -1) missing.push(body);
-    else next = found + 1;
+    const left = unmatched.get(body) ?? 0;
+    if (left > 0) unmatched.set(body, left - 1);
+    else missing.push(body);
   }
   return missing;
 }

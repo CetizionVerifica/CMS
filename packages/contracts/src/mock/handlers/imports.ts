@@ -84,6 +84,9 @@ function sampleRows(): Record<string, string | null>[] {
     by(d.people),
   ];
   const comments = new Map(d.comments.map((c) => [c.instanceId, c.body]));
+  const organisation = `${d.clients[0]!.name}/ ${d.companies[0]!.name}/ ${d.units[0]!.name}`;
+  const location = d.locations[0]!;
+  const site = `${location.country}/ ${location.state}/ ${location.city}`;
   return d.instances.map((i) => {
     const assignment = assignments.get(i.assignmentId)!;
     const o = obligations.get(assignment.obligationId)!;
@@ -100,8 +103,8 @@ function sampleRows(): Record<string, string | null>[] {
       'Due Date': i.dueDate,
       'Form Description': o.forms[0]?.label ?? 'NA',
       'Log Sheet Description': o.logSheets[0]?.label ?? 'NA',
-      Organization: 'Aditya Birla Group/ Hindalco/ Plant',
-      Location: 'India/ West Bengal/ Belur',
+      Organization: organisation,
+      Location: site,
       Owner: people.get(i.ownerId)!.displayName,
       'Owner Comments': comments.get(i.id) ?? null,
       Approvers: people.get(i.approverId)!.displayName,
@@ -331,7 +334,7 @@ function dryRun(firm: FirmState, clientId: string, state: ImportState) {
       instances: state.rows.length - unchanged,
       companies: newCount(src.companies, clientRows(d.companies)),
       units: newCount(src.units, clientRows(d.units)),
-      locations: d.locations.some((l) => l.city === 'Belur') ? 0 : 1,
+      locations: d.locations.some((l) => l.city === sample().locations[0]!.city) ? 0 : 1,
     },
     update: { obligations: 0, assignments: 0, instances: 0 },
     unchanged: { instances: unchanged },

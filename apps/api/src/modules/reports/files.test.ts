@@ -52,7 +52,7 @@ describe('MemoryExportFiles', () => {
 
 describe('text helpers', () => {
   it('keeps WinAnsi text and replaces what the standard fonts cannot draw', () => {
-    expect(pdfSafe('Café · Belur')).toBe('Café · Belur');
+    expect(pdfSafe('Café · Riverbend')).toBe('Café · Riverbend');
     expect(pdfSafe('कारखाना\tline\nnext')).toBe('??????? line next');
   });
 

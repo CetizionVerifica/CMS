@@ -10,7 +10,7 @@ import { ClientSwitcher, type ClientSummary } from './ClientSwitcher';
 import { PeriodPicker, type Period } from './PeriodPicker';
 
 const clients: ClientSummary[] = [
-  { id: 'hb', name: 'Hindalco Belur', meta: 'Metals · 3 units', overdueCount: 12 },
+  { id: 'hb', name: 'Kestrel Aluminium Belur', meta: 'Metals · 3 units', overdueCount: 12 },
   { id: 'tp', name: 'Taloja Plastics', meta: 'Chemicals · 1 unit', overdueCount: 0 },
   { id: 'ak', name: 'Aarav Knitwear', meta: 'Textiles · 2 units', overdueCount: 3 },
   { id: 'mb', name: 'Mahim Bakers', meta: 'Food · 1 unit', overdueCount: 1 },
@@ -35,9 +35,11 @@ describe('ClientSwitcher', () => {
   it('names the trigger and opens on ArrowDown with focus in the search field', async () => {
     const user = userEvent.setup();
     renderSwitcher();
-    const trigger = screen.getByRole('button', { name: 'Client: Hindalco Belur, change client' });
+    const trigger = screen.getByRole('button', {
+      name: 'Client: Kestrel Aluminium Belur, change client',
+    });
     expect(trigger.getAttribute('aria-haspopup')).toBe('dialog');
-    expect(trigger.getAttribute('title')).toBe('Hindalco Belur');
+    expect(trigger.getAttribute('title')).toBe('Kestrel Aluminium Belur');
     expect(trigger.textContent).toContain('Metals · 3 units');
 
     await user.tab();
@@ -56,7 +58,7 @@ describe('ClientSwitcher', () => {
         .map((o) => o.getAttribute('aria-label')),
     ).toEqual([
       'Taloja Plastics, Chemicals · 1 unit',
-      'Hindalco Belur, Metals · 3 units, 12 overdue',
+      'Kestrel Aluminium Belur, Metals · 3 units, 12 overdue',
     ]);
     expect(within(groups[0]!).getAllByRole('option')[1]!.textContent).toContain('12 overdue');
     expect(
@@ -65,13 +67,13 @@ describe('ClientSwitcher', () => {
         .map((o) => o.getAttribute('aria-label')),
     ).toEqual([
       'Aarav Knitwear, Textiles · 2 units, 3 overdue',
-      'Hindalco Belur, Metals · 3 units, 12 overdue',
+      'Kestrel Aluminium Belur, Metals · 3 units, 12 overdue',
       'Mahim Bakers, Food · 1 unit, 1 overdue',
       'Taloja Plastics, Chemicals · 1 unit',
     ]);
     expect(
       within(groups[1]!)
-        .getByRole('option', { name: /^Hindalco/ })
+        .getByRole('option', { name: /^Kestrel Aluminium/ })
         .getAttribute('aria-selected'),
     ).toBe('true');
     await expectNoAxeViolations(dialog);
@@ -87,7 +89,7 @@ describe('ClientSwitcher', () => {
     const options = screen.getAllByRole('option');
     expect(options.map((o) => o.getAttribute('aria-label')?.split(',')[0])).toEqual([
       'Aarav Knitwear',
-      'Hindalco Belur',
+      'Kestrel Aluminium Belur',
     ]);
     expect(search.getAttribute('aria-activedescendant')).toBe(options[0]!.id);
     await user.keyboard('{ArrowDown}');
@@ -153,7 +155,7 @@ describe('ClientSwitcher', () => {
   it('is static text when the user has one client', () => {
     renderSwitcher({ clients: [clients[0]!] });
     expect(screen.queryByRole('button')).toBeNull();
-    expect(screen.getByText('Hindalco Belur')).toBeTruthy();
+    expect(screen.getByText('Kestrel Aluminium Belur')).toBeTruthy();
   });
 
   it('opens a full-height sheet under 640px with the name only on the trigger', async () => {

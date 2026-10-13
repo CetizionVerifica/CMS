@@ -65,7 +65,38 @@ export interface ConsultantDigestEmail {
   clients: DigestClientSummary[];
 }
 
-export type EmailMessage = OwnerReminderEmail | ApproverEscalationEmail | ConsultantDigestEmail;
+/** Sent to the approver as soon as an owner submits, or asks to mark the obligation not applicable. */
+export interface ApprovalRequestedEmail {
+  kind: 'APPROVAL_REQUESTED';
+  recipientName: string;
+  clientName: string;
+  /** Display name of the person who submitted, usually the owner. */
+  submittedBy: string;
+  /** True when the owner asks to mark it not applicable rather than complied. */
+  notApplicable: boolean;
+  /** Days relative to the due date on the day it is sent: negative before, positive overdue. */
+  offsetDays: number;
+  instance: InstanceSummary;
+}
+
+/** Sent to the owner as soon as the approver sends a submission back. */
+export interface SentBackEmail {
+  kind: 'SENT_BACK';
+  recipientName: string;
+  clientName: string;
+  /** Display name of the approver who sent it back. */
+  sentBackBy: string;
+  /** Days relative to the due date on the day it is sent: negative before, positive overdue. */
+  offsetDays: number;
+  instance: InstanceSummary;
+}
+
+export type EmailMessage =
+  | OwnerReminderEmail
+  | ApproverEscalationEmail
+  | ConsultantDigestEmail
+  | ApprovalRequestedEmail
+  | SentBackEmail;
 
 export const CRITICALITY_LABEL: Record<Criticality, string> = {
   SUPER_CRITICAL: 'Super critical',
@@ -172,6 +203,59 @@ function renderApproverEscalation(m: ApproverEscalationEmail): RenderedEmail {
   };
 }
 
+function renderApprovalRequested(m: ApprovalRequestedEmail): RenderedEmail {
+  const heading = m.notApplicable ? 'Not applicable request' : 'Awaiting your approval';
+  const intro = m.notApplicable
+    ? `${m.submittedBy} asked to mark this obligation for ${m.clientName} as not applicable. Please review the reason, then approve it or send it back.`
+    : `${m.submittedBy} submitted this obligation for ${m.clientName}. Please review the submission, then approve it or send it back.`;
+  const rows = instanceRows(m.instance, m.offsetDays);
+  const greeting = `Hello ${m.recipientName},`;
+  const cta = 'Review submission';
+  const footer = `You get this email because you are the approver of this obligation in ${PRODUCT_NAME}.`;
+  return {
+    subject: `${heading}: ${m.instance.title}`,
+    html: renderLayout({
+      preheader: `${heading}. ${m.instance.actName}, ${m.instance.unitName}.`,
+      heading,
+      blocks: [paragraph(greeting), paragraph(intro), detailsTable(rows)],
+      cta: { label: cta, url: m.instance.url },
+      footer,
+    }),
+    text: textEmail([
+      greeting,
+      intro,
+      textRows(rows),
+      `${cta}: ${safeUrl(m.instance.url)}`,
+      footer,
+    ]),
+  };
+}
+
+function renderSentBack(m: SentBackEmail): RenderedEmail {
+  const intro = `${m.sentBackBy} sent back your submission for ${m.clientName}. Please read the approver's comment, then submit it again.`;
+  const rows = instanceRows(m.instance, m.offsetDays);
+  const greeting = `Hello ${m.recipientName},`;
+  const cta = 'Open and resubmit';
+  const footer = `You get this email because you are the owner of this obligation in ${PRODUCT_NAME}.`;
+  return {
+    subject: `Sent back: ${m.instance.title}`,
+    html: renderLayout({
+      preheader: `Sent back to you. ${m.instance.actName}, ${m.instance.unitName}.`,
+      heading: 'Sent back to you',
+      blocks: [paragraph(greeting), paragraph(intro), detailsTable(rows)],
+      cta: { label: cta, url: m.instance.url },
+      footer,
+    }),
+    text: textEmail([
+      greeting,
+      intro,
+      textRows(rows),
+      `${cta}: ${safeUrl(m.instance.url)}`,
+      footer,
+    ]),
+  };
+}
+
 function scoreLabel(score: number | null): string {
   return score === null ? 'No items due' : `${score.toFixed(1)}%`;
 }
@@ -230,5 +314,9 @@ export function renderEmail(message: EmailMessage): RenderedEmail {
       return renderApproverEscalation(message);
     case 'CONSULTANT_DIGEST':
       return renderConsultantDigest(message);
+    case 'APPROVAL_REQUESTED':
+      return renderApprovalRequested(message);
+    case 'SENT_BACK':
+      return renderSentBack(message);
   }
 }

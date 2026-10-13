@@ -225,9 +225,10 @@ export function ShellFrame({ model, initialLayout, children }: ShellFrameProps) 
  * when the title changes; during a client navigation the URL changes first and the page streams in after the
  * loading skeleton, so changing the title straight away would focus the old page's h1, or none. However slowly the
  * page loads, the title waits for an h1 outside a loading state (`aria-busy`); `fallbackMs` only covers the case
- * where both pages share the same h1, which never mutates.
+ * where both pages share the same h1, which never mutates. After `maxWaitMs` the title is applied whatever the page
+ * shows, so a page that never renders an h1 (or never leaves its loading state) still gets its document title.
  */
-export function useSettledTitle(title: string, fallbackMs = 1500): string {
+export function useSettledTitle(title: string, fallbackMs = 1500, maxWaitMs = 10_000): string {
   const [settled, setSettled] = useState(title);
   const lastH1 = useRef<{ node: Element | null; text: string | null }>({ node: null, text: null });
 
@@ -254,18 +255,34 @@ export function useSettledTitle(title: string, fallbackMs = 1500): string {
     const observer = new MutationObserver(() => {
       if (ready()) observer.disconnect();
     });
-    if (main) observer.observe(main, { childList: true, subtree: true, characterData: true });
+    // A skeleton that turns into the page by dropping `aria-busy` changes an attribute, not the tree.
+    if (main) {
+      observer.observe(main, {
+        childList: true,
+        subtree: true,
+        characterData: true,
+        attributes: true,
+        attributeFilter: ['aria-busy'],
+      });
+    }
     // The same h1 text on both pages never mutates; accept it once the wait is over. A page still loading (no h1, or
     // a skeleton) keeps the observer running until its h1 arrives.
     const timer = setTimeout(() => {
       sameH1Allowed = true;
       if (ready()) observer.disconnect();
     }, fallbackMs);
+    const cap = setTimeout(() => {
+      observer.disconnect();
+      const h1 = main?.querySelector('h1') ?? null;
+      lastH1.current = { node: h1, text: h1?.textContent ?? null };
+      setSettled(title);
+    }, maxWaitMs);
     return () => {
       observer.disconnect();
       clearTimeout(timer);
+      clearTimeout(cap);
     };
-  }, [title, settled, fallbackMs]);
+  }, [title, settled, fallbackMs, maxWaitMs]);
 
   return settled;
 }

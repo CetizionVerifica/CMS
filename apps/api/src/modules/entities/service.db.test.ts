@@ -108,7 +108,7 @@ describe.skipIf(!url)('M6 on the Postgres store', () => {
 
     w = await system(firmA, async (tx) => {
       const clientA = await r.clients.create(tx, {
-        name: 'Aditya Group',
+        name: 'Kestrel Metals Group',
         settings: DEFAULT_CLIENT_SETTINGS,
       });
       const clientB = await r.clients.create(tx, {
@@ -120,13 +120,16 @@ describe.skipIf(!url)('M6 on the Postgres store', () => {
         countryCode: 'IN',
         state: 'West Bengal',
         stateCode: 'WB',
-        city: 'Belur',
+        city: 'Riverbend',
       });
-      const company = await r.companies.create(tx, { clientId: clientA.id, name: 'Hindalco' });
+      const company = await r.companies.create(tx, {
+        clientId: clientA.id,
+        name: 'Kestrel Aluminium',
+      });
       const unit = await r.units.create(tx, {
         clientId: clientA.id,
         companyId: company.id,
-        name: 'Belur Plant',
+        name: 'Riverbend Plant',
         locationId: location.id,
       });
       const hr = await r.departments.create(tx, {
@@ -136,9 +139,9 @@ describe.skipIf(!url)('M6 on the Postgres store', () => {
       });
       const fa = await person(tx, 'Asha Admin', 'asha@demo.example');
       const consultant = await person(tx, 'Cyrus Consultant', 'cyrus@demo.example');
-      const clientAdmin = await person(tx, 'Kiran Clientadmin', 'kiran@aditya.example');
+      const clientAdmin = await person(tx, 'Kiran Clientadmin', 'kiran@kestrel.example');
       const owner = await person(tx, 'Omar Owner', null);
-      const approver = await person(tx, 'Arun Approver', 'arun@aditya.example');
+      const approver = await person(tx, 'Arun Approver', 'arun@kestrel.example');
       const bina = await person(tx, 'Bina Owner', 'bina@bharat.example');
       await grant(tx, fa.id, 'FIRM_ADMIN', null);
       await grant(tx, consultant.id, 'CONSULTANT', null, [clientA.id]);
@@ -281,9 +284,9 @@ describe.skipIf(!url)('M6 on the Postgres store', () => {
         ((await call(actor, 'GET', '/clients')).body as { items: { name: string }[] }).items.map(
           (c) => c.name,
         );
-      expect(await names('firmAdmin')).toEqual(['Aditya Group', 'Bharat Mills']);
-      expect(await names('consultant')).toEqual(['Aditya Group']);
-      expect(await names('clientAdmin')).toEqual(['Aditya Group']);
+      expect(await names('firmAdmin')).toEqual(['Bharat Mills', 'Kestrel Metals Group']);
+      expect(await names('consultant')).toEqual(['Kestrel Metals Group']);
+      expect(await names('clientAdmin')).toEqual(['Kestrel Metals Group']);
       expect(await names('otherFirmAdmin')).toEqual(['Xeno Holdings']);
     });
 
@@ -389,7 +392,7 @@ describe.skipIf(!url)('M6 on the Postgres store', () => {
     it('lets a client admin add a person to their client, membership and audit included', async () => {
       const res = await call('clientAdmin', 'POST', `/clients/${w.clientA}/people`, {
         displayName: 'Priya  Plant',
-        email: 'priya@aditya.example',
+        email: 'priya@kestrel.example',
         role: 'APPROVER',
       });
       expect(res.status).toBe(201);
@@ -486,10 +489,13 @@ describe.skipIf(!url)('M6 on the Postgres store', () => {
       signIn('firmAdmin', w.firmA, { role: 'FIRM_ADMIN', clientId: null }, [w.clientA, w.clientB]);
       const first = await call('firmAdmin', 'GET', '/clients?limit=1&count=true');
       const page1 = first.body as { items: { name: string }[]; nextCursor: string; total: number };
-      expect(page1.items.map((c) => c.name)).toEqual(['Aditya Group']);
+      expect(page1.items.map((c) => c.name)).toEqual(['Bharat Mills']);
       expect(page1.total).toBe(2);
       const second = await call('firmAdmin', 'GET', `/clients?limit=1&cursor=${page1.nextCursor}`);
-      expect(second.body).toMatchObject({ items: [{ name: 'Bharat Mills' }], nextCursor: null });
+      expect(second.body).toMatchObject({
+        items: [{ name: 'Kestrel Metals Group' }],
+        nextCursor: null,
+      });
       expect((await call('firmAdmin', 'GET', '/clients?q=BHAR')).body).toMatchObject({
         items: [{ name: 'Bharat Mills' }],
       });
@@ -564,19 +570,21 @@ describe.skipIf(!url)('M6 on the Postgres store', () => {
       const rollback = new Error('rollback');
       await expect(
         store.transaction(ctx(), async (tx) => {
-          const grasim = await tx.companies.insert({ clientId: w.clientA, name: 'Grasim' });
+          const foils = await tx.companies.insert({ clientId: w.clientA, name: 'Kestrel Foils' });
           await expect(
-            tx.companies.insert({ clientId: w.clientA, name: 'Hindalco' }),
+            tx.companies.insert({ clientId: w.clientA, name: 'Kestrel Aluminium' }),
           ).rejects.toMatchObject({ field: 'name', existingId: w.companyA });
           await expect(
-            tx.companies.update(grasim.id, 1, { name: 'Hindalco' }),
+            tx.companies.update(foils.id, 1, { name: 'Kestrel Aluminium' }),
           ).rejects.toMatchObject({ field: 'name', existingId: w.companyA });
-          expect(await tx.companies.update(grasim.id, 7, { name: 'Grasim Ltd' })).toBe('STALE');
+          expect(await tx.companies.update(foils.id, 7, { name: 'Kestrel Foils Ltd' })).toBe(
+            'STALE',
+          );
           await expect(
             tx.units.insert({
               clientId: w.clientA,
               companyId: w.companyA,
-              name: 'Belur Plant',
+              name: 'Riverbend Plant',
               locationId: w.locationId,
             }),
           ).rejects.toMatchObject({ field: 'name', existingId: w.unitA });
@@ -586,7 +594,7 @@ describe.skipIf(!url)('M6 on the Postgres store', () => {
               countryCode: 'IN',
               state: 'west bengal',
               stateCode: 'WB',
-              city: 'BELUR',
+              city: 'RIVERBEND',
             }),
           ).rejects.toMatchObject({ field: 'location', existingId: w.locationId });
           await expect(

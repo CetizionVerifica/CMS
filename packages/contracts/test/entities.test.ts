@@ -53,7 +53,7 @@ describe('firm and client', () => {
     expect(
       Client.safeParse({
         ...versioned,
-        name: 'Aditya Birla Group',
+        name: 'Kestrel Metals Group',
         settings: DEFAULT_CLIENT_SETTINGS,
       }).success,
     ).toBe(true);
@@ -102,20 +102,25 @@ describe('firm and client', () => {
   });
   it('reject unknown keys and a firmId that is not a UUID', () => {
     expect(
-      Company.safeParse({ ...versioned, clientId: ID.client, name: 'Hindalco', extra: 1 }).success,
+      Company.safeParse({ ...versioned, clientId: ID.client, name: 'Kestrel Aluminium', extra: 1 })
+        .success,
     ).toBe(false);
     expect(
-      Company.safeParse({ ...versioned, firmId: 'firm-a', clientId: ID.client, name: 'Hindalco' })
-        .success,
+      Company.safeParse({
+        ...versioned,
+        firmId: 'firm-a',
+        clientId: ID.client,
+        name: 'Kestrel Aluminium',
+      }).success,
     ).toBe(false);
   });
 });
 
 describe('entities', () => {
   it('parse company, location, unit and department', () => {
-    expect(Company.safeParse({ ...versioned, clientId: ID.client, name: 'Hindalco' }).success).toBe(
-      true,
-    );
+    expect(
+      Company.safeParse({ ...versioned, clientId: ID.client, name: 'Kestrel Aluminium' }).success,
+    ).toBe(true);
     expect(
       Location.safeParse({
         ...base,
@@ -123,7 +128,7 @@ describe('entities', () => {
         countryCode: 'IN',
         state: 'West Bengal',
         stateCode: 'WB',
-        city: 'Belur',
+        city: 'Kestrelganj',
       }).success,
     ).toBe(true);
     expect(

@@ -277,7 +277,7 @@ describe('auth bodies', () => {
 
   const client = {
     id: ID.client,
-    name: 'Aditya Birla Group',
+    name: 'Kestrel Metals Group',
     fyStartMonth: 4,
     timeZone: 'Asia/Kolkata',
     unitCount: 1,

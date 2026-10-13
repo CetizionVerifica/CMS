@@ -1,7 +1,7 @@
 import {
   DEFAULT_CLIENT_SETTINGS,
   type Membership,
-  type PersonStatus,
+  type Person,
   type RequestContext,
 } from '@canopy/contracts';
 import { localDateIn } from '@canopy/engine';
@@ -22,7 +22,8 @@ export interface SessionRecord {
 
 /** What the request context is built from: the signed-in person and their firm. */
 export interface Principal {
-  readonly status: PersonStatus;
+  /** The M0 `Person`, returned on `/me`; only ACTIVE people can have a session. */
+  readonly person: Person;
   /** All of the person's memberships, including archived and expired ones. */
   readonly memberships: readonly Membership[];
   readonly mfaEnrolled: boolean;
@@ -92,7 +93,8 @@ export function buildRequestContext(input: BuildContextInput): RequestContext {
   if (session === null || Date.parse(session.expiresAt) <= now.getTime()) {
     throw new ApiError('UNAUTHENTICATED');
   }
-  if (principal === null || principal.status !== 'ACTIVE') throw new ApiError('UNAUTHENTICATED');
+  if (principal === null || principal.person.status !== 'ACTIVE')
+    throw new ApiError('UNAUTHENTICATED');
 
   const active = activeMemberships(principal.memberships, now);
   if (active.length === 0) {

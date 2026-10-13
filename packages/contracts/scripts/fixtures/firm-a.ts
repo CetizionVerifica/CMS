@@ -1,5 +1,6 @@
 // Firm A: the sample register as the importer would load it (docs/contracts/fixtures.md §1-§4).
 // People are replaced by pseudonyms keyed by normalised name (fixtures.md §7); real names never reach the JSON.
+// The register's real client, company and sites are replaced by fictional ones, in names and in copied text alike.
 import type {
   Act,
   Assignment,
@@ -103,6 +104,28 @@ function lookup<T>(table: Record<string, T>, value: string, column: string, rowN
   return found;
 }
 
+/** Fictional organisation and site names used in place of the register's real ones (fixtures.md §7). */
+const FIRM_A_ORGANISATION = {
+  client: 'Kestrel Metals Group',
+  company: 'Kestrel Aluminium',
+  /** The unit's town. */
+  city: 'Kestrelganj',
+  /** Another site of the same company, named in owner comments. */
+  otherSite: 'Kestrelpur',
+} as const;
+const REAL_ORGANISATION_TEXT: [RegExp, string][] = [
+  [/Hindalco Industries Limited/g, 'Kestrel Aluminium Limited'],
+  [/Aditya Birla Group/g, FIRM_A_ORGANISATION.client],
+  [/Hindalco/g, FIRM_A_ORGANISATION.company],
+  [/Belur/g, FIRM_A_ORGANISATION.city],
+  [/Renukoot/g, FIRM_A_ORGANISATION.otherSite],
+  [/Hirakud/g, FIRM_A_ORGANISATION.otherSite],
+];
+/** The register's real organisation and the company's sites; none may reach the fixture. */
+const REAL_ORGANISATION_PARTS = /hindalco|birla|aditya|belur|renukoot|hirakud/i;
+const fictionalise = (text: string) =>
+  REAL_ORGANISATION_TEXT.reduce((t, [real, fake]) => t.replace(real, fake), text);
+
 function parseRows(sheet: Cell[][]): Row[] {
   const [header, ...data] = sheet;
   const col = (name: string) => {
@@ -131,7 +154,10 @@ function parseRows(sheet: Cell[][]): Row[] {
   };
   return data.map((cells, index) => {
     const rowNumber = index + 2;
-    const get = (key: keyof typeof c) => cells[c[key]] ?? null;
+    const get = (key: keyof typeof c) => {
+      const value = cells[c[key]] ?? null;
+      return typeof value === 'string' ? fictionalise(value) : value;
+    };
     const activity = get('activityDate');
     return {
       rowNumber,
@@ -276,9 +302,14 @@ function templates(label: string | null): TemplateRef[] {
   return [{ label, fileName: null, templateFileId: null }];
 }
 
+/** Ordinary words that some register owner values contain; they are not distinctive name parts. */
+const COMMON_WORDS = new Set(['person']);
+
 /** Fails if any real name, or a distinctive part of one, appears in text copied into the fixture. */
 function assertNoNames(texts: string[], names: string[]): void {
-  const parts = distinct(names.flatMap((n) => [n, ...n.split(' ').filter((p) => p.length >= 4)]));
+  const parts = distinct(
+    names.flatMap((n) => [n, ...n.split(' ').filter((p) => p.length >= 4 && !COMMON_WORDS.has(p))]),
+  );
   for (const text of texts) {
     const lower = ` ${text.toLowerCase().replace(/[^a-z0-9]+/g, ' ')} `;
     const hit = parts.find((p) => lower.includes(` ${p} `));
@@ -311,17 +342,21 @@ export function buildFirmA(sheet: Cell[][], sourceName: string): FirmA {
 
   const client = {
     ...versioned(k('client'), firmId),
-    name: 'Aditya Birla Group',
+    name: FIRM_A_ORGANISATION.client,
     settings: DEFAULT_CLIENT_SETTINGS,
   };
-  const company = { ...versioned(k('company'), firmId), clientId: client.id, name: 'Hindalco' };
+  const company = {
+    ...versioned(k('company'), firmId),
+    clientId: client.id,
+    name: FIRM_A_ORGANISATION.company,
+  };
   const location = {
     ...base(k('location'), firmId),
     country: 'India',
     countryCode: 'IN',
     state: 'West Bengal',
     stateCode: 'WB',
-    city: 'Belur',
+    city: FIRM_A_ORGANISATION.city,
   };
   const unit = {
     ...versioned(k('unit'), firmId),
@@ -632,5 +667,8 @@ export function buildFirmA(sheet: Cell[][], sourceName: string): FirmA {
     findings,
   };
 
+  if (REAL_ORGANISATION_PARTS.test(JSON.stringify({ sample, dueDates, expected }))) {
+    throw new Error('A real organisation name appears in the fixture');
+  }
   return { sample, dueDates, expected };
 }

@@ -9,7 +9,7 @@ const SEND_TIME = '2026-10-12T01:30:00Z';
 
 function setup() {
   const firm = memoryFirm();
-  const client = memoryClient('Aditya Birla Group');
+  const client = memoryClient('Kestrel Metals Group');
   const owner = person({
     displayName: 'Asha Rao',
     email: 'asha@example.com',

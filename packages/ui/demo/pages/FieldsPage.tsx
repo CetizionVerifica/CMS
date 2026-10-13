@@ -4,8 +4,8 @@ import { Checkbox, Combobox, Input, RadioGroup, Select, Switch, Textarea } from 
 import { Page, Section } from '../Page';
 
 const units = [
-  { value: 'belur', label: 'Hindalco Belur', description: 'Metals · 1 unit' },
-  { value: 'renukoot', label: 'Hindalco Renukoot', description: 'Metals · 3 units' },
+  { value: 'belur', label: 'Kestrel Aluminium Belur', description: 'Metals · 1 unit' },
+  { value: 'renukoot', label: 'Kestrel Aluminium Renukoot', description: 'Metals · 3 units' },
   { value: 'taloja', label: 'Taloja plant', description: 'Chemicals · 1 unit' },
   { value: 'hirakud', label: 'Hirakud smelter', description: 'Metals · 2 units' },
 ];

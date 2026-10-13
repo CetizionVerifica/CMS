@@ -75,6 +75,11 @@ export interface ReminderCandidate extends NotificationInput {
   criticality: Criticality;
 }
 
+/** An instance an event-driven email is about: the reminder fields plus its optimistic-concurrency version. */
+export interface NoticeInstance extends ReminderCandidate {
+  version: number;
+}
+
 export interface Recipient {
   personId: Id;
   displayName: string;
@@ -93,13 +98,19 @@ export interface ConsultantRef {
   clientIds: Id[];
 }
 
-/** Dedupe key of the send log: unique per instance, kind and send date (digests: recipient, kind, date). */
+/**
+ * Dedupe key of the send log. Scheduled sends are unique per instance, kind, send date and recipient (digests:
+ * recipient, kind, date). Event-driven sends carry the domain event's id and are unique per event and recipient
+ * whatever the date (events.md §4 rule 4, `EVENT_NOTIFICATION_DEDUPE_KEY`; ADR M9-0001 §13), so a second send-back on the same day is its own email.
+ */
 export interface SendKey {
   clientId: Id;
   instanceId: Id | null;
   recipientId: Id;
   kind: NotificationKind;
   sendDate: LocalDate;
+  /** The event an event-driven send answers; absent for scheduled sends. */
+  eventId?: Id | null;
 }
 
 /**
@@ -171,7 +182,12 @@ export interface FirmTx {
     clientId: Id,
     range: { from: LocalDate; to: LocalDate },
   ): Promise<ReminderCandidate[]>;
-  /** Send log rows of one client for one send date that are DONE (sent or failed). */
+  /**
+   * One non-archived instance with the names its email shows and its version, in any workflow state; null when it
+   * is missing or archived. Event-driven sends read it to check the instance is still where the event left it.
+   */
+  findInstance(instanceId: Id): Promise<NoticeInstance | null>;
+  /** Scheduled send-log rows of one client for one send date that are DONE (sent or failed). */
   listDoneSends(clientId: Id, sendDate: LocalDate): Promise<SendKey[]>;
   /** Recipients whose CONSULTANT_DIGEST for this send date is DONE (sent or failed), across all clients. */
   listDoneDigests(sendDate: LocalDate): Promise<Id[]>;

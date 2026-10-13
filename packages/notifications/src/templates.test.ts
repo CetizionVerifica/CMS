@@ -17,7 +17,7 @@ const owner = (offsetDays: number, sentBack = false) =>
   renderEmail({
     kind: 'OWNER_REMINDER',
     recipientName: 'Asha Rao',
-    clientName: 'Aditya Birla Group',
+    clientName: 'Kestrel Metals Group',
     offsetDays,
     sentBack,
     instance,
@@ -27,7 +27,7 @@ const approver = (offsetDays: number, awaitingApproval: boolean) =>
   renderEmail({
     kind: 'APPROVER_ESCALATION',
     recipientName: 'Vikram Shah',
-    clientName: 'Aditya Birla Group',
+    clientName: 'Kestrel Metals Group',
     offsetDays,
     awaitingApproval,
     instance,
@@ -114,7 +114,7 @@ describe('consultant digest', () => {
   it('lists each client with score and counts', () => {
     const email = digest([
       {
-        clientName: 'Aditya Birla Group',
+        clientName: 'Kestrel Metals Group',
         score: 51.3,
         overdue: 5,
         dueSoon: 2,
@@ -122,7 +122,7 @@ describe('consultant digest', () => {
         url: 'https://app.planetpulse.example/c/a/overview',
       },
       {
-        clientName: 'Tata Group',
+        clientName: 'Osprey Textiles Group',
         score: null,
         overdue: 0,
         dueSoon: 0,
@@ -135,9 +135,9 @@ describe('consultant digest', () => {
       'your 2 clients stand for FY 2026-27 as of 12 Oct 2026. 5 items are overdue.',
     );
     expect(email.text).toContain(
-      'Aditya Birla Group: score 51.3%, 5 overdue, 2 due soon, 1 awaiting approval.',
+      'Kestrel Metals Group: score 51.3%, 5 overdue, 2 due soon, 1 awaiting approval.',
     );
-    expect(email.text).toContain('Tata Group: score No items due');
+    expect(email.text).toContain('Osprey Textiles Group: score No items due');
     expect(email.html).toContain('<th');
     expect(email.html).toContain('href="https://app.planetpulse.example/c/a/overview"');
   });
@@ -176,8 +176,74 @@ describe('consultant digest', () => {
   });
 });
 
+const approval = (notApplicable: boolean, offsetDays = -2) =>
+  renderEmail({
+    kind: 'APPROVAL_REQUESTED',
+    recipientName: 'Vikram Shah',
+    clientName: 'Kestrel Metals Group',
+    submittedBy: 'Asha Rao',
+    notApplicable,
+    offsetDays,
+    instance,
+  });
+
+const sentBack = (offsetDays = 1) =>
+  renderEmail({
+    kind: 'SENT_BACK',
+    recipientName: 'Asha Rao',
+    clientName: 'Kestrel Metals Group',
+    sentBackBy: 'Vikram Shah',
+    offsetDays,
+    instance,
+  });
+
+describe('approval requested', () => {
+  it('tells the approver who submitted and asks for a decision', () => {
+    const email = approval(false);
+    expect(email.subject).toBe('Awaiting your approval: Deposit TDS for the month');
+    expect(email.text).toContain(
+      'Asha Rao submitted this obligation for Kestrel Metals Group. Please review the submission, then approve it or send it back.',
+    );
+    expect(email.text).toContain('Due date: 15 Oct 2026 (Due in 2 days)');
+    expect(email.text).toContain(`Review submission: ${instance.url}`);
+    expect(email.html).toContain('Review submission');
+    expect(email.text).toContain('because you are the approver');
+  });
+
+  it('words a not-applicable request as one', () => {
+    const email = approval(true, 3);
+    expect(email.subject).toBe('Not applicable request: Deposit TDS for the month');
+    expect(email.text).toContain(
+      'Asha Rao asked to mark this obligation for Kestrel Metals Group as not applicable.',
+    );
+    expect(email.text).toContain('(Overdue 3 days)');
+  });
+});
+
+describe('sent back', () => {
+  it('tells the owner who sent it back and asks them to resubmit', () => {
+    const email = sentBack();
+    expect(email.subject).toBe('Sent back: Deposit TDS for the month');
+    expect(email.html).toContain('Sent back to you');
+    expect(email.text).toContain(
+      "Vikram Shah sent back your submission for Kestrel Metals Group. Please read the approver's comment, then submit it again.",
+    );
+    expect(email.text).toContain('(Overdue 1 day)');
+    expect(email.text).toContain(`Open and resubmit: ${instance.url}`);
+    expect(email.text).toContain('because you are the owner');
+  });
+});
+
 describe('every email', () => {
-  const all = [owner(-3), owner(0, true), approver(1, true), approver(7, false)];
+  const all = [
+    owner(-3),
+    owner(0, true),
+    approver(1, true),
+    approver(7, false),
+    approval(false),
+    approval(true),
+    sentBack(),
+  ];
 
   it('escapes names and titles so imported text cannot inject markup', () => {
     const email = renderEmail({
@@ -192,6 +258,17 @@ describe('every email', () => {
     expect(email.html).not.toContain('<img');
     expect(email.html).toContain('&lt;script&gt;alert(1)&lt;/script&gt;');
     expect(email.html).toContain('A &amp; B &quot;Group&quot;');
+    const approvalEmail = renderEmail({
+      kind: 'APPROVAL_REQUESTED',
+      recipientName: 'V',
+      clientName: 'C',
+      submittedBy: '<b>Asha</b>',
+      notApplicable: false,
+      offsetDays: 0,
+      instance,
+    });
+    expect(approvalEmail.html).not.toContain('<b>Asha</b>');
+    expect(approvalEmail.html).toContain('&lt;b&gt;Asha&lt;/b&gt;');
   });
 
   it('refuses a non-http link', () => {

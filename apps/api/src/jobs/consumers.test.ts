@@ -8,8 +8,8 @@ import { memoryClient, memoryFirm } from './testing/memory-store.js';
 // 12 Oct 2026, 07:00 IST: the current and next FY are Apr 2026 to Mar 2028, 24 monthly periods.
 function setup() {
   const firm = memoryFirm();
-  const client = memoryClient('Aditya Birla Group');
-  const other = memoryClient('Tata Group');
+  const client = memoryClient('Kestrel Metals Group');
+  const other = memoryClient('Osprey Textiles Group');
   const owner = person({ clientIds: [client.id, other.id] });
   const approver = person({ clientIds: [client.id, other.id] });
   firm.clients.push(client, other);
