@@ -12,6 +12,8 @@ export interface JobDefinition {
   /** Cron expression, evaluated in `tz`. */
   cron: string;
   tz: string;
+  /** Sends email, so it runs only when a mailer is configured. */
+  sendsMail: boolean;
   run(deps: JobDeps, requestId: string): Promise<JobReport>;
 }
 
@@ -19,13 +21,25 @@ export interface JobDefinition {
  * The schedule. Generation runs nightly at 01:00 India time and catches up once after downtime. Reminders and the
  * digest run every 15 minutes in UTC and decide per client whether its local send time has passed, so each client
  * is served in its own time zone; missed slots are skipped because the next run covers them. The outbox relay runs
- * every minute.
+ * every minute. Without a mailer only generation and the relay run (`sendsMail: false`).
  */
 export const JOBS: readonly JobDefinition[] = [
-  { name: GENERATE_INSTANCES, cron: '0 1 * * *', tz: 'Asia/Kolkata', run: runGenerateInstances },
-  { name: REMINDERS, cron: '*/15 * * * *', tz: 'UTC', run: runReminders },
-  { name: CONSULTANT_DIGEST, cron: '*/15 * * * *', tz: 'UTC', run: runConsultantDigest },
-  { name: RELAY_OUTBOX, cron: '* * * * *', tz: 'UTC', run: runRelayOutbox },
+  {
+    name: GENERATE_INSTANCES,
+    cron: '0 1 * * *',
+    tz: 'Asia/Kolkata',
+    sendsMail: false,
+    run: runGenerateInstances,
+  },
+  { name: REMINDERS, cron: '*/15 * * * *', tz: 'UTC', sendsMail: true, run: runReminders },
+  {
+    name: CONSULTANT_DIGEST,
+    cron: '*/15 * * * *',
+    tz: 'UTC',
+    sendsMail: true,
+    run: runConsultantDigest,
+  },
+  { name: RELAY_OUTBOX, cron: '* * * * *', tz: 'UTC', sendsMail: false, run: runRelayOutbox },
 ];
 
 const RETRIES = { retryLimit: 3, retryDelay: 60, retryBackoff: true, expireInSeconds: 30 * 60 };
@@ -36,9 +50,16 @@ export interface JobRunnerOptions {
   schema?: string;
   /** Logs counts per run. Never pass names, addresses or message bodies. */
   log?: (line: { job: string; requestId: string; report?: JobReport; error?: string }) => void;
+  /**
+   * False when no mail transport is configured: the jobs and consumers that send email are not registered, so no
+   * send is ever claimed, and events only they consume are marked relayed without a queue. Defaults to true.
+   */
+  mail?: boolean;
 }
 
 export interface JobRunner {
+  /** Whether the email jobs and consumers are running (false: no mail transport is configured). */
+  mail: boolean;
   /** Runs one job now, outside the schedule (admin trigger, tests). */
   trigger(name: string): Promise<string | null>;
   /** The registered cron schedules, for health checks. */
@@ -60,7 +81,10 @@ export async function startJobRunner(deps: JobDeps, options: JobRunnerOptions): 
   boss.on('error', (error) => log({ job: 'pg-boss', requestId: '-', error: error.message }));
   await boss.start();
 
-  const consumed = new Set(CONSUMERS.map((c) => c.type));
+  const mail = options.mail ?? true;
+  const jobs = JOBS.filter((job) => mail || !job.sendsMail);
+  const consumers = CONSUMERS.filter((consumer) => mail || !consumer.sendsMail);
+  const consumed = new Set(consumers.map((c) => c.type));
   const bus: EventBus = {
     consumes: (type) => consumed.has(type),
     publish: async (event) => {
@@ -81,7 +105,7 @@ export async function startJobRunner(deps: JobDeps, options: JobRunnerOptions): 
     }
   };
 
-  for (const job of JOBS) {
+  for (const job of jobs) {
     await boss.createQueue(job.name, { policy: 'stately', ...RETRIES });
     await boss.schedule(job.name, job.cron, null, {
       tz: job.tz,
@@ -93,7 +117,7 @@ export async function startJobRunner(deps: JobDeps, options: JobRunnerOptions): 
     });
   }
   // One queue per consumed event type (events.md §1); its job id is the event id.
-  for (const consumer of CONSUMERS) {
+  for (const consumer of consumers) {
     await boss.createQueue(consumer.type, { policy: 'standard', ...RETRIES });
     await boss.work(consumer.type, async ([pgJob]) => {
       const event = OutboxEventSchema.parse(pgJob?.data);
@@ -102,8 +126,15 @@ export async function startJobRunner(deps: JobDeps, options: JobRunnerOptions): 
     });
   }
   return {
+    mail,
     trigger: (name) => {
-      if (!JOBS.some((job) => job.name === name)) throw new RangeError(`Unknown job: ${name}`);
+      if (!jobs.some((job) => job.name === name)) {
+        throw new RangeError(
+          JOBS.some((job) => job.name === name)
+            ? `Job not running without a mail transport: ${name}`
+            : `Unknown job: ${name}`,
+        );
+      }
       return boss.send(name, {});
     },
     schedules: async () =>
