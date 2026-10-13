@@ -207,6 +207,7 @@ describe('GET /clients/{clientId}/evidence', () => {
     const list = async (query: string) => ids((await get('clientAdmin', vault(query))).body);
     expect(await list(`?uploadedFrom=${day}&uploadedTo=${day}`)).toContain(cleanA.id);
     expect(await list(`?uploadedTo=${addDays(day, -1)}`)).toEqual([]);
+    expect(await list('?uploadedFrom=0001-01-01&uploadedTo=9999-12-31')).toHaveLength(3);
     expect(await list(`?uploadedFrom=${addDays(day, 1)}`)).not.toContain(cleanA.id);
   });
 

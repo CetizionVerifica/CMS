@@ -29,18 +29,27 @@ export function startOfDayIn(date: LocalDate, timeZone: string): string {
   return iso(onOrAfter);
 }
 
-/** `uploadedFrom`/`uploadedTo`, inclusive client calendar dates, as the half-open instants [from, to). */
+/** The first and last calendar dates a `LocalDate` can name; nothing lies outside them. */
+const FIRST_DATE = '0001-01-01';
+const LAST_DATE = '9999-12-31';
+
+/**
+ * `uploadedFrom`/`uploadedTo`, inclusive client calendar dates, as the half-open instants [from, to). A bound
+ * at the first or last date excludes nothing, so it is left out: its instant would fall outside the years
+ * an instant can name.
+ */
 export function uploadWindow(
   query: { uploadedFrom?: LocalDate | undefined; uploadedTo?: LocalDate | undefined },
   timeZone: string,
 ): { uploadedFrom?: string; uploadedTo?: string } {
+  const { uploadedFrom: from, uploadedTo: to } = query;
   return {
-    ...(query.uploadedFrom === undefined
+    ...(from === undefined || from <= FIRST_DATE
       ? {}
-      : { uploadedFrom: startOfDayIn(query.uploadedFrom, timeZone) }),
-    ...(query.uploadedTo === undefined
+      : { uploadedFrom: startOfDayIn(from, timeZone) }),
+    ...(to === undefined || to >= LAST_DATE
       ? {}
-      : { uploadedTo: startOfDayIn(addDays(query.uploadedTo, 1), timeZone) }),
+      : { uploadedTo: startOfDayIn(addDays(to, 1), timeZone) }),
   };
 }
 
