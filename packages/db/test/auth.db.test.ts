@@ -315,6 +315,34 @@ describe('credentials', () => {
 });
 
 describe('sessions', () => {
+  it("takes the caller's clock as created and last seen, so a past clock still passes the expiry check", async () => {
+    // NOW and LATER are before the database clock: without createdAt this insert fails the expiry check.
+    const input = {
+      personId: memberId,
+      tokenHash: hash(),
+      csrfToken: CSRF,
+      mfaSatisfied: false,
+      expiresAt: LATER,
+      method: 'PASSWORD' as const,
+      createdAt: NOW,
+    };
+    const session = await inA((tx) => r.sessions.create(tx, input));
+    expect(session.expiresAt).toBe(LATER);
+    const { rows } = await t.ownerQuery<{ created_at: Date; last_seen_at: Date }>(
+      'SELECT created_at, last_seen_at FROM auth_session WHERE id = $1',
+      [session.id],
+    );
+    expect(rows).toEqual([{ created_at: new Date(NOW), last_seen_at: new Date(NOW) }]);
+    const withoutClock = { ...input, createdAt: undefined, tokenHash: hash() };
+    expect(await code(inA((tx) => r.sessions.create(tx, withoutClock)))).not.toBe('resolved');
+    for (const createdAt of [LATER, '2026-10-12T16:00:00.000Z', 'yesterday']) {
+      expect(
+        await code(inA((tx) => r.sessions.create(tx, { ...input, tokenHash: hash(), createdAt }))),
+      ).toBe('VALIDATION');
+    }
+    expect(await inA((tx) => r.sessions.revoke(tx, session.id, LATER))).toBe(true);
+  });
+
   it('stores a session, finds it by hash until revoked, and marks MFA', async () => {
     const tokenHash = hash();
     const session = await as(asClientUser(memberId), (tx) =>
