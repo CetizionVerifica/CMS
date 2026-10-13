@@ -165,6 +165,17 @@ export async function approvableItems(
   return items;
 }
 
+/**
+ * The waiting rows to approve for "Select all": a row the page has loaded keeps the version the person saw, so a change
+ * since then comes back STALE_VERSION and is skipped; a row not loaded yet goes at the version just read.
+ */
+export function pinToLoaded(
+  waiting: readonly ApproveItem[],
+  loaded: ReadonlyMap<string, number>,
+): ApproveItem[] {
+  return waiting.map(({ id, version }) => ({ id, version: loaded.get(id) ?? version }));
+}
+
 const SKIP_TEXT: Record<SkipReason, (n: number) => string> = {
   changed: (n) => `${n} changed since you opened the register`,
   'not-waiting': (n) => `${n} ${n === 1 ? 'isn’t' : 'aren’t'} waiting for approval`,
