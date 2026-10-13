@@ -242,11 +242,14 @@ export const notificationSends = {
     return rows.map((r) => r.id);
   },
   /** Scheduled send-log rows of one client for one date with an outcome (sent or failed). */
-  async listDone(tx: TenantTx, clientId: string, sendDate: string): Promise<NotificationSend[]> {
+  async listDone(
+    tx: TenantTx,
+    clientId: string,
+    sendDate: string,
+  ): Promise<(NotificationSend & { clientId: string })[]> {
     const t = s.notificationSend;
     const rows = await tx
       .select({
-        clientId: t.clientId,
         instanceId: t.instanceId,
         recipientId: t.recipientId,
         kind: t.kind,
@@ -263,7 +266,7 @@ export const notificationSends = {
       )
       .orderBy(asc(t.id))
       .catch(rethrow);
-    return rows.map((r) => ({ ...r, kind: NotificationKind.parse(r.kind) }));
+    return rows.map((r) => ({ ...r, clientId, kind: NotificationKind.parse(r.kind) }));
   },
 };
 
