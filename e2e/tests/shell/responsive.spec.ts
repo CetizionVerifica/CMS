@@ -37,7 +37,10 @@ test.describe('shell at 375px on a phone', () => {
     await expect(page).toHaveURL(`/c/${DEMO_METALS}/register`);
     await checkPage(page);
     await page.getByRole('button', { name: 'Search' }).click();
-    await expect(page.getByRole('searchbox')).toBeVisible();
+    // The top bar's search, by name: the register page has a search box of its own.
+    await expect(
+      page.getByRole('searchbox', { name: 'Search this client’s register' }),
+    ).toBeVisible();
   });
 });
 

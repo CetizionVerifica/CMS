@@ -83,6 +83,110 @@ describe('auth actions', () => {
     });
   });
 
+  it('asks which firm when the email signs in to more than one, then signs in to the chosen one', async () => {
+    const email = 'twofirms@demo.test';
+    const firms = [
+      { id: '00000000-0000-5000-8000-0000000000f1', name: 'Demo Advisory' },
+      { id: '00000000-0000-5000-8000-0000000000f2', name: 'Demo Partners' },
+    ];
+    const choose = await actions.signIn(IDLE, form({ email, password: 'demo-password' }));
+    expect(choose).toEqual({
+      status: 'choose-firm',
+      message:
+        'This email signs in to more than one firm. Choose one and enter your password again.',
+      values: { email },
+      firms,
+    });
+    expect(request.cookies.get('pp_session')).toBeFalsy();
+
+    // No firm picked: the list stays and the field says what's missing.
+    expect(await actions.signIn(choose, form({ email, password: 'demo-password' }))).toEqual({
+      status: 'invalid',
+      fieldErrors: { firmId: 'Choose the firm to sign in to' },
+      values: { email },
+      firms,
+    });
+    // A malformed id counts as none picked.
+    expect(
+      await actions.signIn(choose, form({ email, password: 'demo-password', firmId: 'x' })),
+    ).toMatchObject({
+      status: 'invalid',
+      fieldErrors: { firmId: 'Choose the firm to sign in to' },
+    });
+    // A wrong password keeps the list too.
+    expect(
+      await actions.signIn(choose, form({ email, password: 'wrong', firmId: firms[1]!.id })),
+    ).toEqual({
+      status: 'error',
+      message: 'That email and password don’t match an account.',
+      values: { email },
+      firms,
+    });
+    // The API rejects an id it didn't offer.
+    expect(
+      await actions.signIn(
+        choose,
+        form({ email, password: 'demo-password', firmId: '00000000-0000-5000-8000-0000000000f9' }),
+      ),
+    ).toMatchObject({ status: 'error', firms });
+
+    expect(
+      await run(
+        actions.signIn(
+          choose,
+          form({ email, password: 'demo-password', firmId: firms[1]!.id, next: '/portfolio' }),
+        ),
+      ),
+    ).toEqual({ redirect: '/portfolio' });
+    expect(request.cookies.get('pp_session')).toBeTruthy();
+  });
+
+  it('drops the firm list when the email changes', async () => {
+    const choose = await actions.signIn(
+      IDLE,
+      form({ email: 'twofirms@demo.test', password: 'demo-password' }),
+    );
+    expect(
+      await run(
+        actions.signIn(
+          choose,
+          form({
+            email: 'owner@demo.test',
+            password: 'demo-password',
+            firmId: '00000000-0000-5000-8000-0000000000f1',
+          }),
+        ),
+      ),
+    ).toEqual({ redirect: '/' });
+  });
+
+  it('treats a FIRM_CHOICE_REQUIRED without a valid firm list as a failed sign-in', async () => {
+    vi.stubEnv('CANOPY_API_URL', 'http://api.test');
+    const fetchMock = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            error: { code: 'FIRM_CHOICE_REQUIRED', message: 'Choose', details: { firms: [] } },
+            requestId: 'r1',
+          }),
+          { status: 409, headers: { 'content-type': 'application/json' } },
+        ),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    try {
+      expect(
+        await actions.signIn(IDLE, form({ email: 'a@b.test', password: 'demo-password' })),
+      ).toEqual({
+        status: 'error',
+        message: 'We couldn’t sign you in. Try again in a moment.',
+        values: { email: 'a@b.test' },
+      });
+      expect(fetchMock).toHaveBeenCalled();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it('shows a generic message when the API is down', async () => {
     vi.stubEnv('CANOPY_API_URL', 'http://127.0.0.1:9');
     expect(

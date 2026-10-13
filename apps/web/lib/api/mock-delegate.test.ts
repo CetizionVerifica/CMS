@@ -1,6 +1,6 @@
 // @vitest-environment node
 // Node, as on the server: M0's mock server reads its fixtures from disk.
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { createApiClient } from './client';
 import { MOCK_CLIENTS, MOCK_MFA_CODE, MOCK_PASSWORD, mockFetch } from './mock';
@@ -59,5 +59,24 @@ describe('routes the shell mock does not answer go to M0’s mock server', () =>
     await expect(
       api(consultant).call('clientOverview', { params: { clientId: MOCK_CLIENTS.demoMetals } }),
     ).rejects.toMatchObject({ code: 'MFA_REQUIRED' });
+  });
+
+  it('shares one server across copies of the module, as page renders and Server Actions load it', async () => {
+    const owner = await sessionFor('owner@demo.test');
+    const list = () =>
+      api(owner).call('listInstances', {
+        params: { clientId: MOCK_CLIENTS.demoMetals },
+        query: { limit: '1' },
+      });
+    await list();
+    const first = (globalThis as { __ppMockServer?: unknown }).__ppMockServer;
+    expect(first).toBeDefined();
+    vi.resetModules();
+    const fresh = await import('./mock-delegate');
+    const url = new URL(
+      `http://api.test/api/v1/clients/${MOCK_CLIENTS.demoMetals}/instances?limit=1`,
+    );
+    expect((await fresh.delegateToM0('owner@demo.test', 'GET', url, undefined)).status).toBe(200);
+    expect((globalThis as { __ppMockServer?: unknown }).__ppMockServer).toBe(first);
   });
 });

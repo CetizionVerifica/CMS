@@ -34,6 +34,13 @@ Shared code for every web screen. M12 and M13 import from here; they don't chang
 - `Me.clients` carries each client's FY start, time zone, unit count and period context (contracts 1.1), which the
   switcher and the period picker read.
 
+## Sign-in
+
+`auth/actions.ts` holds the Server Actions behind the auth pages. When an email signs in to more than one firm, the API
+answers 409 `FIRM_CHOICE_REQUIRED` with the firms. The sign-in form then lists them as radios with none picked, asks
+for the password again and sends `firmId`. The list stays in the form state until the email changes. In the demo,
+`twofirms@demo.test` shows this.
+
 ## Period
 
 `period.ts` reads and writes `?fy=2022-23&q=Q3` (or `&m=2022-10`). `periodFromParams(searchParams)` returns undefined

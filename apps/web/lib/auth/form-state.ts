@@ -2,14 +2,18 @@
 import type { z } from 'zod';
 
 // `values` echoes what was typed (never passwords): React resets a form after its action runs, so the fields show
-// these again instead of coming back empty.
-type Values = { values?: Record<string, string> };
+// these again instead of coming back empty. `firms` is the sign-in form's firm choice, kept until the person signs in
+// or changes the email (an email that signs in to more than one firm, 409 FIRM_CHOICE_REQUIRED).
+type Values = { values?: Record<string, string>; firms?: FirmChoice[] };
+
+export type FirmChoice = { id: string; name: string };
 
 export type FormState =
   | ({ status: 'idle' } & Values)
   | ({ status: 'invalid'; fieldErrors: Record<string, string> } & Values)
   | ({ status: 'error'; message: string } & Values)
-  | ({ status: 'done'; message: string } & Values);
+  | ({ status: 'done'; message: string } & Values)
+  | ({ status: 'choose-firm'; message: string; firms: FirmChoice[] } & Values);
 
 export const IDLE: FormState = { status: 'idle' };
 
