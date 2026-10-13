@@ -25,6 +25,10 @@ let firmBTwinId: string;
 
 const NOW = '2026-10-12T03:00:00.000Z';
 const LATER = '2026-10-12T15:00:00.000Z';
+// Session rows must expire after their created_at, which is the database clock, so tests use a far expiry.
+const SESSION_EXPIRY = '2099-01-01T00:00:00.000Z';
+// findLoginToken reports an invite open against the database clock too.
+const INVITE_EXPIRY = '2098-01-01T00:00:00.000Z';
 const hash = () => randomBytes(32).toString('hex');
 const CSRF = 'k'.repeat(43);
 
@@ -319,7 +323,7 @@ describe('sessions', () => {
         tokenHash,
         csrfToken: CSRF,
         mfaSatisfied: false,
-        expiresAt: LATER,
+        expiresAt: SESSION_EXPIRY,
         method: 'PASSWORD',
       }),
     );
@@ -329,7 +333,7 @@ describe('sessions', () => {
       personId: memberId,
       csrfToken: CSRF,
       mfaSatisfied: false,
-      expiresAt: LATER,
+      expiresAt: SESSION_EXPIRY,
     });
     expect(await t.db.findSession(tokenHash)).toEqual(session);
     expect(await as(asClientUser(memberId), (tx) => r.sessions.markMfa(tx, session.id))).toBe(true);
@@ -361,7 +365,7 @@ describe('sessions', () => {
           tokenHash: hash(),
           csrfToken: CSRF,
           mfaSatisfied: false,
-          expiresAt: LATER,
+          expiresAt: SESSION_EXPIRY,
           method: 'MAGIC_LINK',
         }),
       );
@@ -379,7 +383,7 @@ describe('sessions', () => {
               tokenHash: 'x',
               csrfToken: CSRF,
               mfaSatisfied: false,
-              expiresAt: LATER,
+              expiresAt: SESSION_EXPIRY,
               method: 'PASSWORD',
             }),
           ),
@@ -395,7 +399,7 @@ describe('sessions', () => {
       tokenHash,
       csrfToken: CSRF,
       mfaSatisfied: false,
-      expiresAt: LATER,
+      expiresAt: SESSION_EXPIRY,
       method: 'PASSWORD' as const,
     };
     await inA((tx) => r.sessions.create(tx, input));
@@ -467,7 +471,7 @@ describe('invites', () => {
       email,
       grant: { ...grant, clientId },
       createdById: memberId,
-      expiresAt: '2026-10-19T03:00:00.000Z',
+      expiresAt: INVITE_EXPIRY,
     });
     const first = await inA((tx) => r.invites.create(tx, newInvite('owner01@example.com'), NOW));
     expect(first.person).toMatchObject({
@@ -492,7 +496,7 @@ describe('invites', () => {
         kind: 'INVITE',
         inviteId: first.invite.id,
         tokenHash: firstToken,
-        expiresAt: '2026-10-19T03:00:00.000Z',
+        expiresAt: INVITE_EXPIRY,
       }),
     );
     expect((await t.db.findLoginToken(firstToken))?.inviteOpen).toBe(true);
@@ -508,7 +512,7 @@ describe('invites', () => {
             kind: 'INVITE',
             inviteId: second.invite.id,
             tokenHash: hash(),
-            expiresAt: '2026-10-19T03:00:00.000Z',
+            expiresAt: INVITE_EXPIRY,
           }),
         ),
       ),
@@ -535,7 +539,7 @@ describe('invites', () => {
         kind: 'INVITE',
         inviteId: second.invite.id,
         tokenHash,
-        expiresAt: '2026-10-19T03:00:00.000Z',
+        expiresAt: INVITE_EXPIRY,
       }),
     );
     // Accepting runs as the invitee, the context M5 builds from the link.
@@ -602,7 +606,7 @@ describe('invites', () => {
           email: 'owner02@example.com',
           grant: { ...grant, clientId: otherClientId },
           createdById: adminId,
-          expiresAt: '2026-10-19T03:00:00.000Z',
+          expiresAt: INVITE_EXPIRY,
         },
         NOW,
       ),
@@ -618,10 +622,9 @@ describe('invites', () => {
     expect(
       await open(() => inFirm(firmB, (tx) => r.invites.openForPerson(tx, person.id, NOW))),
     ).toEqual([]);
-    const expired = '2026-10-19T03:00:00.000Z';
-    expect(await open(() => inA((tx) => r.invites.openForPerson(tx, person.id, expired)))).toEqual(
-      [],
-    );
+    expect(
+      await open(() => inA((tx) => r.invites.openForPerson(tx, person.id, INVITE_EXPIRY))),
+    ).toEqual([]);
     expect(await code(inA((tx) => r.invites.openForPerson(tx, 'nope', NOW)))).toBe('VALIDATION');
     expect(
       await as(asClientUser(null, [otherClientId]), (tx) => r.invites.get(tx, created.invite.id)),
@@ -648,7 +651,7 @@ describe('invites', () => {
               email: 'owner01@example.com',
               grant: { ...grant, clientId: otherClientId },
               createdById: memberId,
-              expiresAt: '2026-10-19T03:00:00.000Z',
+              expiresAt: INVITE_EXPIRY,
             },
             NOW,
           ),
@@ -663,7 +666,7 @@ describe('invites', () => {
       email: 'shared@example.com',
       grant: { ...grant, clientId: otherClientId },
       createdById: adminId,
-      expiresAt: '2026-10-19T03:00:00.000Z',
+      expiresAt: INVITE_EXPIRY,
     };
     const created = await inA((tx) => r.invites.create(tx, input, NOW));
     expect(created.person).toBeNull();
@@ -691,7 +694,7 @@ describe('invites', () => {
               email: 'admin@demo.example',
               grant: { ...grant, clientId },
               createdById: adminId,
-              expiresAt: '2026-10-19T03:00:00.000Z',
+              expiresAt: INVITE_EXPIRY,
             },
             NOW,
           ),
@@ -757,7 +760,7 @@ describe('audit of #39', () => {
         tokenHash: sessionHash,
         csrfToken: CSRF,
         mfaSatisfied: false,
-        expiresAt: LATER,
+        expiresAt: SESSION_EXPIRY,
         method: 'PASSWORD',
       }),
     );
