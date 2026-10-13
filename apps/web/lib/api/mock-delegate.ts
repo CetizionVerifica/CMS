@@ -7,7 +7,8 @@
 // become firm B's in the request and come back as ours in the response, with the client names to match, and the
 // signed-in demo account acts as a firm B person with the same kind of access (`x-mock-person`). Ids that exist only
 // in M0's data (units, instances, people) pass through unchanged, so a page can follow them in later requests.
-import type { MockServerOptions } from '@canopy/contracts/mock';
+// From the fixtures entry, not `/mock`: a value import from `/mock` would load Fastify on every server render.
+import { FIRM_B_AS_OF } from '@canopy/contracts/fixtures';
 
 /** Our client → firm B's client, both ways. Sunrise Foods has no counterpart, so its pages answer NOT_FOUND. */
 export const CLIENT_MAP: readonly {
@@ -42,9 +43,6 @@ export const PERSON_MAP: Readonly<Record<string, string>> = {
   'approver@demo.test': 'e06422d9-6bc6-5d81-a932-840a6d5228df',
 };
 
-/** The fixture's "today", so derived statuses match the shell mock's as-of date. */
-const TODAY: MockServerOptions['today'] = '2023-03-15';
-
 type MockServer = Awaited<ReturnType<typeof startServer>>;
 // One server per process, on globalThis: Next.js loads this module once for page renders and again for Server
 // Actions, and a module-level variable would give each its own store (an approve in one, a stale row in the other).
@@ -53,7 +51,11 @@ const shared = globalThis as typeof globalThis & { __ppMockServer?: Promise<Mock
 async function startServer() {
   // Loaded on first use: Fastify stays out of every path that never reaches the mock.
   const { createMockServer, MockStore } = await import('@canopy/contracts/mock');
-  const app = createMockServer({ store: new MockStore(['firm-b.synthetic']), today: TODAY });
+  const app = createMockServer({
+    store: new MockStore(['firm-b.synthetic']),
+    // Firm B's "today", so derived statuses and scores agree with its data; mock.ts uses it as the as-of date too.
+    today: FIRM_B_AS_OF,
+  });
   await app.ready();
   return app;
 }

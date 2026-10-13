@@ -50,7 +50,10 @@ test.describe('shell at 800px', () => {
   test('the sidebar is an icon rail', async ({ page }) => {
     await signIn(page, 'consultant@demo.test', `/c/${DEMO_METALS}/overview`);
     await expect(page.locator('[data-layout="rail"]')).toBeVisible();
-    await expect(page.getByRole('link', { name: 'Register' })).toBeVisible();
+    // The rail's own link: the overview's numbers link to the register too.
+    await expect(
+      page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Register' }),
+    ).toBeVisible();
     await checkPage(page);
   });
 });
