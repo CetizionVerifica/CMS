@@ -58,7 +58,7 @@ export function instance(n: number, overrides: Partial<InstanceRow> = {}): Insta
     companyName: 'Demo Metals',
     unitId: id(0xa000),
     unitName: 'Plant 1',
-    locationLabel: 'India / West Bengal / Belur',
+    locationLabel: 'India / West Bengal / Riverbend',
     departmentId: id(0xb000),
     departmentName: 'EHS',
     ownerId: id(0xc000),
