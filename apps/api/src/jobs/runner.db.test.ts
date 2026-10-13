@@ -200,7 +200,12 @@ describe.skipIf(!url)('jobs booted from the environment', () => {
           MAIL_FROM: 'PlanetPulse Compliance <no-reply@planetpulse.example>',
           APP_URL: 'https://app.planetpulse.example',
         },
-        { db: t.db, connectionString: url!, schema },
+        {
+          db: t.db,
+          connectionString: url!,
+          schema,
+          issueLoginToken: async () => ({ token: 't', expiresAt: new Date().toISOString() }),
+        },
       );
       expect(runner.mail).toBe(true);
       expect((await runner.schedules()).map((s) => s.name).sort()).toEqual(

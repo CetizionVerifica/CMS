@@ -7,6 +7,7 @@ import {
   type FirmSettings,
   type Id,
   type LocalDate,
+  type Role,
   type SubmissionKind,
   type WorkflowState,
 } from '@canopy/contracts';
@@ -17,12 +18,14 @@ import type {
   ConsultantRef,
   FirmTx,
   GenerationTarget,
+  InviteNotice,
   JobAuditEvent,
   JobDomainEvent,
   JobStore,
   Mailer,
   OutboxEvent,
   OutgoingEmail,
+  PersonNotice,
   Recipient,
   ReminderCandidate,
   SendFailureCode,
@@ -66,6 +69,18 @@ export interface MemoryPerson {
   consultantFor?: Id[];
 }
 
+export interface MemoryInvite {
+  id: Id;
+  personId: Id;
+  email: string;
+  role: Role;
+  clientId: Id | null;
+  createdById: Id;
+  expiresAt: string;
+  acceptedAt: string | null;
+  revokedAt: string | null;
+}
+
 export interface MemorySend extends SendKey {
   id: Id;
   sentAt: string | null;
@@ -88,11 +103,13 @@ export interface MemoryOutboxEvent extends AnyDomainEvent {
 
 export interface MemoryFirm {
   id: Id;
+  name: string;
   settings: FirmSettings;
   clients: ClientRef[];
   assignments: MemoryAssignment[];
   instances: MemoryInstance[];
   people: MemoryPerson[];
+  invites: MemoryInvite[];
   sends: MemorySend[];
   audits: JobAuditEvent[];
   events: MemoryOutboxEvent[];
@@ -101,11 +118,13 @@ export interface MemoryFirm {
 export function memoryFirm(id: Id = randomUUID()): MemoryFirm {
   return {
     id,
+    name: 'Heron Compliance Partners',
     settings: structuredClone(DEFAULT_FIRM_SETTINGS) as FirmSettings,
     clients: [],
     assignments: [],
     instances: [],
     people: [],
+    invites: [],
     sends: [],
     audits: [],
     events: [],
@@ -203,6 +222,32 @@ function firmTx(firm: MemoryFirm, hooks: MemoryStoreHooks): FirmTx {
     findInstance: async (instanceId) => {
       const found = firm.instances.find((i) => i.id === instanceId && !i.archived);
       return found ? { ...withNames(found), version: found.version } : null;
+    },
+    findPerson: async (personId): Promise<PersonNotice | null> => {
+      const p = firm.people.find((x) => x.id === personId);
+      return p
+        ? { personId: p.id, displayName: p.displayName, email: p.email, status: p.status }
+        : null;
+    },
+    findInvite: async (inviteId): Promise<InviteNotice | null> => {
+      const i = firm.invites.find((x) => x.id === inviteId);
+      if (!i) return null;
+      const client = firm.clients.find((c) => c.id === i.clientId) ?? null;
+      return {
+        inviteId: i.id,
+        personId: i.personId,
+        email: i.email,
+        firmName: firm.name,
+        role: i.role,
+        clientId: i.clientId,
+        clientName: client?.name ?? null,
+        clientTimeZone: client?.settings.timeZone ?? null,
+        createdById: i.createdById,
+        inviterName: firm.people.find((x) => x.id === i.createdById)?.displayName ?? '',
+        expiresAt: i.expiresAt,
+        acceptedAt: i.acceptedAt,
+        revokedAt: i.revokedAt,
+      };
     },
     listDoneSends: async (clientId, sendDate) =>
       firm.sends.filter(

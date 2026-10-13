@@ -1,11 +1,13 @@
 import type { Database } from '@canopy/db';
-import type { Clock, Mailer } from './ports.js';
+import type { Clock, LoginTokenIssuer, Mailer } from './ports.js';
 import { postgresJobStore } from './postgres-store.js';
 import { startJobRunner, type JobRunner, type JobRunnerOptions } from './runner.js';
 import { mailConfigFromEnv, smtpMailer } from './smtp-mailer.js';
 
 export interface JobsFromEnvOptions extends Omit<JobRunnerOptions, 'mail'> {
   db: Database;
+  /** M5's `AuthService.issueLoginToken`, for sign-in link and invite emails. */
+  issueLoginToken: LoginTokenIssuer;
   /** Defaults to the system clock; tests pass a fixed one. */
   clock?: Clock;
 }
@@ -26,13 +28,13 @@ export async function startJobsFromEnv(
   env: Record<string, string | undefined>,
   options: JobsFromEnvOptions,
 ): Promise<JobRunner> {
-  const { db, clock, ...runnerOptions } = options;
+  const { db, clock, issueLoginToken, ...runnerOptions } = options;
   const store = postgresJobStore(db);
   const now = clock ?? (() => new Date().toISOString());
   const mail = mailConfigFromEnv(env);
   if (!mail) {
     return startJobRunner(
-      { store, mailer: NO_MAILER, clock: now, appUrl: '' },
+      { store, mailer: NO_MAILER, clock: now, appUrl: '', issueLoginToken },
       { ...runnerOptions, mail: false },
     );
   }
@@ -40,7 +42,7 @@ export async function startJobsFromEnv(
   let runner: JobRunner;
   try {
     runner = await startJobRunner(
-      { store, mailer, clock: now, appUrl: mail.appUrl },
+      { store, mailer, clock: now, appUrl: mail.appUrl, issueLoginToken },
       { ...runnerOptions, mail: true },
     );
   } catch (error) {

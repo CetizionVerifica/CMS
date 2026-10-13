@@ -83,6 +83,20 @@ remind for complied or not-applicable items, and reach the database only through
     - **Send date** is the client's day when the email goes. It is recorded only; it is not part of the key.
     - **Retries:** a transport failure leaves the row pending and fails the pg-boss job, which retries it (`runner.ts`
       `RETRIES`: three times, backing off from a minute). The retry sends the pending row once.
+14. **Sign-in link and invite emails** (`login-emails.ts`). `auth.magic_link_requested` emails a `MAGIC_LINK` to the
+    person, and `person.invited` emails an `INVITE` to the address on the invite. Both are keyed like decision 13 (the
+    event and the recipient). Their send-log rows have no instance, and a sign-in link or firm-role invite has no
+    client either.
+    - **Tokens:** the job calls M5's `issueLoginToken` (passed to `startJobsFromEnv`), which stores only the token's
+      hash. The raw token goes into the link and nowhere else: not the send log, the `notification.sent` event or
+      any log line. It is issued only after the claim and the recipient checks pass, so a failed or skipped send
+      creates no token. A transport failure retries with a fresh token. The first one, if it was delivered, still
+      works until it expires.
+    - **Stale:** a sign-in link asked for more than 15 minutes earlier is not sent, since the person has asked
+      again or given up. An invite that is accepted, revoked, expired or names another person sends nothing.
+    - **Who may receive:** sign-in links go only to ACTIVE people (NOT_ACTIVE or NO_EMAIL otherwise). An invite goes
+      to its address whatever the person's status, because the invite itself is the consent to email them.
+    - **Send date:** the client's day, or Asia/Kolkata's (the product default) when there is no client.
 
 ## Consequences
 - M3 PR 2 must provide, as repository calls: list firm ids (system), clients, generation targets, instance keys,

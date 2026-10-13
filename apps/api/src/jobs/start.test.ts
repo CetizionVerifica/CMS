@@ -24,7 +24,8 @@ vi.mock('./smtp-mailer.js', async (actual) => ({
 }));
 
 const { startJobsFromEnv } = await import('./start.js');
-const options = { db: {} as never, connectionString: 'postgres://unused' };
+const issueLoginToken = async () => ({ token: 't', expiresAt: '2026-10-13T10:00:00.000Z' });
+const options = { db: {} as never, connectionString: 'postgres://unused', issueLoginToken };
 const SMTP = {
   SMTP_HOST: 'smtp.example.com',
   MAIL_FROM: 'PlanetPulse Compliance <no-reply@planetpulse.example>',
@@ -53,6 +54,7 @@ describe('startJobsFromEnv', () => {
     expect(runner.mail).toBe(true);
     expect(started[0]!.options.mail).toBe(true);
     expect(started[0]!.deps.appUrl).toBe('https://app.planetpulse.example');
+    expect(started[0]!.deps.issueLoginToken).toBe(issueLoginToken);
     expect(close).not.toHaveBeenCalled();
     await runner.stop();
     expect(close).toHaveBeenCalledOnce();

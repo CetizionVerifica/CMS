@@ -2,6 +2,7 @@ import { Id } from '@canopy/contracts';
 import { z } from 'zod';
 import { generateForScope, type GenerationScope } from './generate-instances.js';
 import type { JobDeps, JobReport, OutboxEvent } from './ports.js';
+import { LOGIN_EMAIL_CONSUMERS } from './login-emails.js';
 import { WORKFLOW_EMAIL_CONSUMERS } from './workflow-emails.js';
 
 /**
@@ -57,7 +58,7 @@ const assignmentConsumer = (type: string): Consumer => ({
  * Regeneration on change (apps/api/CLAUDE.md Jobs): a new or changed assignment, a new applicability, a library
  * rule pushed to clients and a committed import each get their current and next FY now. Generation only adds
  * missing periods; it never moves or removes an existing instance. Submissions and send-backs email the person
- * whose turn it is (workflow-emails.ts).
+ * whose turn it is (workflow-emails.ts); sign-in link requests and invites get their email (login-emails.ts).
  */
 export const CONSUMERS: readonly Consumer[] = [
   assignmentConsumer('assignment.created'),
@@ -89,4 +90,5 @@ export const CONSUMERS: readonly Consumer[] = [
       ),
   },
   ...WORKFLOW_EMAIL_CONSUMERS,
+  ...LOGIN_EMAIL_CONSUMERS,
 ];
