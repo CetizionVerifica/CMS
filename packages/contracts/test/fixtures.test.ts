@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  FIRM_B_AS_OF,
   fixtureId,
   type FixtureSet,
   loadDueDates,
@@ -314,6 +315,16 @@ describe('firm B (synthetic)', () => {
     }
     expect(firmB.obligations).toHaveLength(15);
     expect(new Set(firmB.acts.map((a) => a.stateCode))).toEqual(new Set([null, 'MH', 'KA', 'TN']));
+  });
+
+  it('records nothing after its as-of date (FIRM_B_AS_OF)', () => {
+    const day = (t: string | null | undefined) => (t ?? '').slice(0, 10);
+    const latest = [
+      ...firmB.instances.flatMap((i) => [i.completedOn, i.submittedAt, i.updatedAt].map(day)),
+      ...firmB.auditEvents.map((e) => day(e.at)),
+      ...firmB.comments.map((c) => day(c.createdAt)),
+    ].sort();
+    expect(latest.at(-1)! < FIRM_B_AS_OF).toBe(true);
   });
 
   it('has instances in every workflow state, both submission kinds, and complied late', () => {
