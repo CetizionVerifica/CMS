@@ -43,11 +43,7 @@ export interface ExistingState {
   locations: string[];
   obligations: Record<string, string>;
   assignments: Record<string, string>;
-  /**
-   * A string is a `fingerprintInstance` from before field-by-field comparison, compared as a whole; kept until
-   * M10's round-trip test stops using it. New callers store `ExistingInstance`.
-   */
-  instances: Record<string, ExistingInstance | string>;
+  instances: Record<string, ExistingInstance>;
 }
 
 export const EMPTY_STATE: ExistingState = {
