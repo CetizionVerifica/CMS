@@ -16,7 +16,7 @@ import { analyse, loadSheet } from './helpers.js';
 let sample: SourceSheet;
 
 beforeAll(async () => {
-  sample = await loadSheet('sample-register.xlsx');
+  sample = await loadSheet('sample-register-anonymised.xlsx');
 });
 
 function summary(sheet: SourceSheet) {

@@ -15,7 +15,7 @@ import {
   type Database,
   type TenantTx,
 } from '@canopy/db';
-import type { FirmTx, JobStore, ReminderCandidate } from './ports.js';
+import type { FirmTx, JobStore, NoticeInstance } from './ports.js';
 
 /**
  * The jobs' ports on M3's repositories. Every firm runs in `withTenant(systemContext(firmId, requestId))`, so RLS
@@ -47,7 +47,7 @@ function firmTx(tx: TenantTx): FirmTx {
       for (const event of events) await domainEvents.enqueue(tx, event);
     },
     listReminderCandidates: (clientId, range) => jobs.listReminderCandidates(tx, clientId, range),
-    findInstance: async (instanceId): Promise<ReminderCandidate | null> => {
+    findInstance: async (instanceId): Promise<NoticeInstance | null> => {
       const i = await instances.get(tx, instanceId);
       if (!i || i.archivedAt !== null) return null;
       const assignment = await assignments.require(tx, i.assignmentId);
@@ -69,6 +69,7 @@ function firmTx(tx: TenantTx): FirmTx {
         unitName: unit.name,
         departmentName: department.name,
         criticality: obligation.criticality,
+        version: i.version,
       };
     },
     listDoneSends: async (clientId, sendDate) =>

@@ -32,14 +32,17 @@ const stored = (overrides: Partial<ExistingInstance> = {}): ExistingInstance => 
 });
 
 describe('commentsToAppend', () => {
-  it('keeps incoming comments already present in order, wherever others sit between them', () => {
+  it('keeps incoming comments already present, wherever others sit between them', () => {
     expect(commentsToAppend(['a', 'b'], ['a', 'note', 'b'])).toEqual([]);
     expect(commentsToAppend([], ['a'])).toEqual([]);
   });
 
-  it('appends comments that are missing or out of order', () => {
+  it('does not append comments the register lists in another order', () => {
+    expect(commentsToAppend(['b', 'a'], ['a', 'b'])).toEqual([]);
+  });
+
+  it('appends comments that are missing, counting repeats', () => {
     expect(commentsToAppend(['a', 'c'], ['a', 'b'])).toEqual(['c']);
-    expect(commentsToAppend(['b', 'a'], ['a', 'b'])).toEqual(['a']);
     expect(commentsToAppend(['a', 'a'], ['a'])).toEqual(['a']);
   });
 });
@@ -65,7 +68,7 @@ describe('instanceChange', () => {
     });
   });
 
-  it.each(['SUBMITTED', 'SENT_BACK'] as const)(
+  it.each(['SUBMITTED', 'SENT_BACK', 'APPROVED', 'NOT_APPLICABLE'] as const)(
     'leaves a %s instance alone when the register still says Pending with no Activity Date',
     (workflowState) => {
       expect(instanceChange(planned(), stored({ workflowState }))).toBeNull();
@@ -91,11 +94,22 @@ describe('instanceChange', () => {
     });
   });
 
-  it('reopens an approved instance the register shows as Pending', () => {
+  it('never reopens closed work, but still takes a new owner and comments', () => {
     const approved = stored({ workflowState: 'APPROVED', completedOn: day('2023-04-20') });
-    expect(instanceChange(planned(), approved)?.state).toEqual({
-      workflowState: 'OPEN',
-      completedOn: null,
+    expect(instanceChange(planned({ comments: ['Late'], owner: 'new owner' }), approved)).toEqual({
+      state: null,
+      owner: 'new owner',
+      approver: null,
+      newComments: ['Late'],
+    });
+  });
+
+  it('corrects closed work the register shows closed differently', () => {
+    const approved = stored({ workflowState: 'APPROVED', completedOn: day('2023-04-20') });
+    const corrected = planned({ workflowState: 'APPROVED', completedOn: day('2023-04-18') });
+    expect(instanceChange(corrected, approved)?.state).toEqual({
+      workflowState: 'APPROVED',
+      completedOn: '2023-04-18',
       naReason: null,
     });
   });

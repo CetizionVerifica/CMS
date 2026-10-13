@@ -82,7 +82,7 @@ describe.skipIf(!url)('jobs on the Postgres store', () => {
         countryCode: 'IN',
         state: 'West Bengal',
         stateCode: 'WB',
-        city: 'Belur',
+        city: 'Riverbend',
       });
       const unit = await units.create(tx, {
         clientId: client.id,
@@ -256,8 +256,8 @@ describe.skipIf(!url)('jobs on the Postgres store', () => {
 
   beforeAll(async () => {
     t = await createJobTestDatabase(url!);
-    a = await seedFirm('Demo Advisory', 'Aditya Birla Group', '01');
-    b = await seedFirm('Second Ledger Consulting', 'Tata Group', '02');
+    a = await seedFirm('Demo Advisory', 'Kestrel Metals Group', '01');
+    b = await seedFirm('Second Ledger Consulting', 'Osprey Textiles Group', '02');
     mailer = captureMailer();
     deps = { store: postgresJobStore(t.db), mailer, clock: () => now, appUrl: APP_URL };
   }, 120_000);
@@ -471,14 +471,29 @@ describe.skipIf(!url)('jobs on the Postgres store', () => {
       await expectNoStrays();
     });
 
-    it("emails firm B's owner once per send-back event and its approver per submission, keyed on the event", async () => {
+    it("emails firm B's owner once per current send-back and its approver per submission, keyed on the event", async () => {
       const published: OutboxEvent[] = [];
       const consumed = new Set(CONSUMERS.map((c) => c.type));
       const bus: EventBus = {
         consumes: (type) => consumed.has(type),
         publish: async (event) => void published.push(event),
       };
-      // What M7 writes: two send-backs of one instance on the same day, and a submission of another.
+      const envelope = (type: string, instanceId: string, personId: string, version: number) => ({
+        type,
+        clientId: b.clientId,
+        actor: { kind: 'PERSON' as const, personId },
+        requestId: 'req:m7',
+        aggregate: { type: 'instance', id: instanceId },
+        aggregateVersion: version,
+        data: { instanceId, ownerId: b.ownerId, approverId: b.approverId },
+      });
+      const consume = async (events: OutboxEvent[]) => {
+        for (const event of events) {
+          const consumer = CONSUMERS.find((c) => c.type === event.type)!;
+          await consumer.handle(deps, event, `job:${event.type}:${event.id}`);
+        }
+      };
+      // What M7 writes: a send-back of one instance and a submission of another, each with the version it left.
       const sentBack = await inFirm(b.firmId, async (tx) => {
         const submitted = await instances.require(tx, b.escalated);
         const row = await instances.create(tx, {
@@ -498,33 +513,41 @@ describe.skipIf(!url)('jobs on the Postgres store', () => {
           approvedAt: null,
           dueDateOverridden: false,
         } as unknown as Parameters<typeof instances.create>[1]);
-        const envelope = (type: string, instanceId: string, personId: string) => ({
-          type,
-          clientId: b.clientId,
-          actor: { kind: 'PERSON' as const, personId },
-          requestId: 'req:m7',
-          aggregate: { type: 'instance', id: instanceId },
-          aggregateVersion: 2,
-          data: { instanceId, ownerId: b.ownerId, approverId: b.approverId },
-        });
-        await domainEvents.enqueue(tx, envelope('instance.sent_back', row.id, b.approverId));
-        await domainEvents.enqueue(tx, envelope('instance.sent_back', row.id, b.approverId));
-        await domainEvents.enqueue(tx, envelope('instance.submitted', b.escalated, b.ownerId));
+        await domainEvents.enqueue(
+          tx,
+          envelope('instance.sent_back', row.id, b.approverId, row.version),
+        );
+        await domainEvents.enqueue(
+          tx,
+          envelope('instance.submitted', b.escalated, b.ownerId, submitted.version),
+        );
         return row;
       });
-
       expect(await runRelayOutbox({ ...deps, bus }, 'job:relay-outbox:3')).toMatchObject({
-        published: 3,
+        published: 2,
         failed: 0,
       });
-      expect(published.every((e) => e.firmId === b.firmId)).toBe(true);
       const before = mailer.sent.length;
-      for (const event of [...published, published[0]!]) {
-        const consumer = CONSUMERS.find((c) => c.type === event.type)!;
-        await consumer.handle(deps, event, `job:${event.type}:${event.id}`);
-      }
+      await consume(published);
 
-      // Two send-backs, two emails to the owner; the repeat of the first sends nothing.
+      // The owner resubmits and the approver sends it back again the same day: a new version and event.
+      await inFirm(b.firmId, async (tx) => {
+        const again = await instances.update(tx, sentBack.id, sentBack.version, {
+          workflowState: 'SENT_BACK',
+        } as never);
+        await domainEvents.enqueue(
+          tx,
+          envelope('instance.sent_back', sentBack.id, b.approverId, again.version),
+        );
+      });
+      expect(await runRelayOutbox({ ...deps, bus }, 'job:relay-outbox:4')).toMatchObject({
+        published: 1,
+      });
+      expect(published.every((e) => e.firmId === b.firmId)).toBe(true);
+      // The second send-back, then both earlier events again: redelivered, and the first now stale.
+      await consume([published[2]!, published[0]!, published[1]!]);
+
+      // Two send-backs, two emails to the owner; the repeats send nothing.
       const sent = mailer.sent.slice(before);
       expect(sent.map((m) => m.to.email)).toEqual([b.ownerEmail, b.ownerEmail]);
       expect(sent[0]!.text).toContain(`/register?instance=${sentBack.id}`);
@@ -537,7 +560,7 @@ describe.skipIf(!url)('jobs on the Postgres store', () => {
           b.firmId,
           'notification_send',
           "kind = 'APPROVAL_REQUESTED' and failure_code = 'NO_EMAIL' and event_id = $1",
-          [published[2]!.id],
+          [published[1]!.id],
         ),
       ).toBe(1);
       expect(await t.count(b.firmId, 'notification_send', 'event_id is not null')).toBe(3);

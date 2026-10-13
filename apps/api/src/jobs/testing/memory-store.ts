@@ -44,6 +44,8 @@ export interface MemoryInstance {
   ownerId: Id;
   approverId: Id;
   archived: boolean;
+  /** Optimistic-concurrency version; each change bumps it. */
+  version: number;
 }
 
 export interface MemoryAssignment extends GenerationTarget {
@@ -180,6 +182,7 @@ function firmTx(firm: MemoryFirm, hooks: MemoryStoreHooks): FirmTx {
           pendingKind: null,
           completedOn: null,
           archived: false,
+          version: 1,
         });
         return id;
       });
@@ -199,7 +202,7 @@ function firmTx(firm: MemoryFirm, hooks: MemoryStoreHooks): FirmTx {
         .map(withNames),
     findInstance: async (instanceId) => {
       const found = firm.instances.find((i) => i.id === instanceId && !i.archived);
-      return found ? withNames(found) : null;
+      return found ? { ...withNames(found), version: found.version } : null;
     },
     listDoneSends: async (clientId, sendDate) =>
       firm.sends.filter(

@@ -7,8 +7,13 @@ import type {
   MappingTemplate,
 } from '@canopy/contracts';
 import { DbError } from '@canopy/db';
-import { EMPTY_STATE, type ExistingState } from '@canopy/importer';
-import type { ImportStore, ImportTx } from '../store.js';
+import {
+  EMPTY_STATE,
+  stateAfterCommit,
+  type ExistingState,
+  type ImportAnalysis,
+} from '@canopy/importer';
+import type { CommitRequest, ImportStore, ImportTx } from '../store.js';
 
 /**
  * In-memory `ImportStore` for the service and route tests. It keeps one firm's data and is not
@@ -21,6 +26,12 @@ export class MemoryImportStore implements ImportStore {
   readonly templates = new Map<string, MappingTemplate>();
   readonly calendars = new Map<string, EngineCalendar>();
   existing: ExistingState = EMPTY_STATE;
+  /** Every commit, in order. A commit leaves `existing` as the importer's `stateAfterCommit` says. */
+  readonly commits: CommitRequest[] = [];
+  /** Instance ids by planned key, kept across commits like stored rows. */
+  readonly instanceIds = new Map<string, string>();
+  /** When set, the next commit throws it (and writes nothing). */
+  failNextCommit: Error | null = null;
 
   constructor(private readonly firmId: string) {}
 
@@ -148,6 +159,23 @@ export class MemoryImportStore implements ImportStore {
         return calendar;
       },
       existingState: async () => this.existing,
+      commit: async (request) => {
+        if (this.failNextCommit) {
+          const error = this.failNextCommit;
+          this.failNextCommit = null;
+          throw error;
+        }
+        this.commits.push(request);
+        this.existing = stateAfterCommit({ plan: request.plan } as ImportAnalysis, this.existing);
+        for (const instance of request.plan.instances) {
+          if (!this.instanceIds.has(instance.key)) this.instanceIds.set(instance.key, randomUUID());
+        }
+        return {
+          instanceIds: new Map(
+            request.plan.instances.map((i) => [i.key, this.instanceIds.get(i.key)!]),
+          ),
+        };
+      },
     };
   }
 }

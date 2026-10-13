@@ -35,11 +35,10 @@ M7's register list endpoint and the M3 adapter for M10's reads are not merged ye
    the file); work approved in the app exports as Complied with its date and re-imports unchanged. Owner Comments carries the NA reason for NA rows, else the
    instance's first comment. Organization is `client / company / unit`; Location keeps the sample spelling.
 9. **Round trip.** Exporting the imported sample and analysing it again against the post-import state creates
-   nothing and updates no obligation or assignment. Three instances still count as updated in M8's dry run: their
-   stored comment lists hold notes the first import added (two folded duplicate rows, one assumed completion
-   date), which the register has no column for. Every other field matches, and the incoming comments are already
-   on the instance in order. The test allows exactly that difference, so it keeps passing when M8 treats
-   already-present comments as unchanged (requested below).
+   and updates nothing: all 422 instances are unchanged. The importer's own notes from the first import are
+   comments the register has no column for, and M8 treats comments already on an instance as unchanged (#58).
+   After work in the app, an approved instance and a submitted or sent-back one (exported as Pending) also
+   re-import unchanged.
 10. **Exports run off the request.** `POST /exports` stores a QUEUED job and its `EXPORT` audit event, then an
     `ExportRunner` builds the file. PR 1 runs it in-process; a pg-boss `exports` worker (M9's runner) can call the
     same `runExport`. Files go to S3-compatible storage under `exports/<firm>/<client>/<job>/`; downloads are
@@ -57,10 +56,8 @@ M7's register list endpoint and the M3 adapter for M10's reads are not merged ye
   `categoryIds` and `domain` (the register filter takes single ids today); an export-detail read per instance
   (obligation `description` and `applicabilityText`, instance `naReason`, first comment); latest audit time per
   client; a unit with its company name and location label.
-- **M8**: in the dry run, treat an instance whose incoming comments are already on it, in order, as unchanged
-  (comments are append-only, so re-import cannot change them). Then the register round trip reports zero updates.
-  Also, when a stored instance is SUBMITTED or SENT_BACK, treat an incoming "Pending" row with no Activity Date as
-  unchanged: the register cannot carry work in progress, and a re-import must never move it back to OPEN.
+- **M8** (done in #58): treat comments already on an instance, in order, as unchanged, and never move a
+  SUBMITTED or SENT_BACK instance back to OPEN when the register says Pending with no Activity Date.
 
 ## Consequences
 New dependencies in `apps/api`: `exceljs` (already used by the importer) for workbooks and `pdf-lib` for the

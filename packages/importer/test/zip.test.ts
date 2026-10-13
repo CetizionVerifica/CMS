@@ -34,7 +34,7 @@ function centralDirectoryOnly(sizes: number[], options: { badSignature?: boolean
 describe('declaredInflatedSize', () => {
   it('adds up the sizes the central directory declares', async () => {
     expect(declaredInflatedSize(centralDirectoryOnly([10, 20, 30]))).toBe(60);
-    const sample = new Uint8Array(await readFile(fixturePath('sample-register.xlsx')));
+    const sample = new Uint8Array(await readFile(fixturePath('sample-register-anonymised.xlsx')));
     const size = declaredInflatedSize(sample);
     expect(size).toBeGreaterThan(sample.byteLength);
     expect(size).toBeLessThan(MAX_INFLATED_BYTES);

@@ -86,7 +86,8 @@ Decisions and their reasons: `docs/adr/0003-m3-tenant-isolation-in-postgres.md`.
   `people.reach` (M6) returns a person's client ids and firm-staff flag through `app_person_reach` (ids only).
 - Sign-in (M5, ADR M3-0001): `db.findLoginCandidates`, `db.findSession` and `db.findLoginToken` are the pre-tenant
   lookups and return nothing inside a `withTenant` transaction; `credentials`, `sessions`, `loginTokens` and `invites` run in
-  `withTenant`. Tokens are stored as SHA-256 hex only.
+  `withTenant`. Tokens are stored as SHA-256 hex only. `invites.openForPerson(tx, personId, now)` lists a
+  person's open invites (M5's invitee check).
 - Idempotency (M7): `idempotencyKeys.find(tx, personId, key)` ignores expired rows; `record` writes in the caller's
   transaction, replaces an expired row and raises DUPLICATE on an unexpired one, also from a concurrent request.
 - Workflow (M7): `auditEvents.query` and `evidence.vault` page newest first with a keyset `nextCursor` (the last row's id;

@@ -65,7 +65,7 @@ function excelDate(date: LocalDate | null): Date | null {
   return date === null ? null : new Date(`${date}T00:00:00Z`);
 }
 
-/** "India / West Bengal / Belur" (register row label) → "India/ West Bengal/ Belur" (sample spelling). */
+/** "India / West Bengal / Riverbend" (register row label) → "India/ West Bengal/ Riverbend" (sample spelling). */
 function locationPath(label: string): string {
   return label
     .split('/')
