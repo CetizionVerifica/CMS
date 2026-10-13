@@ -527,8 +527,11 @@ describe.skipIf(!url)('jobs on the Postgres store', () => {
         published: 2,
         failed: 0,
       });
+      // Both events share the transaction's time, so the relay's order between them is not fixed: find them by type.
+      const firstSentBack = published.find((e) => e.type === 'instance.sent_back')!;
+      const submission = published.find((e) => e.type === 'instance.submitted')!;
       const before = mailer.sent.length;
-      await consume(published);
+      await consume([firstSentBack, submission]);
 
       // The owner resubmits and the approver sends it back again the same day: a new version and event.
       await inFirm(b.firmId, async (tx) => {
@@ -545,7 +548,7 @@ describe.skipIf(!url)('jobs on the Postgres store', () => {
       });
       expect(published.every((e) => e.firmId === b.firmId)).toBe(true);
       // The second send-back, then both earlier events again: redelivered, and the first now stale.
-      await consume([published[2]!, published[0]!, published[1]!]);
+      await consume([published[2]!, firstSentBack, submission]);
 
       // Two send-backs, two emails to the owner; the repeats send nothing.
       const sent = mailer.sent.slice(before);
@@ -560,7 +563,7 @@ describe.skipIf(!url)('jobs on the Postgres store', () => {
           b.firmId,
           'notification_send',
           "kind = 'APPROVAL_REQUESTED' and failure_code = 'NO_EMAIL' and event_id = $1",
-          [published[1]!.id],
+          [submission.id],
         ),
       ).toBe(1);
       expect(await t.count(b.firmId, 'notification_send', 'event_id is not null')).toBe(3);

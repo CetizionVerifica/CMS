@@ -2,7 +2,6 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { renderEmail } from '@canopy/notifications';
 import type { LocalDate } from '@canopy/contracts';
 import { mailConfigFromEnv, smtpMailer } from './smtp-mailer.js';
-import { startJobsFromEnv } from './start.js';
 import { startFakeSmtp, type FakeSmtp } from './testing/fake-smtp.js';
 
 const BASE = {
@@ -69,12 +68,6 @@ describe('mail settings from the environment', () => {
     } catch (error) {
       expect((error as Error).message).not.toContain('secret-user');
     }
-  });
-
-  it('starts no jobs without a server', async () => {
-    expect(
-      await startJobsFromEnv({}, { db: {} as never, connectionString: 'postgres://unused' }),
-    ).toBeNull();
   });
 });
 

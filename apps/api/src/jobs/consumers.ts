@@ -25,6 +25,8 @@ export const OutboxEventSchema = z.object({
 export interface Consumer {
   /** The event type, which is also the pg-boss queue name. */
   type: string;
+  /** Sends email, so it is registered only when a mailer is configured. */
+  sendsMail?: boolean;
   /** Idempotent: an event can arrive more than once (events.md §1). */
   handle(deps: JobDeps, event: OutboxEvent, requestId: string): Promise<JobReport>;
 }

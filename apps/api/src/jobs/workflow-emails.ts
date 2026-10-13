@@ -159,5 +159,6 @@ const SPECS: WorkflowEmail[] = [
 /** The approver hears about a submission, and the owner about a send-back, without waiting for a reminder. */
 export const WORKFLOW_EMAIL_CONSUMERS: readonly Consumer[] = SPECS.map((spec) => ({
   type: spec.type,
+  sendsMail: true,
   handle: (deps, event, requestId) => sendWorkflowEmail(spec, deps, event, requestId),
 }));

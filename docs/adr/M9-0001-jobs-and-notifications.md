@@ -49,9 +49,13 @@ remind for complied or not-applicable items, and reach the database only through
     with an SMTP relay works, so choosing one only means filling in credentials. Settings come from the environment:
     `SMTP_URL`, or `SMTP_HOST` with `SMTP_PORT` (default 587), `SMTP_USER`, `SMTP_PASS` and `SMTP_SECURE`, plus
     `MAIL_FROM` and `APP_URL`.
-    - `startJobsFromEnv` boots the runner on the Postgres store. It returns null, and starts nothing, when no SMTP
-      server is set, so no send is ever recorded as done without a transport. It throws at boot on half-set settings,
-      naming the variables but never their values.
+    - `startJobsFromEnv` boots the runner on the Postgres store. When no SMTP server is set, instance generation,
+      the outbox relay and the regeneration consumers still run, and every job and consumer that sends email
+      (`sendsMail`) is left unregistered. No send is ever claimed or recorded as done without a transport. Events
+      that only an email consumer reads are marked relayed and never emailed later: a submission made while mail was
+      off is not announced once it is turned on, and the daily reminders cover it instead. The runner reports `mail:
+      false` so the caller can warn. It throws at boot on half-set settings, naming the variables but never their
+      values, and closes the transport if the runner then fails to start.
     - The Message-ID is a hash of the send-log key, so a re-sent pending row carries the same id.
     - `Auto-Submitted: auto-generated` marks every email.
     - A failure throws with SMTP codes only, never the address or the content.
@@ -87,6 +91,6 @@ remind for complied or not-applicable items, and reach the database only through
   list done digests per date.
 - M9 PR 2 wires the adapter (`apps/api/src/jobs/postgres-store.ts`, one repository call per port; audit rows take
   their time from the database, in the same transaction as the change). The API process boots the jobs through
-  `startJobsFromEnv` (wired in `main.ts` by the CI thread); without SMTP settings they stay off.
+  `startJobsFromEnv` (wired in `main.ts` by the CI thread); without SMTP settings only the email jobs stay off.
 - Event consumers (notify approver on `instance.submitted`, owner on `instance.sent_back`, regenerate on
   `assignment.*` and `import.committed`) are a later M9 PR on the same ports.
