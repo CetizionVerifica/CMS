@@ -36,12 +36,18 @@ who may write firm-wide mapping templates.
    reopenings in the dry run instead would need a new `DryRunReport` field from M0. Closed work the register shows
    closed differently (another completion date, APPROVED against NOT_APPLICABLE) is corrected and audited.
 6. **People are created UNCLAIMED, without memberships.** The register has no emails. They are matched by
-   `nameNormalized` within the client's people and are invited later by a client or firm admin.
-7. **Audit actions.** Every created or changed entity writes an `AuditEvent` with `action = IMPORT` (before and after
+   `nameNormalized` across the firm's people, because the contract makes `nameNormalized` the dedupe key per firm,
+   and are invited later by a client or firm admin. Two different people with the same name at two clients become
+   one person; reminders still reach only people with a membership in the client (M9 `canReceive`).
+7. **Imported timestamps stay empty.** An instance imported as APPROVED (or NOT_APPLICABLE) has `completedOn` from
+   the register's Activity Date, and `submittedAt` and `approvedAt` null: the register records no approval time, and
+   making one up would be a silent data change (root rule 5). Nothing derives from those timestamps; status and
+   scores use `workflowState` and the dates.
+8. **Audit actions.** Every created or changed entity writes an `AuditEvent` with `action = IMPORT` (before and after
    hold the changed fields only, never names from rows) in the commit's transaction; an accepted alias is
    `MERGE_ALIAS` on the act, category or department. Appended comments are IMPORT comments with no author, plus
    one IMPORT event `{ commentsAdded }` per instance. The actor is the person who called commit.
-8. **Firm templates are FIRM_ADMIN only.** A consultant can run every import step for their clients, including
+9. **Firm templates are FIRM_ADMIN only.** A consultant can run every import step for their clients, including
    commit, and save client templates, but creating, renaming or deleting a firm-wide template (`clientId: null`)
    and saving a mapping as one needs FIRM_ADMIN (`403 FORBIDDEN`), because firm templates apply to every client.
 

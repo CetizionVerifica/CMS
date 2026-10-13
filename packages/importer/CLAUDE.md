@@ -46,8 +46,7 @@ Root `CLAUDE.md` applies. Field mapping and data quirks: `docs/requirements/exce
   work continues between imports. Comments are append-only: incoming comments already on the instance, each counted once in
   any order, change nothing and the rest are appended. A SUBMITTED, SENT_BACK, APPROVED or NOT_APPLICABLE instance
   whose row still says Pending with no Activity Date is UNCHANGED; an import never moves work back to OPEN, since a
-  reopen needs a reason and goes through the workflow (M10 round trip, ADR M8-0002). An `ExistingState` instance given as a
-  `fingerprintInstance` string is still compared as a whole until M10's round-trip test moves off it; then drop both.
+  reopen needs a reason and goes through the workflow (M10 round trip, ADR M8-0002).
 - Analysis stays near linear (32 times the rows costs under 64 times the time with a stub `inferRule`;
   `test/scale.test.ts`). The real engine adds a few milliseconds per distinct schedule, so the API should run
   parse off-request (`POST /imports/{id}/parse` is async).
