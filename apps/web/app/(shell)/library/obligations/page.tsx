@@ -22,7 +22,7 @@ import {
   searchText,
 } from '../library-model';
 
-export const metadata: Metadata = { title: 'Obligations · Library' };
+export const metadata: Metadata = { title: 'Obligations' };
 
 type Props = { searchParams: Promise<Record<string, string | string[] | undefined>> };
 
@@ -98,8 +98,8 @@ export default async function ObligationsPage({ searchParams }: Props) {
   return (
     <>
       <PageHeader
-        title="Library"
-        description="Acts and the obligations under them, shared by every client."
+        title="Obligations"
+        description="The obligations under each Act in the firm library, shared by every client."
       />
       <LibraryNav current="obligations" />
       <LibraryFilterBar

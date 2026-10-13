@@ -12,7 +12,7 @@ import { LibraryNav } from '../LibraryNav';
 import { toSearchParams } from '../library-data';
 import { actItems, countText, cursorParam, nextPageHref, searchText } from '../library-model';
 
-export const metadata: Metadata = { title: 'Acts · Library' };
+export const metadata: Metadata = { title: 'Acts' };
 
 type Props = { searchParams: Promise<Record<string, string | string[] | undefined>> };
 
@@ -48,8 +48,8 @@ export default async function ActsPage({ searchParams }: Props) {
   return (
     <>
       <PageHeader
-        title="Library"
-        description="Acts and the obligations under them, shared by every client."
+        title="Acts"
+        description="The Acts in the firm library, shared by every client."
       />
       <LibraryNav current="acts" />
       <LibraryFilterBar
