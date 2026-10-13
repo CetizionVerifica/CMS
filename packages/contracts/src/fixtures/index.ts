@@ -32,7 +32,7 @@ export type FixtureSetName = 'firm-a.sample' | 'firm-b.synthetic';
  * Firm B's "today": the day after which nothing in its data has happened yet (its last recorded activity is on
  * 2024-11-06). Pin a mock server serving firm B to it (`createMockServer({ today: FIRM_B_AS_OF })`) so derived
  * statuses and scores agree with the data: an earlier date shows items approved in the future as complied while no
- * item is due yet. It falls in FY 2024-25 Q3 for Northwind (April FY) and FY 2024 Q4 for Harbour (January FY).
+ * item is due yet. It falls in FY 2024-25 Q3 for Northwind (April FY) and FY 2024-25 Q4 for Harbour (January FY).
  */
 export const FIRM_B_AS_OF = '2024-11-15';
 
