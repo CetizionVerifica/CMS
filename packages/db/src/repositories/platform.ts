@@ -668,8 +668,8 @@ export const accountJobs = {
     return rows[0]!.marked;
   },
   /**
-   * The last day of the context's account's latest paid subscription (the one that ends last), or null when it has
-   * none. Any tenant context of the account; a date only, never the amount or invoice.
+   * The last day of the context's account's latest recorded subscription, paid or not (the one that ends last), or
+   * null when it has none. Any tenant context of the account; a date only, never the amount or invoice.
    */
   async subscriptionEndsOn(tx: TenantTx): Promise<LocalDate | null> {
     const { rows } = await tx
