@@ -40,6 +40,13 @@ export type ApiClientOptions = {
   /** From GET /me; required on state-changing requests. */
   csrfToken?: string;
   requestId?: string;
+  /**
+   * The browser's `X-Forwarded-For` (server-side calls), so the API's per-IP rate limits count each visitor, not the
+   * web server. The API trusts it only from addresses in its `TRUST_PROXY`. Next keeps a header the browser sent, so
+   * this counts visitors correctly only when a load balancer in front of the web server sets it, and `TRUST_PROXY`
+   * lists the proxies' addresses (never "true", which trusts the browser's leftmost entry).
+   */
+  forwardedFor?: string;
 };
 
 export type ApiResult<T> = { data: T; setCookies: string[] };
@@ -98,6 +105,7 @@ export function createApiClient(options: ApiClientOptions) {
     if (body !== undefined) headers['content-type'] = 'application/json';
     if (options.cookie) headers.cookie = options.cookie;
     if (options.requestId) headers['x-request-id'] = options.requestId;
+    if (options.forwardedFor) headers['x-forwarded-for'] = options.forwardedFor;
     if (method !== 'GET' && options.csrfToken) headers['x-csrf-token'] = options.csrfToken;
 
     const query = queryString(request.query as Record<string, unknown> | undefined);
