@@ -16,8 +16,8 @@ import { sessionApi } from '../../../../../../lib/api/server';
 
 export type ActionResult = { ok: true } | { ok: false; message: string };
 
-function failure(error: unknown, duplicate: string): { ok: false; message: string } {
-  if (isApiError(error, 'DUPLICATE')) return { ok: false, message: duplicate };
+function failure(error: unknown, duplicate?: string): { ok: false; message: string } {
+  if (duplicate && isApiError(error, 'DUPLICATE')) return { ok: false, message: duplicate };
   if (isApiError(error, 'STALE_VERSION')) {
     return {
       ok: false,
@@ -46,7 +46,8 @@ function failure(error: unknown, duplicate: string): { ok: false; message: strin
 async function run(
   clientId: string,
   change: () => Promise<unknown>,
-  duplicate: string,
+  /** What a DUPLICATE means here; archiving can't meet one. */
+  duplicate?: string,
 ): Promise<ActionResult> {
   try {
     await change();
@@ -98,10 +99,8 @@ export async function archiveCompanyAction(
   const id = Id.parse(clientId);
   const company = Id.parse(companyId);
   const body = ArchiveBody.parse(input);
-  return run(
-    id,
-    async () => (await sessionApi()).call('archiveCompany', { params: { id: company }, body }),
-    COMPANY_TAKEN,
+  return run(id, async () =>
+    (await sessionApi()).call('archiveCompany', { params: { id: company }, body }),
   );
 }
 
@@ -141,9 +140,7 @@ export async function archiveUnitAction(
   const id = Id.parse(clientId);
   const unit = Id.parse(unitId);
   const body = ArchiveBody.parse(input);
-  return run(
-    id,
-    async () => (await sessionApi()).call('archiveUnit', { params: { id: unit }, body }),
-    UNIT_TAKEN,
+  return run(id, async () =>
+    (await sessionApi()).call('archiveUnit', { params: { id: unit }, body }),
   );
 }
