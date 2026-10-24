@@ -46,22 +46,28 @@ jobs:
           # Only a verdict from someone with write access can change the gate, so only they trigger a re-run.
           PERM=$(gh api "repos/$GH_REPO/collaborators/$AUTHOR/permission" --jq .permission 2>/dev/null || echo none)
           case "$PERM" in admin|maintain|write) ;; *) echo "$AUTHOR has $PERM access; ignoring."; exit 0 ;; esac
-          read -r SHA DRAFT < <(gh pr view "$PR" --json headRefOid,isDraft --jq '"\(.headRefOid) \(.isDraft)"')
+          # `|| true` on each read: bash -e would otherwise end the step silently when a lookup comes back empty.
+          read -r SHA DRAFT < <(gh pr view "$PR" --json headRefOid,isDraft --jq '"\(.headRefOid) \(.isDraft)"') || true
           if [ -z "$SHA" ]; then echo "::error::Could not read PR #$PR."; exit 1; fi
           if [ "$DRAFT" = "true" ]; then echo "PR is a draft; marking it ready runs the gate."; exit 0; fi
           # A verdict for an older commit can't change the gate, and re-running that commit's CI would only waste it.
           if ! grep -qE "^\s*<!-- canopy-audit sha=$SHA verdict=(Ready|Not-ready) -->\s*$" <<< "$BODY"; then
             echo "The marker is not for the PR's head $SHA; its CI run reads the comments itself."; exit 0
           fi
-          RUN=$(gh run list --workflow ci.yml --event pull_request --commit "$SHA" --limit 1 --json databaseId --jq '.[0].databaseId // empty')
-          if [ -z "$RUN" ]; then echo "No CI run for $SHA yet; it will read the verdict when it runs."; exit 0; fi
+          # The newest CI run for the commit that has a module-audit job. A push and a ready_for_review can start two
+          # runs at once, and the one concurrency cancels has no jobs, so the newest run alone is not enough (#109, #131).
+          RUN=""
+          for ID in $(gh run list --workflow ci.yml --event pull_request --commit "$SHA" --limit 20 --json databaseId --jq '.[].databaseId'); do
+            if gh run view "$ID" --json jobs --jq '.jobs[].name' | grep -qx module-audit; then RUN=$ID; break; fi
+          done
+          if [ -z "$RUN" ]; then echo "No CI run with a module-audit job for $SHA yet; it will read the verdict when it runs."; exit 0; fi
           # A job can only be re-run once its run has finished; one still running reads the comments itself unless
           # module-audit already finished, so wait and re-run it either way.
           gh run watch "$RUN" --interval 30 > /dev/null || true
           if [ "$(gh pr view "$PR" --json headRefOid --jq .headRefOid)" != "$SHA" ]; then
             echo "PR #$PR moved past $SHA while waiting; the new commit needs its own audit."; exit 0
           fi
-          read -r JOB OUTCOME < <(gh run view "$RUN" --json jobs --jq '.jobs[] | select(.name == "module-audit") | "\(.databaseId) \(.conclusion)"')
+          read -r JOB OUTCOME < <(gh run view "$RUN" --json jobs --jq '.jobs[] | select(.name == "module-audit") | "\(.databaseId) \(.conclusion)"') || true
           if [ -z "$JOB" ]; then echo "::error::Run $RUN has no module-audit job."; exit 1; fi
           # Jobs other than the gate that genuinely failed; an audit must never quietly retry those.
           FAILED=$(gh run view "$RUN" --json jobs --jq '[.jobs[] | select(.conclusion == "failure" and .name != "module-audit" and .name != "ci-ok") | .name] | join(", ")')
@@ -86,7 +92,7 @@ jobs:
             query($o: String!, $r: String!, $n: Int!) { repository(owner: $o, name: $r) { pullRequest(number: $n) {
               mergeStateStatus isInMergeQueue isCrossRepository autoMergeRequest { enabledAt }
               labels(first: 50) { nodes { name } } } } }' \
-            --jq '.data.repository.pullRequest | "\(.mergeStateStatus) \(.isInMergeQueue) \(.autoMergeRequest != null) \(.isCrossRepository) \(any(.labels.nodes[]; .name == "no-automerge"))"')
+            --jq '.data.repository.pullRequest | "\(.mergeStateStatus) \(.isInMergeQueue) \(.autoMergeRequest != null) \(.isCrossRepository) \(any(.labels.nodes[]; .name == "no-automerge"))"') || true
           echo "PR #$PR is $STATE; queued $QUEUED, auto-merge $AUTO, fork $FORK, held $HELD."
           if [ "$STATE" = "CLEAN" ] && [ "$QUEUED" = "false" ] && [ "$AUTO" = "true" ] && [ "$FORK" = "false" ] && [ "$HELD" = "false" ]; then
             if [ -z "$MERGE_TOKEN" ]; then
