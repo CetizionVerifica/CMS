@@ -70,6 +70,28 @@ describe('server API access', () => {
     expect(me.mfa).toEqual({ required: false, enrolled: false, satisfied: false });
   });
 
+  it('reuses the user for the same session for five seconds', async () => {
+    vi.useFakeTimers({ now: Date.parse('2026-10-24T08:00:00Z'), toFake: ['Date'] });
+    await signIn('owner@demo.test');
+    const first = await getMe();
+    vi.setSystemTime(Date.parse('2026-10-24T08:00:04Z'));
+    expect(await getMe()).toBe(first);
+    vi.setSystemTime(Date.parse('2026-10-24T08:00:05Z'));
+    const later = await getMe();
+    expect(later).not.toBe(first);
+    expect(later).toEqual(first);
+    vi.useRealTimers();
+  });
+
+  it('asks again once sign-in state changes, even when the cookie stays the same', async () => {
+    await signIn('consultant@demo.test');
+    const before = await getMe();
+    expect(await getMe()).toBe(before);
+    // As after MFA against an API that keeps the session cookie: nothing to set, but the user changed.
+    await relayCookies([]);
+    expect(await getMe()).not.toBe(before);
+  });
+
   it('sends firm users without MFA to the verify step', async () => {
     await signIn('consultant@demo.test');
     expect(await redirectOf(requireMe('/portfolio'))).toBe('/login/verify?next=%2Fportfolio');

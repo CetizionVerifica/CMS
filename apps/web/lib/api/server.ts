@@ -10,6 +10,7 @@ import { cache } from 'react';
 import { createApiClient, isApiError, type ApiClient } from './client';
 import { mockFetch } from './mock';
 import { apiMode } from './mode';
+import { forgetSession, sessionCache } from './session-cache';
 import { parseSetCookie } from './set-cookie';
 
 /** True while no real API is configured (see mode.ts): the in-process mock answers instead. */
@@ -35,10 +36,19 @@ export async function serverApi(csrfToken?: string): Promise<ApiClient> {
   });
 }
 
-/** The signed-in user, once per request. Null when there is no valid session. */
+// A few seconds: enough for a page and the prefetches its links start, short enough that a change of role shows soon.
+// Sign-in, MFA and sign-out forget it at once (relayCookies). The API still checks the session on every other call.
+const meCache = sessionCache<Me>('me', 5_000);
+
+/** The signed-in user, once per request and briefly per session. Null when there is no valid session. */
 export const getMe = cache(async (): Promise<Me | null> => {
+  const cookie = await forwardedCookie();
+  const cached = cookie ? meCache.get(cookie) : undefined;
+  if (cached) return cached;
   try {
-    return (await (await serverApi()).me()).data;
+    const me = (await (await serverApi()).me()).data;
+    if (cookie) meCache.set(cookie, me);
+    return me;
   } catch (error) {
     if (isApiError(error, 'UNAUTHENTICATED')) return null;
     throw error;
@@ -63,6 +73,8 @@ export async function requireMe(returnTo: string): Promise<Me> {
 
 /** Applies the API's Set-Cookie headers to the browser response (login, MFA, invite accept, logout). */
 export async function relayCookies(setCookies: string[]): Promise<void> {
+  const before = await forwardedCookie();
+  if (before) forgetSession(before);
   const jar = await cookies();
   const secure = process.env.NODE_ENV === 'production' && !(await usingMockApi());
   for (const header of setCookies) {

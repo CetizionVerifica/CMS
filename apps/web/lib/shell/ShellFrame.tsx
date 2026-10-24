@@ -67,8 +67,10 @@ const ICONS: Record<string, LucideIcon> = {
   'library/acts': BookOpen,
 };
 
+// No prefetch: every page is rendered per request, so prefetching the sidebar's links would ask the API for the
+// shell's data once per link on every page (security review F7).
 const renderLink: LinkRenderer = ({ href, children, ...rest }) => (
-  <NextLink href={href} {...rest}>
+  <NextLink href={href} prefetch={false} {...rest}>
     {children}
   </NextLink>
 );

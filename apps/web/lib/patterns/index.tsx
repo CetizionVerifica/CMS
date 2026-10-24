@@ -14,7 +14,8 @@ const link = ({
   children: ReactNode;
   className?: string;
 }) => (
-  <NextLink href={href} {...rest}>
+  // No prefetch, like the shell's links (ShellFrame.tsx): each one would render a page and call the API.
+  <NextLink href={href} prefetch={false} {...rest}>
     {children}
   </NextLink>
 );

@@ -1,6 +1,8 @@
 // Stand-ins for next/headers and next/navigation in unit tests. Each test sets the request cookies and headers.
 import { vi } from 'vitest';
 
+import { clearSessionCaches } from '../api/session-cache';
+
 export const request = {
   cookies: new Map<string, string>(),
   headers: new Map<string, string>(),
@@ -16,6 +18,8 @@ export class RedirectError extends Error {
 export class NotFoundError extends Error {}
 
 export function resetRequest() {
+  // Each test starts signed out, so no answer cached for an earlier test's session carries over.
+  clearSessionCaches();
   request.cookies.clear();
   request.headers.clear();
   request.set.length = 0;
