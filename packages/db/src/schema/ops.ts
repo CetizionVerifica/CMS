@@ -151,9 +151,12 @@ export const notificationSend = pgTable(
       .where(sql`event_id is not null`),
     index('notification_send_client_idx').on(t.firmId, t.clientId, t.sendDate),
     // A send without a client names no instance (the instance foreign key, like any composite key, is not checked
-    // when client_id is null). The repository narrows it further: such a send answers an event, or is about the
-    // whole account (TRIAL_ENDING), which the database cannot name here before its enum value is committed.
-    check('notification_send_client_check', sql`client_id is not null or instance_id is null`),
+    // when client_id is null), and answers an event or is about the whole account (ACCOUNT_NOTIFICATION_KINDS). The
+    // kind is compared as text so a fresh database can apply 0027's new enum value and this check in one transaction.
+    check(
+      'notification_send_client_check',
+      sql`client_id is not null or (instance_id is null and (event_id is not null or kind::text = 'TRIAL_ENDING'))`,
+    ),
     // A null client is visible to firm-wide contexts only (app_can_see_client), so client roles never
     // read or write these rows.
     clientPolicy(),

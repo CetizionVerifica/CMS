@@ -98,6 +98,16 @@ describe('schema', () => {
     expect(pgEnum.enumValues).toEqual(zodEnum.options);
   });
 
+  it('the send-log client check names every account notification kind', () => {
+    const [chk] = getTableConfig(schema.notificationSend).checks;
+    const text = chk!.value.queryChunks
+      .map((c) => (c as { value?: string[] }).value?.join('') ?? '')
+      .join('');
+    for (const kind of contracts.ACCOUNT_NOTIFICATION_KINDS)
+      expect(text).toContain(`kind::text = '${kind}'`);
+    expect(contracts.ACCOUNT_NOTIFICATION_KINDS).toHaveLength(1);
+  });
+
   it('does not store the derived status', () => {
     for (const { name, columns } of TABLES) {
       expect(columns, name).not.toContain('status_cache');

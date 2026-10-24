@@ -993,6 +993,19 @@ describe('audit and outbox', () => {
     expect(
       await code(inA((tx) => r.notificationSends.claim(tx, { ...trial, kind: 'OWNER_REMINDER' }))),
     ).toBe('VALIDATION');
+    // The database holds the same rule: an account kind may go without a client and an event, no other kind may.
+    await t.ownerQuery(
+      `INSERT INTO notification_send (firm_id, recipient_id, kind, send_date)
+       VALUES ($1, $2, 'TRIAL_ENDING', '2022-08-20')`,
+      [firmA, world.ownerId],
+    );
+    await expect(
+      t.ownerQuery(
+        `INSERT INTO notification_send (firm_id, recipient_id, kind, send_date)
+         VALUES ($1, $2, 'OWNER_REMINDER', '2022-08-20')`,
+        [firmA, world.ownerId],
+      ),
+    ).rejects.toThrow(/notification_send_client_check/);
     // Another firm's context finds no such row of firm A's.
     expect(
       await inB(async (tx) => {
