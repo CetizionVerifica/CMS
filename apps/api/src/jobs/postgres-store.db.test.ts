@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { DEFAULT_CLIENT_SETTINGS } from '@canopy/contracts';
 import {
   acts,
@@ -7,6 +8,7 @@ import {
   companies,
   departments,
   instances,
+  invites,
   locations,
   memberships,
   obligations,
@@ -569,6 +571,153 @@ describe.skipIf(!url)('jobs on the Postgres store', () => {
       expect(await t.count(b.firmId, 'notification_send', 'event_id is not null')).toBe(3);
       expect(await t.count(a.firmId, 'notification_send', 'event_id is not null')).toBe(0);
       await expectNoStrays();
+    });
+  });
+
+  describe('sign-in link and invite emails', () => {
+    const TOKEN = 'raw-db-token-Zt3';
+    const issued: { kind: string; personId: string; inviteId?: string }[] = [];
+    let firmBInvite: { id: string; personId: string } | undefined;
+    const withIssuer = (): JobDeps => ({
+      ...deps,
+      issueLoginToken: async (input) => {
+        issued.push(input);
+        return { token: TOKEN, expiresAt: new Date(Date.parse(now) + 15 * 60_000).toISOString() };
+      },
+    });
+    const outboxEvent = (
+      f: FirmWorld,
+      type: string,
+      clientId: string | null,
+      actorId: string,
+      data: Record<string, unknown>,
+    ): OutboxEvent => ({
+      id: randomUUID(),
+      type,
+      schemaVersion: 1,
+      occurredAt: now,
+      firmId: f.firmId,
+      clientId,
+      actor: { kind: 'PERSON', personId: actorId },
+      requestId: `req:${type}`,
+      aggregate: { type: 'person', id: String(data.personId) },
+      aggregateVersion: 1,
+      data,
+    });
+    const handle = (e: OutboxEvent) =>
+      CONSUMERS.find((c) => c.type === e.type)!.handle(withIssuer(), e, `job:${e.type}:${e.id}`);
+
+    it('emails a client invite, a firm-role invite and a sign-in link, keyed on the event, with no token stored', async () => {
+      now = '2026-10-13T09:30:00.000Z';
+      const before = mailer.sent.length;
+      const { clientInvite, firmInvite, invitee, staff } = await inFirm(b.firmId, async (tx) => {
+        const invitee = await people.create(tx, {
+          displayName: 'Ravi Kumar',
+          nameNormalized: 'ravi kumar',
+          email: null,
+          status: 'UNCLAIMED',
+        });
+        const staff = await people.create(tx, {
+          displayName: 'Nina Das',
+          nameNormalized: 'nina das',
+          email: null,
+          status: 'UNCLAIMED',
+        });
+        const grant = (role: 'OWNER' | 'CONSULTANT') => ({
+          role,
+          clientId: role === 'OWNER' ? b.clientId : null,
+          consultantClientIds: role === 'OWNER' ? null : [b.clientId],
+          unitIds: role === 'OWNER' ? [b.unitId] : null,
+          expiresAt: null,
+        });
+        const clientInvite = await invites.create(
+          tx,
+          {
+            personId: invitee.id,
+            email: 'ravi@example.com',
+            grant: grant('OWNER'),
+            createdById: b.consultantId,
+            expiresAt: '2026-10-20T09:30:00.000Z',
+          },
+          now,
+        );
+        const firmInvite = await invites.create(
+          tx,
+          {
+            personId: staff.id,
+            email: 'nina@example.com',
+            grant: grant('CONSULTANT'),
+            createdById: b.consultantId,
+            expiresAt: '2026-10-20T09:30:00.000Z',
+          },
+          now,
+        );
+        return { clientInvite: clientInvite.invite, firmInvite: firmInvite.invite, invitee, staff };
+      });
+      firmBInvite = clientInvite;
+      const events = [
+        outboxEvent(b, 'person.invited', b.clientId, b.consultantId, {
+          personId: invitee.id,
+          inviteId: clientInvite.id,
+          role: 'OWNER',
+          clientId: b.clientId,
+        }),
+        outboxEvent(b, 'person.invited', null, b.consultantId, {
+          personId: staff.id,
+          inviteId: firmInvite.id,
+          role: 'CONSULTANT',
+          clientId: null,
+        }),
+        outboxEvent(b, 'auth.magic_link_requested', null, b.ownerId, { personId: b.ownerId }),
+      ];
+      for (const e of [...events, ...events]) await handle(e);
+
+      const sent = mailer.sent.slice(before);
+      expect(sent.map((m) => m.to.email)).toEqual([
+        'ravi@example.com',
+        'nina@example.com',
+        b.ownerEmail,
+      ]);
+      expect(sent[0]!.text).toContain('Consultant 02 invited you');
+      expect(sent[0]!.text).toContain('Osprey Textiles Group, with Second Ledger Consulting');
+      expect(sent[0]!.text).toContain(`${APP_URL}/invite/${TOKEN}`);
+      expect(sent[2]!.text).toContain(`${APP_URL}/login/link?token=${TOKEN}`);
+      expect(issued.map((i) => i.kind)).toEqual(['INVITE', 'INVITE', 'MAGIC_LINK']);
+
+      for (const e of events) {
+        expect(
+          await t.count(b.firmId, 'notification_send', 'event_id = $1 and sent_at is not null', [
+            e.id,
+          ]),
+        ).toBe(1);
+      }
+      expect(
+        await t.count(
+          b.firmId,
+          'notification_send',
+          "kind in ('INVITE', 'MAGIC_LINK') and client_id is null",
+        ),
+      ).toBe(2);
+      expect(await t.count(b.firmId, 'domain_event', 'data::text like $1', [`%${TOKEN}%`])).toBe(0);
+      expect(await t.count(a.firmId, 'notification_send', "kind in ('INVITE', 'MAGIC_LINK')")).toBe(
+        0,
+      );
+      await expectNoStrays();
+    });
+
+    it('finds nothing of another firm: an invite or person id from firm B is stale in firm A', async () => {
+      const invite = firmBInvite;
+      const crossed = outboxEvent(a, 'person.invited', null, a.consultantId, {
+        personId: invite!.personId,
+        inviteId: invite!.id,
+        role: 'OWNER',
+        clientId: null,
+      });
+      expect(await handle(crossed)).toEqual({ sent: 0, skippedStale: 1 });
+      const link = outboxEvent(a, 'auth.magic_link_requested', null, b.ownerId, {
+        personId: b.ownerId,
+      });
+      expect(await handle(link)).toEqual({ sent: 0, skippedStale: 1 });
     });
   });
 });
