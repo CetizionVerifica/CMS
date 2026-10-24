@@ -1,0 +1,2 @@
+ALTER TABLE "notification_send" DROP CONSTRAINT "notification_send_client_check";--> statement-breakpoint
+ALTER TABLE "notification_send" ADD CONSTRAINT "notification_send_client_check" CHECK (client_id is not null or (instance_id is null and (event_id is not null or kind::text in ('TRIAL_ENDING', 'RENEWAL_DUE'))));

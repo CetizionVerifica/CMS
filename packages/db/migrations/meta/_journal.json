@@ -239,6 +239,13 @@
       "when": 1792861662822,
       "tag": "0033_subscription_ends_on",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1792861852338,
+      "tag": "0034_send_check_renewal",
+      "breakpoints": true
     }
   ]
 }
