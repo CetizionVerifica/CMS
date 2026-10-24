@@ -75,3 +75,21 @@ export {
   SupportGrantRequest,
   supportGrants,
 } from './accounts.js';
+export {
+  accountJobs,
+  accountOverrides,
+  NewOperator,
+  NewOperatorAuditEvent,
+  NewOperatorSession,
+  NewSubscription,
+  operatorAudit,
+  OperatorAuditFilter,
+  operators,
+  operatorSessions,
+  ownerInvites,
+  PlanChange,
+  plans,
+  subscriptions,
+  usageSnapshots,
+} from './platform.js';
+export type { OperatorLogin, OperatorSession, Renewal } from './platform.js';

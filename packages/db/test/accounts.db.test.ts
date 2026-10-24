@@ -315,7 +315,11 @@ describe('the app’s own account', () => {
 });
 
 describe('the owner accepting their invite', () => {
-  async function accept(account: { accountId: string; ownerId: string; inviteId: string }) {
+  async function accept(
+    account: { accountId: string; ownerId: string; inviteId: string },
+    copied = true,
+  ) {
+    if (copied) await inFirm(account.accountId, (tx) => r.accountJobs.markLibraryCopied(tx));
     await inFirm(account.accountId, async (tx) => {
       const tokenId = await r.loginTokens.create(tx, {
         personId: account.ownerId,
@@ -337,6 +341,43 @@ describe('the owner accepting their invite', () => {
       `SELECT action, operator_id, after FROM platform.operator_audit_event
        WHERE account_id = '${accountId}' AND action = 'ACCOUNT_ACTIVATE'`,
     );
+
+  it('waits for the library copy: nothing opens before it, and the copy is recorded once', async () => {
+    const fresh = await asOperator((tx) =>
+      r.platformAccounts.create(tx, newAccount({ name: 'Riverbend Works' })),
+    );
+    expect(await failure(accept(fresh, false))).toBe('VALIDATION');
+    const before = await asOperator((tx) => r.platformAccounts.get(tx, fresh.accountId));
+    expect(before).toMatchObject({ status: 'PROVISIONING', libraryCopiedAt: null, version: 1 });
+    expect(await inFirm(fresh.accountId, (tx) => r.account.libraryCopied(tx))).toBe(false);
+    expect(await inFirm(fresh.accountId, (tx) => r.accountJobs.markLibraryCopied(tx))).toBe(true);
+    const copied = await asOperator((tx) => r.platformAccounts.get(tx, fresh.accountId));
+    // Set once: a retried event leaves the first time alone.
+    expect(await inFirm(fresh.accountId, (tx) => r.accountJobs.markLibraryCopied(tx))).toBe(false);
+    expect(await asOperator((tx) => r.platformAccounts.get(tx, fresh.accountId))).toEqual(copied);
+    expect(await inFirm(fresh.accountId, (tx) => r.account.libraryCopied(tx))).toBe(true);
+    await accept(fresh, false);
+    expect(await asOperator((tx) => r.platformAccounts.get(tx, fresh.accountId))).toMatchObject({
+      status: 'TRIAL',
+      libraryCopiedAt: copied!.libraryCopiedAt,
+    });
+  });
+
+  it('records the copy only for a PROVISIONING account, in a firm-wide context', async () => {
+    const before = await asOperator((tx) => r.platformAccounts.get(tx, a.firmId));
+    expect(before?.status).toBe('ACTIVE');
+    expect(await inFirm(a.firmId, (tx) => r.accountJobs.markLibraryCopied(tx))).toBe(false);
+    expect(await asOperator((tx) => r.platformAccounts.get(tx, a.firmId))).toEqual(before);
+    const person: TenantContext = {
+      firmId: a.firmId,
+      personId: '01920000-0000-7000-8000-0000000000bb',
+      clientIds: [a.clientIds[0]],
+      requestId: 'accounts-test',
+    };
+    expect(
+      await failure(t.db.withTenant(person, (tx) => r.accountJobs.markLibraryCopied(tx))),
+    ).toBe('FORBIDDEN');
+  });
 
   it('opens a trial account as TRIAL, with its audit row, outbox event and operator entry', async () => {
     const fresh = await asOperator((tx) =>
@@ -659,7 +700,7 @@ describe('support access', () => {
           }),
         ),
       ),
-    ).toBe('P0002');
+    ).toBe('NOT_FOUND');
     await asOperator((tx) =>
       r.platformSupport.issueToken(tx, {
         accountId: a.firmId,

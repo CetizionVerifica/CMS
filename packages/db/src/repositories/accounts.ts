@@ -102,6 +102,15 @@ export const account = {
       )
       .catch(rethrow);
   },
+  /** Whether M6 has copied the master library into the account; its owner can accept only after (ADR M15-0001). */
+  async libraryCopied(tx: TenantTx): Promise<boolean> {
+    const [row] = await tx
+      .select({ at: s.firm.libraryCopiedAt })
+      .from(s.firm)
+      .where(sql`${s.firm.id} = app_firm_id()`)
+      .catch(rethrow);
+    return row !== undefined && row.at !== null;
+  },
 };
 
 export const SupportGrantRequest = z.strictObject({
@@ -309,6 +318,7 @@ export const AccountRecord = z.strictObject({
   trialEndsOn: LocalDate.nullable(),
   profile: AccountProfile.partial(),
   onboardedAt: Instant.nullable(),
+  libraryCopiedAt: Instant.nullable(),
   deletionRequestedAt: Instant.nullable(),
   statusBeforeDeletion: AccountStatus.nullable(),
   createdAt: Instant,
@@ -325,6 +335,7 @@ const recordColumns = {
   trialEndsOn: s.firm.trialEndsOn,
   profile: s.firm.profile,
   onboardedAt: s.firm.onboardedAt,
+  libraryCopiedAt: s.firm.libraryCopiedAt,
   deletionRequestedAt: s.firm.deletionRequestedAt,
   statusBeforeDeletion: s.firm.statusBeforeDeletion,
   createdAt: s.firm.createdAt,
@@ -337,6 +348,7 @@ function recordOf(r: {
   return validate(AccountRecord, {
     ...r,
     onboardedAt: iso(r.onboardedAt as Date | null),
+    libraryCopiedAt: iso(r.libraryCopiedAt as Date | null),
     deletionRequestedAt: iso(r.deletionRequestedAt as Date | null),
     createdAt: (r.createdAt as Date).toISOString(),
   });
