@@ -197,6 +197,13 @@
       "when": 1792850883436,
       "tag": "0027_trial_ending_notification",
       "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1792851316820,
+      "tag": "0028_send_log_account_kinds",
+      "breakpoints": true
     }
   ]
 }
