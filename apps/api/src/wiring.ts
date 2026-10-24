@@ -5,6 +5,7 @@ import { startJobsFromEnv, type JobRunner, type JobRunnerOptions } from './jobs/
 import { PostgresReportsStore } from './modules/dashboard/db-store.js';
 import { createS3Storage } from './modules/evidence/storage.js';
 import { PostgresStore } from './modules/entities/service.js';
+import { copyMasterLibrary } from './modules/library/db-library-copy.js';
 import { repositoryStore, s3ImportFilesFromEnv } from './modules/imports/index.js';
 import { S3ExportFiles } from './modules/reports/files.js';
 import { s3SettingsFromEnv } from './s3-env.js';
@@ -95,7 +96,8 @@ export interface JobsWiring {
 }
 
 /**
- * Starts the M9 jobs on the API's database: instance generation and the outbox relay always, reminders, digests
+ * Starts the M9 jobs on the API's database: instance generation, the outbox relay and M6's master library copy for
+ * new accounts (`account.created`, ADR M6-0001) always, reminders, digests
  * and workflow emails when the environment configures mail, and the evidence virus scan when it configures a scanner. Without a database nothing starts and nothing is said,
  * as for the modules above; with one but no SMTP server it warns, because reminders and approval emails would
  * silently never go out, and without a scanner, because uploaded evidence would never become downloadable. Half-set mail settings throw, so a deploy fails at boot rather than running without mail.
@@ -112,6 +114,7 @@ export async function jobsFromEnv(
     connectionString,
     ...(log && { log }),
     ...(auth && { issueLoginToken: (input) => auth.issueLoginToken(input) }),
+    copyLibrary: (accountId, requestId) => copyMasterLibrary(database, accountId, requestId),
   });
   if (!jobs.mail)
     warn(

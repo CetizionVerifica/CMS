@@ -1,8 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
+
+const copyMasterLibrary = vi.fn();
+vi.mock('./modules/library/db-library-copy.js', () => ({ copyMasterLibrary }));
 import { AuthService } from './auth/index.js';
 import { PostgresReportsStore } from './modules/dashboard/db-store.js';
 import { S3ExportFiles } from './modules/reports/files.js';
-import { jobsFromEnv, wiringFromEnv } from './wiring.js';
+const { jobsFromEnv, wiringFromEnv } = await import('./wiring.js');
 
 const KEY = Buffer.alloc(32, 7).toString('base64');
 const DB = { DATABASE_URL: 'postgres://app@localhost:5432/canopy', AUTH_SECRET_KEY: KEY };
@@ -108,6 +111,7 @@ describe('jobsFromEnv', () => {
       connectionString: DB.DATABASE_URL,
       log,
       issueLoginToken: expect.any(Function),
+      copyLibrary: expect.any(Function),
     });
     expect(warn).not.toHaveBeenCalled();
     // The jobs get M5's issuer, so sign-in link and invite emails carry a fresh token.
@@ -119,6 +123,11 @@ describe('jobsFromEnv', () => {
     };
     await expect(start.mock.calls[0]![1].issueLoginToken(input)).resolves.toEqual(issued);
     expect(auth.issueLoginToken).toHaveBeenCalledWith(input);
+    // And M6's copier on the same database, for a new account's master library.
+    const report = { copied: true, categories: 0, acts: 0, obligations: 0 };
+    copyMasterLibrary.mockResolvedValueOnce(report);
+    await expect(start.mock.calls[0]![1].copyLibrary('account-1', 'run-1')).resolves.toBe(report);
+    expect(copyMasterLibrary).toHaveBeenCalledWith(database, 'account-1', 'run-1');
     await database?.close();
   });
 
