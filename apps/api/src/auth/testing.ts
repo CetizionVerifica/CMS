@@ -25,8 +25,9 @@ import {
   type NewLoginToken,
   type NewSession,
   type SupportToken,
+  userLimitReached,
 } from './accounts.js';
-import type { Principal, SessionRecord } from './context.js';
+import { activeMemberships, type Principal, type SessionRecord } from './context.js';
 import { CSRF_HEADER, SESSION_COOKIE } from './plugin.js';
 import { hashToken, newToken } from './tokens.js';
 
@@ -375,6 +376,20 @@ export class InMemoryAuthStore implements AccountStore {
 
   async createInvite(invite: NewInvite): Promise<InviteRecord> {
     const now = invite.now.toISOString();
+    // Like app_usage(): an ACTIVE or INVITED person with a live membership or an open invite holds a seat already.
+    const account = await this.account(invite.firmId);
+    const max = account?.entitlements.limits.users ?? null;
+    const counted =
+      invite.personId !== null && this.holdsSeat(invite.firmId, invite.personId, invite.now);
+    if (account && max !== null && !counted) {
+      if (account.usage.users >= max) throw userLimitReached(max, account.usage.users);
+      if (this.accounts.has(invite.firmId)) {
+        this.accounts.set(invite.firmId, {
+          ...account,
+          usage: { ...account.usage, users: account.usage.users + 1 },
+        });
+      }
+    }
     let personId = invite.personId;
     if (personId === null) {
       personId = randomUUID();
@@ -524,6 +539,20 @@ export class InMemoryAuthStore implements AccountStore {
       });
     }
     return true;
+  }
+
+  private holdsSeat(firmId: string, personId: string, now: Date): boolean {
+    const status = this.people.get(`${firmId}/${personId}`)?.status;
+    if (status !== 'ACTIVE' && status !== 'INVITED') return false;
+    const memberships = this.principals.get(`${firmId}/${personId}`)?.memberships ?? [];
+    if (activeMemberships(memberships, now).length > 0) return true;
+    return [...this.invites.values()].some(
+      (i) =>
+        i.firmId === firmId &&
+        i.personId === personId &&
+        i.status === 'PENDING' &&
+        Date.parse(i.linkExpiresAt) > now.getTime(),
+    );
   }
 
   private person(firmId: string, personId: string): StoredPerson {

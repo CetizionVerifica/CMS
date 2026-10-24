@@ -39,6 +39,7 @@ import {
   type NewLoginToken,
   type NewSession,
   type SupportToken,
+  userLimitReached,
 } from './accounts.js';
 import type { Principal, SessionRecord } from './context.js';
 
@@ -362,6 +363,7 @@ export function createDbAccountStore(db: Database, options: DbAccountStoreOption
 
     async createInvite(invite: NewInvite): Promise<InviteRecord> {
       return asFirm(invite.firmId, invite.requestId, async (tx) => {
+        const before = await accounts.get(tx);
         let personId = invite.personId;
         if (personId === null) {
           const displayName = invite.displayName ?? invite.email;
@@ -391,6 +393,14 @@ export function createDbAccountStore(db: Database, options: DbAccountStoreOption
           },
           invite.now.toISOString(),
         );
+        // The seat count after the insert says whether this invite took a seat (ADR M5-0002 decision 3).
+        const max = before.entitlements.limits.users;
+        if (max !== null) {
+          const { users } = await accounts.usage(tx);
+          if (users > before.usage.users && users > max) {
+            throw userLimitReached(max, before.usage.users);
+          }
+        }
         const after = result.person?.after ?? (await people.require(tx, personId));
         if (result.person) {
           await personAudit(
