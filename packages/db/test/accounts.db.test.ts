@@ -131,6 +131,17 @@ describe('the operator wall', () => {
     expect(
       await failure(asOperator((tx) => tx.execute(sql`SELECT granted_by_id FROM support_grant`))),
     ).toBe('42501');
+    const one = await asOperator((tx) => r.platformSupport.get(tx, listed[0]!.id, NOW()));
+    expect(one).toEqual(listed[0]);
+    const later = new Date(Date.parse(listed[0]!.endsAt) + 1000).toISOString();
+    expect(await asOperator((tx) => r.platformSupport.get(tx, listed[0]!.id, later))).toMatchObject(
+      { status: 'EXPIRED' },
+    );
+    expect(
+      await asOperator((tx) =>
+        r.platformSupport.get(tx, '01920000-0000-7000-8000-0000000000ff', NOW()),
+      ),
+    ).toBeNull();
   });
 
   it('cannot change a firm’s settings, and changes nothing of a DELETED account', async () => {

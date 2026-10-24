@@ -580,6 +580,15 @@ export const platformSupport = {
       .catch(rethrow);
     return rows.map((r) => operatorGrantOf(r, at(now)));
   },
+  /** One grant by id, whatever its account and status (the console's "open support session"). */
+  async get(tx: OperatorTx, grantId: string, now: string): Promise<OperatorSupportGrant | null> {
+    const [row] = await tx
+      .select(operatorGrantColumns)
+      .from(s.supportGrant)
+      .where(eq(s.supportGrant.id, validate(Id, grantId)))
+      .catch(rethrow);
+    return row ? operatorGrantOf(row, at(now)) : null;
+  },
   /** Every account's live grant (the console's "support access" column). */
   async live(tx: OperatorTx, now: string): Promise<OperatorSupportGrant[]> {
     const when = at(now);
