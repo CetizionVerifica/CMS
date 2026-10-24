@@ -284,7 +284,8 @@ export const supportGrants = {
   },
   /**
    * Ends the memberships and sessions of grants that ran out by `now` (a job, so expired support people keep no
-   * membership rows that look live). Returns how many grants it closed.
+   * membership rows that look live), each with its SUPPORT_ACCESS_END in the operator trail. Needs the account's
+   * system context. Returns how many grants it closed; a second call closes nothing.
    */
   async closeExpired(tx: TenantTx, now: string): Promise<number> {
     const when = at(now);
@@ -301,6 +302,12 @@ export const supportGrants = {
         .where(and(eq(s.membership.personId, row.supportPersonId), isNull(s.membership.archivedAt)))
         .catch(rethrow);
       if (open.length === 0) continue;
+      // The operator trail's SUPPORT_ACCESS_END, written by a canopy_platform function while the grant is still open.
+      await tx
+        .execute(
+          sql`SELECT app_record_support_expiry(${row.id}, ${when.toISOString()}::timestamptz)`,
+        )
+        .catch(rethrow);
       await closeGrant(tx, row, when);
       closed++;
     }

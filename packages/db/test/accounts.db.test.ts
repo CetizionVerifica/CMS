@@ -868,6 +868,60 @@ describe('support access', () => {
     expect(endedTrail.map((e) => e.action)).toEqual(['SUPPORT_ACCESS_START', 'SUPPORT_ACCESS_END']);
   });
 
+  it('closes a grant that ran out, with SUPPORT_ACCESS_END from expiry, once', async () => {
+    const past = new Date(Date.now() - 3 * 86_400_000).toISOString();
+    const { grant } = await inFirm(a.firmId, (tx) =>
+      r.supportGrants.create(tx, { level: 'READ_ONLY', days: 1, grantedById: adminId, now: past }),
+    );
+    // Only the account's system context may record it.
+    const asAdmin: TenantContext = {
+      firmId: a.firmId,
+      personId: adminId,
+      clientIds: 'ALL',
+      requestId: 'accounts-test',
+    };
+    expect(
+      await failure(
+        t.db.withTenant(asAdmin, (tx) =>
+          tx.execute(sql`SELECT app_record_support_expiry(${grant.id}, now())`),
+        ),
+      ),
+    ).toBe('42501');
+    // Another account's context finds nothing to record.
+    const { rows: other } = await inFirm(b.firmId, (tx) =>
+      tx.execute<{ recorded: boolean }>(
+        sql`SELECT app_record_support_expiry(${grant.id}, now()) AS recorded`,
+      ),
+    );
+    expect(other).toEqual([{ recorded: false }]);
+
+    expect(await inFirm(a.firmId, (tx) => r.supportGrants.closeExpired(tx, NOW()))).toBe(1);
+    expect(await inFirm(a.firmId, (tx) => r.supportGrants.closeExpired(tx, NOW()))).toBe(0);
+    const { rows: trail } = await t.ownerQuery<{ action: string; after: Record<string, unknown> }>(
+      `SELECT action, after FROM platform.operator_audit_event
+       WHERE after->>'grantId' = '${grant.id}' ORDER BY at, id`,
+    );
+    expect(trail).toEqual([
+      expect.objectContaining({ action: 'SUPPORT_ACCESS_START' }),
+      {
+        action: 'SUPPORT_ACCESS_END',
+        after: {
+          grantId: grant.id,
+          level: 'READ_ONLY',
+          endedAt: expect.any(String),
+          source: 'expiry',
+        },
+      },
+    ]);
+    // The support person keeps no live membership, and a call after the close records nothing.
+    const { rows: again } = await inFirm(a.firmId, (tx) =>
+      tx.execute<{ recorded: boolean }>(
+        sql`SELECT app_record_support_expiry(${grant.id}, now()) AS recorded`,
+      ),
+    );
+    expect(again).toEqual([{ recorded: false }]);
+  });
+
   it('keeps a revoke final: the tenant cannot revive a revoked grant or rewrite who revoked it', async () => {
     const { grant } = await inFirm(a.firmId, (tx) =>
       r.supportGrants.create(tx, { level: 'READ_ONLY', days: 1, grantedById: adminId, now: NOW() }),
