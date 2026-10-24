@@ -53,6 +53,30 @@ describe('loadVault', () => {
     for (const e of clean.rows) expect(e.scanStatus).toBe('CLEAN');
   });
 
+  it('gives an owner only the files of instances in their own units', async () => {
+    const owner = await as('owner@demo.test');
+    const consultant = await as('consultant@demo.test', true);
+    const unitsOf = async (who: ApiClient) => {
+      const { data } = await who.call('listInstances', {
+        params: { clientId: CLIENT },
+        query: { limit: String(MAX_PAGE_LIMIT) },
+      });
+      return new Map(data.items.map((i) => [i.id, i.unitId]));
+    };
+    const ownerUnits = new Set((await unitsOf(owner)).values());
+    const everyUnit = new Set((await unitsOf(consultant)).values());
+    // The demo client has a unit the owner isn't in, so the restriction has something to leave out.
+    expect(everyUnit.size).toBeGreaterThan(ownerUnits.size);
+
+    const files = await loadVault(owner, CLIENT, '');
+    expect(files.rows.length).toBeGreaterThan(0);
+    const instanceUnits = await unitsOf(consultant);
+    for (const e of files.rows) expect(ownerUnits.has(instanceUnits.get(e.instanceId)!)).toBe(true);
+    // Filtering by a unit outside the owner's finds nothing.
+    const other = [...everyUnit].find((u) => !ownerUnits.has(u))!;
+    expect((await loadVault(owner, CLIENT, `unitId=${other}`)).rows).toEqual([]);
+  });
+
   it('asks for exactly the query, and the next page without the count', async () => {
     const call = vi.fn(async () => ({ data: { items: [], nextCursor: null } }));
     await loadVault({ call } as never, CLIENT, 'q=challan');
