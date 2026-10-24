@@ -119,6 +119,16 @@ describe('API client against the mock', () => {
     await expect(api(owner).approvalsWaiting()).rejects.toMatchObject({ code: 'FORBIDDEN' });
   });
 
+  it('signs a viewer in to one client, with no MFA step and no approvals', async () => {
+    const viewer = await sessionFor('viewer@demo.test');
+    const me = (await api(viewer).me()).data;
+    expect(me.person.displayName).toBe('Viewer 01');
+    expect(me.clients.map((c) => c.id)).toEqual([MOCK_CLIENTS.demoMetals]);
+    expect(me.mfa.required).toBe(false);
+    await expect(api(viewer).approvalsWaiting()).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    await expect(api(viewer).portfolio()).rejects.toMatchObject({ code: 'FORBIDDEN' });
+  });
+
   it('logs out by clearing the cookie', async () => {
     const cookie = await sessionFor('owner@demo.test');
     const { setCookies } = await api(cookie).logout();
