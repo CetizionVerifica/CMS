@@ -14,7 +14,8 @@ function bump(report: JobReport, name: string): void {
 /**
  * Claims the send-log row, sends, then records the outcome, each step its own transaction so no email is sent
  * while a transaction is open. A crash after sending and before recording leaves the row PENDING and the next
- * run sends again: at least once, but never again after DONE.
+ * run sends again: at least once, but never again after DONE. `message` may be a function, called only once the
+ * claim and the recipient checks pass, so a sign-in token is issued only for an email that is about to go.
  */
 export async function deliver(
   deps: JobDeps,
@@ -22,7 +23,7 @@ export async function deliver(
   requestId: string,
   key: SendKey,
   to: { name: string; email: string | null; canReceive: boolean },
-  message: EmailMessage,
+  message: EmailMessage | (() => Promise<EmailMessage>),
   job: string,
   report: JobReport,
 ): Promise<void> {
@@ -42,8 +43,9 @@ export async function deliver(
     bump(report, `failed${failure}`);
     return;
   }
+  const content = typeof message === 'function' ? await message() : message;
   await deps.mailer.send({
-    ...renderEmail(message),
+    ...renderEmail(content),
     to: { name: to.name, email: to.email! },
     idempotencyKey: sendKeyString(key),
   });

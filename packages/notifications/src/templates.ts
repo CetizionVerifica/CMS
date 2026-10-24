@@ -1,4 +1,4 @@
-import type { Criticality, LocalDate } from '@canopy/contracts';
+import type { Criticality, LocalDate, Role } from '@canopy/contracts';
 import { EMAIL_COLORS as c, PRODUCT_NAME } from './brand.js';
 import { days, escapeHtml, formatDate, safeUrl } from './format.js';
 import { detailsTable, renderLayout } from './layout.js';
@@ -91,12 +91,41 @@ export interface SentBackEmail {
   instance: InstanceSummary;
 }
 
+/**
+ * A one-time sign-in link. `url` carries the raw token: render it into the message only, never into a log or the
+ * send log.
+ */
+export interface MagicLinkEmail {
+  kind: 'MAGIC_LINK';
+  recipientName: string;
+  /** Minutes until the link stops working. */
+  expiresInMinutes: number;
+  url: string;
+}
+
+/** An invitation to set a password and join. `url` carries the raw token, as for `MagicLinkEmail`. */
+export interface InviteEmail {
+  kind: 'INVITE';
+  /** Empty when the invitee has no name on file yet. */
+  recipientName: string;
+  invitedBy: string;
+  firmName: string;
+  /** The client the role is for, or null for a firm role. */
+  clientName: string | null;
+  role: Role;
+  /** Days until the link stops working. */
+  expiresInDays: number;
+  url: string;
+}
+
 export type EmailMessage =
   | OwnerReminderEmail
   | ApproverEscalationEmail
   | ConsultantDigestEmail
   | ApprovalRequestedEmail
-  | SentBackEmail;
+  | SentBackEmail
+  | MagicLinkEmail
+  | InviteEmail;
 
 export const CRITICALITY_LABEL: Record<Criticality, string> = {
   SUPER_CRITICAL: 'Super critical',
@@ -256,6 +285,56 @@ function renderSentBack(m: SentBackEmail): RenderedEmail {
   };
 }
 
+export const ROLE_LABEL: Record<Role, string> = {
+  FIRM_ADMIN: 'firm admin',
+  CONSULTANT: 'consultant',
+  CLIENT_ADMIN: 'client admin',
+  APPROVER: 'approver',
+  OWNER: 'owner',
+  VIEWER: 'viewer',
+};
+
+function article(word: string): string {
+  return /^[aeiou]/.test(word) ? 'an' : 'a';
+}
+
+function renderMagicLink(m: MagicLinkEmail): RenderedEmail {
+  const greeting = m.recipientName ? `Hello ${m.recipientName},` : 'Hello,';
+  const intro = `Use this link to sign in to ${PRODUCT_NAME}. It works once and expires in ${m.expiresInMinutes} minutes.`;
+  const footer =
+    "You get this email because someone asked for a sign-in link for your address. If it wasn't you, ignore it; nothing changes.";
+  return {
+    subject: `Your sign-in link for ${PRODUCT_NAME}`,
+    html: renderLayout({
+      preheader: `Sign in to ${PRODUCT_NAME}. The link expires in ${m.expiresInMinutes} minutes.`,
+      heading: 'Sign in',
+      blocks: [paragraph(greeting), paragraph(intro)],
+      cta: { label: 'Sign in', url: m.url },
+      footer,
+    }),
+    text: textEmail([greeting, intro, `Sign in: ${safeUrl(m.url)}`, footer]),
+  };
+}
+
+function renderInvite(m: InviteEmail): RenderedEmail {
+  const where = m.clientName ? `${m.clientName}, with ${m.firmName}` : m.firmName;
+  const role = ROLE_LABEL[m.role];
+  const greeting = m.recipientName ? `Hello ${m.recipientName},` : 'Hello,';
+  const intro = `${m.invitedBy} invited you to ${PRODUCT_NAME} as ${article(role)} ${role} for ${where}. Set a password to accept. The link expires in ${days(m.expiresInDays)}.`;
+  const footer = `You get this email because ${m.invitedBy} entered your address in ${PRODUCT_NAME}. If you don't expect it, ignore it.`;
+  return {
+    subject: `${m.invitedBy} invited you to ${PRODUCT_NAME}`,
+    html: renderLayout({
+      preheader: `Join ${where} on ${PRODUCT_NAME}.`,
+      heading: "You're invited",
+      blocks: [paragraph(greeting), paragraph(intro)],
+      cta: { label: 'Accept invitation', url: m.url },
+      footer,
+    }),
+    text: textEmail([greeting, intro, `Accept invitation: ${safeUrl(m.url)}`, footer]),
+  };
+}
+
 function scoreLabel(score: number | null): string {
   return score === null ? 'No items due' : `${score.toFixed(1)}%`;
 }
@@ -318,5 +397,9 @@ export function renderEmail(message: EmailMessage): RenderedEmail {
       return renderApprovalRequested(message);
     case 'SENT_BACK':
       return renderSentBack(message);
+    case 'MAGIC_LINK':
+      return renderMagicLink(message);
+    case 'INVITE':
+      return renderInvite(message);
   }
 }

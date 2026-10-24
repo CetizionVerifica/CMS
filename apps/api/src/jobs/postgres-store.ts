@@ -3,19 +3,22 @@ import {
   acts,
   assignments,
   auditEvents,
+  clients,
   departments,
   domainEvents,
   firms,
   instances,
+  invites,
   jobs,
   notificationSends,
   obligations,
+  people,
   units,
   systemContext,
   type Database,
   type TenantTx,
 } from '@canopy/db';
-import type { FirmTx, JobStore, NoticeInstance } from './ports.js';
+import type { FirmTx, InviteNotice, JobStore, NoticeInstance, PersonNotice } from './ports.js';
 
 /**
  * The jobs' ports on M3's repositories. Every firm runs in `withTenant(systemContext(firmId, requestId))`, so RLS
@@ -70,6 +73,32 @@ function firmTx(tx: TenantTx): FirmTx {
         departmentName: department.name,
         criticality: obligation.criticality,
         version: i.version,
+      };
+    },
+    findPerson: async (personId): Promise<PersonNotice | null> => {
+      const p = await people.get(tx, personId);
+      if (!p || p.archivedAt !== null) return null;
+      return { personId: p.id, displayName: p.displayName, email: p.email, status: p.status };
+    },
+    findInvite: async (inviteId): Promise<InviteNotice | null> => {
+      const i = await invites.get(tx, inviteId);
+      if (!i) return null;
+      const client = i.grant.clientId === null ? null : await clients.get(tx, i.grant.clientId);
+      const inviter = await people.get(tx, i.createdById);
+      return {
+        inviteId: i.id,
+        personId: i.personId,
+        email: i.email,
+        firmName: i.firmName,
+        role: i.grant.role,
+        clientId: i.grant.clientId,
+        clientName: client?.name ?? null,
+        clientTimeZone: client?.settings.timeZone ?? null,
+        createdById: i.createdById,
+        inviterName: inviter?.displayName ?? '',
+        expiresAt: i.expiresAt,
+        acceptedAt: i.acceptedAt,
+        revokedAt: i.revokedAt,
       };
     },
     listDoneSends: async (clientId, sendDate) =>
