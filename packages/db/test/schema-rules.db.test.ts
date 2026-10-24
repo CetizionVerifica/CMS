@@ -152,7 +152,25 @@ describe('every table', () => {
       WHERE grantee = 'canopy_app' AND table_schema = 'public' AND table_name = 'firm'
         AND privilege_type = 'UPDATE' ORDER BY column_name`);
     expect(columns.rows.map((r) => r.column)).toEqual(['name', 'settings', 'version']);
-    for (const { name } of TABLES.filter((x) => !['audit_event', 'firm'].includes(x.name))) {
+    // A support grant is revoked, never re-pointed or stretched (audit of #140, Low 4).
+    const grantColumns = await t.ownerQuery<{ column: string }>(`
+      SELECT column_name AS column FROM information_schema.column_privileges
+      WHERE grantee = 'canopy_app' AND table_schema = 'public' AND table_name = 'support_grant'
+        AND privilege_type = 'UPDATE' ORDER BY column_name`);
+    expect(grantColumns.rows.map((r) => r.column)).toEqual([
+      'revoked_at',
+      'revoked_by_id',
+      'updated_at',
+    ]);
+    expect(
+      rows
+        .filter((r) => r.table === 'support_grant')
+        .map((r) => r.privilege)
+        .sort(),
+    ).toEqual(['INSERT', 'SELECT']);
+    for (const { name } of TABLES.filter(
+      (x) => !['audit_event', 'firm', 'support_grant'].includes(x.name),
+    )) {
       const granted = rows
         .filter((r) => r.table === name)
         .map((r) => r.privilege)
@@ -309,7 +327,7 @@ describe('platform schema and operator roles', () => {
     expect(rows.map((r) => r.name)).toEqual([
       'app_account',
       'app_usage',
-      'platform_account_owner',
+      'canopy_activate_account',
       'platform_create_account',
       'platform_issue_support_token',
       'platform_provision_account',
@@ -319,9 +337,13 @@ describe('platform schema and operator roles', () => {
     for (const f of rows) {
       expect(f.definer, f.name).toBe(true);
       expect(f.config, f.name).toContain('search_path=public, pg_temp');
-      // app_* are the app's own reads of its account; every platform_* is the operator's.
+      // app_* are the app's own reads of its account; every platform_* is the operator's; the trigger is nobody's.
       expect({ operator: f.operator, app: f.app }, f.name).toEqual(
-        f.name.startsWith('app_') ? { operator: false, app: true } : { operator: true, app: false },
+        f.name.startsWith('app_')
+          ? { operator: false, app: true }
+          : f.name.startsWith('platform_')
+            ? { operator: true, app: false }
+            : { operator: false, app: false },
       );
     }
   });

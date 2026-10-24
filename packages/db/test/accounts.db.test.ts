@@ -288,6 +288,135 @@ describe('the app’s own account', () => {
   });
 });
 
+describe('the owner accepting their invite', () => {
+  async function accept(account: { accountId: string; ownerId: string; inviteId: string }) {
+    await inFirm(account.accountId, async (tx) => {
+      const tokenId = await r.loginTokens.create(tx, {
+        personId: account.ownerId,
+        kind: 'INVITE',
+        inviteId: account.inviteId,
+        tokenHash: hash(),
+        expiresAt: '2099-01-01T00:00:00.000Z',
+      });
+      await r.invites.accept(tx, {
+        inviteId: account.inviteId,
+        tokenId,
+        passwordHash: 'scrypt$32768$8$1$salt$owner',
+        now: NOW(),
+      });
+    });
+  }
+  const operatorTrail = (accountId: string) =>
+    t.ownerQuery<{ action: string; operator_id: string | null; after: unknown }>(
+      `SELECT action, operator_id, after FROM platform.operator_audit_event
+       WHERE account_id = '${accountId}' AND action = 'ACCOUNT_ACTIVATE'`,
+    );
+
+  it('opens a trial account as TRIAL, with its audit row, outbox event and operator entry', async () => {
+    const fresh = await asOperator((tx) =>
+      r.platformAccounts.create(tx, newAccount({ name: 'Kestrel Aluminium' })),
+    );
+    await accept(fresh);
+    const record = await asOperator((tx) => r.platformAccounts.get(tx, fresh.accountId));
+    expect(record).toMatchObject({ status: 'TRIAL', version: 2, onboardedAt: expect.any(String) });
+    const audit = await inFirm(fresh.accountId, (tx) =>
+      tx
+        .select({
+          actorId: s.auditEvent.actorId,
+          actorKind: s.auditEvent.actorKind,
+          action: s.auditEvent.action,
+          before: s.auditEvent.before,
+          after: s.auditEvent.after,
+        })
+        .from(s.auditEvent)
+        .where(sql`${s.auditEvent.entityType} = 'account'`),
+    );
+    expect(audit).toEqual([
+      {
+        actorId: fresh.ownerId,
+        actorKind: 'PERSON',
+        action: 'TRANSITION',
+        before: { status: 'PROVISIONING' },
+        after: { status: 'TRIAL' },
+      },
+    ]);
+    const events = await inFirm(fresh.accountId, (tx) =>
+      tx
+        .select({
+          actor: s.domainEvent.actor,
+          version: s.domainEvent.aggregateVersion,
+          data: s.domainEvent.data,
+        })
+        .from(s.domainEvent)
+        .where(sql`${s.domainEvent.type} = 'account.status_changed'`),
+    );
+    expect(events).toEqual([
+      {
+        actor: { kind: 'PERSON', personId: fresh.ownerId },
+        version: 2,
+        data: { accountId: fresh.accountId, from: 'PROVISIONING', to: 'TRIAL' },
+      },
+    ]);
+    expect((await operatorTrail(fresh.accountId)).rows).toEqual([
+      { action: 'ACCOUNT_ACTIVATE', operator_id: null, after: { status: 'TRIAL' } },
+    ]);
+  });
+
+  it('opens an account with no trial as ACTIVE', async () => {
+    const fresh = await asOperator((tx) =>
+      r.platformAccounts.create(
+        tx,
+        newAccount({
+          name: 'Kestrel Fibres',
+          client: null,
+          kind: 'CONSULTANCY',
+          planCode: 'CONSULTANCY',
+          trialEndsOn: null,
+        }),
+      ),
+    );
+    await accept(fresh);
+    expect(await asOperator((tx) => r.platformAccounts.get(tx, fresh.accountId))).toMatchObject({
+      status: 'ACTIVE',
+      version: 2,
+    });
+  });
+
+  it('changes nothing when an admin of a working account accepts', async () => {
+    const before = await asOperator((tx) => r.platformAccounts.get(tx, a.firmId));
+    const invite = await inFirm(a.firmId, async (tx) => {
+      const { rows } = await tx.execute<{ id: string }>(sql`
+        INSERT INTO person (display_name, name_normalized, status)
+        VALUES ('Second Admin', 'second admin', 'UNCLAIMED') RETURNING id`);
+      const personId = rows[0]!.id;
+      return r.invites.create(
+        tx,
+        {
+          personId,
+          email: 'second.admin@demo-advisory.example',
+          grant: {
+            role: 'FIRM_ADMIN',
+            clientId: null,
+            consultantClientIds: null,
+            unitIds: null,
+            expiresAt: null,
+          },
+          createdById: personId,
+          expiresAt: '2099-01-01T00:00:00.000Z',
+        },
+        NOW(),
+      );
+    });
+    await accept({
+      accountId: a.firmId,
+      ownerId: invite.invite.personId,
+      inviteId: invite.invite.id,
+    });
+    expect(await asOperator((tx) => r.platformAccounts.get(tx, a.firmId))).toEqual(before);
+    expect((await operatorTrail(a.firmId)).rows).toEqual([]);
+  });
+});
+
 describe('provisioning', () => {
   let created: Awaited<ReturnType<typeof r.platformAccounts.create>>;
 
@@ -306,12 +435,6 @@ describe('provisioning', () => {
       version: 1,
     });
     expect(created.clientId).not.toBeNull();
-    const owner = await asOperator((tx) => r.platformAccounts.owner(tx, created.accountId));
-    expect(owner).toEqual({
-      email: 'asha.rao@kestrel-metals.example',
-      displayName: 'Asha Rao',
-      accepted: false,
-    });
     const people = await inFirm(created.accountId, (tx) =>
       tx.select({ status: s.person.status }).from(s.person),
     );
@@ -359,34 +482,6 @@ describe('provisioning', () => {
         ),
       ),
     ).toBe('VALIDATION');
-  });
-
-  it('enters the new account as the app role, and no other', async () => {
-    const seen = await asOperator(async (tx) => {
-      const fresh = await r.platformAccounts.create(
-        tx,
-        newAccount({
-          name: 'Osprey Textiles Group',
-          client: null,
-          kind: 'CONSULTANCY',
-          planCode: 'CONSULTANCY',
-        }),
-      );
-      const people = await op.withNewAccount(
-        tx,
-        fresh.accountId,
-        async (tenant) => (await tenant.select({ id: s.person.id }).from(s.person)).length,
-      );
-      const { rows } = await tx.execute<{ role: string; firm: string | null }>(
-        sql`SELECT current_user AS role, app_firm_id() AS firm`,
-      );
-      return { people, after: rows[0] };
-    });
-    // Back as the operator with no tenant once the library copy is done.
-    expect(seen).toEqual({ people: 1, after: { role: 'canopy_operator', firm: null } });
-    expect(await failure(asOperator((tx) => op.withNewAccount(tx, a.firmId, async () => 1)))).toBe(
-      'FORBIDDEN',
-    );
   });
 
   it('records operator changes in the account’s own trail, with account fields only', async () => {
@@ -439,6 +534,34 @@ describe('provisioning', () => {
         asOperator((tx) => r.platformAccounts.update(tx, created.accountId, 1, { name: 'Stale' })),
       ),
     ).toBe('STALE_VERSION');
+  });
+
+  it('records account actions only, with no person field at any depth', async () => {
+    const event = (over: Partial<r.AccountEvent>): r.AccountEvent => ({
+      accountId: created.accountId,
+      action: 'UPDATE',
+      before: null,
+      after: { planCode: 'BUSINESS' },
+      reason: null,
+      requestId: 'accounts-test',
+      operatorId: OPERATOR_ID,
+      event: null,
+      ...over,
+    });
+    for (const bad of [
+      event({ after: { owner: { email: 'asha.rao@kestrel-metals.example' } } }),
+      event({ before: { changes: [{ displayName: 'Asha Rao' }] } }),
+      event({ action: 'EVIDENCE_ADD' }),
+      event({ action: 'LOGIN' }),
+    ]) {
+      expect(
+        await failure(asOperator((tx) => r.platformAccounts.recordEvent(tx, bad))),
+        JSON.stringify(bad),
+      ).not.toBe('resolved');
+    }
+    expect(await failure(asOperator((tx) => r.platformAccounts.recordEvent(tx, event({}))))).toBe(
+      'resolved',
+    );
   });
 
   it('counts usage without reading a row', async () => {
@@ -640,9 +763,185 @@ describe('support access', () => {
     expect((await inFirm(a.firmId, (tx) => r.people.require(tx, adminId))).support).toBeUndefined();
   });
 
+  it('the support person gets no password, magic link, invite or plain session, whoever writes it', async () => {
+    const supportId = (await inFirm(a.firmId, (tx) => r.supportGrants.list(tx, NOW())))[0]!
+      .supportPersonId;
+    const refusals = [
+      await failure(
+        inFirm(a.firmId, (tx) =>
+          r.credentials.setPassword(tx, supportId, 'scrypt$32768$8$1$salt$support'),
+        ),
+      ),
+      await failure(
+        inFirm(a.firmId, (tx) =>
+          r.loginTokens.create(tx, {
+            personId: supportId,
+            kind: 'MAGIC_LINK',
+            inviteId: null,
+            tokenHash: hash(),
+            expiresAt: '2099-01-01T00:00:00.000Z',
+          }),
+        ),
+      ),
+      await failure(
+        inFirm(a.firmId, (tx) =>
+          r.sessions.create(tx, {
+            personId: supportId,
+            method: 'MAGIC_LINK',
+            tokenHash: hash(),
+            csrfToken: 'k'.repeat(43),
+            mfaSatisfied: true,
+            expiresAt: '2099-01-01T00:00:00.000Z',
+          }),
+        ),
+      ),
+      await failure(
+        inFirm(a.firmId, (tx) =>
+          tx.execute(sql`
+            INSERT INTO auth_invite (person_id, email, role, created_by_id, expires_at)
+            VALUES (${supportId}, 'support@planetpulse.life', 'FIRM_ADMIN', ${adminId}, '2099-01-01')`),
+        ),
+      ),
+      // The owner is held to it too.
+      await failure(
+        t.ownerQuery(
+          `INSERT INTO auth_credential (firm_id, person_id, password_hash)
+           VALUES ($1, $2, 'scrypt$32768$8$1$salt$support')`,
+          [a.firmId, supportId],
+        ),
+      ),
+    ];
+    // The repositories report FORBIDDEN; raw statements see the SQLSTATE.
+    expect(refusals).toEqual(['FORBIDDEN', 'FORBIDDEN', 'FORBIDDEN', '42501', '42501']);
+  });
+
+  it('the sign-in lookups ignore a support person’s token or plain session even if one is written', async () => {
+    const supportId = (await inFirm(a.firmId, (tx) => r.supportGrants.list(tx, NOW())))[0]!
+      .supportPersonId;
+    const tokenHash = hash();
+    const sessionHash = hash();
+    // Written past the triggers, as a restore or a hand edit could.
+    await t.ownerQuery(`
+      DO $$ BEGIN
+        PERFORM set_config('session_replication_role', 'replica', true),
+          set_config('app.firm_id', '${a.firmId}', true);
+        INSERT INTO auth_token (firm_id, person_id, kind, token_hash, expires_at)
+          VALUES ('${a.firmId}', '${supportId}', 'MAGIC_LINK', '${tokenHash}', '2099-01-01');
+        INSERT INTO auth_session (firm_id, person_id, token_hash, csrf_token, mfa_satisfied, method, expires_at)
+          VALUES ('${a.firmId}', '${supportId}', '${sessionHash}', '${'k'.repeat(43)}', true, 'MAGIC_LINK', '2099-01-01');
+      END $$`);
+    expect(await t.db.findLoginToken(tokenHash)).toBeNull();
+    expect(await t.db.findSession(sessionHash)).toBeNull();
+  });
+
+  it('a grant is revoked, never re-pointed or stretched, and lasts at most 30 days', async () => {
+    const live = (await inFirm(a.firmId, (tx) => r.supportGrants.list(tx, NOW())))[0]!;
+    for (const set of [
+      sql`support_person_id = ${adminId}`,
+      sql`ends_at = ends_at + interval '1 year'`,
+      sql`level = 'ADMIN'`,
+    ]) {
+      expect(
+        await failure(
+          inFirm(a.firmId, (tx) =>
+            tx.execute(sql`UPDATE support_grant SET ${set} WHERE id = ${live.id}`),
+          ),
+        ),
+      ).toBe('42501');
+    }
+    expect(
+      await failure(
+        inFirm(a.firmId, (tx) =>
+          tx.execute(sql`
+            INSERT INTO support_grant (level, starts_at, ends_at, granted_by_id, support_person_id)
+            VALUES ('READ_ONLY', now(), now() + interval '31 days', ${adminId}, ${live.supportPersonId})`),
+        ),
+      ),
+    ).toBe('23514');
+  });
+
+  it('issues no support token for a grant pointed at anyone but the support person', async () => {
+    const grantId = '01920000-0000-7000-8000-0000000000c4';
+    await t.ownerQuery(`
+      DO $$ BEGIN
+        PERFORM set_config('app.firm_id', '${a.firmId}', true);
+        INSERT INTO support_grant (id, firm_id, level, starts_at, ends_at, granted_by_id, support_person_id)
+          VALUES ('${grantId}', '${a.firmId}', 'ADMIN', now() - interval '1 minute', now() + interval '1 day',
+                  '${adminId}', '${adminId}');
+      END $$`);
+    const tokenHash = hash();
+    expect(
+      await failure(
+        asOperator((tx) =>
+          r.platformSupport.issueToken(tx, {
+            accountId: a.firmId,
+            grantId,
+            tokenHash,
+            expiresAt: soon(),
+          }),
+        ),
+      ),
+    ).not.toBe('resolved');
+    expect(await t.db.findSupportToken(tokenHash)).toBeNull();
+  });
+
   it('the support person is never a sign-in candidate', async () => {
     expect(await t.db.findLoginCandidates('support@planetpulse.life')).toEqual([]);
     const [admin] = await t.db.findLoginCandidates('admin@a.example');
     expect(admin).toMatchObject({ firmId: a.firmId, accountStatus: 'ACTIVE' });
+  });
+});
+
+describe('the deletion clock', () => {
+  it('is the database’s: requesting deletion stamps now, and nobody moves it after', async () => {
+    const account = await asOperator((tx) =>
+      r.platformAccounts.create(
+        tx,
+        newAccount({
+          name: 'Osprey Textiles Group',
+          kind: 'CONSULTANCY',
+          planCode: 'CONSULTANCY',
+          client: null,
+          owner: { displayName: 'Ravi Menon', email: 'ravi.menon@osprey-textiles.example' },
+        }),
+      ),
+    );
+    const id = account.accountId;
+    await asOperator((tx) => r.platformAccounts.update(tx, id, 1, { status: 'TRIAL' }));
+    const before = Date.now();
+    const { after } = await asOperator((tx) =>
+      r.platformAccounts.update(tx, id, 2, {
+        status: 'PENDING_DELETION',
+        statusBeforeDeletion: 'TRIAL',
+        deletionRequestedAt: '2020-01-01T00:00:00.000Z',
+      }),
+    );
+    // The operator's backdated time is ignored (audit of #140, Medium 2).
+    expect(Date.parse(after.deletionRequestedAt!)).toBeGreaterThanOrEqual(before - 5_000);
+    expect(
+      await failure(
+        asOperator((tx) =>
+          r.platformAccounts.update(tx, id, 3, { deletionRequestedAt: '2019-01-01T00:00:00.000Z' }),
+        ),
+      ),
+    ).not.toBe('resolved');
+    expect(
+      await failure(
+        t.ownerQuery(`
+          DO $$ BEGIN
+            PERFORM set_config('app.firm_id', '${id}', true);
+            UPDATE firm SET deletion_requested_at = '2019-01-01' WHERE id = '${id}';
+          END $$`),
+      ),
+    ).toBe('23514');
+    // Cancelling clears it.
+    const cancelled = await asOperator((tx) =>
+      r.platformAccounts.update(tx, id, 3, {
+        status: 'TRIAL',
+        statusBeforeDeletion: null,
+        deletionRequestedAt: null,
+      }),
+    );
+    expect(cancelled.after).toMatchObject({ status: 'TRIAL', deletionRequestedAt: null });
   });
 });

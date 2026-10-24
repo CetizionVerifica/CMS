@@ -402,7 +402,8 @@ export const platformAccounts = {
   /**
    * Creates the account in PROVISIONING and provisions it in the same transaction: its client (ENTERPRISE), the
    * owner as an INVITED person with a FIRM_ADMIN invite, and the account.created and person.invited events (M9 sends
-   * the invite email from person.invited, as for any invite). The library copy follows in `withNewAccount`.
+   * the invite email from person.invited, as for any invite). The master library copy runs on the app side, from
+   * account.created, in the new account's own systemContext: the console never acts inside a tenant.
    */
   async create(
     tx: OperatorTx,
@@ -474,19 +475,6 @@ export const platformAccounts = {
       )
       .catch(rethrow);
     return usageOf(rows[0]);
-  },
-  /** The owner invited at provisioning, or null before provisioning. */
-  async owner(
-    tx: OperatorTx,
-    accountId: string,
-  ): Promise<{ email: string; displayName: string; accepted: boolean } | null> {
-    const { rows } = await tx
-      .execute<{ email: string; display_name: string; accepted: boolean }>(
-        sql`SELECT * FROM platform_account_owner(${validate(Id, accountId)})`,
-      )
-      .catch(rethrow);
-    const [r] = rows;
-    return r ? { email: r.email, displayName: r.display_name, accepted: r.accepted } : null;
   },
   /** Effective limits and features: the plan overlaid with the account's override. */
   async entitlements(

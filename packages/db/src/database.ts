@@ -7,8 +7,7 @@ import pg from 'pg';
 import { z } from 'zod';
 import { lookups, type AuthLookups } from './auth-lookups.js';
 import * as schema from './schema/index.js';
-import { DbError } from './errors.js';
-import { systemContext, tenantSettings, type TenantContext } from './tenant-context.js';
+import { tenantSettings, type TenantContext } from './tenant-context.js';
 
 export type Schema = typeof schema;
 type Db = NodePgDatabase<Schema>;
@@ -140,6 +139,10 @@ async function privilegedReason(db: Db, serving: 'tenant' | 'operator'): Promise
     // The operator reads every firm row; a tenant login that could RESET ROLE into it would too.
     if (serving === 'tenant' && role.name === OPERATOR_ROLE)
       return role.self ? 'the login is canopy_operator' : `${who} reads every account`;
+    // The console never acts inside a tenant (audit of #140, Medium 1): a member of the app role could SET ROLE to it
+    // and set any firm's settings.
+    if (serving === 'operator' && role.name === APP_ROLE)
+      return role.self ? 'the login is canopy_app' : `${who} acts inside tenants`;
   }
   return null;
 }
@@ -201,16 +204,6 @@ export interface OperatorDatabase {
    * nothing and only the operator's own policies and the `platform_*` functions apply.
    */
   withOperator<T>(requestId: string, fn: (tx: OperatorTx) => Promise<T>): Promise<T>;
-  /**
-   * Inside `withOperator`, runs `fn` as the app role in `systemContext(accountId)` for an account that is still
-   * PROVISIONING, then switches back (ADR M15-0001 decision 8: the master library copy at provisioning). It is the one
-   * place operator code acts inside a tenant without a function of its own. FORBIDDEN for any other account.
-   */
-  withNewAccount<T>(
-    tx: OperatorTx,
-    accountId: string,
-    fn: (tenant: TenantTx) => Promise<T>,
-  ): Promise<T>;
   close(): Promise<void>;
 }
 
@@ -227,7 +220,7 @@ export function createOperatorDatabase(options: DatabaseOptions): OperatorDataba
       if (reason) {
         loginChecked = null;
         throw new Error(
-          `Refusing operator connections: ${reason}. Connect as a non-owner member of ${OPERATOR_ROLE}.`,
+          `Refusing operator connections: ${reason}. Connect as a non-owner member of ${OPERATOR_ROLE} only.`,
         );
       }
     });
@@ -245,31 +238,6 @@ export function createOperatorDatabase(options: DatabaseOptions): OperatorDataba
                  set_config('app.firm_staff', '', true), set_config('app.request_id', ${id}, true)`);
         return fn(tx as OperatorTx);
       });
-    },
-    async withNewAccount(tx, accountId, fn) {
-      const id = Id.parse(accountId);
-      const { rows } = await tx.execute<{ status: string; request_id: string }>(
-        sql`SELECT status, current_setting('app.request_id') AS request_id FROM firm WHERE id = ${id}`,
-      );
-      if (rows[0]?.status !== 'PROVISIONING') {
-        throw new DbError('FORBIDDEN', 'Only an account being provisioned can be entered');
-      }
-      const settings = tenantSettings(systemContext(id, rows[0].request_id));
-      await tx.execute(sql.raw(`SET LOCAL ROLE ${APP_ROLE}`));
-      await tx.execute(sql`
-        SELECT set_config('app.firm_id', ${settings['app.firm_id']}, true),
-               set_config('app.person_id', ${settings['app.person_id']}, true),
-               set_config('app.client_ids', ${settings['app.client_ids']}, true),
-               set_config('app.all_clients', ${settings['app.all_clients']}, true),
-               set_config('app.firm_staff', ${settings['app.firm_staff']}, true)`);
-      // On a throw the transaction rolls back, role and settings with it.
-      const result = await fn(tx as unknown as TenantTx);
-      await tx.execute(sql.raw(`SET LOCAL ROLE ${OPERATOR_ROLE}`));
-      await tx.execute(sql`
-        SELECT set_config('app.firm_id', '', true), set_config('app.person_id', '', true),
-               set_config('app.client_ids', '', true), set_config('app.all_clients', '', true),
-               set_config('app.firm_staff', '', true)`);
-      return result;
     },
     close: () => pool.end(),
   };

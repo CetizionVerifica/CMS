@@ -41,6 +41,8 @@ export const supportGrant = pgTable(
     }),
     index('support_grant_firm_idx').on(t.firmId, t.startsAt),
     check('support_grant_period_check', sql`ends_at > starts_at`),
+    // SUPPORT_GRANT_MAX_DAYS (audit of #140, Low 5).
+    check('support_grant_length_check', sql`ends_at <= starts_at + interval '30 days'`),
     check('support_grant_revoked_check', sql`(revoked_at is null) = (revoked_by_id is null)`),
     pgPolicy('tenant_read', { for: 'select', to: 'public', using: sql`firm_id = app_firm_id()` }),
     pgPolicy('tenant_insert', {
