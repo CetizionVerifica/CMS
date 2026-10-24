@@ -62,8 +62,8 @@ await owner.query(`DO $$ BEGIN
   END IF;
 END $$`);
 await owner.query(`GRANT canopy_app TO ${APP_LOGIN}`);
-// CONNECT, and CREATE because M9's pg-boss creates and owns its `pgboss` schema when the API starts.
-await owner.query(`GRANT CONNECT, CREATE ON DATABASE ${E2E_DATABASE} TO ${APP_LOGIN}`);
+// CONNECT only: the migrations create the `pgboss` schema pg-boss runs in (0022, then canopy_jobs's from 0023).
+await owner.query(`GRANT CONNECT ON DATABASE ${E2E_DATABASE} TO ${APP_LOGIN}`);
 // The jobs run as their own login, as in production. Once M3 hands the job schema to canopy_jobs, the login is a
 // member of canopy_jobs and defaults to it, so pg-boss's tables belong to canopy_jobs; before that, of canopy_app.
 const { rowCount: jobsRole } = await owner.query(
@@ -75,6 +75,8 @@ await owner.query(`DO $$ BEGIN
     CREATE ROLE ${JOBS_LOGIN} LOGIN PASSWORD '${JOBS_PASSWORD}' NOSUPERUSER NOBYPASSRLS;
   END IF;
 END $$`);
+// Roles outlive the database, so a login a run before 0023 made a member of canopy_app leaves it.
+if (jobsGroup === 'canopy_jobs') await owner.query(`REVOKE canopy_app FROM ${JOBS_LOGIN}`);
 await owner.query(`GRANT ${jobsGroup} TO ${JOBS_LOGIN}`);
 await owner.query(`ALTER ROLE ${JOBS_LOGIN} SET role = ${jobsGroup}`);
 await owner.query(`GRANT CONNECT ON DATABASE ${E2E_DATABASE} TO ${JOBS_LOGIN}`);
