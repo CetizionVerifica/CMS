@@ -2,6 +2,7 @@ import '@fontsource-variable/plus-jakarta-sans/wght.css';
 import './globals.css';
 
 import type { Metadata, Viewport } from 'next';
+import { connection } from 'next/server';
 import type { ReactNode } from 'react';
 
 import { PRODUCT_NAME } from '../lib/brand';
@@ -14,7 +15,10 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = { width: 'device-width', initialScale: 1, themeColor: '#1F6B47' };
 
-export default function RootLayout({ children }: { children: ReactNode }) {
+export default async function RootLayout({ children }: { children: ReactNode }) {
+  // Every page renders per request, so each gets the nonce its Content-Security-Policy allows (proxy.ts). A page
+  // prerendered at build time would carry scripts without it, which the browser would refuse to run.
+  await connection();
   return (
     <html lang="en-IN">
       <body className="bg-mist text-ink">{children}</body>

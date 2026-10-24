@@ -43,6 +43,27 @@ test.describe('auth pages', () => {
     await expect(page).toHaveURL('/portfolio');
   });
 
+  test('pages send a content security policy their own scripts satisfy', async ({ page }) => {
+    const violations: string[] = [];
+    page.on('console', (m) => {
+      if (/Content Security Policy/i.test(m.text())) violations.push(m.text());
+    });
+    const response = await page.goto('/login');
+    const policy = response!.headers()['content-security-policy'] ?? '';
+    expect(policy).toMatch(/script-src 'self' 'nonce-[A-Za-z0-9+/=]+' 'strict-dynamic'/);
+    expect(policy).toContain("frame-ancestors 'none'");
+    expect(policy).not.toContain('unsafe-eval');
+    // A fresh nonce per response.
+    const again = (await page.request.get('/login')).headers()['content-security-policy'];
+    expect(again).not.toBe(policy);
+    // React hydrated under the policy: this switch is client state.
+    await page.getByRole('button', { name: 'Email me a sign-in link instead' }).click();
+    await expect(page.getByRole('button', { name: 'Email me a sign-in link' })).toBeVisible();
+    await signIn(page, 'consultant@demo.test', '/portfolio');
+    await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+    expect(violations).toEqual([]);
+  });
+
   test('a firm user with no authenticator sets one up, then gets in', async ({ page }) => {
     await page.goto(`/login?next=${encodeURIComponent(`/c/${DEMO_METALS}/overview`)}`);
     await page.getByLabel('Work email').fill('newconsultant@demo.test');
