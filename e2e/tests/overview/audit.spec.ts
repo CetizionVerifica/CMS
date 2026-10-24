@@ -58,6 +58,17 @@ test.describe('audit trail', () => {
     }
   });
 
+  test('a viewer reads the trail but not the setup pages', async ({ page }) => {
+    await signIn(page, 'viewer@demo.test', AUDIT);
+    await expect(page.getByRole('heading', { level: 1, name: 'Audit trail' })).toBeVisible();
+    await expect(page.getByRole('table', { name: 'Audit trail' })).toBeVisible();
+    await checkSettled(page);
+
+    await page.goto(DEPARTMENTS);
+    await expect(page.getByRole('heading', { name: /You don’t have access/ })).toBeVisible();
+    await checkSettled(page);
+  });
+
   test('the trail reads at 375px', async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 800 });
     await signIn(page, 'consultant@demo.test', AUDIT);

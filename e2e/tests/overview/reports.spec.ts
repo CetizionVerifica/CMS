@@ -82,6 +82,14 @@ test.describe('reports', () => {
     await checkSettled(page);
   });
 
+  test('a viewer reads the reports', async ({ page }) => {
+    await signIn(page, 'viewer@demo.test', REPORTS);
+    await expect(page.getByRole('heading', { level: 1, name: 'Reports' })).toBeVisible();
+    await expect(page.getByRole('table', { name: 'Scores by Act' })).toBeVisible();
+    await expect(page.getByRole('table', { name: 'Scores by department' })).toBeVisible();
+    await checkSettled(page);
+  });
+
   test('the reports read at 375px', async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 800 });
     await signIn(page, 'consultant@demo.test', REPORTS);
