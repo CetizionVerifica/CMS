@@ -252,3 +252,83 @@ describe('invitation on person.invited', () => {
     }
   });
 });
+
+function mfaEnrolledEvent(
+  w: World,
+  personId = w.asha.id,
+  via: 'SETTINGS' | 'INVITE' = 'SETTINGS',
+  occurredAt = '2026-10-13T19:00:00.000Z',
+): OutboxEvent {
+  return {
+    id: randomUUID(),
+    type: 'person.mfa_enrolled',
+    schemaVersion: 1,
+    occurredAt,
+    firmId: w.firm.id,
+    clientId: null,
+    actor: { kind: 'PERSON', personId },
+    requestId: 'req:mfa',
+    aggregate: { type: 'person', id: personId },
+    aggregateVersion: 3,
+    data: { personId, via },
+  };
+}
+
+describe('MFA notice on person.mfa_enrolled', () => {
+  it('tells the person once, naming the India day and how, with no link and no token', async () => {
+    const w = setup();
+    // 19:00Z on the 13th is already the 14th in India.
+    const e = mfaEnrolledEvent(w);
+    expect(await handle(w, e)).toEqual({ sent: 1 });
+    expect(w.issued).toEqual([]);
+    const [mail] = w.h.mailer.sent;
+    expect(mail!.to).toEqual({ name: 'Asha Rao', email: 'asha@example.com' });
+    expect(mail!.subject).toBe(
+      'Two-step sign-in was set up on your PlanetPulse Compliance account',
+    );
+    expect(mail!.text).toContain('on 14 Oct 2026, from your account settings');
+    expect(mail!.text).not.toMatch(/https?:/);
+    expect(w.h.store.firms[0]!.sends).toEqual([
+      expect.objectContaining({
+        clientId: null,
+        instanceId: null,
+        kind: 'MFA_ENROLLED',
+        recipientId: w.asha.id,
+        eventId: e.id,
+      }),
+    ]);
+    expect(await handle(w, e)).toEqual({ sent: 0, alreadySent: 1 });
+    expect(w.h.mailer.sent).toHaveLength(1);
+  });
+
+  it('names the invitation, and still sends a notice delivered days late', async () => {
+    const w = setup();
+    w.h.at('2026-10-20T09:30:00.000Z');
+    expect(await handle(w, mfaEnrolledEvent(w, w.asha.id, 'INVITE'))).toEqual({ sent: 1 });
+    expect(w.h.mailer.sent[0]!.text).toContain('while your invitation was accepted');
+    expect(w.h.mailer.sent[0]!.text).toContain('on 14 Oct 2026');
+  });
+
+  it('sends nothing to a person who is gone or not active, and records why', async () => {
+    const w = setup();
+    expect(await handle(w, mfaEnrolledEvent(w, w.invitee.id))).toEqual({
+      sent: 0,
+      failedNO_EMAIL: 1,
+    });
+    w.h.store.firms[0]!.people[1]!.status = 'DISABLED';
+    expect(await handle(w, mfaEnrolledEvent(w, w.inviter.id))).toEqual({
+      sent: 0,
+      failedNOT_ACTIVE: 1,
+    });
+    w.h.store.firms[0]!.people.splice(0, 1);
+    expect(await handle(w, mfaEnrolledEvent(w))).toEqual({ sent: 0, skippedStale: 1 });
+    expect(w.h.mailer.sent).toEqual([]);
+  });
+
+  it('is registered only with a mailer, and needs no sign-in tokens', () => {
+    expect(CONSUMERS.find((c) => c.type === 'person.mfa_enrolled')).toMatchObject({
+      sendsMail: true,
+    });
+    expect(CONSUMERS.find((c) => c.type === 'person.mfa_enrolled')!.needsLoginTokens).toBeFalsy();
+  });
+});

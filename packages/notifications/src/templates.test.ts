@@ -291,6 +291,72 @@ describe('trial ending', () => {
   });
 });
 
+describe('renewal due', () => {
+  const renewal = (daysLeft: number, recipientName = 'Kiran Kestrel') =>
+    renderEmail({
+      kind: 'RENEWAL_DUE',
+      recipientName,
+      accountName: 'Kestrel Metals Group',
+      endsOn: '2027-03-31' as LocalDate,
+      daysLeft,
+      url: 'https://app.planetpulse.example/account',
+    });
+
+  it('says when the subscription ends and whom to contact to renew', () => {
+    const email = renewal(30);
+    expect(email.subject).toBe('Your PlanetPulse Compliance subscription ends in 30 days');
+    expect(email.text).toContain(
+      'The PlanetPulse Compliance subscription of Kestrel Metals Group ends in 30 days, on 31 Mar 2027.',
+    );
+    expect(email.text).toContain('contact PlanetPulse before that day');
+    expect(email.html).toContain('href="https://app.planetpulse.example/account"');
+    expect(email.text).toContain('because you are an account admin of Kestrel Metals Group');
+  });
+
+  it('greets an admin with no name and escapes the account name', () => {
+    const email = renderEmail({
+      kind: 'RENEWAL_DUE',
+      recipientName: '',
+      accountName: 'Kestrel <Metals> & Co',
+      endsOn: '2027-03-31' as LocalDate,
+      daysLeft: 7,
+      url: 'https://app.planetpulse.example/account',
+    });
+    expect(email.subject).toBe('Your PlanetPulse Compliance subscription ends in 7 days');
+    expect(email.text.startsWith('Hello,\n')).toBe(true);
+    expect(email.html).toContain('Kestrel &lt;Metals&gt; &amp; Co');
+    expect(email.html).not.toContain('<Metals>');
+  });
+});
+
+describe('MFA set up', () => {
+  const enrolled = (via: 'SETTINGS' | 'INVITE') =>
+    renderEmail({
+      kind: 'MFA_ENROLLED',
+      recipientName: 'Kiran Kestrel',
+      enrolledOn: '2026-10-24' as LocalDate,
+      via,
+    });
+
+  it('says when and how two-step sign-in was set up, and what to do if it was not them', () => {
+    const email = enrolled('SETTINGS');
+    expect(email.subject).toBe(
+      'Two-step sign-in was set up on your PlanetPulse Compliance account',
+    );
+    expect(email.text).toContain('on 24 Oct 2026, from your account settings');
+    expect(email.text).toContain(
+      "If it wasn't, tell your account admin or PlanetPulse straight away.",
+    );
+    // Nothing to click: no link a phisher could imitate, and no code or secret.
+    expect(email.html).not.toContain('href=');
+    expect(email.text).not.toMatch(/https?:/);
+  });
+
+  it('names the invitation when the setup came with accepting one', () => {
+    expect(enrolled('INVITE').text).toContain('while your invitation was accepted');
+  });
+});
+
 describe('sign-in link', () => {
   it('carries the link, says it works once and when it expires', () => {
     const email = magicLink();
