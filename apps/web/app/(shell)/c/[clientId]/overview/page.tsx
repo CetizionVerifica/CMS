@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 
 import { isApiError } from '../../../../../lib/api/client';
+import { redirectIfSignedOut } from './signed-out';
 import { serverApi } from '../../../../../lib/api/server';
 import { NoPermission, PageHeader } from '../../../../../lib/patterns';
 import { periodApiQuery, periodFromParams } from '../../../../../lib/period';
@@ -61,6 +62,7 @@ export default async function OverviewPage({ params, searchParams }: Props) {
       byCriticality: byCriticality.data,
     });
   } catch (error) {
+    await redirectIfSignedOut(error);
     if (isApiError(error, 'NOT_FOUND')) notFound();
     if (isApiError(error, 'FORBIDDEN', 'ACCESS_EXPIRED')) {
       return (

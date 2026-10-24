@@ -8,6 +8,8 @@ import { checkSettled } from './settled.js';
 // names what it adds uniquely.
 const DEPARTMENTS = `/c/${DEMO_METALS}/setup/departments`;
 const REMINDERS = `/c/${DEMO_METALS}/setup/reminders`;
+const ENTITIES = `/c/${DEMO_METALS}/setup/entities`;
+const PEOPLE = `/c/${DEMO_METALS}/setup/people`;
 const unique = () => Date.now().toString(36);
 
 test.describe('setup', () => {
@@ -132,18 +134,123 @@ test.describe('setup', () => {
     await signIn(page, 'owner@demo.test', DEPARTMENTS);
     await expect(page.getByLabel('Department name')).toHaveCount(0);
     await checkSettled(page);
+    for (const path of [REMINDERS, ENTITIES, PEOPLE]) {
+      await page.goto(path);
+      await expect(page.getByRole('heading', { name: /You don’t have access/ })).toBeVisible();
+      await expect(
+        page.getByRole('button', { name: /^(Save reminders|Add company|Add person)$/ }),
+      ).toHaveCount(0);
+    }
+  });
+
+  test('a consultant adds a company and a unit, moves the unit and archives it', async ({
+    page,
+  }) => {
+    const tag = unique();
+    const company = `Osprey Textiles ${tag}`;
+    const unit = `Highmoor Site ${tag}`;
+    await signIn(page, 'consultant@demo.test', ENTITIES);
+    await expect(page).toHaveTitle('Entities · Demo Metals · PlanetPulse Compliance');
+    await checkSettled(page);
+
+    await page.getByLabel('New company name').fill(company);
+    await page.getByRole('button', { name: 'Add company' }).click();
+    await expect(
+      page.getByRole('status').filter({ hasText: `${company} was added.` }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole('table', { name: 'Companies' }).getByRole('row').filter({ hasText: company }),
+    ).toContainText('0 units');
+
+    await page.getByRole('combobox', { name: 'Company' }).click();
+    await page.getByRole('option', { name: company }).click();
+    await page.getByRole('combobox', { name: 'Location' }).fill('Pune');
+    await page.getByRole('option', { name: 'Pune, Maharashtra, India' }).click();
+    await page.getByLabel('Unit name').fill(unit);
+    await page.getByRole('button', { name: 'Add unit' }).click();
+    const row = page
+      .getByRole('table', { name: 'Units' })
+      .getByRole('row')
+      .filter({ hasText: unit });
+    await expect(row).toContainText('Pune, Maharashtra, India');
+
+    await page.getByRole('button', { name: `Edit ${unit}, ${company}` }).click();
+    const drawer = page.getByRole('dialog', { name: unit });
+    await drawer.getByRole('combobox', { name: 'Location' }).fill('Chennai');
+    await page.getByRole('option', { name: 'Chennai, Tamil Nadu, India' }).click();
+    await expectNoA11yViolations(page);
+    await drawer.getByRole('button', { name: 'Save changes' }).click();
+    await expect(drawer).toBeHidden();
+    await expect(row).toContainText('Chennai, Tamil Nadu, India');
+
+    await page.getByRole('button', { name: `Archive ${unit}, ${company}` }).click();
+    const confirm = page.getByRole('alertdialog', { name: `Archive ${unit}?` });
+    await confirm.getByLabel(/Reason/).fill('Site closed');
+    await expectNoA11yViolations(page);
+    await confirm.getByRole('button', { name: 'Archive' }).click();
+    await expect(row).toHaveCount(0);
+    await checkSettled(page);
+  });
+
+  test('a consultant adds a person, gives them an email and merges a duplicate', async ({
+    page,
+  }) => {
+    const tag = unique();
+    const name = `Meera Rao ${tag}`;
+    const duplicate = `Meera R ${tag}`;
+    await signIn(page, 'consultant@demo.test', PEOPLE);
+    await expect(page).toHaveTitle('People · Demo Metals · PlanetPulse Compliance');
+    await checkSettled(page);
+
+    for (const person of [name, duplicate]) {
+      await page.getByLabel('Name', { exact: true }).fill(person);
+      await page.getByRole('button', { name: 'Add person' }).click();
+      await expect(
+        page.getByRole('status').filter({ hasText: `${person} was added.` }),
+      ).toBeVisible();
+    }
+    const table = page.getByRole('table', { name: 'People' });
+    await expect(table.getByRole('row').filter({ hasText: name })).toContainText('Not invited');
+
+    await page.getByRole('button', { name: `Edit ${name}` }).click();
+    const drawer = page.getByRole('dialog', { name });
+    await expect(drawer.getByText('Owner · all units')).toBeVisible();
+    await drawer.getByLabel('Email').fill(`meera.${tag}@kestrel.example`);
+    await drawer.getByRole('checkbox', { name: duplicate }).click();
+    await expectNoA11yViolations(page);
+    await drawer.getByRole('button', { name: 'Merge person' }).click();
+    await page
+      .getByRole('alertdialog', { name: `Merge ${duplicate} into ${name}?` })
+      .getByRole('button', { name: 'Merge' })
+      .click();
+    await expect(drawer).toBeHidden();
+    await expect(table.getByRole('rowheader', { name: duplicate })).toHaveCount(0);
+
+    await page.getByRole('button', { name: `Edit ${name}` }).click();
+    const again = page.getByRole('dialog', { name });
+    await again.getByLabel('Email').fill(`meera.${tag}@kestrel.example`);
+    await again.getByRole('button', { name: 'Save changes' }).click();
+    await expect(again).toBeHidden();
+    await expect(table.getByRole('row').filter({ hasText: name })).toContainText('Invited');
+    await checkSettled(page);
   });
 });
 
 test.describe('setup at 375px', () => {
   test.use({ viewport: { width: 375, height: 812 } });
 
-  test('departments and reminders fit the screen', async ({ page }) => {
+  test('every setup page fits the screen', async ({ page }) => {
     await signIn(page, 'consultant@demo.test', DEPARTMENTS);
     await expect(page.getByRole('heading', { level: 1, name: 'Departments' })).toBeVisible();
     await checkSettled(page);
-    await page.goto(REMINDERS);
-    await expect(page.getByRole('heading', { level: 1, name: 'Reminders' })).toBeVisible();
-    await checkSettled(page);
+    for (const [path, title] of [
+      [REMINDERS, 'Reminders'],
+      [ENTITIES, 'Entities'],
+      [PEOPLE, 'People'],
+    ] as const) {
+      await page.goto(path);
+      await expect(page.getByRole('heading', { level: 1, name: title })).toBeVisible();
+      await checkSettled(page);
+    }
   });
 });

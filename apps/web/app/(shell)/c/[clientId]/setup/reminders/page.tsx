@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 
 import { isApiError } from '../../../../../../lib/api/client';
+import { redirectIfSignedOut } from '../../overview/signed-out';
 import { serverApi } from '../../../../../../lib/api/server';
 import { NoPermission, PageHeader } from '../../../../../../lib/patterns';
 import { routeByPath, visibleTo } from '../../../../../../lib/routes';
@@ -39,6 +40,7 @@ export default async function RemindersPage({ params }: Props) {
   try {
     view = (await (await serverApi()).call('getClientSettings', { params: { clientId } })).data;
   } catch (error) {
+    await redirectIfSignedOut(error);
     if (isApiError(error, 'FORBIDDEN', 'ACCESS_EXPIRED')) {
       return (
         <NoPermission what="reminder settings" backHref={homeHref(model)} backLabel="Go to home" />
