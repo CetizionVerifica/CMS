@@ -49,8 +49,14 @@ sits outside every tenant, and a way for PlanetPulse to help a customer without 
    RLS, and `canopy_app` has **no USAGE on the schema**, so no customer request can name them. The app reads its own
    account only through `app_account()` (`SECURITY DEFINER`, keyed by `app.firm_id`), which returns kind, status, plan
    code, trial end and effective limits.
-8. **Database roles and every write across the wall.** `canopy_operator` (no login, no `BYPASSRLS`; the API's login
-   is a member and switches to it with `SET LOCAL ROLE`, as it does for `canopy_app`) has USAGE on `platform` and:
+8. **Database roles and every write across the wall.** `canopy_operator` (no login, no `BYPASSRLS`) has USAGE on
+   `platform` and the grants below. The console's database login (`OPERATOR_DATABASE_URL`) is a member of
+   `canopy_operator` only and switches to it with `SET LOCAL ROLE`. It can never become `canopy_app`, so console code
+   never runs inside a tenant. The tenant login can never become `canopy_operator` (ADR M3-0002 decision 6). This
+   supersedes the two-role console login of ADR M3-0002 decision 6. M3's follow-up to #140 removes `withNewAccount`,
+   makes `createOperatorDatabase` refuse a login that can become `canopy_app` (with a test), tightens
+   `platform_record_account_event` and amends that decision; M15 operator API code merges only after it. The
+   operator role has:
    SELECT, INSERT, UPDATE on the platform tables except `operator_audit_event` (SELECT, INSERT only, decision 12);
    SELECT on `firm` and UPDATE on its columns `name`, `status`, `plan_code`, `trial_ends_on`, `onboarded_at`, `profile`,
    `deletion_requested_at`, `status_before_deletion`, `version` (an `operator_*` policy, not the tenant ones); SELECT on
@@ -63,12 +69,20 @@ sits outside every tenant, and a way for PlanetPulse to help a customer without 
    - `platform_create_account(...)`: the `firm` row (decision 10).
    - `platform_provision_account(firm, ...)`: for a firm still `PROVISIONING` only, the enterprise client, the owner
      person, the owner's `FIRM_ADMIN` invite, and the `account.created` and `person.invited` outbox events.
-   - The master library copy is M6 code, so it runs as `canopy_app` in `withTenant(systemContext(newFirmId))`, in the
-     same transaction, right after the two calls above. It is the one place operator code runs as the app role, and
-     only for the firm that transaction created (the API refuses when the firm is not `PROVISIONING` with no clients'
-     work yet).
+   - The master library copy is M6 code and runs on the app side, not in the console. M9's outbox dispatcher hands
+     `account.created` to an M6 handler, which copies the library in `withTenant(systemContext(newAccountId))` and,
+     in the same transaction, sets `firm.library_copied_at` through an `app_*` function. The handler is idempotent:
+     an obligation already copied is skipped, and a test runs the event twice.
+   - The owner's acceptance waits for the copy. While `library_copied_at` is null, M5 refuses the owner's invite
+     with `403 ACCOUNT_SUSPENDED { status: PROVISIONING }` ("Your account is still being set up. Try again in a few
+     minutes."), and `canopy_activate_account` refuses it too, so no account opens without its library. The console
+     shows the copy time (`Account.libraryCopiedAt`, contracts 1.5.1) and flags a PROVISIONING account whose copy
+     has not finished 15 minutes after it was created.
    - `platform_record_account_event(firm, action, before, after, reason, request_id)`: the account's own `audit_event`
-     (actor kind `OPERATOR`, entity `account`) and the `account.*` outbox event for each operator change (decision 12).
+     (actor kind `OPERATOR`, entity `account`, action `CREATE`, `UPDATE` or `TRANSITION`) and the `account.*` outbox
+     event for each operator change (decision 12). It refuses person fields at any depth.
+   - `platform_resend_owner_invite(firm, ...)`: for a firm still `PROVISIONING` only, a fresh owner invite and
+     `person.invited`. Earlier links stop working.
    - `platform_issue_support_token(grant, token_hash, expires_at)`: refuses unless the grant is live; inserts the
      one-time `SUPPORT` `auth_token` (decision 11).
    - `platform_usage(firm)`: counts only (companies, units, users, storage, instances, active users).
@@ -86,10 +100,10 @@ sits outside every tenant, and a way for PlanetPulse to help a customer without 
     term or trial end (default 30 days from today), time zone (default Asia/Kolkata), FY start month (default April),
     and the owner's name and email. One transaction, through the functions of decision 8: the firm in `PROVISIONING`,
     its default client for an enterprise, the owner as an `INVITED` person with a `FIRM_ADMIN` invite (link valid 72
-    hours, resendable by the operator; M9 sends the email from the `person.invited` event as today), the master
-    obligation library copy (M6), `ACCOUNT_CREATE` and `OWNER_INVITE_SEND` operator audit events, and the
-    `account.created` and `person.invited` outbox events. MFA enrolment is required at first sign-in for account
-    admins, as today.
+    hours, resendable by the operator; M9 sends the email from the `person.invited` event as today),
+    `ACCOUNT_CREATE` and `OWNER_INVITE_SEND` operator audit events, and the `account.created` and `person.invited`
+    outbox events. The master obligation library copy (M6) follows from `account.created`, and the owner can accept
+    only once it is done (decision 8). MFA enrolment is required at first sign-in for account admins, as today.
 11. **Support access, not a back door.** An account admin grants PlanetPulse support access for 1 to 30 days (default 7),
     `READ_ONLY` or `ADMIN`, from the account's settings, and can revoke it at any time. One live grant at a time: a new
     one ends the last. The grant is a row in `public.support_grant`, a tenant table (`firm_id`, RLS: every context of
