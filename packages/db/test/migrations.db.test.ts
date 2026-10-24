@@ -135,14 +135,15 @@ describe('migrations', () => {
     await server.query(
       `DO $$ BEGIN CREATE ROLE canopy_lookup NOLOGIN; EXCEPTION WHEN OTHERS THEN NULL; END $$`,
     );
-    for (const role of ['canopy_operator', 'canopy_platform']) {
+    for (const role of ['canopy_operator', 'canopy_platform', 'canopy_jobs']) {
       await server.query(
         `DO $$ BEGIN CREATE ROLE ${role} NOLOGIN; EXCEPTION WHEN OTHERS THEN NULL; END $$`,
       );
     }
-    // canopy_platform owns the account functions (migration 0020), so the owner must be able to SET ROLE to it.
+    // canopy_platform owns the account functions (migration 0020) and canopy_jobs the pgboss schema (0025), so the
+    // owner must be able to SET ROLE to both.
     await server.query(
-      `CREATE ROLE ${owner} LOGIN NOSUPERUSER NOBYPASSRLS PASSWORD '${password}' IN ROLE canopy_app, canopy_lookup, canopy_platform`,
+      `CREATE ROLE ${owner} LOGIN NOSUPERUSER NOBYPASSRLS PASSWORD '${password}' IN ROLE canopy_app, canopy_lookup, canopy_platform, canopy_jobs`,
     );
     // Functions with `SET app.all_clients` (migrations 0003, 0005) need this grant on a non-superuser.
     await server.query(`GRANT SET ON PARAMETER app.all_clients TO ${owner}`);

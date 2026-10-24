@@ -48,6 +48,9 @@ const PLATFORM_ROLE = 'canopy_platform';
 /** Owner of the SECURITY DEFINER pre-tenant lookups (migration 0007); no request login may become it. */
 const LOOKUP_ROLE = 'canopy_lookup';
 
+/** Owner of the pgboss schema (migration 0023, ADR M3-0004): every firm's queued jobs, with no RLS. */
+const JOBS_ROLE = 'canopy_jobs';
+
 export const MIGRATIONS_FOLDER = fileURLToPath(new URL('../migrations', import.meta.url));
 
 export interface DatabaseOptions {
@@ -136,6 +139,9 @@ async function privilegedReason(db: Db, serving: 'tenant' | 'operator'): Promise
     // Owns the cross-wall account functions (migration 0020, ADR M15-0001 decision 8).
     if (role.name === PLATFORM_ROLE)
       return role.self ? 'the login is canopy_platform' : `${who} writes across firms`;
+    // pg-boss's rows carry every firm's jobs with no RLS; only pg-boss's own login may reach them (ADR M3-0004).
+    if (role.name === JOBS_ROLE)
+      return role.self ? 'the login is canopy_jobs' : `${who} holds every firm's job queue`;
     // The operator reads every firm row; a tenant login that could RESET ROLE into it would too.
     if (serving === 'tenant' && role.name === OPERATOR_ROLE)
       return role.self ? 'the login is canopy_operator' : `${who} reads every account`;

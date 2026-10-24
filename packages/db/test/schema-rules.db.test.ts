@@ -1,4 +1,6 @@
+import { sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { systemContext } from '../src/tenant-context.js';
 import { createTestDatabase, type TestDatabase } from './support/database.js';
 import { PLATFORM_TABLES, TABLES } from './support/tables.js';
 
@@ -14,6 +16,15 @@ beforeAll(async () => {
 afterAll(async () => {
   await t?.drop();
 });
+
+function sqlState(error: unknown): string | undefined {
+  let e: unknown = error;
+  while (e && typeof e === 'object') {
+    if ('code' in e && typeof e.code === 'string' && /^[0-9A-Z]{5}$/.test(e.code)) return e.code;
+    e = 'cause' in e ? e.cause : undefined;
+  }
+  return undefined;
+}
 
 async function publicTables(): Promise<{ name: string; rls: boolean; force: boolean }[]> {
   const { rows } = await t.ownerQuery<{ name: string; rls: boolean; force: boolean }>(`
@@ -198,11 +209,37 @@ describe('every table', () => {
     expect(rows).toEqual([{ rolsuper: false, rolbypassrls: false, rolcanlogin: false }]);
   });
 
-  it('gives pg-boss its own schema, owned by the app role and closed to the operator', async () => {
-    const { rows } = await t.ownerQuery(`
-      SELECT pg_get_userbyid(nspowner) AS owner, has_schema_privilege('canopy_operator', oid, 'USAGE') AS operator
-      FROM pg_namespace WHERE nspname = 'pgboss'`);
-    expect(rows).toEqual([{ owner: 'canopy_app', operator: false }]);
+  it('gives pg-boss a schema of its own role, closed to the app and every other role (ADR M3-0004)', async () => {
+    const { rows } = await t.ownerQuery<{ owner: string; open: string[] }>(`
+      SELECT pg_get_userbyid(n.nspowner) AS owner,
+        ARRAY(SELECT r FROM unnest(ARRAY['canopy_app', 'canopy_lookup', 'canopy_platform', 'canopy_operator']) r
+              WHERE has_schema_privilege(r, n.oid, 'USAGE') OR has_schema_privilege(r, n.oid, 'CREATE')) AS open
+      FROM pg_namespace n WHERE n.nspname = 'pgboss'`);
+    expect(rows).toEqual([{ owner: 'canopy_jobs', open: [] }]);
+    const role = await t.ownerQuery(`
+      SELECT rolsuper, rolbypassrls, rolcanlogin,
+        pg_has_role('canopy_jobs', 'canopy_app', 'MEMBER') AS jobs_is_app,
+        pg_has_role('canopy_app', 'canopy_jobs', 'MEMBER') AS app_is_jobs
+      FROM pg_roles WHERE rolname = 'canopy_jobs'`);
+    expect(role.rows).toEqual([
+      {
+        rolsuper: false,
+        rolbypassrls: false,
+        rolcanlogin: false,
+        jobs_is_app: false,
+        app_is_jobs: false,
+      },
+    ]);
+  });
+
+  it('a tenant transaction cannot reach the job queue', async () => {
+    const firm = await t.admin.createFirm({ name: 'Queue Probe Advisory' });
+    const error: unknown = await t.db
+      .withTenant(systemContext(firm, 'schema-rules'), (tx) =>
+        tx.execute(sql`CREATE TABLE pgboss.probe (id int)`),
+      )
+      .catch((e: unknown) => e);
+    expect(sqlState(error)).toBe('42501');
   });
 
   it('stores due dates and periods as date, event times as timestamptz', async () => {

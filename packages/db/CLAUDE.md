@@ -78,7 +78,9 @@ Decisions and their reasons: `docs/adr/0003-m3-tenant-isolation-in-postgres.md`.
   in the API and `systemContext(firmId, requestId)` in jobs and imports. `createAdminDatabase` (migrate, createFirm) is for deploy, seed and tests only.
 - Deploy: migrations run as the owner, which need not be a superuser; the one-time grants it needs are in the ADR's
   Consequences. Pre-tenant lookups are `SECURITY DEFINER` functions owned by `canopy_lookup`, never by the owner.
-- Production login: a non-owner member of `canopy_app`. With `NODE_ENV=production`, `createDatabase` refuses a login that is, or can `SET ROLE` to, a superuser, BYPASSRLS, table-owning, `canopy_lookup`, `canopy_platform` or `canopy_operator` role.
+- Production login: a non-owner member of `canopy_app`. With `NODE_ENV=production`, `createDatabase` refuses a login that is, or can `SET ROLE` to, a superuser, BYPASSRLS, table-owning, `canopy_lookup`, `canopy_platform`, `canopy_jobs` or `canopy_operator` role.
+- Job queue (ADR M3-0004): the `pgboss` schema belongs to `canopy_jobs`, never `canopy_app`. pg-boss uses its own login, a member
+  of `canopy_jobs` only, that starts as `canopy_jobs` (`ALTER ROLE <login> SET role = canopy_jobs`); no tenant role gets USAGE on it.
 - Operator console (M15, ADR M3-0002): `createOperatorDatabase({ connectionString })` with its own login, a member of
   `canopy_operator` only (refused if it can become `canopy_app`). `withOperator(requestId, (tx) => ...)` runs as `canopy_operator` with no tenant;
   repositories `platformAccounts` and `platformSupport` take that `OperatorTx`. Every write inside a tenant is a

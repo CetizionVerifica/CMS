@@ -25,6 +25,8 @@ const lookupMember = `${login}_lkm`;
 const platformMember = `${login}_plm`;
 const operatorMember = `${login}_opm`;
 const operatorPlatformMember = `${login}_opp`;
+const jobsMember = `${login}_jbm`;
+const operatorJobsMember = `${login}_opj`;
 // The operator console's own login (ADR M3-0002): a member of canopy_operator and nothing else.
 const operatorLogin = `${login}_op`;
 
@@ -70,6 +72,12 @@ beforeAll(async () => {
   await t.ownerQuery(
     `CREATE ROLE ${operatorPlatformMember} LOGIN PASSWORD '${password}' IN ROLE canopy_operator, canopy_platform`,
   );
+  await t.ownerQuery(
+    `CREATE ROLE ${jobsMember} LOGIN PASSWORD '${password}' IN ROLE canopy_app, canopy_jobs`,
+  );
+  await t.ownerQuery(
+    `CREATE ROLE ${operatorJobsMember} LOGIN PASSWORD '${password}' IN ROLE canopy_operator, canopy_jobs`,
+  );
 });
 
 afterAll(async () => {
@@ -86,6 +94,8 @@ afterAll(async () => {
     operatorMember,
     operatorLogin,
     operatorPlatformMember,
+    jobsMember,
+    operatorJobsMember,
   ]) {
     await t?.ownerQuery(`DROP ROLE IF EXISTS ${role}`);
   }
@@ -122,6 +132,11 @@ describe('privileged logins', () => {
       'canopy_operator',
       () => operatorMember,
       /the login is a member of canopy_operator, which reads every account/,
+    ],
+    [
+      'canopy_jobs',
+      () => jobsMember,
+      /the login is a member of canopy_jobs, which holds every firm's job queue/,
     ],
   ])('are refused when the login is a member of %s', async (_label, user, reason) => {
     const db = createDatabase({
@@ -171,10 +186,11 @@ describe('privileged logins', () => {
 });
 
 describe('operator logins', () => {
-  it('refuse a superuser, a canopy_platform member and a canopy_app member', async () => {
+  it('refuse a superuser and a canopy_platform, canopy_jobs or canopy_app member', async () => {
     for (const [url, reason] of [
       [t.url, /Refusing operator connections: the login is a superuser/],
       [urlAs(operatorPlatformMember, password), /canopy_platform, which writes across firms/],
+      [urlAs(operatorJobsMember, password), /canopy_jobs, which holds every firm's job queue/],
       // A console login that could SET ROLE canopy_app could set any firm's settings (audit of #140, Medium 1).
       [urlAs(operatorMember, password), /canopy_app, which acts inside tenants/],
       [
