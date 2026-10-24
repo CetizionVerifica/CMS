@@ -64,6 +64,17 @@ export interface UnitInfo {
   locationLabel: string;
 }
 
+/** A clean evidence file the client archive carries. `storageKey` never leaves the server. */
+export interface ArchiveEvidence {
+  id: string;
+  instanceId: string;
+  fileName: string;
+  sizeBytes: number;
+  sha256: string;
+  uploadedAt: string;
+  storageKey: string;
+}
+
 export interface NewExportJob {
   clientId: string;
   kind: ExportKind;
@@ -83,6 +94,14 @@ export interface ReportsStore {
     clientId: string,
     instanceIds: readonly string[],
   ): Promise<Map<string, ExportDetail>>;
+  /**
+   * The client's non-archived evidence: `clean` the files scanned CLEAN, oldest upload first, and `withheld` how
+   * many others (pending, infected or failed scans) the archive leaves out.
+   */
+  archiveEvidence(
+    ctx: RequestContext,
+    clientId: string,
+  ): Promise<{ clean: ArchiveEvidence[]; withheld: number }>;
   /** Time of the latest audit event per client, null when there is none. */
   lastActivity(
     ctx: RequestContext,

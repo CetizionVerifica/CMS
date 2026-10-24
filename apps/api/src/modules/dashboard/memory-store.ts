@@ -9,6 +9,7 @@ import {
 import type { RegisterRow } from '@canopy/db';
 import { ApiError } from '../../auth/index.js';
 import type {
+  ArchiveEvidence,
   ClientInfo,
   ExportDetail,
   NewExportJob,
@@ -52,6 +53,13 @@ export class MemoryReportsStore implements ReportsStore {
   readonly rows: MemoryRow[] = [];
   readonly audit: MemoryAuditEvent[] = [];
   readonly jobs = new Map<string, StoredJob>();
+  /** Evidence rows, as the evidence table holds them. */
+  readonly evidence: (ArchiveEvidence & {
+    firmId: string;
+    clientId: string;
+    scanStatus: 'PENDING' | 'CLEAN' | 'INFECTED' | 'FAILED';
+    archived?: boolean;
+  })[] = [];
   /** Fails the next export status update, to test job failure handling. */
   failNextStatusUpdate = false;
 
@@ -103,6 +111,22 @@ export class MemoryReportsStore implements ReportsStore {
       });
     }
     return out;
+  }
+
+  async archiveEvidence(
+    ctx: RequestContext,
+    clientId: string,
+  ): Promise<{ clean: ArchiveEvidence[]; withheld: number }> {
+    const live = this.evidence.filter(
+      (e) => e.firmId === ctx.firmId && e.clientId === clientId && !e.archived,
+    );
+    return {
+      clean: live
+        .filter((e) => e.scanStatus === 'CLEAN')
+        .sort((a, b) => a.uploadedAt.localeCompare(b.uploadedAt) || a.id.localeCompare(b.id))
+        .map((e) => without(e, ['firmId', 'clientId', 'scanStatus', 'archived'])),
+      withheld: live.filter((e) => e.scanStatus !== 'CLEAN').length,
+    };
   }
 
   async lastActivity(

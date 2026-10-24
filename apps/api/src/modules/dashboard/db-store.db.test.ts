@@ -1,5 +1,11 @@
 import { randomUUID } from 'node:crypto';
-import { DEFAULT_FIRM_SETTINGS, ENDPOINTS, type RequestContext } from '@canopy/contracts';
+import {
+  DEFAULT_FIRM_SETTINGS,
+  ENDPOINTS,
+  type RequestContext,
+  type ScanStatus,
+} from '@canopy/contracts';
+import { evidence, systemContext } from '@canopy/db';
 import ExcelJS from 'exceljs';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createTestAuth } from '../../auth/testing.js';
@@ -257,5 +263,55 @@ describe('PostgresReportsStore reads', () => {
       unitIds: ['u'],
       q: 'boiler',
     });
+  });
+
+  it('lists the clean evidence of a client oldest first across vault pages, counts the rest as withheld', async () => {
+    const add = (names: string[], scanStatus: ScanStatus = 'CLEAN') =>
+      t.db.withTenant(systemContext(a.firmId, 'm10-archive'), async (tx) => {
+        const made = [];
+        for (const fileName of names) {
+          made.push(
+            await evidence.create(tx, {
+              instanceId: a.approved.id,
+              clientId: a.clientId,
+              storageKey: `${a.firmId}/${a.clientId}/${a.approved.id}/${randomUUID()}`,
+              fileName,
+              mimeType: 'application/pdf',
+              sizeBytes: 10,
+              sha256: 'b'.repeat(64),
+              uploadedById: a.people.owner,
+              scanStatus,
+            }),
+          );
+        }
+        return made;
+      });
+    const [first] = await add(['first-challan.pdf']);
+    // More than one vault page (200), so the store must follow the cursor.
+    await add(Array.from({ length: 200 }, (_, i) => `return-${i}.pdf`));
+    await add(['pending.pdf'], 'PENDING');
+    await add(['infected.pdf'], 'INFECTED');
+    const [archived] = await add(['archived.pdf']);
+    await t.db.withTenant(systemContext(a.firmId, 'm10-archive'), (tx) =>
+      evidence.archive(tx, archived!.id),
+    );
+
+    const { clean, withheld } = await store.archiveEvidence(ctxOf(a), a.clientId);
+    expect(clean).toHaveLength(201);
+    expect(withheld).toBe(2);
+    expect(clean[0]).toEqual({
+      id: first!.id,
+      instanceId: a.approved.id,
+      fileName: 'first-challan.pdf',
+      sizeBytes: 10,
+      sha256: 'b'.repeat(64),
+      uploadedAt: first!.createdAt,
+      storageKey: first!.storageKey,
+    });
+    expect(new Set(clean.map((e) => e.id)).size).toBe(201);
+    expect(clean.map((e) => e.fileName)).not.toContain('archived.pdf');
+
+    expect(await store.archiveEvidence(ctxOf(b), a.clientId)).toEqual({ clean: [], withheld: 0 });
+    expect(await store.archiveEvidence(ctxOf(b), b.clientId)).toEqual({ clean: [], withheld: 0 });
   });
 });
