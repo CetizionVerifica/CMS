@@ -48,6 +48,9 @@ const PLATFORM_ROLE = 'canopy_platform';
 /** Owner of the SECURITY DEFINER pre-tenant lookups (migration 0007); no request login may become it. */
 const LOOKUP_ROLE = 'canopy_lookup';
 
+/** Owner of `platform_purge_account` (migration 0035, ADR M15-0002): deletes a deleted account's rows and audit. */
+const PURGE_ROLE = 'canopy_purge';
+
 /** Owner of the pgboss schema (migration 0025, ADR M3-0004): every firm's queued jobs, with no RLS. */
 const JOBS_ROLE = 'canopy_jobs';
 
@@ -139,6 +142,9 @@ async function privilegedReason(db: Db, serving: 'tenant' | 'operator'): Promise
     // Owns the cross-wall account functions (migration 0020, ADR M15-0001 decision 8).
     if (role.name === PLATFORM_ROLE)
       return role.self ? 'the login is canopy_platform' : `${who} writes across firms`;
+    // Deletes an account's rows, its audit trail included; only its own definer function may act as it.
+    if (role.name === PURGE_ROLE)
+      return role.self ? 'the login is canopy_purge' : `${who} deletes accounts and their audit`;
     // pg-boss's rows carry every firm's jobs with no RLS; only pg-boss's own login may reach them (ADR M3-0004).
     if (role.name === JOBS_ROLE)
       return role.self ? 'the login is canopy_jobs' : `${who} holds every firm's job queue`;
