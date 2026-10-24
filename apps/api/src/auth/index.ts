@@ -1,5 +1,6 @@
 // M5 public surface: the only auth file other modules import (apps/api/src/auth/CLAUDE.md).
 export { ApiError, errorEnvelope } from './errors.js';
+export { loggableError, type LoggedError } from './log-error.js';
 export {
   POLICY,
   can,
