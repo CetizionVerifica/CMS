@@ -465,6 +465,47 @@ describe('invites', () => {
   };
   const clientAdmin = () => asClientUser(memberId);
 
+  it('reports an invite past its expiry by the database clock as not open', async () => {
+    // Expires after NOW, the request time, but before the database clock (2026-10-13 or later).
+    const expiresAt = '2026-10-12T04:00:00.000Z';
+    const invitee = await inA((tx) =>
+      r.people.create(tx, {
+        displayName: 'Owner 03',
+        nameNormalized: 'owner 03',
+        email: null,
+        status: 'UNCLAIMED',
+      }),
+    );
+    const { invite } = await inA((tx) =>
+      r.invites.create(
+        tx,
+        {
+          personId: invitee.id,
+          email: 'owner03@example.com',
+          grant: { ...grant, clientId },
+          createdById: memberId,
+          expiresAt,
+        },
+        NOW,
+      ),
+    );
+    const tokenHash = hash();
+    await inA((tx) =>
+      r.loginTokens.create(tx, {
+        personId: invitee.id,
+        kind: 'INVITE',
+        inviteId: invite.id,
+        tokenHash,
+        expiresAt: INVITE_EXPIRY,
+      }),
+    );
+    expect((await t.db.findLoginToken(tokenHash))?.inviteOpen).toBe(false);
+    // The repository reads take the request time instead, so at NOW the invite is still open.
+    expect(
+      (await inA((tx) => r.invites.openForPerson(tx, invitee.id, NOW))).map((x) => x.id),
+    ).toEqual([invite.id]);
+  });
+
   it('invites a person, replaces an earlier invite, and accepts with a link', async () => {
     const newInvite = (email: string) => ({
       personId: inviteeId,

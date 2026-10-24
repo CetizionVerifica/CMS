@@ -41,7 +41,16 @@ describe('OverviewView', () => {
     render(<OverviewView model={full()} />);
     const score = screen.getByRole('link', { name: /Compliance score/ });
     expect(score.getAttribute('href')).toBe(`${reg}?status=COMPLIED%2CCOMPLIED_LATE`);
-    expect(score.textContent).toContain('75% complied on time');
+    expect(
+      screen
+        .getByRole('link', { name: '75% complied on time, open the instances complied on time' })
+        .getAttribute('href'),
+    ).toBe(`${reg}?status=COMPLIED`);
+    expect(
+      screen
+        .getByRole('link', { name: '1 due soon, open the instances due soon' })
+        .getAttribute('href'),
+    ).toBe(`${reg}?status=DUE_SOON`);
     expect(screen.getByRole('img', { name: /Compliance score/ })).toBeTruthy();
     expect(screen.getByRole('link', { name: /Open these instances/ }).getAttribute('href')).toBe(
       `${reg}?status=UPCOMING%2CDUE_SOON%2COVERDUE`,
@@ -54,7 +63,7 @@ describe('OverviewView', () => {
     );
   });
 
-  it('lists departments with readiness, and links the overdue count', () => {
+  it('lists departments with readiness, and links the overdue and complied counts', () => {
     render(<OverviewView model={full()} />);
     const table = screen.getByRole('table', { name: 'Readiness by department' });
     expect(
@@ -70,6 +79,11 @@ describe('OverviewView', () => {
         .getByRole('link', { name: '2 overdue in EHS, open these instances' })
         .getAttribute('href'),
     ).toBe(`${reg}?departmentId=${id(1)}&status=OVERDUE`);
+    expect(
+      within(table)
+        .getByRole('link', { name: '1 complied in EHS, open these instances' })
+        .getAttribute('href'),
+    ).toBe(`${reg}?departmentId=${id(1)}&status=COMPLIED%2CCOMPLIED_LATE`);
     const it = within(table).getByRole('link', { name: 'IT' }).closest('tr')!;
     expect(within(it).getByText('No items due')).toBeTruthy();
     expect(within(it).getAllByText('0')).toHaveLength(2);
@@ -81,6 +95,19 @@ describe('OverviewView', () => {
     expect(screen.getByRole('link', { name: 'Factories Act, 1948' }).getAttribute('href')).toBe(
       `${reg}?actId=${id(3)}`,
     );
+    const acts = screen.getByRole('heading', { name: 'Status by Act' }).closest('section')!;
+    expect(
+      within(acts)
+        .getByRole('link', { name: '2 overdue under Factories Act, 1948, open these instances' })
+        .getAttribute('href'),
+    ).toBe(`${reg}?actId=${id(3)}&status=OVERDUE`);
+    expect(
+      within(acts)
+        .getByRole('link', { name: '3 complied under Factories Act, 1948, open these instances' })
+        .getAttribute('href'),
+    ).toBe(`${reg}?actId=${id(3)}&status=COMPLIED%2CCOMPLIED_LATE`);
+    // Zero counts stay plain text: pending and not applicable are 0 here.
+    expect(within(acts).getAllByRole('link')).toHaveLength(3);
     expect(screen.getByRole('link', { name: /Fire drill record/ }).getAttribute('href')).toBe(
       `${reg}/${id(0x7001)}`,
     );

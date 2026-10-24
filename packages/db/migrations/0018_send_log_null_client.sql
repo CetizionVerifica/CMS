@@ -1,0 +1,2 @@
+ALTER TABLE "notification_send" ALTER COLUMN "client_id" DROP NOT NULL;--> statement-breakpoint
+ALTER TABLE "notification_send" ADD CONSTRAINT "notification_send_client_check" CHECK (client_id is not null or (event_id is not null and instance_id is null));

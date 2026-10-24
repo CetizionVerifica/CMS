@@ -107,12 +107,41 @@ describe('kpis', () => {
     expect(cards[0]).toMatchObject({
       unit: '%',
       score: 51.5,
-      context: { text: '80% complied on time' },
       linkHint: 'Open the 11 complied instances',
     });
-    expect(cards[1]!.context).toEqual({ text: '2 due soon', tone: 'warn' });
-    expect(cards[2]!.context).toEqual({ text: '2 super critical', tone: 'crit' });
+    expect(cards[0]!.context).toBeUndefined();
+    expect(cards[2]!.context).toEqual({ text: 'Needs action', tone: 'crit' });
     expect(cards[3]!.context).toBeUndefined();
+  });
+
+  it('gives every second number its own link to exactly its rows', () => {
+    const cards = kpis(
+      CLIENT,
+      result({ DUE_SOON: 2, OVERDUE: 5, COMPLIED: 10, COMPLIED_LATE: 1 }, 51.5, 80),
+      Q3,
+      crit(2),
+    );
+    expect(cards.map((c) => c.detail)).toEqual([
+      {
+        text: '80% complied on time',
+        tone: 'neutral',
+        href: `${reg}?status=COMPLIED&fy=2022-23&q=Q3`,
+        label: '80% complied on time, open the instances complied on time',
+      },
+      {
+        text: '2 due soon',
+        tone: 'warn',
+        href: `${reg}?status=DUE_SOON&fy=2022-23&q=Q3`,
+        label: '2 due soon, open the instances due soon',
+      },
+      {
+        text: '2 super critical',
+        tone: 'crit',
+        href: `${reg}?status=OVERDUE&criticality=SUPER_CRITICAL&fy=2022-23&q=Q3`,
+        label: '2 super critical overdue, open these instances',
+      },
+      undefined,
+    ]);
   });
 
   it('words an empty score and calm counts', () => {
@@ -121,9 +150,10 @@ describe('kpis', () => {
       value: 'No items due',
       unit: undefined,
       score: null,
-      context: undefined,
       linkHint: 'Open the 1 complied instance',
     });
+    expect(cards.map((c) => c.detail)).toEqual([undefined, undefined, undefined, undefined]);
+    expect(cards[0]!.context).toBeUndefined();
     expect(cards[1]!.context).toBeUndefined();
     expect(cards[2]!.context).toEqual({ text: 'None overdue', tone: 'ok' });
   });
@@ -153,7 +183,7 @@ describe('departmentRows', () => {
     ]);
   });
 
-  it('links the row and the overdue count to the department in the register', () => {
+  it('links the row and its overdue and complied counts to the department in the register', () => {
     const [ehs] = departmentRows(CLIENT, b, Q3);
     expect(ehs).toEqual({
       id: id(2),
@@ -163,12 +193,15 @@ describe('departmentRows', () => {
       overdue: 2,
       href: `${reg}?departmentId=${id(2)}&fy=2022-23&q=Q3`,
       overdueHref: `${reg}?departmentId=${id(2)}&status=OVERDUE&fy=2022-23&q=Q3`,
+      compliedHref: `${reg}?departmentId=${id(2)}&status=COMPLIED%2CCOMPLIED_LATE&fy=2022-23&q=Q3`,
     });
   });
 });
 
 describe('actRows', () => {
   it('splits each Act into complied, pending, overdue and not applicable, most overdue first', () => {
+    const act = `${reg}?actId=${id(6)}`;
+    const q3 = 'fy=2022-23&q=Q3';
     const rows = actRows(
       CLIENT,
       breakdown('act', [
@@ -188,7 +221,7 @@ describe('actRows', () => {
         },
         { key: id(7), label: 'ESI Act, 1948', result: result({ COMPLIED: 1 }) },
       ]),
-      undefined,
+      Q3,
     );
     expect(rows.map((r) => r.name)).toEqual([
       'Factories Act, 1948',
@@ -199,12 +232,27 @@ describe('actRows', () => {
       id: id(6),
       name: 'Factories Act, 1948',
       segments: [
-        { key: 'ok', label: 'Complied', count: 6 },
-        { key: 'warn', label: 'Pending', count: 4 },
-        { key: 'crit', label: 'Overdue', count: 2 },
-        { key: 'neutral', label: 'Not applicable', count: 3 },
+        {
+          key: 'ok',
+          label: 'Complied',
+          count: 6,
+          href: `${act}&status=COMPLIED%2CCOMPLIED_LATE&${q3}`,
+        },
+        {
+          key: 'warn',
+          label: 'Pending',
+          count: 4,
+          href: `${act}&status=UPCOMING%2CDUE_SOON%2CSUBMITTED&${q3}`,
+        },
+        { key: 'crit', label: 'Overdue', count: 2, href: `${act}&status=OVERDUE&${q3}` },
+        {
+          key: 'neutral',
+          label: 'Not applicable',
+          count: 3,
+          href: `${act}&status=NOT_APPLICABLE&${q3}`,
+        },
       ],
-      href: `${reg}?actId=${id(6)}`,
+      href: `${act}&${q3}`,
     });
   });
 });
