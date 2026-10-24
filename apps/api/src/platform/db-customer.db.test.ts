@@ -11,7 +11,6 @@ import type { FastifyInstance, LightMyRequestResponse } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createDbAccountStore, hashToken, SecretBox } from '../auth/index.js';
 import { buildServer } from '../server.js';
-import { registerCustomerAccountRoutes } from './db-customer.js';
 import { addOperator } from './db-operators.js';
 import { createPlatformTestDatabase, totpAt, type PlatformTestDatabase } from './db-testing.js';
 
@@ -165,10 +164,6 @@ describe.skipIf(!url)('the customer account routes', () => {
       authSecretKey: KEY,
       database: t.db,
       platform: { db: t.operatorDb, secrets, appUrl: 'https://app.planetpulse.example' },
-    });
-    // server.ts mounts these with the Tooling wiring patch; until then the test mounts them as it will.
-    void app.register((scope) => registerCustomerAccountRoutes(scope, { db: t.db }), {
-      prefix: '/api/v1',
     });
     const login = await app.inject({
       method: 'POST',

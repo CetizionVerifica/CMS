@@ -38,12 +38,7 @@ const endpoints = Object.entries(ENDPOINTS as Record<string, Endpoint>);
  * Contract endpoints the API does not serve yet, with why. Every check below expects them to answer 404 (no route) and
  * fails once one answers anything else, so it must come off this list the day it ships and be checked like the rest.
  */
-const UNMOUNTED: Record<string, string> = {
-  getAccount: 'M15 account routes: contracts 1.5.0 (#127), API not built yet',
-  listSupportGrants: 'M15 account routes: contracts 1.5.0 (#127), API not built yet',
-  createSupportGrant: 'M15 account routes: contracts 1.5.0 (#127), API not built yet',
-  revokeSupportGrant: 'M15 account routes: contracts 1.5.0 (#127), API not built yet',
-};
+const UNMOUNTED: Record<string, string> = {};
 
 /**
  * Endpoints the isolation sweep does not call with firm A's ids, with why. The sweep fails on any endpoint that is in
@@ -65,6 +60,7 @@ const NOT_SWEPT: Record<string, string> = {
   createCategory: 'creates in the caller’s own firm; names no record',
   createObligation: 'creates in the caller’s own firm; names no record',
   previewRule: 'computes due dates from the body; reads no record',
+  createSupportGrant: 'creates in the caller’s own account; names no record',
   ...UNMOUNTED,
 };
 
@@ -240,6 +236,11 @@ async function firmAIds(): Promise<Ids> {
   });
   expect(template.status, JSON.stringify(template.body)).toBe(201);
   const unit = (await first(`/clients/${clients.kestrel}/units`)) as Rec & { locationId: string };
+  // A support grant only the account admin can make, so firm B's revoke has a real grant of firm A's to aim at.
+  const accountAdmin = await apiAs('firmAdmin');
+  const grant = await accountAdmin.post('/account/support-grants', { level: 'READ_ONLY', days: 1 });
+  expect(grant.status, JSON.stringify(grant.body)).toBe(201);
+  await accountAdmin.dispose();
   const records: Record<string, Rec> = {
     clientId: (await get(`/clients/${clients.kestrel}`)) as Rec,
     instances: instance,
@@ -264,6 +265,7 @@ async function firmAIds(): Promise<Ids> {
     categories: await first('/library/categories'),
     otherCategory: await nth('/library/categories', 1),
     evidence: { id: await evidenceOf(instance.id), version: 1 },
+    'support-grants': grant.body as Rec,
   };
   await admin.dispose();
   return {
