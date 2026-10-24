@@ -23,7 +23,6 @@ import {
 // Security review checks (docs/security/review.md) against the running API and database: tenant isolation for every
 // endpoint, sessions and CSRF, evidence upload and download rules, and RLS for the app's own database login.
 const FY = 'fy=2022-23';
-const NO_TENANT = /XXX/;
 const PDF = Buffer.from('%PDF-1.4\n% integrated journey evidence\n%%EOF\n');
 
 type Endpoint = {
@@ -318,16 +317,13 @@ test.describe('tenant isolation', () => {
           await client.query('SELECT set_config($1, $2, true)', [name, value]);
         }
       }
+      // No error is swallowed: a policy that refused instead of filtering would fail the test, not count as 0.
       try {
         const res = await client.query(
           `SELECT count(*)::int AS n FROM ${table} WHERE ${table === 'firm' ? 'id' : 'firm_id'} = $1`,
           [owner],
         );
         return res.rows[0].n as number;
-      } catch (error) {
-        // With no tenant set, a policy may refuse outright instead of filtering: that is the only error allowed.
-        if (as === null && NO_TENANT.test(String(error))) return 0;
-        throw error;
       } finally {
         await client.query('ROLLBACK');
       }
