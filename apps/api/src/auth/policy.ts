@@ -42,6 +42,11 @@ export const POLICY: Readonly<Record<Action, PolicyRule>> = {
   // §2 Auth
   'person.invite': { grants: MANAGERS },
 
+  // §8 The account (M15): account admins only. Support sessions are refused support grants by M15's routes.
+  'account.read': { grants: FIRM_ADMIN },
+  'supportGrant.read': { grants: FIRM_ADMIN },
+  'supportGrant.manage': { grants: FIRM_ADMIN },
+
   // §3 Clients, entities, locations, departments
   'client.read': { grants: EVERYONE },
   'client.create': { grants: FIRM_ADMIN },

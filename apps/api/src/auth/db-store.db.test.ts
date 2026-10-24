@@ -15,6 +15,9 @@ import {
   companies,
   createAdminDatabase,
   createDatabase,
+  createOperatorDatabase,
+  platformSupport,
+  supportGrants,
   credentials,
   memberships,
   locations,
@@ -676,5 +679,86 @@ describe.skipIf(!url)('database AccountStore', () => {
       status: 'ACCEPTED',
       clientName: null,
     });
+  });
+
+  it('reads the account, and refuses sign-in once the account is suspended', async () => {
+    const seeded = await firmWithClient();
+    const ca = await person(seeded, { role: 'CLIENT_ADMIN' });
+    expect(await store.account(seeded.firmId)).toMatchObject({
+      id: seeded.firmId,
+      kind: 'CONSULTANCY',
+      status: 'ACTIVE',
+      usage: { users: 1 },
+    });
+    const res = await login(ca.email);
+    expect(Me.parse(res.json()).account).toEqual({
+      kind: 'CONSULTANCY',
+      status: 'ACTIVE',
+      trialEndsOn: null,
+    });
+    const client = await owner.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query(`SELECT set_config('app.firm_id', $1, true)`, [seeded.firmId]);
+      await client.query(`UPDATE firm SET status = 'SUSPENDED' WHERE id = $1`, [seeded.firmId]);
+      await client.query('COMMIT');
+    } finally {
+      client.release();
+    }
+    const again = await app.inject({ url: '/api/v1/me', headers: sessionHeaders(res) });
+    expect(errorCode(again)).toBe('ACCOUNT_SUSPENDED');
+    expect(errorCode(await login(ca.email))).toBe('ACCOUNT_SUSPENDED');
+  });
+
+  it('opens a support session from a console token, and ends it with the grant', async () => {
+    const seeded = await firmWithClient();
+    const fa = await person(seeded, { role: 'FIRM_ADMIN' });
+    // The token's life is judged against the database clock, so this test runs on real time.
+    const saved = now;
+    now = new Date();
+    const operator = createOperatorDatabase({ connectionString: owner.options.connectionString! });
+    try {
+      const { grant } = await db.withTenant(systemContext(seeded.firmId, 'grant'), (tx) =>
+        supportGrants.create(tx, {
+          level: 'ADMIN',
+          days: 7,
+          grantedById: fa.personId,
+          now: now.toISOString(),
+        }),
+      );
+      const token = randomBytes(32).toString('base64url');
+      await operator.withOperator('console', (tx) =>
+        platformSupport.issueToken(tx, {
+          accountId: seeded.firmId,
+          grantId: grant.id,
+          tokenHash: hashToken(token),
+          expiresAt: new Date(now.getTime() + 60_000).toISOString(),
+        }),
+      );
+      address += 1;
+      const res = await app.inject({
+        remoteAddress: `10.9.200.${address % 250}`,
+        method: 'POST',
+        url: '/api/v1/auth/support/verify',
+        payload: { token },
+      });
+      expect(res.statusCode).toBe(200);
+      const me = Me.parse(res.json());
+      expect(me).toMatchObject({
+        person: { id: grant.supportPersonId, support: true },
+        mfa: { satisfied: true },
+      });
+      expect(Date.parse(me.session!.expiresAt) - now.getTime()).toBeLessThanOrEqual(2 * 3_600_000);
+      const headers = sessionHeaders(res);
+      expect((await app.inject({ url: '/api/v1/me', headers })).statusCode).toBe(200);
+      await db.withTenant(systemContext(seeded.firmId, 'revoke'), (tx) =>
+        supportGrants.revoke(tx, grant.id, fa.personId, new Date().toISOString()),
+      );
+      expect(errorCode(await app.inject({ url: '/api/v1/me', headers }))).toBe('UNAUTHENTICATED');
+      expect(await store.findLoginCandidates('support@planetpulse.life')).toEqual([]);
+    } finally {
+      now = saved;
+      await operator.close();
+    }
   });
 });

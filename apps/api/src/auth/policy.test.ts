@@ -12,6 +12,9 @@ const ROLES = ['FIRM_ADMIN', 'CONSULTANT', 'CLIENT_ADMIN', 'APPROVER', 'OWNER', 
 //                               FA    CO    CA    AP      OW      VI
 const MATRIX: Record<string, readonly [Cell, Cell, Cell, Cell, Cell, Cell]> = {
   'person.invite': ['✓', '✓', '✓', '', '', ''],
+  'account.read': ['✓', '', '', '', '', ''],
+  'supportGrant.read': ['✓', '', '', '', '', ''],
+  'supportGrant.manage': ['✓', '', '', '', '', ''],
   'client.read': ['✓', '✓', '✓', '✓', '✓', '✓'],
   'client.create': ['✓', '', '', '', '', ''],
   'client.update': ['✓', '✓', '', '', '', ''],

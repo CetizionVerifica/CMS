@@ -1,8 +1,10 @@
 import { randomUUID } from 'node:crypto';
 import {
+  DEFAULT_ACCOUNT,
   ClientSummary as ClientSummarySchema,
   Membership as MembershipSchema,
   Person as PersonSchema,
+  type AccountView,
   type ClientSummary,
   type Membership,
   type Person,
@@ -22,6 +24,7 @@ import {
   type NewInvite,
   type NewLoginToken,
   type NewSession,
+  type SupportToken,
 } from './accounts.js';
 import type { Principal, SessionRecord } from './context.js';
 import { CSRF_HEADER, SESSION_COOKIE } from './plugin.js';
@@ -105,6 +108,26 @@ export interface StoredPerson {
   passwordHash: string | null;
   failedAttempts: number;
   lockedUntil: string | null;
+  /** The PlanetPulse support person: never a sign-in candidate, never invited. */
+  support?: boolean;
+}
+
+/** A firm's account as `account()` returns it: an active consultancy with no limits unless set. */
+export function accountView(firmId: string, overrides: Partial<AccountView> = {}): AccountView {
+  return {
+    id: firmId,
+    name: 'Firm',
+    kind: DEFAULT_ACCOUNT.kind,
+    status: DEFAULT_ACCOUNT.status,
+    trialEndsOn: null,
+    entitlements: {
+      planCode: 'CONSULTANCY',
+      limits: { companies: null, units: null, users: null, storageBytes: null },
+      features: [],
+    },
+    usage: { companies: 0, units: 0, users: 0, storageBytes: 0 },
+    ...overrides,
+  };
 }
 
 /** An outbox event or audit row the in-memory store recorded, for assertions. */
@@ -130,11 +153,39 @@ export class InMemoryAuthStore implements AccountStore {
   readonly tokens = new Map<string, LoginToken>();
   /** Keyed by invite id. */
   readonly invites = new Map<string, InviteRecord>();
+  /** Accounts by firm id; a firm missing here is an active consultancy with no limits. */
+  readonly accounts = new Map<string, AccountView>();
+  /** Support tokens by hash, as the console's `platform_issue_support_token` stores them. */
+  readonly supportTokens = new Map<string, SupportToken>();
+  /** Support grants by id: when each ends and whether it was revoked. */
+  readonly supportGrants = new Map<string, { endsAt: string; revoked: boolean }>();
   readonly outbox: Recorded[] = [];
   readonly audit: Recorded[] = [];
 
+  /** Like `canopy_find_session`: the account's status, and nothing for a support session whose grant ended. */
   async findSession(tokenHash: string): Promise<SessionRecord | null> {
-    return this.sessions.get(tokenHash) ?? null;
+    const session = this.sessions.get(tokenHash);
+    if (session === undefined) return null;
+    if (session.supportGrantId) {
+      const grant = this.supportGrants.get(session.supportGrantId);
+      if (!grant || grant.revoked || Date.parse(grant.endsAt) <= Date.now()) return null;
+    }
+    return { ...session, accountStatus: this.accounts.get(session.firmId)?.status ?? 'ACTIVE' };
+  }
+
+  async account(firmId: string): Promise<AccountView | null> {
+    return this.accounts.get(firmId) ?? accountView(firmId);
+  }
+
+  async findSupportToken(tokenHash: string): Promise<SupportToken | null> {
+    const token = this.supportTokens.get(tokenHash);
+    if (token === undefined) return null;
+    const grant = this.supportGrants.get(token.supportGrantId);
+    return {
+      ...token,
+      grantLive: grant !== undefined && !grant.revoked && Date.parse(grant.endsAt) > Date.now(),
+      accountStatus: this.accounts.get(token.firmId)?.status ?? 'ACTIVE',
+    };
   }
 
   async loadPrincipal(firmId: string, personId: string): Promise<Principal | null> {
@@ -172,7 +223,9 @@ export class InMemoryAuthStore implements AccountStore {
   async findLoginCandidates(email: string): Promise<LoginCandidate[]> {
     const wanted = email.toLowerCase();
     return [...this.people.entries()]
-      .filter(([, p]) => p.email?.toLowerCase() === wanted && p.status !== 'UNCLAIMED')
+      .filter(
+        ([, p]) => p.email?.toLowerCase() === wanted && p.status !== 'UNCLAIMED' && !p.support,
+      )
       .map(([key, p]) => {
         const [firmId, personId] = key.split('/') as [string, string];
         return {
@@ -182,8 +235,10 @@ export class InMemoryAuthStore implements AccountStore {
           status: p.status,
           passwordHash: p.passwordHash,
           lockedUntil: p.lockedUntil,
+          accountStatus: this.accounts.get(firmId)?.status ?? 'ACTIVE',
         };
-      });
+      })
+      .filter((c) => c.accountStatus !== 'DELETED');
   }
 
   async recordLoginFailure(firmId: string, personId: string, now: Date): Promise<boolean> {
@@ -215,6 +270,7 @@ export class InMemoryAuthStore implements AccountStore {
       csrfToken: session.csrfToken,
       mfaSatisfied: session.mfaSatisfied,
       expiresAt: session.expiresAt,
+      supportGrantId: session.supportGrantId ?? null,
     };
     this.sessions.set(session.tokenHash, record);
     const stored = this.people.get(`${session.firmId}/${session.personId}`);
@@ -267,6 +323,13 @@ export class InMemoryAuthStore implements AccountStore {
   }
 
   async consumeLoginToken(firmId: string, tokenId: string, now: Date): Promise<boolean> {
+    for (const [hash, support] of this.supportTokens) {
+      if (support.id !== tokenId) continue;
+      if (support.firmId !== firmId || support.usedAt !== null) return false;
+      if (Date.parse(support.expiresAt) <= now.getTime()) return false;
+      this.supportTokens.set(hash, { ...support, usedAt: now.toISOString() });
+      return true;
+    }
     const token = this.tokens.get(tokenId);
     if (
       token === undefined ||
@@ -296,6 +359,7 @@ export class InMemoryAuthStore implements AccountStore {
       personId,
       status: stored.status,
       email: stored.email,
+      support: stored.support === true,
       roles: [...held, ...invited].map((r) => ({ role: r.role, clientId: r.clientId })),
     };
   }
@@ -448,6 +512,17 @@ export class InMemoryAuthStore implements AccountStore {
         change: 'GRANTED',
       },
     });
+    // The db trigger canopy_activate_account: an admin accepting opens a PROVISIONING account.
+    const account = this.accounts.get(invite.firmId);
+    if (account?.status === 'PROVISIONING' && invite.role === 'FIRM_ADMIN') {
+      const status = account.trialEndsOn === null ? 'ACTIVE' : 'TRIAL';
+      this.accounts.set(invite.firmId, { ...account, status });
+      this.outbox.push({
+        firmId: invite.firmId,
+        type: 'account.status_changed',
+        data: { accountId: invite.firmId, from: 'PROVISIONING', to: status },
+      });
+    }
     return true;
   }
 

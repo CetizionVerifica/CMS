@@ -1,4 +1,6 @@
 import type {
+  AccountStatus,
+  AccountView,
   ClientSummary,
   Invite,
   MembershipGrant,
@@ -21,8 +23,13 @@ export interface AccountStore extends AuthStore {
    */
   clientSummaries(ctx: RequestContext): Promise<ClientSummary[]>;
 
-  /** ACTIVE, INVITED and DISABLED people with this email (case-insensitive), across firms. */
+  /**
+   * ACTIVE, INVITED and DISABLED people with this email (case-insensitive), across firms, with each account's status.
+   * Never the PlanetPulse support person, and never a DELETED account.
+   */
   findLoginCandidates(email: string): Promise<LoginCandidate[]>;
+  /** The firm's account: kind, status, trial end, effective limits and whole-firm usage (ADR M15-0001). */
+  account(firmId: string): Promise<AccountView | null>;
   /**
    * Counts a failed password or MFA code; after `LOCKOUT.attempts` failures in a row the account locks for
    * `LOCKOUT.minutes`. True when the account is locked after this failure.
@@ -52,6 +59,8 @@ export interface AccountStore extends AuthStore {
   requestMagicLink(firmId: string, personId: string, requestId: string): Promise<void>;
   createLoginToken(token: NewLoginToken): Promise<void>;
   findLoginToken(tokenHash: string): Promise<LoginToken | null>;
+  /** A one-time support token the operator console issued (never returned by `findLoginToken`). */
+  findSupportToken(tokenHash: string): Promise<SupportToken | null>;
   /** Marks the token used if it is unused and unexpired; false when another request won. */
   consumeLoginToken(firmId: string, tokenId: string, now: Date): Promise<boolean>;
 
@@ -98,6 +107,8 @@ export interface LoginCandidate {
   readonly status: PersonStatus;
   readonly passwordHash: string | null;
   readonly lockedUntil: string | null;
+  /** Checked after the password, never before, so a wrong password reveals nothing about the account. */
+  readonly accountStatus: AccountStatus;
 }
 
 export interface NewSession {
@@ -113,7 +124,9 @@ export interface NewSession {
   readonly createdAt: string;
   readonly requestId: string;
   /** How the person signed in, for the audit event. */
-  readonly method: 'PASSWORD' | 'MAGIC_LINK' | 'INVITE';
+  readonly method: 'PASSWORD' | 'MAGIC_LINK' | 'INVITE' | 'SUPPORT';
+  /** Set exactly when `method` is SUPPORT: the grant the session belongs to. */
+  readonly supportGrantId?: string;
 }
 
 export interface MfaRecord {
@@ -141,6 +154,19 @@ export interface LoginToken extends NewLoginToken {
   readonly usedAt: string | null;
 }
 
+/** A support token as stored: used or not, and whether its grant is still live. */
+export interface SupportToken {
+  readonly id: string;
+  readonly firmId: string;
+  readonly personId: string;
+  readonly supportGrantId: string;
+  readonly grantEndsAt: string;
+  readonly grantLive: boolean;
+  readonly accountStatus: AccountStatus;
+  readonly expiresAt: string;
+  readonly usedAt: string | null;
+}
+
 /** The membership an invite grants (the M0 `MembershipGrant`). */
 export type Grant = MembershipGrant;
 
@@ -148,6 +174,8 @@ export interface Invitee {
   readonly personId: string;
   readonly status: PersonStatus;
   readonly email: string | null;
+  /** The PlanetPulse support person, whom nobody can invite. */
+  readonly support: boolean;
   /** Roles held (non-archived memberships) or offered (open invites); the inviter must be able to grant each. */
   readonly roles: readonly { readonly role: Role; readonly clientId: string | null }[];
 }

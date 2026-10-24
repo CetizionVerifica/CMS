@@ -6,6 +6,7 @@ import {
   type RequestContext,
 } from '@canopy/contracts';
 import {
+  account as accounts,
   auditEvents,
   clients,
   credentials,
@@ -37,6 +38,7 @@ import {
   type NewInvite,
   type NewLoginToken,
   type NewSession,
+  type SupportToken,
 } from './accounts.js';
 import type { Principal, SessionRecord } from './context.js';
 
@@ -203,6 +205,17 @@ export function createDbAccountStore(db: Database, options: DbAccountStoreOption
       return db.findLoginCandidates(email);
     },
 
+    async account(firmId: string) {
+      return asFirm(firmId, LOOKUP_REQUEST, (tx) => accounts.get(tx)).catch((error: unknown) => {
+        if (error instanceof DbError && error.code === 'NOT_FOUND') return null;
+        throw error;
+      });
+    },
+
+    async findSupportToken(tokenHash: string): Promise<SupportToken | null> {
+      return db.findSupportToken(tokenHash);
+    },
+
     async recordLoginFailure(firmId: string, personId: string, now: Date): Promise<boolean> {
       const { lockedUntil } = await asFirm(firmId, LOOKUP_REQUEST, (tx) =>
         credentials.recordFailure(tx, personId, now.toISOString(), LOCKOUT),
@@ -230,6 +243,9 @@ export function createDbAccountStore(db: Database, options: DbAccountStoreOption
           expiresAt: session.expiresAt,
           createdAt: session.createdAt,
           method: session.method,
+          ...(session.supportGrantId === undefined
+            ? {}
+            : { supportGrantId: session.supportGrantId }),
         });
         if (!session.owesMfa) await credentials.resetFailures(tx, session.personId);
         await auditEvents.append(tx, {
@@ -331,6 +347,7 @@ export function createDbAccountStore(db: Database, options: DbAccountStoreOption
           personId,
           status: person.status,
           email: person.email,
+          support: person.support === true,
           roles: [...held, ...invited].map((r) => ({ role: r.role, clientId: r.clientId })),
         };
       });

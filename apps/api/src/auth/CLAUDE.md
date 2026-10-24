@@ -15,6 +15,10 @@
 - `clientId: null` means a firm-level resource, not "any client": client roles are denied there except on firm-wide
   rows (library, locations). For a list across the actor's clients, authorize per client or filter the query by
   `ctx.clientIds`.
+- Accounts (ADR M5-0002): every session route answers `403 ACCOUNT_SUSPENDED` unless the account is TRIAL or ACTIVE.
+  While it is PENDING_DELETION, account admins may still reach routes that set `config.whilePendingDeletion: true`,
+  which only `/me`, logout and the account export do. `isSupportSession(req)` is true on a PlanetPulse support session.
+  Refuse it where support must not act, such as the support-grant routes.
 - `session-pre-mfa` routes exist only to finish MFA: `authorize()` there throws `MFA_REQUIRED` while MFA is owed.
 - Stricter per-route rate limits use `config.routeLimit: { max, timeWindow }`. The plugin's `config.rateLimit` is
   refused, because the API-wide limiter would make it a no-op.

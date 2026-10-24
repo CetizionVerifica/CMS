@@ -31,6 +31,11 @@ declare module 'fastify' {
     auth?: RouteAuth;
     /** A stricter per-route limit per client IP (login, magic link, invites), on top of the API-wide one. */
     routeLimit?: RateLimit;
+    /**
+     * Reachable by account admins while the account is PENDING_DELETION: `/me`, logout and the account export only
+     * (endpoints.md §8). Every other session route answers ACCOUNT_SUSPENDED then.
+     */
+    whilePendingDeletion?: boolean;
   }
   interface FastifyRequest {
     /** The request context. Set on `session` and `session-pre-mfa` routes; reading it elsewhere throws. */
@@ -70,7 +75,19 @@ export function sessionOf(request: FastifyRequest): SessionRecord {
   return session;
 }
 
-function sessionHook(options: AuthOptions, auth: RouteAuth): onRequestHookHandler {
+/**
+ * True on a PlanetPulse support session (ADR M15-0001 decision 11). Routes that manage support access, or that a
+ * support person must not use, refuse it.
+ */
+export function isSupportSession(request: FastifyRequest): boolean {
+  return (sessions.get(request)?.supportGrantId ?? null) !== null;
+}
+
+function sessionHook(
+  options: AuthOptions,
+  auth: RouteAuth,
+  whilePendingDeletion: boolean,
+): onRequestHookHandler {
   const clock = options.clock ?? (() => new Date());
   return async (request) => {
     const token = request.cookies[SESSION_COOKIE];
@@ -92,6 +109,7 @@ function sessionHook(options: AuthOptions, auth: RouteAuth): onRequestHookHandle
       now: clock(),
       timeZone,
       allowBeforeMfa: auth === 'session-pre-mfa',
+      allowWhilePendingDeletion: whilePendingDeletion,
     });
 
     if (!SAFE_METHODS.has(request.method)) {
@@ -226,7 +244,9 @@ export function registerAuth(app: FastifyInstance, options: AuthOptions): void {
       ...(route.config?.routeLimit
         ? [routeLimitHook(app, routeLimiters, route.url, route.config.routeLimit)]
         : []),
-      ...(auth === 'public' ? [] : [sessionHook(options, auth)]),
+      ...(auth === 'public'
+        ? []
+        : [sessionHook(options, auth, route.config?.whilePendingDeletion === true)]),
       ...(Array.isArray(existing) ? existing : [existing]),
     ];
   });

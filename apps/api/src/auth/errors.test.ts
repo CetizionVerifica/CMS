@@ -17,11 +17,11 @@ describe('ApiError', () => {
     }
   });
 
-  it('already has messages for the account codes contracts 1.5.0 adds', () => {
-    expect(new ApiError('ACCOUNT_SUSPENDED' as ErrorCode).message).toBe(
+  it('has the account messages people see when paused or at a plan limit', () => {
+    expect(new ApiError('ACCOUNT_SUSPENDED').message).toBe(
       'Your account is paused. Contact PlanetPulse.',
     );
-    expect(new ApiError('PLAN_LIMIT_REACHED' as ErrorCode).message).toBe(
+    expect(new ApiError('PLAN_LIMIT_REACHED').message).toBe(
       'Your plan limit is reached. Contact PlanetPulse to upgrade.',
     );
   });
