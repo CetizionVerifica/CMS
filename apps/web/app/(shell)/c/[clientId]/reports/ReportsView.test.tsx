@@ -128,9 +128,12 @@ describe('ReportsView', () => {
     await userEvent.click(
       screen.getByRole('button', { name: 'Download the Overdue report (Excel)' }),
     );
-    expect((await screen.findByRole('alert')).textContent).toBe(
-      'You can’t download reports for this client.',
+    await waitFor(() =>
+      expect(screen.getByRole('alert').textContent).toBe(
+        'You can’t download reports for this client.',
+      ),
     );
+    expect(screen.getByRole('status').textContent).toBe('');
 
     actions.startExportAction.mockResolvedValueOnce({ ok: true, id: 'x3' });
     actions.exportProgressAction.mockResolvedValueOnce({
@@ -146,5 +149,22 @@ describe('ReportsView', () => {
       ),
     );
     expect(assign).not.toHaveBeenCalled();
+  });
+
+  it('keeps the other downloads focusable, and says why they wait, while one is prepared', async () => {
+    let finish: (value: unknown) => void = () => {};
+    actions.startExportAction.mockReturnValue(new Promise((resolve) => (finish = resolve)));
+    view();
+    const first = screen.getByRole('button', { name: 'Download the Act-wise report (Excel)' });
+    await userEvent.click(first);
+    expect(first.getAttribute('aria-busy')).toBe('true');
+    const other = screen.getByRole('button', { name: 'Download the Overdue report (Excel)' });
+    expect(other.getAttribute('aria-disabled')).toBe('true');
+    expect(other.hasAttribute('disabled')).toBe(false);
+    other.focus();
+    expect(document.activeElement).toBe(other);
+    await userEvent.click(other);
+    expect(actions.startExportAction).toHaveBeenCalledTimes(1);
+    await act(async () => finish({ ok: false, message: 'No.' }));
   });
 });

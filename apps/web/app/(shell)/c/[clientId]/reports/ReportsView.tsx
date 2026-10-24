@@ -217,19 +217,23 @@ function Downloads({ clientId, fy }: { clientId: string; fy: string | null }) {
             <Button
               variant="secondary"
               onClick={() => void download(kind, label.replace(/ \(.*\)$/, '').toLowerCase())}
-              disabled={busy !== null}
+              loading={busy === kind}
+              disabledReason={
+                busy !== null && busy !== kind ? 'Another download is being prepared' : undefined
+              }
               aria-label={`Download the ${label}`}
             >
-              {busy === kind ? 'Preparing…' : 'Download'}
+              Download
             </Button>
           </li>
         ))}
       </ul>
-      <p
-        role={message?.tone === 'error' ? 'alert' : 'status'}
-        className={message?.tone === 'error' ? 'text-body text-crit-ink' : 'text-body text-muted'}
-      >
-        {message?.text ?? ''}
+      {/* Two fixed live regions, so a screen reader hears progress politely and a refusal at once. */}
+      <p role="status" className="text-body text-muted">
+        {message?.tone === 'info' ? message.text : ''}
+      </p>
+      <p role="alert" className="text-body text-crit-ink">
+        {message?.tone === 'error' ? message.text : ''}
       </p>
     </section>
   );

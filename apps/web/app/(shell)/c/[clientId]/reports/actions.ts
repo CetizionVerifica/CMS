@@ -6,6 +6,7 @@ import { ExportKind, FyLabel, Id } from '@canopy/contracts';
 
 import { isApiError } from '../../../../../lib/api/client';
 import { sessionApi } from '../../../../../lib/api/server';
+import { redirectIfSignedOut } from '../overview/signed-out';
 
 export type ExportStart = { ok: true; id: string } | { ok: false; message: string };
 export type ExportProgress =
@@ -26,12 +27,12 @@ export async function startExportAction(
   kind: string,
   fy: string | null,
 ): Promise<ExportStart> {
-  const id = Id.parse(clientId);
-  const body = {
-    kind: ExportKind.parse(kind),
-    ...(fy === null ? {} : { fy: FyLabel.parse(fy) }),
-  };
   try {
+    const id = Id.parse(clientId);
+    const body = {
+      kind: ExportKind.parse(kind),
+      ...(fy === null ? {} : { fy: FyLabel.parse(fy) }),
+    };
     const { data } = await (
       await sessionApi()
     ).call('createExport', {
@@ -40,15 +41,17 @@ export async function startExportAction(
     });
     return { ok: true, id: data.id };
   } catch (error) {
+    // An expired sign-in goes back to the login steps; everything else, a bad argument included, is a sentence.
+    await redirectIfSignedOut(error);
     return { ok: false, message: refused(error) };
   }
 }
 
 /** Where an export is. A finished one comes with its download link. */
 export async function exportProgressAction(exportId: string): Promise<ExportProgress> {
-  const id = Id.parse(exportId);
-  const api = await sessionApi();
   try {
+    const id = Id.parse(exportId);
+    const api = await sessionApi();
     const { data } = await api.call('getExport', { params: { id } });
     if (data.status === 'FAILED') {
       return { status: 'failed', message: 'The download couldn’t be prepared. Try again.' };
@@ -57,6 +60,7 @@ export async function exportProgressAction(exportId: string): Promise<ExportProg
     const { data: signed } = await api.call('exportDownloadUrl', { params: { id } });
     return { status: 'ready', url: signed.url };
   } catch (error) {
+    await redirectIfSignedOut(error);
     return { status: 'failed', message: refused(error) };
   }
 }

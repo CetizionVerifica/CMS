@@ -6,6 +6,8 @@ import { ApiError } from '../../../../../lib/api/client';
 const call = vi.hoisted(() => vi.fn());
 vi.mock('server-only', () => ({}));
 vi.mock('../../../../../lib/api/server', () => ({ sessionApi: async () => ({ call }) }));
+const redirectIfSignedOut = vi.hoisted(() => vi.fn(async () => undefined));
+vi.mock('../overview/signed-out', () => ({ redirectIfSignedOut }));
 
 const { exportProgressAction, startExportAction } = await import('./actions');
 
@@ -35,9 +37,21 @@ describe('startExportAction', () => {
 
   it('refuses input that is not a kind or an FY before calling the API', async () => {
     call.mockReset();
-    await expect(startExportAction(CLIENT, 'EVERYTHING', null)).rejects.toThrow();
-    await expect(startExportAction(CLIENT, 'ACT_REPORT_XLSX', '2024-26')).rejects.toThrow();
+    const notStarted = { ok: false, message: 'The download didn’t start. Try again.' };
+    expect(await startExportAction(CLIENT, 'EVERYTHING', null)).toEqual(notStarted);
+    expect(await startExportAction(CLIENT, 'ACT_REPORT_XLSX', '2024-26')).toEqual(notStarted);
+    expect((await exportProgressAction('not-an-id')).status).toBe('failed');
     expect(call).not.toHaveBeenCalled();
+  });
+
+  it('sends an expired sign-in to the login steps', async () => {
+    redirectIfSignedOut.mockClear();
+    const expired = refusal(401, 'UNAUTHENTICATED');
+    call.mockRejectedValueOnce(expired).mockRejectedValueOnce(expired);
+    await startExportAction(CLIENT, 'ACT_REPORT_XLSX', null);
+    await exportProgressAction(EXPORT);
+    expect(redirectIfSignedOut).toHaveBeenCalledWith(expired);
+    expect(redirectIfSignedOut).toHaveBeenCalledTimes(2);
   });
 
   it('says why an export was refused', async () => {
