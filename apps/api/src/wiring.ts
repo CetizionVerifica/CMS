@@ -6,15 +6,26 @@ import {
 } from '@canopy/db';
 import { inferRule } from '@canopy/engine';
 import { AuthService, SecretBox, createDbAccountStore } from './auth/index.js';
-import { startJobsFromEnv, type JobRunner, type JobRunnerOptions } from './jobs/index.js';
+import {
+  startJobsFromEnv,
+  type JobDefinition,
+  type JobRunner,
+  type JobRunnerOptions,
+} from './jobs/index.js';
 import { PostgresReportsStore } from './modules/dashboard/db-store.js';
 import { createS3Storage } from './modules/evidence/storage.js';
 import { PostgresStore } from './modules/entities/service.js';
 import { copyMasterLibrary } from './modules/library/db-library-copy.js';
 import { repositoryStore, s3ImportFilesFromEnv } from './modules/imports/index.js';
 import { S3ExportFiles } from './modules/reports/files.js';
-import { ipAllowlistFromEnv, operatorDigestJob, type PlatformOptions } from './platform/index.js';
-import { s3SettingsFromEnv } from './s3-env.js';
+import {
+  accountPurgeJob,
+  createS3AccountObjects,
+  ipAllowlistFromEnv,
+  operatorDigestJob,
+  type PlatformOptions,
+} from './platform/index.js';
+import { s3SettingsFromEnv, type S3Settings } from './s3-env.js';
 import type { ServerOptions } from './server.js';
 
 /** Where a failed background import parse is reported: counts and ids only, never row data. */
@@ -156,6 +167,14 @@ function s3ExportFilesFromEnv(env: NodeJS.ProcessEnv): S3ExportFiles | null {
   return settings && new S3ExportFiles(settings);
 }
 
+/**
+ * The jobs on the console's login: the operators' renewals digest (ADR M15-0005) and, with object storage, the
+ * nightly purge of accounts past their 30-day grace period (ADR M15-0002), which deletes files before rows.
+ */
+function operatorJobs(db: OperatorDatabase, s3: S3Settings | null): JobDefinition[] {
+  return [operatorDigestJob(db), ...(s3 ? [accountPurgeJob(db, createS3AccountObjects(s3))] : [])];
+}
+
 export interface JobsWiring {
   /** Told why the jobs did not start; main.ts passes the server logger's warn. */
   readonly warn: (message: string) => void;
@@ -165,7 +184,7 @@ export interface JobsWiring {
   readonly auth?: Pick<AuthService, 'issueLoginToken'>;
   /**
    * The console's login (`Wiring.operatorDatabase`), set when the operator API is enabled: the jobs then also send
-   * the operators' daily renewals email (ADR M15-0005).
+   * the operators' daily renewals email (ADR M15-0005) and, with object storage, purge deleted accounts (ADR M15-0002).
    */
   readonly operatorDatabase?: OperatorDatabase;
   /** Tests replace the M9 boot. */
@@ -175,7 +194,7 @@ export interface JobsWiring {
 /**
  * Starts the M9 jobs on the API's database: instance generation, the outbox relay and M6's master library copy for
  * new accounts (`account.created`, ADR M6-0001) always, reminders, digests (the operators' renewals digest too when the
- * operator API is enabled)
+ * operator API is enabled; with object storage as well, the nightly purge of deleted accounts)
  * and workflow emails when the environment configures mail, and the evidence virus scan when it configures a scanner. Without a database nothing starts and nothing is said,
  * as for the modules above; with one but no SMTP server it warns, because reminders and approval emails would
  * silently never go out, and without a scanner, because uploaded evidence would never become downloadable. Half-set mail settings throw, so a deploy fails at boot rather than running without mail.
@@ -187,14 +206,19 @@ export async function jobsFromEnv(
 ): Promise<JobRunner | null> {
   const connectionString = env.DATABASE_URL;
   if (!database || !connectionString) return null;
+  const s3 = s3SettingsFromEnv(env);
   const jobs = await start(env, {
     db: database,
     connectionString,
     ...(log && { log }),
     ...(auth && { issueLoginToken: (input) => auth.issueLoginToken(input) }),
     copyLibrary: (accountId, requestId) => copyMasterLibrary(database, accountId, requestId),
-    ...(operatorDatabase && { extraJobs: [operatorDigestJob(operatorDatabase)] }),
+    ...(operatorDatabase && { extraJobs: operatorJobs(operatorDatabase, s3) }),
   });
+  if (operatorDatabase && !s3)
+    warn(
+      'account purge not started: no object storage configured (set S3_BUCKET and its keys); deleted accounts keep their data past 30 days',
+    );
   if (!jobs.mail)
     warn(
       'email jobs not started: no SMTP server configured (set SMTP_URL or SMTP_HOST, MAIL_FROM and APP_URL); instance generation still runs',
