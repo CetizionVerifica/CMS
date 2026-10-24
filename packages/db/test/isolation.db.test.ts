@@ -56,7 +56,10 @@ async function count(tx: TenantTx, table: string, where = 'true') {
 
 /** An UPDATE that changes nothing; on firm, a column the app role may update (migration 0020). */
 function noop(table: string): string {
-  return table === 'firm' ? 'name = name' : 'id = id';
+  // Tables whose app UPDATE grant is column-limited touch a column the app may write.
+  if (table === 'firm') return 'name = name';
+  if (table === 'support_grant') return 'updated_at = updated_at';
+  return 'id = id';
 }
 
 function errorCode(error: unknown): string | undefined {

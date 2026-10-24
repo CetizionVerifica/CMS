@@ -24,7 +24,8 @@ const ownerMember = `${login}_ownm`;
 const lookupMember = `${login}_lkm`;
 const platformMember = `${login}_plm`;
 const operatorMember = `${login}_opm`;
-// The operator console's own login (ADR M3-0002): canopy_operator, plus canopy_app for the library copy.
+const operatorPlatformMember = `${login}_opp`;
+// The operator console's own login (ADR M3-0002): a member of canopy_operator and nothing else.
 const operatorLogin = `${login}_op`;
 
 function urlAs(user: string, pass: string): string {
@@ -64,7 +65,10 @@ beforeAll(async () => {
     `CREATE ROLE ${operatorMember} LOGIN PASSWORD '${password}' IN ROLE canopy_app, canopy_operator`,
   );
   await t.ownerQuery(
-    `CREATE ROLE ${operatorLogin} LOGIN PASSWORD '${password}' IN ROLE canopy_operator, canopy_app`,
+    `CREATE ROLE ${operatorLogin} LOGIN PASSWORD '${password}' IN ROLE canopy_operator`,
+  );
+  await t.ownerQuery(
+    `CREATE ROLE ${operatorPlatformMember} LOGIN PASSWORD '${password}' IN ROLE canopy_operator, canopy_platform`,
   );
 });
 
@@ -81,6 +85,7 @@ afterAll(async () => {
     platformMember,
     operatorMember,
     operatorLogin,
+    operatorPlatformMember,
   ]) {
     await t?.ownerQuery(`DROP ROLE IF EXISTS ${role}`);
   }
@@ -166,10 +171,16 @@ describe('privileged logins', () => {
 });
 
 describe('operator logins', () => {
-  it('refuse a superuser and a canopy_platform member', async () => {
+  it('refuse a superuser, a canopy_platform member and a canopy_app member', async () => {
     for (const [url, reason] of [
       [t.url, /Refusing operator connections: the login is a superuser/],
-      [urlAs(platformMember, password), /canopy_platform, which writes across firms/],
+      [urlAs(operatorPlatformMember, password), /canopy_platform, which writes across firms/],
+      // A console login that could SET ROLE canopy_app could set any firm's settings (audit of #140, Medium 1).
+      [urlAs(operatorMember, password), /canopy_app, which acts inside tenants/],
+      [
+        urlAs(login, password),
+        /Refusing operator connections: the login is a member of canopy_app/,
+      ],
     ] as const) {
       const db = createOperatorDatabase({ connectionString: url, privilegedLogin: 'refuse' });
       try {
@@ -191,15 +202,17 @@ describe('operator logins', () => {
         return rows[0]!.n;
       });
       expect(n).toBe(2);
-      const clients = await db.withOperator('r', async (tx) => {
-        await tx.execute(sql`RESET ROLE`);
-        const { rows } = await tx.execute<{ n: number }>(
-          sql`SELECT count(*)::int AS n FROM client`,
-        );
-        return rows[0]!.n;
-      });
-      // As itself the login is a canopy_app member with no tenant set: RLS shows nothing.
-      expect(clients).toBe(0);
+      // As itself the login has no grant on any tenant table, and it cannot become the app role.
+      for (const statement of [sql`RESET ROLE`, sql.raw('SET LOCAL ROLE canopy_app')]) {
+        const outcome = await db
+          .withOperator('r', async (tx) => {
+            await tx.execute(statement);
+            await tx.execute(sql`SELECT count(*)::int AS n FROM client`);
+            return 'read';
+          })
+          .catch((e: unknown) => String((e as { cause?: { code?: string } }).cause?.code ?? e));
+        expect(outcome).toBe('42501');
+      }
     } finally {
       await db.close();
     }

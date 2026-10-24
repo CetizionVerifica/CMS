@@ -80,10 +80,10 @@ Decisions and their reasons: `docs/adr/0003-m3-tenant-isolation-in-postgres.md`.
   Consequences. Pre-tenant lookups are `SECURITY DEFINER` functions owned by `canopy_lookup`, never by the owner.
 - Production login: a non-owner member of `canopy_app`. With `NODE_ENV=production`, `createDatabase` refuses a login that is, or can `SET ROLE` to, a superuser, BYPASSRLS, table-owning, `canopy_lookup`, `canopy_platform` or `canopy_operator` role.
 - Operator console (M15, ADR M3-0002): `createOperatorDatabase({ connectionString })` with its own login, a member of
-  `canopy_operator` and `canopy_app`. `withOperator(requestId, (tx) => ...)` runs as `canopy_operator` with no tenant;
+  `canopy_operator` only (refused if it can become `canopy_app`). `withOperator(requestId, (tx) => ...)` runs as `canopy_operator` with no tenant;
   repositories `platformAccounts` and `platformSupport` take that `OperatorTx`. Every write inside a tenant is a
-  `platform_*` function owned by `canopy_platform`; `withNewAccount` (PROVISIONING accounts only) is the one
-  exception, for the library copy. The app side reads its own account with `account.get` / `account.usage` and
+  `platform_*` function owned by `canopy_platform`, with no exception: the master library copy runs app-side from
+  `account.created`. The app side reads its own account with `account.get` / `account.usage` and
   manages `supportGrants`.
 - Repositories (`src/repositories`, exported from `@canopy/db`): one object per aggregate (`clients`, `units`, `people`,
   `memberships`, `obligations`, `assignments`, `instances`, `evidence`, `comments`, `auditEvents`, `importBatches`,
