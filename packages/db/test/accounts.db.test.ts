@@ -807,6 +807,67 @@ describe('support access', () => {
     expect(await t.db.findSession(tokenHash)).toBeNull();
   });
 
+  it('writes SUPPORT_ACCESS_START and SUPPORT_ACCESS_END to the operator trail with the grant, once each', async () => {
+    const first = await inFirm(a.firmId, (tx) =>
+      r.supportGrants.create(tx, { level: 'ADMIN', days: 1, grantedById: adminId, now: NOW() }),
+    );
+    const { grant, ended } = await inFirm(a.firmId, (tx) =>
+      r.supportGrants.create(tx, { level: 'READ_ONLY', days: 3, grantedById: adminId, now: NOW() }),
+    );
+    expect(ended?.id).toBe(first.grant.id);
+    await inFirm(a.firmId, (tx) => r.supportGrants.revoke(tx, grant.id, adminId, NOW()));
+    // A revoke that finds nothing live changes no row, so it writes nothing.
+    expect(
+      await failure(inFirm(a.firmId, (tx) => r.supportGrants.revoke(tx, grant.id, adminId, NOW()))),
+    ).toBe('NOT_FOUND');
+    const { rows: trail } = await t.ownerQuery<{
+      action: string;
+      operator_id: string | null;
+      account_id: string;
+      before: unknown;
+      after: Record<string, unknown>;
+      request_id: string;
+    }>(
+      `SELECT action, operator_id, account_id, before, after, request_id FROM platform.operator_audit_event
+       WHERE after->>'grantId' = '${grant.id}' ORDER BY at, id`,
+    );
+    expect(trail).toEqual([
+      {
+        action: 'SUPPORT_ACCESS_START',
+        operator_id: null,
+        account_id: a.firmId,
+        before: null,
+        after: {
+          grantId: grant.id,
+          level: 'READ_ONLY',
+          startsAt: expect.any(String),
+          endsAt: expect.any(String),
+          source: 'grant',
+        },
+        request_id: 'accounts-test',
+      },
+      {
+        action: 'SUPPORT_ACCESS_END',
+        operator_id: null,
+        account_id: a.firmId,
+        before: { endsAt: expect.any(String) },
+        after: {
+          grantId: grant.id,
+          level: 'READ_ONLY',
+          revokedAt: expect.any(String),
+          source: 'grant',
+        },
+        request_id: 'accounts-test',
+      },
+    ]);
+    expect(Date.parse(trail[0]!.after.endsAt as string)).toBe(Date.parse(grant.endsAt));
+    // The grant this one ended has its own END entry.
+    const { rows: endedTrail } = await t.ownerQuery<{ action: string }>(
+      `SELECT action FROM platform.operator_audit_event WHERE after->>'grantId' = '${ended!.id}' ORDER BY at, id`,
+    );
+    expect(endedTrail.map((e) => e.action)).toEqual(['SUPPORT_ACCESS_START', 'SUPPORT_ACCESS_END']);
+  });
+
   it('a SUPPORT session needs a grant, and only a SUPPORT session has one', async () => {
     const base = {
       personId: adminId,
