@@ -154,7 +154,10 @@ describe('the operator wall', () => {
     ).toBe('42501');
     await t.ownerTransaction(async (client) => {
       await client.query(`SELECT set_config('app.firm_id', $1, true)`, [b.firmId]);
+      // A tombstone as the purge leaves one (migration 0035 lets only the purge write DELETED).
+      await client.query('ALTER TABLE firm DISABLE TRIGGER firm_deleted_by_purge');
       await client.query(`UPDATE firm SET status = 'DELETED' WHERE id = $1`, [b.firmId]);
+      await client.query('ALTER TABLE firm ENABLE TRIGGER firm_deleted_by_purge');
       await client.query('SET LOCAL ROLE canopy_operator');
       await client.query(`SELECT set_config('app.firm_id', '', true)`);
       const { rowCount } = await client.query(`UPDATE firm SET name = 'Renamed' WHERE id = $1`, [

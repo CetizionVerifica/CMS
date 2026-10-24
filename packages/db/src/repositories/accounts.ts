@@ -537,6 +537,37 @@ export const platformAccounts = {
       features: z.array(FeatureFlag).parse(row.features),
     };
   },
+  /**
+   * Accounts PENDING_DELETION whose 30-day grace period (ADR M15-0002) has ended, oldest first. The database's clock
+   * decides, as it does in platform_purge_account and when it stamps deletion_requested_at.
+   */
+  async dueForPurge(tx: OperatorTx): Promise<string[]> {
+    const rows = await tx
+      .select({ id: s.firm.id })
+      .from(s.firm)
+      .where(
+        and(
+          eq(s.firm.status, 'PENDING_DELETION'),
+          sql`${s.firm.deletionRequestedAt} <= now() - interval '30 days'`,
+        ),
+      )
+      .orderBy(s.firm.deletionRequestedAt, s.firm.id)
+      .catch(rethrow);
+    return rows.map((r) => r.id);
+  },
+  /**
+   * Purges the account (platform_purge_account): DELETED tombstone, every tenant row and its audit trail removed,
+   * ACCOUNT_PURGE in the operator trail. Returns the row count per table, or null when it was already purged.
+   * INVALID_TRANSITION when it is not PENDING_DELETION or still inside its 30 days. Storage objects are the caller's.
+   */
+  async purge(tx: OperatorTx, accountId: string): Promise<Record<string, number> | null> {
+    const { rows } = await tx
+      .execute<{ counts: Record<string, number> | null }>(
+        sql`SELECT platform_purge_account(${validate(Id, accountId)}) AS counts`,
+      )
+      .catch(rethrow);
+    return rows[0]!.counts;
+  },
 };
 
 export const IssueSupportToken = z.strictObject({
