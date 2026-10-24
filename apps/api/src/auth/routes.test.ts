@@ -834,6 +834,12 @@ describe('server wiring', () => {
       '10.0.0.0/8/1',
       '10.0.0.0/',
       '10.0.0.0/8,',
+      // Over-broad ranges trust everyone just like "true".
+      '0.0.0.0/0',
+      '0.0.0.0/1,128.0.0.0/1',
+      '10.0.0.0/7',
+      '::/0',
+      'fc00::/7',
     ]) {
       expect(() => trustProxyFromEnv(bad), bad).toThrow(/TRUST_PROXY/);
     }

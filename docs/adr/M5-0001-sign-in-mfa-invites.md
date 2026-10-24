@@ -45,8 +45,8 @@ people in two firms.
    non-archived memberships and open invites (`canGrantRole`); anyone else gets `404 NOT_FOUND`.
 8. Logged request URLs replace invite tokens and `token=` query values with `[redacted]`. `TRUST_PROXY` sets
    Fastify's `trustProxy` so per-IP limits see the client address behind a load balancer. It must list the load
-   balancers' addresses or CIDRs; the API refuses to start with `true` or anything else, because `true` takes the
-   leftmost `X-Forwarded-For` entry, which the client writes.
+   balancers' addresses or CIDRs no wider than /8; the API refuses to start with `true`, a wider range or anything
+   else, because those trust the leftmost `X-Forwarded-For` entry, which the client writes.
 9. Per-route limits count per path, so a GET route and the HEAD route Fastify adds for it share one budget.
 10. Storage is the `AccountStore` interface (`accounts.ts`). Each method is one transaction and writes its audit and
     outbox rows, as its comment says. `createDbAccountStore` implements it on M3's auth tables (ADR M3-0001): firm-keyed
