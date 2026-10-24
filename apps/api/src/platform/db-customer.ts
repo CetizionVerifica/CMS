@@ -214,6 +214,10 @@ export function registerCustomerAccountRoutes(
     let grant: SupportGrant;
     try {
       grant = await inTenant(ctx, async (tx) => {
+        // One grant at a time: two concurrent requests (two admins, or a double click without a key) would both
+        // read no live grant and both insert. The account's lock, held to commit, queues the second behind the
+        // first, so it sees the first's grant (and replaces it) or the first's Idempotency-Key record.
+        await account.lockUsage(tx);
         const first = await find(tx);
         if (first) return replay<SupportGrant>(first, keyed!);
         const made = await run(tx);
@@ -249,6 +253,8 @@ export function registerCustomerAccountRoutes(
     const { id } = IdParams.parse(request.params);
     return SupportGrant.parse(
       await inTenant(ctx, async (tx) => {
+        // Queued behind a concurrent grant, so the grant it ends is the one that stays live.
+        await account.lockUsage(tx);
         await refuseSupport(tx, ctx, 'supportGrant.manage');
         const now = clock().toISOString();
         const known = (await supportGrants.list(tx, now)).find((g) => g.id === id);
