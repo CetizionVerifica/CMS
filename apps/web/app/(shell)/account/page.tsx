@@ -1,0 +1,52 @@
+import { AccountView, ENDPOINTS, type SupportGrant } from '@canopy/contracts';
+import type { Metadata } from 'next';
+
+import { isApiError } from '../../../lib/api/client';
+import { serverApi } from '../../../lib/api/server';
+import { NoPermission, PageHeader } from '../../../lib/patterns';
+import { routeByPath, visibleTo } from '../../../lib/routes';
+import { homeHref } from '../../../lib/shell/model';
+import { loadShell } from '../../../lib/shell/server';
+import { redirectIfSignedOut } from '../c/[clientId]/overview/signed-out';
+import { ACCOUNT_STATUS, usageRows } from './account-model';
+import { PlanUsage, SupportAccess } from './AccountView';
+
+export const metadata: Metadata = { title: 'Account' };
+
+// The account's plan and usage, and PlanetPulse support access, for account admins (ADR M15-0001 decisions 5, 11).
+export default async function AccountPage() {
+  const model = await loadShell();
+  if (!visibleTo(routeByPath('account'), model.roles.firm)) {
+    return <NoPermission what="account" backHref={homeHref(model)} backLabel="Go to home" />;
+  }
+  const api = await serverApi();
+  let view: AccountView;
+  let grants: SupportGrant[];
+  try {
+    const [account, support] = await Promise.all([
+      api.call('getAccount'),
+      api.call('listSupportGrants'),
+    ]);
+    view = account.data;
+    grants = ENDPOINTS.listSupportGrants.response.parse(support.data).items;
+  } catch (error) {
+    await redirectIfSignedOut(error);
+    if (isApiError(error, 'FORBIDDEN', 'ACCESS_EXPIRED')) {
+      return <NoPermission what="account" backHref={homeHref(model)} backLabel="Go to home" />;
+    }
+    throw error;
+  }
+  return (
+    <>
+      <PageHeader title="Account" description={`${view.name} · ${ACCOUNT_STATUS[view.status]}`} />
+      <div className="flex flex-col gap-8">
+        <PlanUsage
+          plan={view.entitlements.planCode}
+          trialEndsOn={view.status === 'TRIAL' ? view.trialEndsOn : null}
+          usage={usageRows(view)}
+        />
+        <SupportAccess grants={grants} />
+      </div>
+    </>
+  );
+}

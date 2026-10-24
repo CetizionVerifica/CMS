@@ -17,6 +17,7 @@ describe('auth page blocks', () => {
     expect(
       screen.getByText(/newconsultant@demo\.test \(consultant, sets up MFA at first sign-in\)/),
     ).toBeTruthy();
+    expect(screen.getByText(/admin@demo\.test \(account admin\)/)).toBeTruthy();
     expect(screen.getByText('demo-password')).toBeTruthy();
   });
 });

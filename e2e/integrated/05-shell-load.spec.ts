@@ -1,7 +1,9 @@
+import { networkInterfaces } from 'node:os';
+
 import { expect, request, test } from '@playwright/test';
 
 import { seeded } from './helpers.js';
-import { API_URL, addressOf, storageStateOf } from './stack.js';
+import { API_PORT, API_URL, addressOf, storageStateOf } from './stack.js';
 
 // F7 (docs/security/review.md, fixed in #147): the shell used to call GET /me and /portfolio on every server render
 // and prefetch, so one person browsing at an ordinary pace spent the API's per-visitor budget (300 requests a minute).
@@ -65,4 +67,29 @@ test('a flood of requests from one address is refused, and other addresses are n
   });
   expect((await other.get('/api/v1/me')).status()).toBe(401);
   await other.dispose();
+});
+
+// X-Forwarded-For is believed only from TRUST_PROXY (loopback here). A caller reaching the API from any other address
+// cannot dodge the budget by naming a new address in each request: every request counts against where it came from.
+test('a caller outside the trusted proxies cannot pick its address with X-Forwarded-For', async () => {
+  const outside = Object.values(networkInterfaces())
+    .flat()
+    .find((a) => a && a.family === 'IPv4' && !a.internal);
+  if (!outside)
+    throw new Error('this machine has no non-loopback IPv4 address to call the API from');
+  const api = await request.newContext({ baseURL: `http://${outside.address}:${API_PORT}` });
+  const statuses: number[] = [];
+  for (let sent = 0; sent < 320; sent += 20) {
+    const batch = await Promise.all(
+      Array.from({ length: 20 }, (_, i) =>
+        api
+          .get('/api/v1/me', { headers: { 'x-forwarded-for': `192.0.2.${(sent + i) % 250}` } })
+          .then((res) => res.status()),
+      ),
+    );
+    statuses.push(...batch);
+  }
+  expect(statuses.filter((s) => s !== 401 && s !== 429)).toEqual([]);
+  expect(statuses.filter((s) => s === 429).length).toBeGreaterThan(0);
+  await api.dispose();
 });

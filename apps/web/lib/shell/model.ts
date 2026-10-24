@@ -65,8 +65,8 @@ export function accountNotice(me: Pick<Me, 'person' | 'account'>): ShellNotice |
 
 export type NavSection = { label?: string; items: { path: string; label: string; href: string }[] };
 
-const ROLE_LABEL: Record<Role, string> = {
-  FIRM_ADMIN: 'Firm admin',
+export const ROLE_LABEL: Record<Role, string> = {
+  FIRM_ADMIN: 'Account admin',
   CONSULTANT: 'Consultant',
   CLIENT_ADMIN: 'Client admin',
   APPROVER: 'Approver',
@@ -179,8 +179,10 @@ export function navSections(
 export function homeHref(
   model: Pick<ShellModel, 'clients' | 'isFirmUser' | 'showPortfolio'>,
 ): string {
-  if (model.isFirmUser && model.showPortfolio !== false) return '/portfolio';
+  const portfolio = model.isFirmUser && model.showPortfolio !== false;
+  if (portfolio) return '/portfolio';
   const first = model.clients[0];
   if (first) return `/c/${encodeURIComponent(first.id)}/overview`;
-  return model.isFirmUser ? '/portfolio' : '/library/acts';
+  // Never /portfolio when it is hidden: that page sends such users home, which would loop.
+  return '/library/acts';
 }

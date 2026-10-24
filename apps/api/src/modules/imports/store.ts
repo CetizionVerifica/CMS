@@ -59,6 +59,12 @@ export interface CommitResult {
   instanceIds: Map<string, string>;
 }
 
+/** One plan limit against the account's firm-wide count; `max` is null when the plan sets none. */
+export interface PlanAllowance {
+  max: number | null;
+  used: number;
+}
+
 export interface ImportTx {
   getBatch(id: string): Promise<ImportBatch | null>;
   createBatch(input: NewBatch): Promise<ImportBatch>;
@@ -98,6 +104,11 @@ export interface ImportTx {
   calendar(clientId: string): Promise<EngineCalendar>;
   /** What the firm and client already hold, by the importer's natural keys. */
   existingState(clientId: string): Promise<ExistingState>;
+  /**
+   * Takes the account's usage lock until the transaction ends, then reads the plan's limit and the whole account's
+   * live count (ADR M15-0001 decision 5), so a concurrent create cannot take the places this import counted on.
+   */
+  planAllowance(limit: 'companies' | 'units'): Promise<PlanAllowance>;
   /**
    * Writes the plan through the repositories with an IMPORT audit event per change, in this transaction.
    * Re-running it with the same plan writes nothing new.

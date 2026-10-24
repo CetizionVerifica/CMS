@@ -26,7 +26,11 @@ import type { EvidenceStorage } from './modules/evidence/storage.js';
 import { imports, type ImportOptions } from './modules/imports/index.js';
 import { registerInstanceRoutes } from './modules/instances/routes.js';
 import { createInstanceService } from './modules/instances/service.js';
-import { registerPlatform, type PlatformOptions } from './platform/index.js';
+import {
+  registerCustomerAccountRoutes,
+  registerPlatform,
+  type PlatformOptions,
+} from './platform/index.js';
 
 export interface ServerOptions {
   /** Session storage for auth. Until M5's repository-backed store lands, the default knows no sessions. */
@@ -167,6 +171,8 @@ export function buildServer(options: ServerOptions = {}): FastifyInstance {
       async (api) => {
         registerInstanceRoutes(api, createInstanceService({ db: database, clock: options.clock }));
         registerAuditRoutes(api, createAuditService({ db: database }));
+        // M15: the customer's own account and support access (ADR M15-0004).
+        registerCustomerAccountRoutes(api, { db: database, clock: options.clock });
         if (options.evidenceStorage) {
           const storage = options.evidenceStorage;
           registerEvidenceRoutes(

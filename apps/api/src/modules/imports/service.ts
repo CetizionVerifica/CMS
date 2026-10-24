@@ -12,6 +12,7 @@ import type {
   Unit,
 } from '@canopy/contracts';
 import {
+  account,
   acts,
   assignments,
   auditEvents,
@@ -699,6 +700,11 @@ function importTx(tx: TenantTx): ImportTx {
       return { fyStartMonth: settings.fyStartMonth, holidayPolicy: settings.holidayPolicy };
     },
     existingState: async (clientId) => (await loadClient(tx, clientId)).state,
+    async planAllowance(limit) {
+      await account.lockUsage(tx);
+      const view = await account.get(tx);
+      return { max: view.entitlements.limits[limit], used: view.usage[limit] };
+    },
     commit: (request) => commitPlan(tx, request),
   };
 }

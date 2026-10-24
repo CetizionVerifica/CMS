@@ -12,6 +12,7 @@ import {
   signIn,
   redeemMagicLink,
   startMfaEnrolment,
+  startSupportSession,
   verifyMfa,
 } from './actions';
 import { IDLE, type FirmChoice, type FormState } from './form-state';
@@ -321,6 +322,56 @@ export function MagicLinkForm({ token }: { token: string }) {
           Back to sign in
         </NextLink>
       ) : null}
+    </form>
+  );
+}
+
+/**
+ * Opens a support session from `#token=…`. The token rides in the fragment so no server or proxy logs it; it is read
+ * once, wiped from the address bar and history, then posted. Without JavaScript nothing can read the fragment, so the
+ * page says so.
+ */
+export function SupportStartForm() {
+  const [state, action, pending] = useActionState(startSupportSession, IDLE);
+  const [token, setToken] = useState<string | null>(null);
+  const [missing, setMissing] = useState(false);
+  const form = useRef<HTMLFormElement>(null);
+
+  const read = useRef(false);
+
+  useEffect(() => {
+    // Once only: the fragment is gone after the first read (React may run this effect twice in development).
+    if (read.current) return;
+    read.current = true;
+    const found = new URLSearchParams(window.location.hash.slice(1)).get('token');
+    window.history.replaceState(null, '', window.location.pathname);
+    if (found) setToken(found);
+    else setMissing(true);
+  }, []);
+
+  useEffect(() => {
+    if (token) form.current?.requestSubmit();
+  }, [token]);
+
+  if (missing) {
+    return (
+      <p role="alert" className="text-body text-muted">
+        This support link is incomplete. Open the account again from the PlanetPulse console.
+      </p>
+    );
+  }
+  return (
+    <form ref={form} action={action} className="flex flex-col gap-3.5">
+      <FormMessage state={state} />
+      <input type="hidden" name="token" value={token ?? ''} />
+      {state.status === 'error' ? null : (
+        <Button type="submit" variant="primary" loading={pending || token === null}>
+          Open the account
+        </Button>
+      )}
+      <noscript>
+        <p className="text-body text-muted">Support sessions need JavaScript to open.</p>
+      </noscript>
     </form>
   );
 }

@@ -111,6 +111,27 @@ function validation(path: (string | number)[], message: string): ApiError {
   return new ApiError('VALIDATION', { issues: [{ path, message }] });
 }
 
+const PLAN_NOUN = { companies: ['company', 'companies'], units: ['unit', 'units'] } as const;
+
+/**
+ * 403 PLAN_LIMIT_REACHED when the companies or units the import would create pass the plan's limit. Holds the usage
+ * lock to the end of the transaction, so the commit that follows a check in the same transaction is safe.
+ */
+async function withinPlan(tx: ImportTx, create: DryRunReport['create']): Promise<void> {
+  for (const limit of ['companies', 'units'] as const) {
+    if (create[limit] === 0) continue;
+    const { max, used } = await tx.planAllowance(limit);
+    if (max !== null && used + create[limit] > max) {
+      const noun = (n: number) => (n === 1 ? PLAN_NOUN[limit][0] : PLAN_NOUN[limit][1]);
+      throw new ApiError(
+        'PLAN_LIMIT_REACHED',
+        { limit, max, used },
+        `This import adds ${create[limit]} ${noun(create[limit])}, but your plan allows ${max} and ${used} ${used === 1 ? 'is' : 'are'} in use. Contact PlanetPulse to upgrade.`,
+      );
+    }
+  }
+}
+
 /** DbError codes are contract codes; anything else is rethrown unchanged. */
 export function fromDbError(error: unknown): unknown {
   return error instanceof DbError ? new ApiError(error.code) : error;
@@ -406,7 +427,9 @@ export class ImportSteps {
 
   /**
    * Step 6: applies the reviewed plan off-request (COMMITTING, then COMMITTED in the commit's transaction).
-   * Refused with IMPORT_BLOCKED while rows still have errors. Calling it again returns the batch.
+   * Refused with IMPORT_BLOCKED while rows still have errors, and with PLAN_LIMIT_REACHED when its new companies or
+   * units would pass the plan's limit (the background half checks again and fails the batch with that code).
+   * Calling it again returns the batch.
    */
   async commit(actor: Actor, id: string): Promise<ImportBatch> {
     const batch = await this.transaction(actor, async (tx) => {
@@ -416,6 +439,7 @@ export class ImportSteps {
       const issues = await tx.issues(id);
       const blocking = await blockingIssueIds(tx, id, issues);
       if (blocking.length > 0) throw new ApiError('IMPORT_BLOCKED', { blockingIssueIds: blocking });
+      if (current.dryRun) await withinPlan(tx, current.dryRun.create);
       return tx.updateBatch(current.id, current.version, { status: 'COMMITTING' });
     });
     if (batch.status === 'COMMITTING' && !this.committing.has(batch.id)) {
@@ -668,6 +692,8 @@ export class ImportSteps {
         if (!current || current.version !== batch.version || current.status !== 'COMMITTING')
           return;
         const { analysis, run, rows } = await this.plan(tx, current);
+        // Checked again under the lock: the account may have gained companies or units since the request.
+        await withinPlan(tx, run.report.create);
         const { instanceIds } = await tx.commit({
           batchId: current.id,
           clientId: current.clientId,

@@ -13,6 +13,7 @@ vi.mock('next/headers', () => nextHeaders);
 vi.mock('next/navigation', () => nextNavigation);
 
 const actions = await import('./actions');
+const { MOCK_PASSWORD, mockFetch } = await import('../api/mock');
 const { IDLE } = await import('./form-state');
 
 const form = (values: Record<string, string>) => {
@@ -244,6 +245,74 @@ describe('auth actions', () => {
       status: 'error',
       message: 'This sign-in link isn’t valid.',
     });
+  });
+
+  it('explains a support link that is used, expired or malformed', async () => {
+    expect(
+      await actions.startSupportSession(IDLE, form({ token: 'not-a-live-support-token' })),
+    ).toEqual({
+      status: 'error',
+      message:
+        'This support link has expired, was already used, or the account’s support access has ended. Open a new one from the console.',
+    });
+    // A token the contract rejects never reaches the API.
+    expect(await actions.startSupportSession(IDLE, form({ token: 'short' }))).toEqual({
+      status: 'error',
+      message: 'This support link isn’t valid.',
+    });
+  });
+
+  it('opens a support session from a live token and lands on home', async () => {
+    vi.stubEnv('CANOPY_API_URL', 'http://api.test');
+    // The API answers a live token with the support person's Me and a session cookie, as a sign-in does.
+    const calls: string[] = [];
+    const fetchMock = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+      calls.push(`${String(input instanceof Request ? input.url : input)} ${String(init?.body)}`);
+      return mockFetch('http://api.test/api/v1/auth/login', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ email: 'owner@demo.test', password: MOCK_PASSWORD }),
+      });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    try {
+      expect(
+        await run(actions.startSupportSession(IDLE, form({ token: 'a-live-support-token-0001' }))),
+      ).toEqual({ redirect: '/' });
+      expect(calls).toEqual([
+        'http://api.test/api/v1/auth/support/verify {"token":"a-live-support-token-0001"}',
+      ]);
+      expect(request.cookies.get('pp_session')).toBeTruthy();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('says a paused account can’t be opened by support', async () => {
+    vi.stubEnv('CANOPY_API_URL', 'http://api.test');
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        async () =>
+          new Response(
+            JSON.stringify({
+              error: { code: 'ACCOUNT_SUSPENDED', message: 'Paused' },
+              requestId: 'r1',
+            }),
+            { status: 403, headers: { 'content-type': 'application/json' } },
+          ),
+      ),
+    );
+    try {
+      expect(
+        await actions.startSupportSession(IDLE, form({ token: 'a-live-support-token-0001' })),
+      ).toEqual({
+        status: 'error',
+        message: 'This account is paused, so support can’t open it.',
+      });
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it('verifies the MFA code', async () => {

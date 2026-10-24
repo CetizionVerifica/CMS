@@ -149,7 +149,7 @@ function user(
 /** Demo accounts, one per kind of user the shell treats differently. Password for all: MOCK_PASSWORD. */
 export const MOCK_USERS: MockUser[] = [
   user(1, 'Consultant 01', 'consultant@demo.test', [['CONSULTANT', null]]),
-  user(2, 'Firm Admin 01', 'admin@demo.test', [['FIRM_ADMIN', null]]),
+  user(2, 'Account Admin 01', 'admin@demo.test', [['FIRM_ADMIN', null]]),
   user(3, 'Owner 01', 'owner@demo.test', [['OWNER', MOCK_CLIENTS.demoMetals]]),
   user(4, 'Approver 01', 'approver@demo.test', [['APPROVER', MOCK_CLIENTS.demoMetals]]),
   user(5, 'Consultant 02', MOCK_TWO_FIRM_EMAIL, [['CONSULTANT', null]]),
