@@ -7,6 +7,8 @@ import pg from 'pg';
  * DATABASE_URL user needs CREATEDB and owns the tables, as in CI and local dev.
  */
 export interface TestDatabase {
+  /** The test database's own URL, for a second pool such as the operator's. */
+  url: string;
   admin: AdminDatabase;
   db: Database;
   drop(): Promise<void>;
@@ -26,6 +28,7 @@ export async function createTestDatabase(url: string): Promise<TestDatabase> {
   await admin.migrate();
   const db = createDatabase({ connectionString: target.toString(), max: 4 });
   return {
+    url: target.toString(),
     admin,
     db,
     async drop() {
