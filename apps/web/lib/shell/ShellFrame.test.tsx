@@ -299,7 +299,7 @@ describe('useSettledTitle', () => {
 
   it('shows the account notice above the page, and leaves the switcher out when asked', () => {
     renderShell({ model: { ...model, notice: { kind: 'trial', endsOn: '2026-11-23' } } });
-    const notice = screen.getByRole('complementary', { name: 'Account' });
+    const notice = screen.getByRole('note', { name: 'Account' });
     expect(notice.textContent).toBe(
       'Trial account. Your trial ends on 23 Nov 2026. Contact PlanetPulse to continue.',
     );
@@ -308,15 +308,21 @@ describe('useSettledTitle', () => {
 
   it('words a support visit and a closing account, and hides the switcher for one company client', () => {
     const { unmount } = renderShell({
-      model: { ...model, notice: { kind: 'support' }, showClientSwitcher: false },
+      model: {
+        ...model,
+        notice: { kind: 'support' },
+        showClientSwitcher: false,
+        showPortfolio: false,
+      },
     });
-    expect(screen.getByRole('complementary', { name: 'Account' }).textContent).toContain(
+    expect(screen.queryByRole('link', { name: 'Portfolio' })).toBeNull();
+    expect(screen.getByRole('note', { name: 'Account' }).textContent).toContain(
       'PlanetPulse support. You are in this account with the access its admins granted.',
     );
     expect(screen.queryByRole('button', { name: /Demo Metals/ })).toBeNull();
     unmount();
     renderShell({ model: { ...model, notice: { kind: 'closing' } } });
-    expect(screen.getByRole('complementary', { name: 'Account' }).textContent).toContain(
+    expect(screen.getByRole('note', { name: 'Account' }).textContent).toContain(
       'This account is closing.',
     );
   });

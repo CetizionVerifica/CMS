@@ -146,4 +146,25 @@ describe('shell model', () => {
     expect(buildShellModel({ ...one, account: company }).showClientSwitcher).toBe(false);
     expect(buildShellModel({ ...me, account: company }).showClientSwitcher).toBe(true);
   });
+
+  it('gives a company account with one client no portfolio, and lands its firm users on that client', async () => {
+    const me = await meFor('consultant@demo.test');
+    const company = AccountSummary.parse({
+      kind: 'ENTERPRISE',
+      status: 'ACTIVE',
+      trialEndsOn: null,
+    });
+    const single = buildShellModel({ ...me, clients: me.clients.slice(0, 1), account: company });
+    expect(single.showPortfolio).toBe(false);
+    expect(homeHref(single)).toBe(`/c/${MOCK_CLIENTS.demoMetals}/overview`);
+    expect(labels(navSections(['CONSULTANT'], undefined, { showPortfolio: false }))).toEqual([
+      ['Firm', ['Library']],
+    ]);
+    // Two clients, a consultancy, or no client yet: the portfolio stays.
+    expect(buildShellModel({ ...me, account: company }).showPortfolio).toBe(true);
+    expect(buildShellModel({ ...me, clients: me.clients.slice(0, 1) }).showPortfolio).toBe(true);
+    const none = buildShellModel({ ...me, clients: [], account: company });
+    expect(none.showPortfolio).toBe(true);
+    expect(homeHref({ ...single, clients: [] })).toBe('/portfolio');
+  });
 });
