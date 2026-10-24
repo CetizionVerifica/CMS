@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { isIP } from 'node:net';
 import Fastify, { type FastifyInstance, type FastifyServerOptions } from 'fastify';
 import type { Database } from '@canopy/db';
 import {
@@ -63,11 +64,30 @@ const NO_SESSIONS: AuthStore = {
   clientTimeZone: async () => null,
 };
 
-/** `TRUST_PROXY`: "true", or a comma-separated list of proxy addresses or CIDRs. Unset: false. */
-export function trustProxyFromEnv(value: string | undefined): FastifyServerOptions['trustProxy'] {
-  if (value === undefined || value === '' || value === 'false') return false;
-  if (value === 'true') return true;
-  return value;
+/**
+ * `TRUST_PROXY`: a comma-separated list of the load balancers' addresses or CIDRs. Unset or "false": no proxy is
+ * trusted. "true" is refused: Fastify would then take the leftmost `X-Forwarded-For` entry, which the browser
+ * writes, so anyone could pick the address that per-IP sign-in limits count.
+ */
+export function trustProxyFromEnv(value: string | undefined): string[] | false {
+  if (value === undefined || value.trim() === '' || value.trim() === 'false') return false;
+  const entries = value.split(',').map((entry) => entry.trim());
+  for (const entry of entries) {
+    if (!isProxyAddress(entry)) {
+      throw new Error(
+        `TRUST_PROXY must list proxy addresses or CIDRs (for example 10.0.0.0/8), not ${JSON.stringify(entry)}`,
+      );
+    }
+  }
+  return entries;
+}
+
+function isProxyAddress(entry: string): boolean {
+  const [address = '', prefix, ...rest] = entry.split('/');
+  const version = isIP(address);
+  if (version === 0 || rest.length > 0) return false;
+  if (prefix === undefined) return true;
+  return /^\d{1,3}$/.test(prefix) && Number(prefix) <= (version === 4 ? 32 : 128);
 }
 
 // Builds the app without listening, so tests can use `app.inject`.
