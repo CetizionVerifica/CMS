@@ -13,6 +13,7 @@ import {
   memberships,
   obligations,
   domainEvents,
+  evidence,
   people,
   systemContext,
   units,
@@ -27,6 +28,7 @@ import { runRelayOutbox } from './outbox-relay.js';
 import type { EventBus, OutboxEvent } from './ports.js';
 import { postgresJobStore } from './postgres-store.js';
 import { runReminders } from './reminders.js';
+import { runScanEvidence } from './scan-evidence.js';
 import { APP_URL } from './testing/builders.js';
 import { captureMailer, type CaptureMailer } from './testing/memory-store.js';
 import { createJobTestDatabase, type JobTestDatabase } from './testing/postgres.js';
@@ -718,6 +720,120 @@ describe.skipIf(!url)('jobs on the Postgres store', () => {
         personId: b.ownerId,
       });
       expect(await handle(link)).toEqual({ sent: 0, skippedStale: 1 });
+    });
+  });
+
+  describe('evidence scan', () => {
+    async function upload(f: FirmWorld, text: string, files: Map<string, string>) {
+      const key = `${f.firmId}/${f.clientId}/${f.reminded}/${randomUUID()}`;
+      files.set(key, text);
+      return inFirm(f.firmId, (tx) =>
+        evidence.create(tx, {
+          instanceId: f.reminded,
+          clientId: f.clientId,
+          storageKey: key,
+          fileName: 'challan-october.pdf',
+          mimeType: 'application/pdf',
+          sizeBytes: text.length,
+          sha256: 'a'.repeat(64),
+          uploadedById: f.ownerId,
+        }),
+      );
+    }
+
+    it("records each firm's scan results with an audit row and an event, leaves archived files, then does nothing", async () => {
+      const files = new Map<string, string>();
+      const cleanA = await upload(a, '%PDF-1.7 challan', files);
+      const infectedA = await upload(a, 'X5O!P EICAR', files);
+      const archivedA = await upload(a, '%PDF-1.7 old', files);
+      await inFirm(a.firmId, (tx) => evidence.archive(tx, archivedA.id));
+      const cleanB = await upload(b, '%PDF-1.7 return', files);
+      const scanned: string[] = [];
+      const scanDeps: JobDeps = {
+        ...deps,
+        scanner: {
+          async scan(content) {
+            let text = '';
+            for await (const chunk of content) text += Buffer.from(chunk).toString();
+            scanned.push(text);
+            return text.includes('EICAR')
+              ? { status: 'INFECTED', signature: 'Eicar-Test-Signature' }
+              : { status: 'CLEAN' };
+          },
+        },
+        evidenceObjects: {
+          async open(key) {
+            const text = files.get(key);
+            return text === undefined
+              ? null
+              : (async function* () {
+                  yield Buffer.from(text);
+                })();
+          },
+        },
+      };
+
+      expect(await runScanEvidence(scanDeps, 'job:scan-evidence:db')).toEqual({
+        firms: 2,
+        clean: 2,
+        infected: 1,
+        failed: 0,
+        retry: 0,
+      });
+      expect(scanned.sort()).toEqual(['%PDF-1.7 challan', '%PDF-1.7 return', 'X5O!P EICAR']);
+
+      const status = (f: FirmWorld, id: string) =>
+        inFirm(f.firmId, async (tx) => (await evidence.require(tx, id)).scanStatus);
+      expect(await status(a, cleanA.id)).toBe('CLEAN');
+      expect(await status(a, infectedA.id)).toBe('INFECTED');
+      expect(await status(a, archivedA.id)).toBe('PENDING');
+      expect(await status(b, cleanB.id)).toBe('CLEAN');
+
+      for (const [f, ids] of [
+        [a, [cleanA.id, infectedA.id]],
+        [b, [cleanB.id]],
+      ] as const) {
+        expect(
+          await t.count(
+            f.firmId,
+            'audit_event',
+            `entity_type = 'evidence' and action = 'UPDATE' and request_id = 'job:scan-evidence:db' and entity_id = any($1)`,
+            [ids],
+          ),
+        ).toBe(ids.length);
+        expect(
+          await t.count(
+            f.firmId,
+            'domain_event',
+            `type = 'evidence.scanned' and aggregate_type = 'instance' and aggregate_id = $1 and (data->>'evidenceId') = any($2)`,
+            [f.reminded, ids],
+          ),
+        ).toBe(ids.length);
+        // Ids and the status only: no file name or storage key in the event.
+        expect(
+          await t.count(
+            f.firmId,
+            'domain_event',
+            `type = 'evidence.scanned' and (data::text like '%challan%' or data::text like '%' || $1 || '%')`,
+            [f.firmId],
+          ),
+        ).toBe(0);
+      }
+      expect(
+        await t.count(
+          a.firmId,
+          'audit_event',
+          `entity_id = $1 and after->>'scanStatus' = 'INFECTED' and after->>'signature' = 'Eicar-Test-Signature'`,
+          [infectedA.id],
+        ),
+      ).toBe(1);
+      await expectNoStrays();
+
+      expect(await runScanEvidence(scanDeps, 'job:scan-evidence:db2')).toMatchObject({
+        clean: 0,
+        infected: 0,
+      });
+      expect(scanned).toHaveLength(3);
     });
   });
 });

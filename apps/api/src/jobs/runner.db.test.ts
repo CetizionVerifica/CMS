@@ -2,11 +2,35 @@ import { randomUUID } from 'node:crypto';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { JOBS, startJobRunner, type JobRunner } from './runner.js';
-import { assignment, harness, instance, person, type Harness } from './testing/builders.js';
+import type { EvidenceObjects, Scanner } from './ports.js';
+import {
+  assignment,
+  evidenceFile,
+  harness,
+  instance,
+  person,
+  type Harness,
+} from './testing/builders.js';
 import { memoryClient, memoryFirm, outboxRow } from './testing/memory-store.js';
 
 // pg-boss against a real Postgres 16 (CI `db` job). Skipped when DATABASE_URL is not set (the unit run).
 const url = process.env.DATABASE_URL;
+
+/** Every file is clean; storage holds a few bytes at any key. */
+const cleanScanner: Scanner = { scan: async () => ({ status: 'CLEAN' }) };
+const anyObject: EvidenceObjects = {
+  open: async () =>
+    (async function* () {
+      yield Buffer.from('%PDF-1.7');
+    })(),
+};
+
+async function dropSchema(schema: string): Promise<void> {
+  const client = new pg.Client({ connectionString: url });
+  await client.connect();
+  await client.query(`DROP SCHEMA IF EXISTS ${schema} CASCADE`);
+  await client.end();
+}
 
 describe.skipIf(!url)('job runner on pg-boss', () => {
   const schema = `pgboss_test_${randomUUID().replaceAll('-', '').slice(0, 12)}`;
@@ -28,14 +52,19 @@ describe.skipIf(!url)('job runner on pg-boss', () => {
     firm.people.push(owner, approver);
     const a = assignment(client, owner, approver);
     firm.assignments.push(a);
-    firm.instances.push(instance(a, '2026-10-12', { periodStart: '2026-09-01' as never }));
+    const i = instance(a, '2026-10-12', { periodStart: '2026-09-01' as never });
+    firm.instances.push(i);
+    firm.evidence.push(evidenceFile(i));
     h = harness([firm]);
     h.at('2026-10-12T01:30:00Z');
-    runner = await startJobRunner(h.deps, {
-      connectionString: url!,
-      schema,
-      log: (line) => logs.push(line),
-    });
+    runner = await startJobRunner(
+      { ...h.deps, scanner: cleanScanner, evidenceObjects: anyObject },
+      {
+        connectionString: url!,
+        schema,
+        log: (line) => logs.push(line),
+      },
+    );
   });
 
   afterAll(async () => {
@@ -123,6 +152,14 @@ describe.skipIf(!url)('job runner on pg-boss', () => {
     expect(stored.events.find((e) => e.id === row.id)!.publishedAt).not.toBeNull();
   });
 
+  it('scans pending evidence when scan-evidence is triggered', async () => {
+    expect(runner.scan).toBe(true);
+    await runner.trigger('scan-evidence');
+    await waitFor(() => logs.some((l) => l.job === 'scan-evidence'), 'the scan');
+    expect(logs.find((l) => l.job === 'scan-evidence')!.report).toMatchObject({ clean: 1 });
+    expect(h.store.firms[0]!.evidence[0]!.scanStatus).toBe('CLEAN');
+  });
+
   it('refuses an unknown job name', () => {
     expect(() => runner.trigger('drop-tables')).toThrow('Unknown job');
   });
@@ -140,6 +177,7 @@ describe.skipIf(!url)('job runner without a login token issuer', () => {
     );
     try {
       expect(runner.mail).toBe(true);
+      expect(runner.loginEmails).toBe(false);
       for (const type of ['auth.magic_link_requested', 'person.invited']) {
         firm.events.push(
           outboxRow({
@@ -191,13 +229,18 @@ describe.skipIf(!url)('job runner without a mail transport', () => {
     });
     try {
       expect(runner.mail).toBe(false);
+      expect(runner.loginEmails).toBe(false);
       expect((await runner.schedules()).map((s) => s.name).sort()).toEqual(
-        JOBS.filter((j) => !j.sendsMail)
+        JOBS.filter((j) => !j.sendsMail && !j.scansEvidence)
           .map((j) => j.name)
           .sort(),
       );
       expect(() => runner.trigger('reminders')).toThrow(
         'Job not running without a mail transport: reminders',
+      );
+      expect(runner.scan).toBe(false);
+      expect(() => runner.trigger('scan-evidence')).toThrow(
+        'Job not running without a virus scanner: scan-evidence',
       );
       const row = outboxRow({
         type: 'instance.submitted',
@@ -246,6 +289,11 @@ describe.skipIf(!url)('jobs booted from the environment', () => {
           SMTP_PORT: String(smtp.port),
           MAIL_FROM: 'PlanetPulse Compliance <no-reply@planetpulse.example>',
           APP_URL: 'https://app.planetpulse.example',
+          // Nothing is scanned here, so neither clamd nor the bucket is contacted.
+          CLAMAV_HOST: '127.0.0.1',
+          S3_BUCKET: 'canopy-evidence',
+          S3_ACCESS_KEY_ID: 'key',
+          S3_SECRET_ACCESS_KEY: 'secret',
         },
         {
           db: t.db,
@@ -254,7 +302,7 @@ describe.skipIf(!url)('jobs booted from the environment', () => {
           issueLoginToken: async () => ({ token: 't', expiresAt: new Date().toISOString() }),
         },
       );
-      expect(runner.mail).toBe(true);
+      expect(runner).toMatchObject({ mail: true, loginEmails: true, scan: true });
       expect((await runner.schedules()).map((s) => s.name).sort()).toEqual(
         JOBS.map((j) => j.name).sort(),
       );
@@ -267,5 +315,58 @@ describe.skipIf(!url)('jobs booted from the environment', () => {
       await client.end();
       await t.drop();
     }
+  });
+});
+
+describe.skipIf(!url)('job runner as a login without CREATE on the database', () => {
+  const suffix = randomUUID().replaceAll('-', '').slice(0, 12);
+  const group = `canopy_jobs_app_${suffix}`;
+  const role = `canopy_jobs_${suffix}`;
+  const owned = `pgboss_owned_${suffix}`;
+  const missing = `pgboss_missing_${suffix}`;
+  let asRole: string;
+
+  beforeAll(async () => {
+    const admin = new pg.Client({ connectionString: url });
+    await admin.connect();
+    // As in a deploy: a login that is a plain member of the app's group role, which owns the pre-created schema.
+    await admin.query(`CREATE ROLE ${group} NOLOGIN NOSUPERUSER NOCREATEDB`);
+    await admin.query(
+      `CREATE ROLE ${role} LOGIN PASSWORD '${suffix}' NOSUPERUSER NOCREATEDB IN ROLE ${group}`,
+    );
+    await admin.query(`CREATE SCHEMA ${owned} AUTHORIZATION ${group}`);
+    await admin.end();
+    const login = new URL(url!);
+    login.username = role;
+    login.password = suffix;
+    asRole = login.toString();
+  });
+
+  afterAll(async () => {
+    await dropSchema(owned);
+    await dropSchema(missing);
+    const admin = new pg.Client({ connectionString: url });
+    await admin.connect();
+    await admin.query(`DROP ROLE IF EXISTS ${role}`);
+    await admin.query(`DROP ROLE IF EXISTS ${group}`);
+    await admin.end();
+  });
+
+  it('starts on a schema its group role owns, without creating one', async () => {
+    const runner = await startJobRunner(harness([memoryFirm()]).deps, {
+      connectionString: asRole,
+      schema: owned,
+    });
+    try {
+      expect((await runner.schedules()).length).toBeGreaterThan(0);
+    } finally {
+      await runner.stop();
+    }
+  });
+
+  it('cannot create the schema itself, which is why the deploy pre-creates it', async () => {
+    await expect(
+      startJobRunner(harness([memoryFirm()]).deps, { connectionString: asRole, schema: missing }),
+    ).rejects.toThrow(/permission denied/);
   });
 });

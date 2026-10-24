@@ -165,7 +165,7 @@ export type JobAuditEvent = Omit<AuditEvent, 'id' | 'firmId'>;
 
 /** Outbox row (docs/contracts/events.md §2); the store adds `id`, `firmId` and `occurredAt`. */
 export interface JobDomainEvent {
-  type: 'instance.generated' | 'notification.sent';
+  type: 'instance.generated' | 'notification.sent' | 'evidence.scanned';
   clientId: Id | null;
   actor: { kind: 'SYSTEM'; job: string };
   requestId: string;
@@ -232,6 +232,13 @@ export interface FirmTx {
   findPerson(personId: Id): Promise<PersonNotice | null>;
   /** One invite in any state, with its client and inviter names; null when missing. */
   findInvite(inviteId: Id): Promise<InviteNotice | null>;
+  /** Up to `limit` PENDING, non-archived evidence files of the firm, oldest upload first. */
+  listPendingEvidence(limit: number): Promise<PendingEvidence[]>;
+  /**
+   * Sets a PENDING, non-archived file to its scan result and returns its instance's version, for the event. Null, and
+   * nothing changed, when the file is missing, archived or no longer PENDING.
+   */
+  recordScan(evidenceId: Id, scanStatus: ScanResult): Promise<{ instanceVersion: number } | null>;
   /** Scheduled send-log rows of one client for one send date that are DONE (sent or failed). */
   listDoneSends(clientId: Id, sendDate: LocalDate): Promise<SendKey[]>;
   /** Recipients whose CONSULTANT_DIGEST for this send date is DONE (sent or failed), across all clients. */
@@ -256,6 +263,37 @@ export interface FirmTx {
   markEventsPublished(ids: Id[]): Promise<void>;
   /** Counts a failed publish; the event stays unpublished and the next run tries again. */
   recordEventFailure(id: Id): Promise<void>;
+}
+
+/** An evidence file waiting for its virus scan. The storage key is for reading the bytes, never logged. */
+export interface PendingEvidence {
+  id: Id;
+  clientId: Id;
+  instanceId: Id;
+  storageKey: string;
+}
+
+/** A scan's outcome as stored: PENDING never comes out of a scan. */
+export type ScanResult = 'CLEAN' | 'INFECTED' | 'FAILED';
+
+/**
+ * What a scanner found. FAILED means it cannot judge this file (too large for it, or the file is missing), so the file
+ * stays out of reach; the person uploads it again.
+ */
+export type ScanVerdict =
+  { status: 'CLEAN' } | { status: 'INFECTED'; signature: string } | { status: 'FAILED' };
+
+/**
+ * A virus scanner (ClamAV's clamd by default, clamav-scanner.ts). Reads the whole file. Throws when it could not scan
+ * now (unreachable, timed out, an internal error); the file stays PENDING and the next run tries again.
+ */
+export interface Scanner {
+  scan(content: AsyncIterable<Uint8Array>): Promise<ScanVerdict>;
+}
+
+/** Reads evidence bytes from object storage. Null when nothing is stored at the key. */
+export interface EvidenceObjects {
+  open(storageKey: string): Promise<AsyncIterable<Uint8Array> | null>;
 }
 
 /** Publishes an outbox event to its pg-boss queue. Idempotent on the event id. */
@@ -292,6 +330,9 @@ export interface JobDeps {
   bus?: EventBus;
   /** Needed by the sign-in link and invite emails, which throw without it. */
   issueLoginToken?: LoginTokenIssuer;
+  /** The evidence scan job runs only with both. */
+  scanner?: Scanner;
+  evidenceObjects?: EvidenceObjects;
 }
 
 /** What every job returns, for logs and tests. Counts only; no names or addresses. */

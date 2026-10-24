@@ -98,6 +98,27 @@ remind for complied or not-applicable items, and reach the database only through
     - **Who may receive:** sign-in links go only to ACTIVE people (NOT_ACTIVE or NO_EMAIL otherwise). An invite goes
       to its address whatever the person's status, because the invite itself is the consent to email them.
     - **Send date:** the client's day, or Asia/Kolkata's (the product default) when there is no client.
+15. **Evidence virus scan** (`scan-evidence.ts`, every minute, stately). Evidence is `PENDING` from upload until the
+    scan records `CLEAN`, `INFECTED` or `FAILED`, and only `CLEAN` files can be downloaded (M7). The job reads PENDING,
+    non-archived files oldest first, streams each from the evidence bucket to the scanner, and writes the result with
+    an `UPDATE` audit row on the evidence (`before`/`after` scan status, plus the signature when infected) and an
+    `evidence.scanned` event on the instance, in one transaction. The event carries ids and the status only.
+    - **Scanner port:** `Scanner.scan(stream)`. The default is ClamAV's daemon over TCP (`clamav-scanner.ts`, the
+      `INSTREAM` command, no new dependency), set by `CLAMAV_HOST` with `CLAMAV_PORT` (3310) and `CLAMAV_TIMEOUT_MS`
+      (120000). clamd's `StreamMaxLength` must be at least 26M, above the 25 MiB evidence limit. A host's own
+      scanning service plugs in as `startJobsFromEnv({ scanner })`.
+    - **Off without a scanner,** like the mail jobs (decision 10): the runner's `scan` is false, files stay PENDING
+      and none is marked clean unscanned. A scanner without the `S3_*` bucket throws at boot.
+    - **FAILED** is about the file: nothing is stored at its key, or clamd answers `… ERROR` (over its size limit, or
+      a scan limit such as an archive bomb). The person uploads it again.
+    - **Retry:** when storage or the scanner cannot be reached, or clamd times out, the file stays PENDING and the run
+      stops, since every other file would fail the same way; the next run starts over. A run starts no new file after
+      10 minutes, inside the 30-minute job expiry.
+    - **Not yet:** telling the uploader about an INFECTED file (`evidence.scanned`'s consumer, events.md).
+16. **Job schema.** pg-boss keeps its tables in the `pgboss` schema. The app's login has no `CREATE` on the database
+    (M3 roles), so a migration creates the schema owned by `canopy_app`, and the runner asks pg-boss to create it
+    only when it is missing (a test database, or a deploy before that migration). pg-boss then creates its tables and
+    each queue's partition inside the schema, which the login can do as a member of the owner.
 
 ## Consequences
 - M3 PR 2 must provide, as repository calls: list firm ids (system), clients, generation targets, instance keys,

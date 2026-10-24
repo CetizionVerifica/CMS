@@ -6,6 +6,7 @@ import {
   clients,
   departments,
   domainEvents,
+  evidence,
   firms,
   instances,
   invites,
@@ -18,7 +19,14 @@ import {
   type Database,
   type TenantTx,
 } from '@canopy/db';
-import type { FirmTx, InviteNotice, JobStore, NoticeInstance, PersonNotice } from './ports.js';
+import type {
+  FirmTx,
+  InviteNotice,
+  JobStore,
+  NoticeInstance,
+  PendingEvidence,
+  PersonNotice,
+} from './ports.js';
 
 /**
  * The jobs' ports on M3's repositories. Every firm runs in `withTenant(systemContext(firmId, requestId))`, so RLS
@@ -79,6 +87,37 @@ function firmTx(tx: TenantTx): FirmTx {
       const p = await people.get(tx, personId);
       if (!p || p.archivedAt !== null) return null;
       return { personId: p.id, displayName: p.displayName, email: p.email, status: p.status };
+    },
+    // The vault lists one client newest first; pending files are few, so each client's are read in full and the
+    // oldest kept.
+    listPendingEvidence: async (limit): Promise<PendingEvidence[]> => {
+      const found: { id: string; createdAt: string }[] = [];
+      for (const client of await jobs.listClients(tx)) {
+        let after: string | null = null;
+        do {
+          const page = await evidence.vault(tx, client.id, { scanStatus: ['PENDING'], after });
+          found.push(...page.items);
+          after = page.nextCursor;
+        } while (after !== null);
+      }
+      found.sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id));
+      const oldest: PendingEvidence[] = [];
+      for (const { id } of found.slice(0, limit)) {
+        const e = await evidence.require(tx, id);
+        oldest.push({
+          id,
+          clientId: e.clientId,
+          instanceId: e.instanceId,
+          storageKey: e.storageKey,
+        });
+      }
+      return oldest;
+    },
+    recordScan: async (evidenceId, scanStatus) => {
+      const e = await evidence.get(tx, evidenceId);
+      if (!e || e.archivedAt !== null || e.scanStatus !== 'PENDING') return null;
+      await evidence.setScanStatus(tx, evidenceId, scanStatus);
+      return { instanceVersion: (await instances.require(tx, e.instanceId)).version };
     },
     findInvite: async (inviteId): Promise<InviteNotice | null> => {
       const i = await invites.get(tx, inviteId);

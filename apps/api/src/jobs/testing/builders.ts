@@ -5,6 +5,7 @@ import {
   memoryStore,
   type CaptureMailer,
   type MemoryAssignment,
+  type MemoryEvidence,
   type MemoryFirm,
   type MemoryInstance,
   type MemoryPerson,
@@ -72,6 +73,23 @@ export function instance(
     approverId: a.approverId,
     archived: false,
     version: 1,
+    ...overrides,
+  };
+}
+
+/** A PENDING evidence file on the instance. */
+export function evidenceFile(
+  i: MemoryInstance,
+  overrides: Partial<MemoryEvidence> = {},
+): MemoryEvidence {
+  return {
+    id: randomUUID(),
+    clientId: i.clientId,
+    instanceId: i.id,
+    storageKey: `${i.clientId}/${i.id}/${randomUUID()}`,
+    scanStatus: 'PENDING',
+    archived: false,
+    createdAt: '2026-10-12T01:00:00.000Z',
     ...overrides,
   };
 }
