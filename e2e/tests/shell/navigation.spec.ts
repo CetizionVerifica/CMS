@@ -38,9 +38,9 @@ test.describe('shell navigation at 1280px', () => {
       await expect(page.getByRole('heading', { level: 1, name: title })).toBeVisible();
       await checkPage(page);
     }
-    // A record path keeps its list's page.
+    // A record path keeps its list's page (behind the record's drawer once M12 ships it, so attached, not visible).
     await page.goto(`/c/${DEMO_METALS}/register/00000000-0000-5000-8000-00000000abcd`);
-    await expect(page.getByRole('heading', { level: 1, name: 'Register' })).toBeVisible();
+    await expect(page.locator('h1', { hasText: 'Register' })).toBeAttached();
   });
 
   test('sidebar links navigate and mark the current page', async ({ page }) => {
