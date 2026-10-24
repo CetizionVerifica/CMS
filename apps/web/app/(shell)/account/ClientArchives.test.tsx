@@ -34,7 +34,7 @@ describe('download your data', () => {
     render(<ClientArchives clients={CLIENTS} closing={false} pollMs={0} />);
     expect(screen.getByRole('heading', { name: 'Download your data' })).toBeTruthy();
     await userEvent.click(
-      screen.getByRole('button', { name: 'Download the archive of Osprey Textiles Group' }),
+      screen.getByRole('button', { name: 'Download archive of Osprey Textiles Group' }),
     );
     expect(startArchiveAction).toHaveBeenCalledWith(CLIENTS[1]!.id);
     expect(
@@ -51,7 +51,7 @@ describe('download your data', () => {
     });
     render(<ClientArchives clients={CLIENTS} closing={false} pollMs={0} />);
     const button = screen.getByRole('button', {
-      name: 'Download the archive of Kestrel Metals Group',
+      name: 'Download archive of Kestrel Metals Group',
     });
     await userEvent.click(button);
     expect((await screen.findByRole('alert')).textContent).toBe(

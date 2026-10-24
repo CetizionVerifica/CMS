@@ -93,7 +93,7 @@ export function ClientArchives({
                     ? 'Another archive is being prepared'
                     : undefined
                 }
-                aria-label={`Download the archive of ${client.name}`}
+                aria-label={`Download archive of ${client.name}`}
               >
                 Download archive
               </Button>
