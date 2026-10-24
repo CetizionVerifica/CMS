@@ -144,6 +144,33 @@ export async function redeemMagicLink(_prev: FormState, form: FormData): Promise
   redirect('/');
 }
 
+/**
+ * Starts MFA setup for a firm user who has no authenticator yet. The API makes a new secret each time, until the first
+ * code completes setup, so it runs only when the person asks for a key, never on page load.
+ */
+export async function startMfaEnrolment(_prev: FormState, form: FormData): Promise<FormState> {
+  const next = safeNextPath(text(form, 'next'));
+  let otpauthUrl: string;
+  try {
+    ({ otpauthUrl } = (await (await sessionApi()).enrollMfa()).data);
+  } catch (error) {
+    // Already set up (another tab finished it): the code step is what's left.
+    if (isApiError(error, 'DUPLICATE')) {
+      redirect(`/login/verify${next ? `?next=${encodeURIComponent(next)}` : ''}`);
+    }
+    if (isApiError(error, 'UNAUTHENTICATED')) redirect('/login');
+    if (isApiError(error, 'RATE_LIMITED')) {
+      return { status: 'error', message: 'Too many attempts. Wait a few minutes and try again.' };
+    }
+    return { status: 'error', message: 'We couldn’t start the setup. Try again in a moment.' };
+  }
+  const secret = new URL(otpauthUrl).searchParams.get('secret');
+  if (!secret) {
+    return { status: 'error', message: 'We couldn’t start the setup. Try again in a moment.' };
+  }
+  return { status: 'enrolment', secret, otpauthUrl };
+}
+
 export async function verifyMfa(_prev: FormState, form: FormData): Promise<FormState> {
   const input = MfaVerifyBody.safeParse({ code: text(form, 'code').replace(/\s/g, '') });
   const next = safeNextPath(text(form, 'next'));
@@ -154,11 +181,15 @@ export async function verifyMfa(_prev: FormState, form: FormData): Promise<FormS
     const { setCookies } = await (await sessionApi()).verifyMfa(input.data.code);
     await relayCookies(setCookies);
   } catch (error) {
-    if (isApiError(error, 'MFA_REQUIRED')) {
+    // The API answers a wrong code with VALIDATION on `code`, and MFA_REQUIRED when there is no secret to check.
+    if (isApiError(error, 'VALIDATION', 'MFA_REQUIRED')) {
       return {
         status: 'invalid',
         fieldErrors: { code: 'That code isn’t right. Check your authenticator app.' },
       };
+    }
+    if (isApiError(error, 'RATE_LIMITED')) {
+      return { status: 'error', message: 'Too many attempts. Wait a few minutes and try again.' };
     }
     if (isApiError(error, 'UNAUTHENTICATED')) redirect('/login');
     return { status: 'error', message: 'We couldn’t check the code. Try again in a moment.' };

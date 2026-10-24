@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 
-import { getMe, mfaPending } from '../../../../lib/api/server';
+import { getMe, mfaPending, mfaStepPath } from '../../../../lib/api/server';
 import { MfaForm } from '../../../../lib/auth/forms';
 import { safeNextPath } from '../../../../lib/routes';
 
@@ -16,6 +16,8 @@ export default async function VerifyPage({ searchParams }: Props) {
   const me = await getMe();
   if (!me) redirect(`/login${next ? `?next=${encodeURIComponent(next)}` : ''}`);
   if (!mfaPending(me)) redirect(next ?? '/');
+  // No authenticator yet, so no code to enter: set one up first.
+  if (!me.mfa.enrolled) redirect(mfaStepPath(me, next));
   return (
     <>
       <h1 className="mb-1 text-page text-ink">Verify it’s you</h1>

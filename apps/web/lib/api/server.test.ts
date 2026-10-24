@@ -12,9 +12,17 @@ vi.mock('server-only', () => ({}));
 vi.mock('next/headers', () => nextHeaders);
 vi.mock('next/navigation', () => nextNavigation);
 
-const { getMe, mfaPending, relayCookies, requireMe, serverApi, sessionApi, usingMockApi } =
-  await import('./server');
-const { MOCK_PASSWORD } = await import('./mock');
+const {
+  getMe,
+  mfaPending,
+  mfaStepPath,
+  relayCookies,
+  requireMe,
+  serverApi,
+  sessionApi,
+  usingMockApi,
+} = await import('./server');
+const { MOCK_PASSWORD, MOCK_UNENROLLED_EMAIL } = await import('./mock');
 
 async function signIn(email: string, mfa = false) {
   const { setCookies } = await (await serverApi()).login({ email, password: MOCK_PASSWORD });
@@ -97,6 +105,22 @@ describe('server API access', () => {
     expect(await redirectOf(requireMe('/portfolio'))).toBe('/login/verify?next=%2Fportfolio');
     await relayCookies((await (await sessionApi()).verifyMfa('123456')).setCookies);
     expect((await requireMe('/portfolio')).mfa.satisfied).toBe(true);
+  });
+
+  it('sends firm users with no authenticator to MFA setup instead of the code step', async () => {
+    await signIn(MOCK_UNENROLLED_EMAIL);
+    expect(await redirectOf(requireMe('/portfolio'))).toBe('/login/mfa-setup?next=%2Fportfolio');
+  });
+
+  it('names the MFA step a session owes', () => {
+    const me = (enrolled: boolean) =>
+      ({ mfa: { required: true, enrolled, satisfied: false } }) as Parameters<
+        typeof mfaStepPath
+      >[0];
+    expect(mfaStepPath(me(true))).toBe('/login/verify');
+    expect(mfaStepPath(me(false), '/c/x/register?fy=2024-25')).toBe(
+      '/login/mfa-setup?next=%2Fc%2Fx%2Fregister%3Ffy%3D2024-25',
+    );
   });
 
   it('marks cookies Secure in production against a real API', async () => {

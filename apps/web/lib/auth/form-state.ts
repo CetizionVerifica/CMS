@@ -13,7 +13,9 @@ export type FormState =
   | ({ status: 'invalid'; fieldErrors: Record<string, string> } & Values)
   | ({ status: 'error'; message: string } & Values)
   | ({ status: 'done'; message: string } & Values)
-  | ({ status: 'choose-firm'; message: string; firms: FirmChoice[] } & Values);
+  | ({ status: 'choose-firm'; message: string; firms: FirmChoice[] } & Values)
+  // MFA setup started: the new secret, shown once as a setup key and as an authenticator link.
+  | ({ status: 'enrolment'; secret: string; otpauthUrl: string } & Values);
 
 export const IDLE: FormState = { status: 'idle' };
 

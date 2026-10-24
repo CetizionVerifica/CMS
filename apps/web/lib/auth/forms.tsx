@@ -4,9 +4,16 @@
 import { Button, Input } from '@canopy/ui';
 import { AlertCircle } from 'lucide-react';
 import NextLink from 'next/link';
-import { useActionState, useState } from 'react';
+import { useActionState, useEffect, useRef, useState } from 'react';
 
-import { acceptInvite, sendMagicLink, signIn, redeemMagicLink, verifyMfa } from './actions';
+import {
+  acceptInvite,
+  sendMagicLink,
+  signIn,
+  redeemMagicLink,
+  startMfaEnrolment,
+  verifyMfa,
+} from './actions';
 import { IDLE, type FirmChoice, type FormState } from './form-state';
 
 const typed = (state: FormState, name: string) => state.values?.[name];
@@ -151,7 +158,7 @@ function FirmChoiceField({ firms, error }: { firms: FirmChoice[]; error?: string
   );
 }
 
-export function MfaForm({ next }: { next?: string }) {
+export function MfaForm({ next, submitLabel = 'Verify' }: { next?: string; submitLabel?: string }) {
   const [state, action, pending] = useActionState(verifyMfa, IDLE);
   return (
     <form action={action} className="flex flex-col gap-3.5" noValidate>
@@ -168,7 +175,67 @@ export function MfaForm({ next }: { next?: string }) {
         error={fieldError(state, 'code')}
       />
       <Button type="submit" variant="primary" loading={pending}>
-        Verify
+        {submitLabel}
+      </Button>
+    </form>
+  );
+}
+
+/** "JBSWY3DPEHPK3PXP" as "JBSW Y3DP EHPK 3PXP", the way authenticator apps show keys. */
+const groupKey = (secret: string) => secret.match(/.{1,4}/g)?.join(' ') ?? secret;
+
+/**
+ * MFA setup for a firm user with no authenticator: asks the API for a secret, shows it as a setup key and an
+ * authenticator link, then takes the first code, which completes setup and this sign-in.
+ */
+export function MfaSetupForm({ next }: { next?: string }) {
+  const [state, action, pending] = useActionState(startMfaEnrolment, IDLE);
+  const heading = useRef<HTMLHeadingElement>(null);
+  const started = state.status === 'enrolment';
+  // The button that started setup is gone, so focus moves to the steps that replaced it.
+  useEffect(() => {
+    if (started) heading.current?.focus();
+  }, [started]);
+
+  if (state.status === 'enrolment') {
+    return (
+      <section aria-labelledby="mfa-steps" className="flex flex-col gap-3.5">
+        <h2 id="mfa-steps" ref={heading} tabIndex={-1} className="text-card text-ink outline-none">
+          Add PlanetPulse Compliance to your app
+        </h2>
+        <ol className="flex list-decimal flex-col gap-2 pl-5 text-body text-ink">
+          <li>
+            In your authenticator app, add an account and choose to enter a setup key. Use a
+            time-based key.
+          </li>
+          <li>
+            Enter this key:
+            <code className="mt-1 block rounded-control bg-mist px-3 py-2 font-mono text-body break-all text-ink select-all">
+              {groupKey(state.secret)}
+            </code>
+          </li>
+          <li>Type the 6-digit code the app shows below.</li>
+        </ol>
+        <p className="text-meta text-muted">
+          On a phone with the app installed you can{' '}
+          <a
+            href={state.otpauthUrl}
+            className="font-semibold text-forest underline underline-offset-2"
+          >
+            add the key in your authenticator app
+          </a>{' '}
+          instead.
+        </p>
+        <MfaForm next={next} submitLabel="Finish setup" />
+      </section>
+    );
+  }
+  return (
+    <form action={action} className="flex flex-col gap-3.5" noValidate>
+      <FormMessage state={state} />
+      {next ? <input type="hidden" name="next" value={next} /> : null}
+      <Button type="submit" variant="primary" loading={pending}>
+        Get a setup key
       </Button>
     </form>
   );

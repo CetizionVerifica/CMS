@@ -43,6 +43,42 @@ test.describe('auth pages', () => {
     await expect(page).toHaveURL('/portfolio');
   });
 
+  test('a firm user with no authenticator sets one up, then gets in', async ({ page }) => {
+    await page.goto(`/login?next=${encodeURIComponent(`/c/${DEMO_METALS}/overview`)}`);
+    await page.getByLabel('Work email').fill('newconsultant@demo.test');
+    await page.getByLabel('Password').fill(PASSWORD);
+    await page.getByRole('button', { name: 'Sign in' }).click();
+    await expect(page).toHaveURL(/\/login\/mfa-setup\?next=/);
+    await expect(page).toHaveTitle('Set up sign-in codes · PlanetPulse Compliance');
+    await checkPage(page);
+    // The code step has nothing to offer without an authenticator, so it sends them back here.
+    await page.goto('/login/verify');
+    await expect(page).toHaveURL('/login/mfa-setup');
+    await page.goBack();
+
+    // Keyboard only: the button, then focus lands on the steps that replace it.
+    await page.getByRole('button', { name: 'Get a setup key' }).focus();
+    await page.keyboard.press('Enter');
+    const steps = page.getByRole('heading', { name: 'Add PlanetPulse Compliance to your app' });
+    await expect(steps).toBeFocused();
+    await expect(page.getByText('JBSW Y3DP EHPK 3PXP JBSW Y3DP EHPK 3PXP')).toBeVisible();
+    await expect(
+      page.getByRole('link', { name: 'add the key in your authenticator app' }),
+    ).toHaveAttribute('href', /^otpauth:\/\/totp\/PlanetPulse%20Compliance%3Anewconsultant/);
+    await checkPage(page);
+    await page.setViewportSize({ width: 375, height: 800 });
+    await checkPage(page);
+
+    await page.getByLabel('6-digit code').fill('000000');
+    await page.getByRole('button', { name: 'Finish setup' }).click();
+    await expect(
+      page.getByText('That code isn’t right. Check your authenticator app.'),
+    ).toBeVisible();
+    await page.getByLabel('6-digit code').fill(MFA_CODE);
+    await page.getByRole('button', { name: 'Finish setup' }).click();
+    await expect(page).toHaveURL(`/c/${DEMO_METALS}/overview`);
+  });
+
   test('an email in two firms picks the firm before signing in', async ({ page }) => {
     await page.goto('/login');
     await page.getByLabel('Work email').fill('twofirms@demo.test');

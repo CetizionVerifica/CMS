@@ -7,6 +7,8 @@ import {
   MOCK_INVITE_TOKEN,
   MOCK_MFA_CODE,
   MOCK_PASSWORD,
+  MOCK_TOTP_SECRET,
+  MOCK_UNENROLLED_EMAIL,
   mockFetch,
 } from './mock';
 
@@ -54,11 +56,40 @@ describe('API client against the mock', () => {
     const cookie = await sessionFor('consultant@demo.test');
     expect((await api(cookie).me()).data.mfa.satisfied).toBe(false);
     await expect(api(cookie).portfolio()).rejects.toMatchObject({ code: 'MFA_REQUIRED' });
-    await expect(api(cookie).verifyMfa('000000')).rejects.toMatchObject({ code: 'MFA_REQUIRED' });
+    await expect(api(cookie).verifyMfa('000000')).rejects.toMatchObject({ code: 'VALIDATION' });
     const verified = await sessionFor('consultant@demo.test', true);
     const rows = (await api(verified).portfolio()).data.items;
     expect(rows.map((r) => r.clientName)).toEqual(['Demo Metals', 'Northwind Textiles']);
     expect(rows[0]!.result.counts.OVERDUE).toBe(5);
+  });
+
+  it('enrols a firm user who has no authenticator, as the API does', async () => {
+    const cookie = await sessionFor(MOCK_UNENROLLED_EMAIL);
+    expect((await api(cookie).me()).data.mfa).toEqual({
+      required: true,
+      enrolled: false,
+      satisfied: false,
+    });
+    await expect(api(cookie).portfolio()).rejects.toMatchObject({
+      code: 'MFA_REQUIRED',
+      details: { enrolled: false },
+    });
+    const { otpauthUrl } = (await api(cookie).enrollMfa()).data;
+    expect(otpauthUrl).toMatch(
+      /^otpauth:\/\/totp\/PlanetPulse%20Compliance%3Anewconsultant%40demo\.test\?/,
+    );
+    expect(new URL(otpauthUrl).searchParams.get('secret')).toBe(MOCK_TOTP_SECRET);
+    const verified = await sessionFor(MOCK_UNENROLLED_EMAIL, true);
+    expect((await api(verified).me()).data.mfa).toEqual({
+      required: true,
+      enrolled: true,
+      satisfied: true,
+    });
+    // Once set up, enrolment can't start again.
+    await expect(api(verified).enrollMfa()).rejects.toMatchObject({ code: 'DUPLICATE' });
+    await expect(api(await sessionFor('consultant@demo.test')).enrollMfa()).rejects.toMatchObject({
+      code: 'DUPLICATE',
+    });
   });
 
   it('lets a firm admin see every client, and forbids the portfolio for client users', async () => {
