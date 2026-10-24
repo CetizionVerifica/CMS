@@ -66,6 +66,16 @@ export function refuseSupportPerson(
 }
 
 /**
+ * Refuses a change to a membership of the support person. Fails closed: a membership whose person this context
+ * cannot read is refused too, so the check never depends on what the context happens to see.
+ */
+async function refuseSupportMembership(tx: Tx, personId: Id): Promise<void> {
+  const person = await tx.people.get(personId);
+  if (!person) throw forbidden('membership.write');
+  refuseSupportPerson(person, 'membership');
+}
+
+/**
  * Checks a route on one person (endpoints.md §3). A firm admin reaches everyone. Anyone else, consultants included,
  * reaches only people of the clients they work in; firm staff (people holding a firm role) are changed by a firm admin
  * alone. A write must stay inside the actor's clients, because a person shared with another client is that client's
@@ -346,7 +356,7 @@ export function peopleRoutes(app: FastifyInstance, deps: M6Deps): void {
     return store.transaction(ctx, async (tx) => {
       const row = await getLive(tx.memberships, call.params.id as Id);
       authorizeMembership(call, ctx, row.role, row.clientId);
-      refuseSupportPerson(await tx.people.get(row.personId), 'membership');
+      await refuseSupportMembership(tx, row.personId);
       const patch = {
         consultantClientIds: body.consultantClientIds,
         unitIds: body.unitIds,
@@ -382,12 +392,14 @@ export function peopleRoutes(app: FastifyInstance, deps: M6Deps): void {
     return store.transaction(ctx, async (tx) => {
       const row = await getLive(tx.memberships, call.params.id as Id);
       authorizeMembership(call, ctx, row.role, row.clientId);
-      refuseSupportPerson(await tx.people.get(row.personId), 'membership');
+      await refuseSupportMembership(tx, row.personId);
       if (row.role === 'FIRM_ADMIN') {
-        // The support person's FIRM_ADMIN membership ends with its grant, so it never counts as an admin.
+        // The support person's FIRM_ADMIN membership ends with its grant, so it never counts as an admin; nor does
+        // one whose person this context cannot read.
         const admins = [];
         for (const m of await tx.memberships.findAll({ role: 'FIRM_ADMIN' })) {
-          if (!(await tx.people.get(m.personId))?.support) admins.push(m);
+          const person = await tx.people.get(m.personId);
+          if (person && !person.support) admins.push(m);
         }
         if (admins.length <= 1) {
           throw invalid('The firm needs at least one firm admin.', ['params', 'id']);

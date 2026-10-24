@@ -1,6 +1,6 @@
 import { Id } from '@canopy/contracts';
 import { z } from 'zod';
-import type { ListQuery, Repo } from '../store.js';
+import { LIST_MAX, type ListQuery, type Repo } from '../store.js';
 import { invalid } from './errors.js';
 
 /**
@@ -36,27 +36,33 @@ export interface Page<T> {
   total?: number;
 }
 
-/** One page of `repo` rows, sorted by `orderBy` then id. */
+/**
+ * One page of `repo` rows, sorted by `orderBy` then id. It reads one row past the page to know whether another
+ * page follows. A store list returns at most `LIST_MAX` rows, so a full-size page asks for exactly that many and,
+ * when it comes back full, checks for one more row after it.
+ */
 export async function pageOf<T extends { id: Id }>(
   repo: Repo<T>,
   page: PageParams,
   query: Omit<ListQuery<T>, 'after' | 'limit' | 'count'>,
 ): Promise<Page<T>> {
+  const lookahead = Math.min(page.limit + 1, LIST_MAX);
   const result = await repo.list({
     ...query,
     after: decodeCursor(page.cursor),
-    limit: page.limit + 1,
+    limit: lookahead,
     count: page.count === true,
   });
   const items = result.items.slice(0, page.limit);
   const last = items[items.length - 1];
-  const nextCursor =
-    result.items.length > page.limit && last
-      ? encodeCursor(String(last[query.orderBy]), last.id)
-      : null;
+  const after = last ? { key: String(last[query.orderBy]), id: last.id } : null;
+  let more = result.items.length > page.limit;
+  if (!more && after && lookahead === page.limit && items.length === page.limit) {
+    more = (await repo.list({ ...query, after, limit: 1 })).items.length > 0;
+  }
   return {
     items,
-    nextCursor,
+    nextCursor: more && after ? encodeCursor(after.key, after.id) : null,
     ...(page.count === true ? { total: result.total ?? 0 } : {}),
   };
 }

@@ -43,9 +43,13 @@ export interface ListQuery<T> {
   /** Rows sort by this field, then id. The cursor is the last row of the previous page. */
   orderBy: keyof T & string;
   after?: { key: string; id: Id } | null;
+  /** 1 to `LIST_MAX`. */
   limit: number;
   count?: boolean;
 }
+
+/** The most rows one `Repo.list` call returns: M3's `MAX_LIMIT`, which is also the contract's page maximum. */
+export const LIST_MAX = 200;
 
 export interface ListResult<T> {
   items: T[];

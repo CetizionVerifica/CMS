@@ -3,6 +3,7 @@ import { uuidv7 } from '@canopy/db';
 import { checkListFields } from '../list-fields.js';
 import {
   DuplicateError,
+  LIST_MAX,
   type AuditInput,
   type EventInput,
   type ListQuery,
@@ -346,6 +347,10 @@ export class MemoryStore implements Store {
           .map(out),
       list: async (query: ListQuery<T>): Promise<ListResult<T>> => {
         checkListFields(table, query);
+        // M3's pageLimit refuses the same.
+        if (!Number.isInteger(query.limit) || query.limit < 1 || query.limit > LIST_MAX) {
+          throw new Error(`limit must be 1-${LIST_MAX}`);
+        }
         const key = (r: Row) => String(r[query.orderBy] ?? '');
         const text = query.search?.text.toLowerCase();
         const filtered = visible()
