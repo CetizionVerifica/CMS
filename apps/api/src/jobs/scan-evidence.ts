@@ -1,4 +1,5 @@
 import {
+  ScanInterruptedError,
   ScanServiceError,
   ScanTimeoutError,
   type FirmTx,
@@ -27,7 +28,10 @@ export const SCAN_FILE_MS = 5 * 60 * 1000;
 export const SCAN_RUN_MS = 10 * 60 * 1000;
 
 /** Why an attempt failed, recorded on its audit row. Codes only: no error text, which can quote a key. */
-type AttemptCode = 'TIMEOUT' | 'TRUNCATED' | 'UNREADABLE';
+type AttemptCode = 'TIMEOUT' | 'INTERRUPTED' | 'TRUNCATED' | 'UNREADABLE';
+
+/** Attempts that also stop the run: the scanner may be stuck, or storage may be failing. */
+const STOPS_RUN: ReadonlySet<AttemptCode> = new Set(['TIMEOUT', 'INTERRUPTED']);
 
 type Outcome =
   | { kind: 'verdict'; verdict: ScanVerdict }
@@ -60,6 +64,7 @@ async function scanFile(deps: JobDeps, file: PendingEvidence, fileMs: number): P
     if (deadline.signal.aborted || error instanceof ScanTimeoutError) {
       return { kind: 'attempt', code: 'TIMEOUT' };
     }
+    if (error instanceof ScanInterruptedError) return { kind: 'attempt', code: 'INTERRUPTED' };
     if (error instanceof ScanServiceError) return { kind: 'service' };
     return { kind: 'attempt', code: 'UNREADABLE' };
   } finally {
@@ -67,7 +72,10 @@ async function scanFile(deps: JobDeps, file: PendingEvidence, fileMs: number): P
   }
 }
 
-/** The status change, its audit row and its `evidence.scanned` event, in the caller's transaction. */
+/**
+ * The status change, its audit row and its `evidence.scanned` event, in the caller's transaction. Scan audit rows sit
+ * on the instance, as M7's `scanned()` writes them, so they show in the instance's history.
+ */
 async function recordResult(
   tx: FirmTx,
   deps: JobDeps,
@@ -85,10 +93,11 @@ async function recordResult(
     actorId: null,
     actorKind: 'SYSTEM',
     action: 'UPDATE',
-    entityType: 'evidence',
-    entityId: file.id,
-    before: { scanStatus: 'PENDING' },
+    entityType: 'instance',
+    entityId: file.instanceId,
+    before: { evidenceId: file.id, scanStatus: 'PENDING' },
     after: {
+      evidenceId: file.id,
       scanStatus: verdict.status,
       ...(verdict.status === 'INFECTED' && { signature: verdict.signature }),
       ...(attempts !== undefined && { attempts }),
@@ -110,7 +119,7 @@ async function recordResult(
 }
 
 /**
- * Records a failed attempt on the file's audit trail (it stays PENDING: 'retry'), or FAILED once it has failed
+ * Records a failed attempt on the instance's audit trail (it stays PENDING: 'retry'), or FAILED once it has failed
  * `SCAN_ATTEMPTS` times ('failed'). 'gone' when the file stopped being PENDING meanwhile.
  */
 async function recordAttempt(
@@ -120,7 +129,7 @@ async function recordAttempt(
   file: PendingEvidence,
   code: AttemptCode,
 ): Promise<'failed' | 'retry' | 'gone'> {
-  const attempt = (await tx.scanAttempts(file.id)) + 1;
+  const attempt = (await tx.scanAttempts(file.id, file.instanceId)) + 1;
   if (attempt >= SCAN_ATTEMPTS) {
     const failed = await recordResult(tx, deps, requestId, file, { status: 'FAILED' }, attempt);
     return failed ? 'failed' : 'gone';
@@ -133,10 +142,10 @@ async function recordAttempt(
       actorId: null,
       actorKind: 'SYSTEM',
       action: 'UPDATE',
-      entityType: 'evidence',
-      entityId: file.id,
-      before: { scanStatus: 'PENDING' },
-      after: { scanStatus: 'PENDING', scanAttempt: attempt, scanError: code },
+      entityType: 'instance',
+      entityId: file.instanceId,
+      before: { evidenceId: file.id, scanStatus: 'PENDING' },
+      after: { evidenceId: file.id, scanStatus: 'PENDING', scanAttempt: attempt, scanError: code },
       reason: null,
     },
   ]);
@@ -149,9 +158,9 @@ async function recordAttempt(
  * `evidence.scanned` event in one transaction.
  * - Storage or the scanner down (`ScanServiceError`): the run stops and nothing is counted, since every file would
  *   fail the same way. The next run starts over.
- * - Anything else that keeps a file from a verdict is a failed attempt, recorded on its audit trail. After
- *   `SCAN_ATTEMPTS` the file is FAILED. A timeout also stops the run, in case the scanner is stuck; any other
- *   failure moves on to the next file.
+ * - Anything else that keeps a file from a verdict is a failed attempt, recorded on its instance's audit trail.
+ *   After `SCAN_ATTEMPTS` the file is FAILED. A timeout, or storage breaking off mid-file, also stops the run, in
+ *   case the scanner is stuck or storage is failing; any other failure moves on to the next file.
  * Never logs or records the file name, its storage key, its bytes or an error message.
  */
 export async function runScanEvidence(
@@ -197,7 +206,7 @@ export async function runScanEvidence(
         );
         if (result === 'failed') report.failed! += 1;
         if (result === 'retry') report.retry! += 1;
-        if (outcome.code === 'TIMEOUT') return report;
+        if (STOPS_RUN.has(outcome.code)) return report;
       }
       if (pending.length < SCAN_BATCH) break;
     }

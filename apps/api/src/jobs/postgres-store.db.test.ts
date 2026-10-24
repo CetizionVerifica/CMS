@@ -797,8 +797,8 @@ describe.skipIf(!url)('jobs on the Postgres store', () => {
           await t.count(
             f.firmId,
             'audit_event',
-            `entity_type = 'evidence' and action = 'UPDATE' and request_id = 'job:scan-evidence:db' and entity_id = any($1)`,
-            [ids],
+            `entity_type = 'instance' and entity_id = $2 and action = 'UPDATE' and request_id = 'job:scan-evidence:db' and (after->>'evidenceId') = any($1)`,
+            [ids, f.reminded],
           ),
         ).toBe(ids.length);
         expect(
@@ -823,7 +823,7 @@ describe.skipIf(!url)('jobs on the Postgres store', () => {
         await t.count(
           a.firmId,
           'audit_event',
-          `entity_id = $1 and after->>'scanStatus' = 'INFECTED' and after->>'signature' = 'Eicar-Test-Signature'`,
+          `entity_type = 'instance' and (after->>'evidenceId') = $1 and after->>'scanStatus' = 'INFECTED' and after->>'signature' = 'Eicar-Test-Signature'`,
           [infectedA.id],
         ),
       ).toBe(1);
@@ -860,7 +860,7 @@ describe.skipIf(!url)('jobs on the Postgres store', () => {
         t.count(
           a.firmId,
           'audit_event',
-          `entity_id = $1 and action = 'UPDATE' and after->>'scanStatus' = 'PENDING' and after->>'scanError' = 'TRUNCATED'`,
+          `entity_type = 'instance' and (after->>'evidenceId') = $1 and action = 'UPDATE' and after->>'scanStatus' = 'PENDING' and after->>'scanError' = 'TRUNCATED'`,
           [cut.id],
         );
 
@@ -883,7 +883,7 @@ describe.skipIf(!url)('jobs on the Postgres store', () => {
         await t.count(
           a.firmId,
           'audit_event',
-          `entity_id = $1 and after->>'scanStatus' = 'FAILED' and (after->>'attempts')::int = 3`,
+          `entity_type = 'instance' and (after->>'evidenceId') = $1 and after->>'scanStatus' = 'FAILED' and (after->>'attempts')::int = 3`,
           [cut.id],
         ),
       ).toBe(1);

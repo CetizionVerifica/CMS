@@ -120,11 +120,25 @@ function firmTx(tx: TenantTx): FirmTx {
       await evidence.setScanStatus(tx, evidenceId, scanStatus);
       return { instanceVersion: (await instances.require(tx, e.instanceId)).version };
     },
-    // A file is FAILED after a few attempts, so its history stays far below one page.
-    scanAttempts: async (evidenceId) =>
-      (await auditEvents.forEntity(tx, 'evidence', evidenceId, { limit: 200 })).filter(
-        (e) => e.action === 'UPDATE' && e.after?.scanStatus === 'PENDING',
-      ).length,
+    // The instance's whole history is read, page by page, so a busy instance cannot hide an attempt.
+    scanAttempts: async (evidenceId, instanceId) => {
+      let attempts = 0;
+      let after: string | undefined;
+      do {
+        const page = await auditEvents.query(tx, {
+          entityType: 'instance',
+          entityId: instanceId,
+          action: ['UPDATE'],
+          limit: 200,
+          ...(after && { after }),
+        });
+        attempts += page.items.filter(
+          (e) => e.after?.evidenceId === evidenceId && e.after?.scanStatus === 'PENDING',
+        ).length;
+        after = page.nextCursor ?? undefined;
+      } while (after);
+      return attempts;
+    },
     findInvite: async (inviteId): Promise<InviteNotice | null> => {
       const i = await invites.get(tx, inviteId);
       if (!i) return null;

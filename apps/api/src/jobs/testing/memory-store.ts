@@ -251,11 +251,12 @@ function firmTx(firm: MemoryFirm, hooks: MemoryStoreHooks): FirmTx {
           storageKey,
           sizeBytes,
         })),
-    scanAttempts: async (evidenceId) =>
+    scanAttempts: async (evidenceId, instanceId) =>
       firm.audits.filter(
         (a) =>
-          a.entityType === 'evidence' &&
-          a.entityId === evidenceId &&
+          a.entityType === 'instance' &&
+          a.entityId === instanceId &&
+          a.after?.evidenceId === evidenceId &&
           a.action === 'UPDATE' &&
           a.after?.scanStatus === 'PENDING',
       ).length,

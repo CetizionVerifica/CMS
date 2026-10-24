@@ -1,7 +1,7 @@
 import { Readable } from 'node:stream';
 import { GetObjectCommand, NoSuchKey } from '@aws-sdk/client-s3';
 import { describe, expect, it } from 'vitest';
-import { ScanServiceError, ScanTimeoutError } from './ports.js';
+import { ScanInterruptedError, ScanServiceError, ScanTimeoutError } from './ports.js';
 import { s3EvidenceObjects, type S3Send } from './s3-objects.js';
 
 const SETTINGS = {
@@ -102,7 +102,7 @@ describe('s3EvidenceObjects', () => {
     expect(seen).toEqual([deadline.signal]);
   });
 
-  it('reports a body that breaks mid-transfer as a service error, or a timeout past the deadline', async () => {
+  it('reports a body that breaks mid-transfer as an interrupted read, or a timeout past the deadline', async () => {
     async function* broken(): AsyncGenerator<Uint8Array> {
       yield Buffer.from('%PDF');
       throw new Error('socket hang up on firm/client/instance/upload');
@@ -114,7 +114,7 @@ describe('s3EvidenceObjects', () => {
       ).open('k', signal);
       for await (const chunk of content!) void chunk;
     };
-    await expect(read()).rejects.toBeInstanceOf(ScanServiceError);
+    await expect(read()).rejects.toBeInstanceOf(ScanInterruptedError);
     await expect(read()).rejects.toThrow('Object storage stopped sending the file');
     const stopped = new AbortController();
     stopped.abort();

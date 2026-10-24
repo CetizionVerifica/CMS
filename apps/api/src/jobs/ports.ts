@@ -239,8 +239,8 @@ export interface FirmTx {
    * nothing changed, when the file is missing, archived or no longer PENDING.
    */
   recordScan(evidenceId: Id, scanStatus: ScanResult): Promise<{ instanceVersion: number } | null>;
-  /** Failed scan attempts recorded for the file: its evidence `UPDATE` audit rows that left it PENDING. */
-  scanAttempts(evidenceId: Id): Promise<number>;
+  /** Failed scan attempts recorded for the file: its instance's `UPDATE` audit rows for it that left it PENDING. */
+  scanAttempts(evidenceId: Id, instanceId: Id): Promise<number>;
   /** Scheduled send-log rows of one client for one send date that are DONE (sent or failed). */
   listDoneSends(clientId: Id, sendDate: LocalDate): Promise<SendKey[]>;
   /** Recipients whose CONSULTANT_DIGEST for this send date is DONE (sent or failed), across all clients. */
@@ -298,6 +298,14 @@ export class ScanServiceError extends Error {
 /** The scan of one file ran out of time (its deadline, or the scanner's own timeout). Counted, and the run stops. */
 export class ScanTimeoutError extends Error {
   override readonly name = 'ScanTimeoutError';
+}
+
+/**
+ * Storage stopped sending a file part-way. It may be the network or that one object, so the attempt is counted (one
+ * bad object cannot hold up the queue for ever) and the run stops (an outage costs each file at most one attempt).
+ */
+export class ScanInterruptedError extends Error {
+  override readonly name = 'ScanInterruptedError';
 }
 
 /**
