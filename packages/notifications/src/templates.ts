@@ -118,6 +118,22 @@ export interface InviteEmail {
   url: string;
 }
 
+/**
+ * To an account admin while the account is in its trial (ADR M9-0003): the trial's last day and where to see the
+ * account. The account stops working after that day until PlanetPulse moves it to a paid plan.
+ */
+export interface TrialEndingEmail {
+  kind: 'TRIAL_ENDING';
+  recipientName: string;
+  accountName: string;
+  /** The trial's last day. */
+  trialEndsOn: LocalDate;
+  /** Days from today to `trialEndsOn`: 7, or 1 for the day before. */
+  daysLeft: number;
+  /** The account page in the app. */
+  url: string;
+}
+
 export type EmailMessage =
   | OwnerReminderEmail
   | ApproverEscalationEmail
@@ -125,7 +141,8 @@ export type EmailMessage =
   | ApprovalRequestedEmail
   | SentBackEmail
   | MagicLinkEmail
-  | InviteEmail;
+  | InviteEmail
+  | TrialEndingEmail;
 
 export const CRITICALITY_LABEL: Record<Criticality, string> = {
   SUPER_CRITICAL: 'Super critical',
@@ -335,6 +352,25 @@ function renderInvite(m: InviteEmail): RenderedEmail {
   };
 }
 
+function renderTrialEnding(m: TrialEndingEmail): RenderedEmail {
+  const when = m.daysLeft === 1 ? 'tomorrow' : `in ${days(m.daysLeft)}`;
+  const greeting = m.recipientName ? `Hello ${m.recipientName},` : 'Hello,';
+  const intro = `The ${PRODUCT_NAME} trial of ${m.accountName} ends ${when}, on ${formatDate(m.trialEndsOn)}. After that day nobody in the account can sign in until it moves to a paid plan. Your registers and evidence stay as they are.`;
+  const ask = 'To keep working without a break, contact PlanetPulse before the trial ends.';
+  const footer = `You get this email because you are an account admin of ${m.accountName} in ${PRODUCT_NAME}.`;
+  return {
+    subject: `Your ${PRODUCT_NAME} trial ends ${when}`,
+    html: renderLayout({
+      preheader: `The trial of ${m.accountName} ends on ${formatDate(m.trialEndsOn)}.`,
+      heading: `Your trial ends ${when}`,
+      blocks: [paragraph(greeting), paragraph(intro), paragraph(ask)],
+      cta: { label: 'Open your account', url: m.url },
+      footer,
+    }),
+    text: textEmail([greeting, intro, ask, `Open your account: ${safeUrl(m.url)}`, footer]),
+  };
+}
+
 function scoreLabel(score: number | null): string {
   return score === null ? 'No items due' : `${score.toFixed(1)}%`;
 }
@@ -401,5 +437,7 @@ export function renderEmail(message: EmailMessage): RenderedEmail {
       return renderMagicLink(message);
     case 'INVITE':
       return renderInvite(message);
+    case 'TRIAL_ENDING':
+      return renderTrialEnding(message);
   }
 }

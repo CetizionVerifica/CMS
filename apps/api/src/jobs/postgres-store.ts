@@ -12,6 +12,7 @@ import {
   instances,
   invites,
   jobs,
+  memberships,
   notificationSends,
   obligations,
   people,
@@ -47,6 +48,29 @@ function firmTx(tx: TenantTx): FirmTx {
     accountStatus: async () => (await firms.current(tx)).status,
     endTrial: (now, job) => accountJobs.endTrial(tx, now, job),
     takeUsageSnapshot: (on) => accountJobs.takeUsageSnapshot(tx, on),
+    accountTrial: async () => {
+      const firm = await firms.current(tx);
+      return { name: firm.name, trialEndsOn: firm.trialEndsOn };
+    },
+    listAccountAdmins: async () => {
+      const now = Date.now();
+      const admin = await memberships.findAll(tx, { role: 'FIRM_ADMIN' });
+      if (admin.length === 0) return [];
+      const live = new Set(
+        admin
+          .filter((m) => m.expiresAt === null || Date.parse(m.expiresAt) > now)
+          .map((m) => m.personId),
+      );
+      const admins = await people.findAll(tx, { id: [...new Set(admin.map((m) => m.personId))] });
+      return admins
+        .sort((a, b) => a.id.localeCompare(b.id))
+        .map((p) => ({
+          personId: p.id,
+          displayName: p.displayName,
+          email: p.email,
+          canReceive: p.status === 'ACTIVE' && live.has(p.id),
+        }));
+    },
     listClients: () => jobs.listClients(tx),
     listGenerationTargets: (clientId) => jobs.listGenerationTargets(tx, clientId),
     listInstanceKeys: (assignmentIds, range) => jobs.listInstanceKeys(tx, assignmentIds, range),
