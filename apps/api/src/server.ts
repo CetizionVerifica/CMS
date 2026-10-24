@@ -37,7 +37,10 @@ export interface ServerOptions {
   readonly rateLimit?: AuthOptions['rateLimit'];
   /** Fastify `trustProxy`: set behind a load balancer so rate limits see the client IP. Default `TRUST_PROXY`. */
   readonly trustProxy?: FastifyServerOptions['trustProxy'];
-  /** M10 dashboards and reports. Until the Postgres adapter lands, the default store is empty. */
+  /**
+   * M10 dashboards and reports. main.ts wires the Postgres store (and S3 export files when configured); without
+   * them the default store is empty and exports stay in memory.
+   */
   readonly reports?: {
     readonly store?: ReportsStore;
     readonly files?: ExportFiles;
