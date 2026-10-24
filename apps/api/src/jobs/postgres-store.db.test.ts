@@ -1038,8 +1038,8 @@ describe.skipIf(!url)('jobs on the Postgres store', () => {
         return {
           live: await make('live', 'admin.live@example.com', null),
           lapsed: await make('lapsed', 'admin.lapsed@example.com', '2026-01-01T00:00:00Z'),
-          // Expired by the job's clock (16 Nov), though not yet by the wall clock when this was written.
-          ended: await make('ended', 'admin.ended@example.com', '2026-11-01T00:00:00Z'),
+          // Expired by the job's clock (16 Nov 2099) but not by the wall clock, so only the job's `now` drops it.
+          ended: await make('ended', 'admin.ended@example.com', '2099-11-01T00:00:00Z'),
           unclaimed: await make('unclaimed', null, null),
         };
       });
@@ -1049,7 +1049,7 @@ describe.skipIf(!url)('jobs on the Postgres store', () => {
         await client.query('BEGIN');
         await client.query(`SELECT set_config('app.firm_id', $1, true)`, [trial.firmId]);
         await client.query(
-          `UPDATE firm SET status = 'TRIAL', trial_ends_on = '2026-11-23' WHERE id = $1`,
+          `UPDATE firm SET status = 'TRIAL', trial_ends_on = '2099-11-23' WHERE id = $1`,
           [trial.firmId],
         );
         await client.query('COMMIT');
@@ -1057,7 +1057,7 @@ describe.skipIf(!url)('jobs on the Postgres store', () => {
         await client.end();
       }
       mailer.sent.length = 0;
-      now = '2026-11-16T04:30:00.000Z'; // 10:00 IST, 7 days before the last day
+      now = '2099-11-16T04:30:00.000Z'; // 10:00 IST, 7 days before the last day
       expect(await runTrialReminders(deps, 'job:trial-reminders:1')).toMatchObject({
         firms: 1,
         admins: 4,
