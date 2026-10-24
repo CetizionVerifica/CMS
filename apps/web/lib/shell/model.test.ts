@@ -41,7 +41,7 @@ describe('shell model', () => {
     expect(model.clients[0]).toMatchObject({
       fyStartMonth: 4,
       timeZone: 'Asia/Kolkata',
-      availableUntil: '2025-05',
+      availableUntil: '2025-03',
     });
     expect(model.roles.firm).toEqual(['CONSULTANT']);
     expect(homeHref(model)).toBe('/portfolio');
@@ -59,7 +59,7 @@ describe('shell model', () => {
     expect(model.clients[2]).toMatchObject({
       meta: '5 units',
       thisPeriod: { fy: '2024-25', quarter: 3 },
-      availableFys: ['2023-24', '2024-25'],
+      availableFys: ['2022-23', '2023-24', '2024-25'],
       availableUntil: null,
     });
   });

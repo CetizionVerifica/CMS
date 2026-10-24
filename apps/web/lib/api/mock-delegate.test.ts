@@ -39,7 +39,7 @@ describe('routes the shell mock does not answer go to M0’s mock server', () =>
     expect(data.total).toBeGreaterThan(0);
   });
 
-  it('gives each mapped client the financial year and current period M0 reports for its firm B client', async () => {
+  it('gives each mapped client the financial year and periods M0 reports for its firm B client', async () => {
     const admin = await sessionFor('admin@demo.test', true);
     const ours = (await api(admin).me()).data.clients;
     const res = await delegateToM0(
@@ -52,9 +52,9 @@ describe('routes the shell mock does not answer go to M0’s mock server', () =>
     for (const { ours: id } of CLIENT_MAP) {
       const shell = ours.find((c) => c.id === id)!;
       const m0 = theirs.find((c) => c.id === id)!;
-      expect({ fyStartMonth: shell.fyStartMonth, current: shell.period.current }).toEqual({
+      expect({ fyStartMonth: shell.fyStartMonth, period: shell.period }).toEqual({
         fyStartMonth: m0.fyStartMonth,
-        current: m0.period.current,
+        period: m0.period,
       });
     }
     // Northwind Textiles stands in for Harbour Retail Group, which keeps a January financial year.

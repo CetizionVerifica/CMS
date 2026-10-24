@@ -67,8 +67,8 @@ const clients: Client[] = [
  */
 const DEMO_PERIOD: ClientPeriods = {
   current: { fy: '2024-25', quarter: 3 },
-  availableFys: ['2023-24', '2024-25'],
-  availableUntil: '2025-05',
+  availableFys: ['2022-23', '2023-24', '2024-25'],
+  availableUntil: '2025-03',
 };
 
 const shellInfo: Record<string, { unitCount: number; period: ClientPeriods }> = {
