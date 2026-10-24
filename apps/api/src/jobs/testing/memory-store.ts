@@ -121,6 +121,8 @@ export interface MemoryFirm {
   trialEndsOn: LocalDate | null;
   /** Days a usage snapshot was taken for. */
   snapshots: LocalDate[];
+  /** Last day of the latest paid subscription; null without one. */
+  subscriptionEndsOn: LocalDate | null;
   /** Support grants not yet closed, by the moment they end. */
   supportGrants: { id: Id; endsAt: string }[];
   clients: ClientRef[];
@@ -142,6 +144,7 @@ export function memoryFirm(id: Id = randomUUID()): MemoryFirm {
     status: 'ACTIVE',
     trialEndsOn: null,
     snapshots: [],
+    subscriptionEndsOn: null,
     supportGrants: [],
     clients: [],
     assignments: [],
@@ -215,6 +218,7 @@ function firmTx(firm: MemoryFirm, hooks: MemoryStoreHooks): FirmTx {
       firm.supportGrants = firm.supportGrants.filter((g) => Date.parse(g.endsAt) > Date.parse(now));
       return before - firm.supportGrants.length;
     },
+    subscriptionEndsOn: async () => firm.subscriptionEndsOn,
     accountTrial: async () => ({ name: firm.name, trialEndsOn: firm.trialEndsOn }),
     listAccountAdmins: async () =>
       firm.people

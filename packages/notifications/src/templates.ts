@@ -134,6 +134,35 @@ export interface TrialEndingEmail {
   url: string;
 }
 
+/**
+ * To an account admin of an ACTIVE account before its latest paid subscription ends (ADR M9-0004): the last day and
+ * whom to contact to renew. Billing is offline, so the email asks them to contact PlanetPulse.
+ */
+export interface RenewalDueEmail {
+  kind: 'RENEWAL_DUE';
+  recipientName: string;
+  accountName: string;
+  /** The subscription's last day. */
+  endsOn: LocalDate;
+  /** Days from today to `endsOn`: 30 or 7. */
+  daysLeft: number;
+  /** The account page in the app. */
+  url: string;
+}
+
+/**
+ * To a person, when MFA was set up on their account (docs/security/review.md F14 mitigation 3; ADR M9-0004). It
+ * carries no code, secret or link: it says when and how, and what to do if it was not them.
+ */
+export interface MfaEnrolledEmail {
+  kind: 'MFA_ENROLLED';
+  recipientName: string;
+  /** The day it happened, India time. */
+  enrolledOn: LocalDate;
+  /** From the person's own settings, or while accepting an invitation. */
+  via: 'SETTINGS' | 'INVITE';
+}
+
 export type EmailMessage =
   | OwnerReminderEmail
   | ApproverEscalationEmail
@@ -142,7 +171,9 @@ export type EmailMessage =
   | SentBackEmail
   | MagicLinkEmail
   | InviteEmail
-  | TrialEndingEmail;
+  | TrialEndingEmail
+  | RenewalDueEmail
+  | MfaEnrolledEmail;
 
 export const CRITICALITY_LABEL: Record<Criticality, string> = {
   SUPER_CRITICAL: 'Super critical',
@@ -371,6 +402,46 @@ function renderTrialEnding(m: TrialEndingEmail): RenderedEmail {
   };
 }
 
+function renderRenewalDue(m: RenewalDueEmail): RenderedEmail {
+  const when = `in ${days(m.daysLeft)}`;
+  const greeting = m.recipientName ? `Hello ${m.recipientName},` : 'Hello,';
+  const intro = `The ${PRODUCT_NAME} subscription of ${m.accountName} ends ${when}, on ${formatDate(m.endsOn)}.`;
+  const ask = 'To renew it without a break, contact PlanetPulse before that day.';
+  const footer = `You get this email because you are an account admin of ${m.accountName} in ${PRODUCT_NAME}.`;
+  return {
+    subject: `Your ${PRODUCT_NAME} subscription ends ${when}`,
+    html: renderLayout({
+      preheader: `The subscription of ${m.accountName} ends on ${formatDate(m.endsOn)}.`,
+      heading: `Your subscription ends ${when}`,
+      blocks: [paragraph(greeting), paragraph(intro), paragraph(ask)],
+      cta: { label: 'Open your account', url: m.url },
+      footer,
+    }),
+    text: textEmail([greeting, intro, ask, `Open your account: ${safeUrl(m.url)}`, footer]),
+  };
+}
+
+function renderMfaEnrolled(m: MfaEnrolledEmail): RenderedEmail {
+  const how =
+    m.via === 'INVITE' ? 'while your invitation was accepted' : 'from your account settings';
+  const greeting = m.recipientName ? `Hello ${m.recipientName},` : 'Hello,';
+  const intro = `An authenticator app was set up for two-step sign-in to your ${PRODUCT_NAME} account on ${formatDate(m.enrolledOn)}, ${how}. From now on, signing in asks for a code from that app.`;
+  const ask =
+    "If this was you, there is nothing to do. If it wasn't, tell your account admin or PlanetPulse straight away.";
+  const footer = `You get this email whenever two-step sign-in is set up on your ${PRODUCT_NAME} account.`;
+  return {
+    subject: `Two-step sign-in was set up on your ${PRODUCT_NAME} account`,
+    html: renderLayout({
+      preheader: `An authenticator app was set up on ${formatDate(m.enrolledOn)}.`,
+      heading: 'Two-step sign-in set up',
+      blocks: [paragraph(greeting), paragraph(intro), paragraph(ask)],
+      cta: null,
+      footer,
+    }),
+    text: textEmail([greeting, intro, ask, footer]),
+  };
+}
+
 function scoreLabel(score: number | null): string {
   return score === null ? 'No items due' : `${score.toFixed(1)}%`;
 }
@@ -439,5 +510,9 @@ export function renderEmail(message: EmailMessage): RenderedEmail {
       return renderInvite(message);
     case 'TRIAL_ENDING':
       return renderTrialEnding(message);
+    case 'RENEWAL_DUE':
+      return renderRenewalDue(message);
+    case 'MFA_ENROLLED':
+      return renderMfaEnrolled(message);
   }
 }
