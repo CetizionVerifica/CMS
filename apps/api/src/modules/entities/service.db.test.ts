@@ -729,11 +729,43 @@ describe.skipIf(!url)('M6 on the Postgres store', () => {
     it('lets only one of two simultaneous companies take the last place', async () => {
       const { companies } = await usage();
       await limit({ companies: companies + 1 });
-      const both = await Promise.all(
+      // Hold the account's usage lock, start both creates, and see both queue behind it before letting them go.
+      let release!: () => void;
+      const held = new Promise<void>((resolve) => (release = resolve));
+      let locked!: () => void;
+      const lockTaken = new Promise<void>((resolve) => (locked = resolve));
+      const holder = system(w.firmA, async (tx) => {
+        await r.account.lockUsage(tx);
+        locked();
+        await held;
+      });
+      await lockTaken;
+      const racing = Promise.all(
         ['Kestrel Wires', 'Kestrel Foils'].map((name) =>
           call('consultant', 'POST', `/clients/${w.clientA}/companies`, { name }),
         ),
       );
+      const owner = new pg.Client({ connectionString: t.url });
+      await owner.connect();
+      const waiting = async () =>
+        (
+          await owner.query<{ n: number }>(
+            `SELECT count(*)::int AS n FROM pg_locks
+             WHERE locktype = 'advisory' AND NOT granted
+               AND database = (SELECT oid FROM pg_database WHERE datname = current_database())`,
+          )
+        ).rows[0]!.n;
+      try {
+        for (let i = 0; i < 200 && (await waiting()) < 2; i += 1) {
+          await new Promise((resolve) => setTimeout(resolve, 10));
+        }
+        expect(await waiting()).toBe(2);
+      } finally {
+        release();
+        await owner.end();
+      }
+      await holder;
+      const both = await racing;
       expect(both.map((res) => res.status).sort()).toEqual([201, 403]);
       expect((await usage()).companies).toBe(companies + 1);
     });
