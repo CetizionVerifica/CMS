@@ -3,7 +3,7 @@
 // every upload as the sample register, so these run the whole wizard through the actions.
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { createApiClient } from '../../../../../lib/api/client';
+import { ApiError, createApiClient } from '../../../../../lib/api/client';
 import { MOCK_CLIENTS, MOCK_MFA_CODE, MOCK_PASSWORD, mockFetch } from '../../../../../lib/api/mock';
 import {
   nextHeaders,
@@ -17,6 +17,16 @@ vi.mock('server-only', () => ({}));
 vi.mock('next/headers', () => nextHeaders);
 vi.mock('next/navigation', () => nextNavigation);
 vi.mock('next/cache', () => ({ revalidatePath }));
+// One step can be made to refuse with a contract error the demo API never sends.
+const refuseCommit = vi.hoisted(() => ({ error: null as Error | null }));
+vi.mock('./import-api', async (original) => {
+  const real = await original<typeof import('./import-api')>();
+  return {
+    ...real,
+    commit: (...args: Parameters<typeof real.commit>) =>
+      refuseCommit.error ? Promise.reject(refuseCommit.error) : real.commit(...args),
+  };
+});
 
 const actions = await import('./actions');
 
@@ -57,6 +67,7 @@ async function uploaded(): Promise<string> {
 beforeEach(() => {
   resetRequest();
   revalidatePath.mockReset();
+  refuseCommit.error = null;
 });
 
 describe('import actions', () => {
@@ -183,6 +194,21 @@ describe('import actions', () => {
       'CANCELLED',
     );
     expect(await actions.dryRunAction(CLIENT, batchId)).toMatchObject({ ok: false });
+  });
+
+  it('says when a commit would pass the plan’s limits', async () => {
+    await signIn('admin@demo.test', true);
+    const batchId = await uploaded();
+    refuseCommit.error = new ApiError(403, 'PLAN_LIMIT_REACHED', 'Plan limit reached', {
+      limit: 'units',
+      max: 5,
+      used: 5,
+    });
+    expect(await actions.commitAction(CLIENT, batchId)).toEqual({
+      ok: false,
+      message:
+        'This import would go over your plan’s company or unit limit. Nothing was changed. Ask your account admin.',
+    });
   });
 
   it('tells a person without import access in words', async () => {

@@ -78,6 +78,11 @@ describe('batchView', () => {
       message:
         'This import stopped with an error (PARSE_ERROR). Nothing was changed. Start a new import.',
     });
+    expect(batchView({ status: 'FAILED', failureCode: 'PLAN_LIMIT_REACHED' })).toEqual({
+      kind: 'closed',
+      message:
+        'This import would go over your plan’s company or unit limit. Nothing was changed. Ask your account admin.',
+    });
     expect(batchView({ status: 'FAILED', failureCode: null })).toMatchObject({
       message: 'This import stopped with an error. Nothing was changed. Start a new import.',
     });
