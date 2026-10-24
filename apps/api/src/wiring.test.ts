@@ -69,6 +69,15 @@ describe('wiringFromEnv', () => {
         vi.fn(),
       ),
     ).toThrow(/its own login/);
+    // The same user spelled differently (another host, an encoded name) is still the app's login.
+    for (const OPERATOR_DATABASE_URL of [
+      'postgres://app:other@127.0.0.1:5432/canopy',
+      'postgresql://%61pp@db.internal/canopy?sslmode=require',
+    ]) {
+      expect(() =>
+        wiringFromEnv({ ...DB, PLATFORM_ENABLED: 'true', OPERATOR_DATABASE_URL }, vi.fn()),
+      ).toThrow(/its own login/);
+    }
     expect(() => wiringFromEnv({ ...DB, PLATFORM_ENABLED: 'yes' }, vi.fn())).toThrow(
       /PLATFORM_ENABLED must be/,
     );
@@ -114,6 +123,17 @@ describe('wiringFromEnv', () => {
         ),
       ).toThrow(/PLATFORM_IP_ALLOWLIST is required/);
     }
+    // Support session tokens go to APP_URL, so production refuses a plain-http one.
+    expect(() =>
+      wiringFromEnv(
+        {
+          ...env,
+          PLATFORM_IP_ALLOWLIST: '203.0.113.0/24',
+          APP_URL: 'http://app.planetpulse.example',
+        },
+        vi.fn(),
+      ),
+    ).toThrow(/APP_URL must use https in production/);
     const allowed = wiringFromEnv({ ...env, PLATFORM_IP_ALLOWLIST: '203.0.113.0/24' }, vi.fn());
     expect(allowed.options.platform?.allowlist?.('203.0.113.4')).toBe(true);
     await allowed.database?.close();
