@@ -198,6 +198,13 @@ describe('every table', () => {
     expect(rows).toEqual([{ rolsuper: false, rolbypassrls: false, rolcanlogin: false }]);
   });
 
+  it('gives pg-boss its own schema, owned by the app role and closed to the operator', async () => {
+    const { rows } = await t.ownerQuery(`
+      SELECT pg_get_userbyid(nspowner) AS owner, has_schema_privilege('canopy_operator', oid, 'USAGE') AS operator
+      FROM pg_namespace WHERE nspname = 'pgboss'`);
+    expect(rows).toEqual([{ owner: 'canopy_app', operator: false }]);
+  });
+
   it('stores due dates and periods as date, event times as timestamptz', async () => {
     const { rows } = await t.ownerQuery<{ table: string; column: string; type: string }>(`
       SELECT table_name AS table, column_name AS column, data_type AS type FROM information_schema.columns
