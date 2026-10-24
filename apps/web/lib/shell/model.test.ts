@@ -166,6 +166,9 @@ describe('shell model', () => {
     expect(buildShellModel({ ...me, clients: me.clients.slice(0, 1) }).showPortfolio).toBe(true);
     const none = buildShellModel({ ...me, clients: [], account: company });
     expect(none.showPortfolio).toBe(true);
-    expect(homeHref({ ...single, clients: [] })).toBe('/portfolio');
+    // A hidden portfolio is never the way home, even with no client to land on (its page redirects home).
+    expect(homeHref({ ...single, clients: [] })).toBe('/library/acts');
+    expect(homeHref({ ...none, showPortfolio: false })).toBe('/library/acts');
+    expect(homeHref(none)).toBe('/portfolio');
   });
 });

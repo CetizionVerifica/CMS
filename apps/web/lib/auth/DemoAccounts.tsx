@@ -6,6 +6,7 @@ import {
   MOCK_UNENROLLED_EMAIL,
   MOCK_USERS,
 } from '../api/mock';
+import { ROLE_LABEL } from '../shell/model';
 
 /** Shown only while the in-process mock API is answering (no CANOPY_API_URL), so the app can be tried end to end. */
 export function DemoAccounts() {
@@ -20,7 +21,7 @@ export function DemoAccounts() {
         {MOCK_USERS.map((u) => (
           <li key={u.person.id}>
             {u.person.email} (
-            {u.memberships.map((m) => m.role.toLowerCase().replace('_', ' ')).join(', ')}
+            {u.memberships.map((m) => ROLE_LABEL[m.role].toLowerCase()).join(', ')}
             {u.person.email === MOCK_TWO_FIRM_EMAIL ? ', in two firms' : ''}
             {u.person.email === MOCK_UNENROLLED_EMAIL ? ', sets up MFA at first sign-in' : ''}
             {u.person.email === MOCK_COMPANY_EMAIL ? ', a company account on trial' : ''})

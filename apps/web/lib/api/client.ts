@@ -171,6 +171,9 @@ export function createApiClient(options: ApiClientOptions) {
     login: (body: LoginBody) => call('login', { body }),
     requestMagicLink: (email: string) => call('requestMagicLink', { body: { email } }),
     verifyMagicLink: (value: string) => call('verifyMagicLink', { body: { token: value } }),
+    /** The one-time token the PlanetPulse operator console opened the app with (ADR M15-0003 decision 7). */
+    verifySupportSession: (value: string) =>
+      call('verifySupportSession', { body: { token: value } }),
     enrollMfa: () => call('enrollMfa'),
     verifyMfa: (code: string) => call('verifyMfa', { body: { code } }),
     logout: () => call('logout'),

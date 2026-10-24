@@ -8,6 +8,7 @@ import {
   MagicLinkBody,
   MagicLinkVerifyBody,
   MfaVerifyBody,
+  SupportSessionVerifyBody,
 } from '@canopy/contracts';
 import { redirect } from 'next/navigation';
 
@@ -140,6 +141,32 @@ export async function redeemMagicLink(_prev: FormState, form: FormData): Promise
       };
     }
     return { status: 'error', message: 'We couldn’t sign you in. Try again in a moment.' };
+  }
+  redirect('/');
+}
+
+/**
+ * Opens a PlanetPulse support session from the one-time token the operator console put in the link's fragment. The
+ * token works once, within a minute, and only while the account's support grant is live (ADR M15-0001 decision 11).
+ */
+export async function startSupportSession(_prev: FormState, form: FormData): Promise<FormState> {
+  const input = SupportSessionVerifyBody.safeParse({ token: text(form, 'token') });
+  if (!input.success) return { status: 'error', message: 'This support link isn’t valid.' };
+  try {
+    const { setCookies } = await (await serverApi()).verifySupportSession(input.data.token);
+    await relayCookies(setCookies);
+  } catch (error) {
+    if (isApiError(error, 'UNAUTHENTICATED', 'NOT_FOUND', 'ACCESS_EXPIRED')) {
+      return {
+        status: 'error',
+        message:
+          'This support link has expired, was already used, or the account’s support access has ended. Open a new one from the console.',
+      };
+    }
+    if (isApiError(error, 'ACCOUNT_SUSPENDED')) {
+      return { status: 'error', message: 'This account is paused, so support can’t open it.' };
+    }
+    return { status: 'error', message: 'We couldn’t open the account. Try again in a moment.' };
   }
   redirect('/');
 }
