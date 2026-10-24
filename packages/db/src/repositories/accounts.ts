@@ -93,14 +93,16 @@ export const account = {
    * Holds the account's usage lock until the transaction ends, so two plan-limit checks (say, two invites at the user
    * limit) cannot both read the count before either writes. Call it before reading `usage`. It is a transaction-scoped
    * advisory lock on the firm, not a row lock: the firm row's UPDATE policy admits firm staff only, so a client admin
-   * could not lock the row.
+   * could not lock the row. Without a firm in context the key would be null and nothing would lock, so it throws.
    */
   async lockUsage(tx: TenantTx): Promise<void> {
-    await tx
+    const { rows } = await tx
       .execute(
-        sql`SELECT pg_advisory_xact_lock(hashtextextended('canopy.usage:' || app_firm_id()::text, 0))`,
+        sql`SELECT pg_advisory_xact_lock(hashtextextended('canopy.usage:' || f::text, 0))::text AS locked
+            FROM app_firm_id() AS f WHERE f IS NOT NULL`,
       )
       .catch(rethrow);
+    if (rows.length === 0) throw new DbError('NOT_FOUND', 'No account in this context');
   },
   /** Whether M6 has copied the master library into the account; its owner can accept only after (ADR M15-0001). */
   async libraryCopied(tx: TenantTx): Promise<boolean> {

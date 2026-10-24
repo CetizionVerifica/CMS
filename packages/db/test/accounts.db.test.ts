@@ -276,10 +276,28 @@ describe('the app’s own account', () => {
     // Another firm's lock is a different key, so it does not wait.
     await inFirm(b.firmId, (tx) => r.account.lockUsage(tx));
     order.push('other firm locked');
-    await new Promise((resolve) => setTimeout(resolve, 100));
+    // The second transaction is queued behind the first's advisory lock before the first lets go.
+    for (let waiting = 0; waiting === 0;) {
+      const { rows } = await t.ownerQuery<{ n: number }>(
+        `SELECT count(*)::int AS n FROM pg_locks l JOIN pg_database d ON d.oid = l.database
+         WHERE d.datname = current_database() AND l.locktype = 'advisory' AND NOT l.granted`,
+      );
+      waiting = rows[0]!.n;
+    }
     release();
     await Promise.all([first, second]);
     expect(order).toEqual(['other firm locked', 'first done', 'second locked']);
+  });
+
+  it('refuses lockUsage with no firm in context rather than lock nothing', async () => {
+    const error = await t.db
+      .withTenant(systemContext(a.firmId, 'accounts-test'), async (tx) => {
+        await tx.execute(sql`SELECT set_config('app.firm_id', '', true)`);
+        return r.account.lockUsage(tx);
+      })
+      .catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(DbError);
+    expect((error as DbError).code).toBe('NOT_FOUND');
   });
 
   it('lays the account override over the plan', async () => {
