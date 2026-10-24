@@ -40,6 +40,15 @@ test.describe('account', () => {
     await expect(end).toHaveCount(0);
     await expect(page.getByRole('button', { name: 'Let support in' })).toBeVisible();
     await checkSettled(page);
+
+    // Admin access is confirmed first; cancelling gives nothing.
+    await page.getByRole('radio', { name: /Admin/ }).check();
+    await page.getByRole('button', { name: 'Let support in' }).click();
+    const admin = page.getByRole('alertdialog', { name: 'Give PlanetPulse support admin access?' });
+    await expect(admin).toContainText('Admin access for 7 days');
+    await admin.getByRole('button', { name: 'Cancel' }).click();
+    await expect(admin).toBeHidden();
+    await expect(end).toHaveCount(0);
   });
 
   test('the page reads at 375px', async ({ page }) => {

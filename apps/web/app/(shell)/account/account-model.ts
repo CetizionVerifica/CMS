@@ -101,6 +101,25 @@ export type GrantRow = {
   until: string;
 };
 
+/** "Business" for BUSINESS: plans are data (ADR M15-0001 decision 5), so the code is worded rather than looked up. */
+export function planName(code: string): string {
+  const words = code.toLowerCase().replace(/_/g, ' ');
+  return words.charAt(0).toUpperCase() + words.slice(1);
+}
+
+/** What a grant about to be made gives, for its confirmation: the level, the length and the end, from `now`. */
+export function grantSummary(
+  level: SupportGrant['level'],
+  days: number,
+  now: Date,
+  replacing: boolean,
+): string {
+  const until = formatInstant(new Date(now.getTime() + days * 86_400_000).toISOString());
+  const length = days === 1 ? '1 day' : `${days} days`;
+  const gives = `${SUPPORT_LEVEL[level].label} access for ${length}, until about ${until}. ${SUPPORT_LEVEL[level].detail}`;
+  return replacing ? `${gives} The current access ends now.` : gives;
+}
+
 export function grantRows(grants: SupportGrant[]): GrantRow[] {
   return grants.map((g) => ({
     id: g.id,

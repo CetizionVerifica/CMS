@@ -1,7 +1,14 @@
 import { AccountView, SupportGrant } from '@canopy/contracts';
 import { describe, expect, it } from 'vitest';
 
-import { formatBytes, formatInstant, grantRows, usageRows } from './account-model';
+import {
+  formatBytes,
+  formatInstant,
+  grantRows,
+  grantSummary,
+  planName,
+  usageRows,
+} from './account-model';
 
 const ID = '00000000-0000-5000-8000-0000000000a1';
 const view = AccountView.parse({
@@ -72,5 +79,20 @@ describe('account model', () => {
       ['Admin', 'Revoked', false, '25 Oct 2026, 10:30 IST'],
       ['Read only', 'Ended', false, '31 Oct 2026, 10:30 IST'],
     ]);
+  });
+
+  it('words a plan code and what a new grant gives', () => {
+    expect(['BUSINESS', 'CONSULTANCY', 'ENTERPRISE_PLUS'].map(planName)).toEqual([
+      'Business',
+      'Consultancy',
+      'Enterprise plus',
+    ]);
+    const now = new Date('2026-10-24T05:00:00.000Z');
+    expect(grantSummary('ADMIN', 7, now, false)).toBe(
+      'Admin access for 7 days, until about 31 Oct 2026, 10:30 IST. Support can act as an account admin, for example to fix a setup or an import.',
+    );
+    expect(grantSummary('READ_ONLY', 1, now, true)).toBe(
+      'Read only access for 1 day, until about 25 Oct 2026, 10:30 IST. Support can look at every client, but change nothing. The current access ends now.',
+    );
   });
 });
