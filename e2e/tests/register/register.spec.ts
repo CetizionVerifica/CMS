@@ -15,6 +15,17 @@ async function count(page: Page): Promise<number> {
   return Number((await matchCount(page).innerText()).split(' ')[0]);
 }
 
+/**
+ * Waits for CSS transitions and animations to finish, so axe measures colours at rest: a row's buttons fade in and out
+ * with focus, and mid-fade they fail contrast. A string, because the e2e tsconfig has no DOM types.
+ */
+async function settled(page: Page): Promise<void> {
+  // Endless ones (a spinner) never finish, so only the ones that end are waited for.
+  await page.waitForFunction(
+    "document.getAnimations().every((a) => a.playState !== 'running' || a.effect?.getTiming().iterations === Infinity)",
+  );
+}
+
 test.describe('register', () => {
   test('a consultant filters the register, and the URL keeps the filters and the period', async ({
     page,
@@ -221,6 +232,7 @@ test.describe('register', () => {
     const drawer = page.getByRole('dialog', { name: title });
     await expect(drawer.getByRole('button', { name: 'Approve as not applicable' })).toBeVisible();
     await expect(page).toHaveURL(/\/approvals\/[0-9a-f-]{36}$/);
+    await settled(page);
     await expectNoA11yViolations(page);
     await drawer.getByRole('button', { name: 'Close' }).click();
     await expect(drawer).toBeHidden();
@@ -234,6 +246,7 @@ test.describe('register', () => {
     await expect(rows.first()).toBeFocused();
     await page.keyboard.press('?');
     await expect(page.getByRole('dialog', { name: 'Keyboard shortcuts' })).toBeVisible();
+    await settled(page);
     await expectNoA11yViolations(page);
     await page.keyboard.press('Escape');
     await rows.first().focus();
@@ -246,6 +259,7 @@ test.describe('register', () => {
     await page.keyboard.press('s');
     const reason = page.getByRole('alertdialog', { name: /^Send back to / });
     await expect(reason.getByLabel(/Reason/)).toBeFocused();
+    await settled(page);
     await expectNoA11yViolations(page);
     await page.keyboard.type('The unit does have a boiler.');
     await page.keyboard.press('Control+Enter');

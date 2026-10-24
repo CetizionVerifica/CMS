@@ -42,6 +42,7 @@ import {
   startEvidenceUpload,
 } from '../instance-actions';
 import { statusValue } from '../_lib/columns';
+import { fileSize, openEvidence, SCAN_TEXT } from '../_lib/evidence-files';
 import type { UploadCalls } from '../_lib/evidence-upload';
 import type { DrawerData, Outcome, WorkflowAction } from '../_lib/instance-api';
 import { commentLabel, timelineEvents } from '../_lib/timeline';
@@ -122,19 +123,6 @@ const DONE: Record<WorkflowAction['kind'], string> = {
 
 /** Codes after which what the person sees is out of date: the drawer reloads the instance. */
 const RELOAD_CODES = new Set(['STALE_VERSION', 'INVALID_TRANSITION']);
-
-const MB = 1024 * 1024;
-const fileSize = (bytes: number) =>
-  bytes >= MB
-    ? `${Math.round((bytes / MB) * 10) / 10} MB`
-    : `${Math.max(1, Math.round(bytes / 1024))} KB`;
-
-const SCAN_TEXT: Record<EvidenceView['scanStatus'], string> = {
-  PENDING: 'Checking for viruses',
-  CLEAN: 'Ready',
-  INFECTED: 'Blocked: failed virus check',
-  FAILED: 'Virus check failed',
-};
 
 export function InstanceDrawer({
   instanceId,
@@ -385,20 +373,8 @@ export function InstanceDrawer({
   }, [busy, data?.audit.nextCursor, instanceId, setData]);
 
   const download = useCallback(async (evidence: EvidenceView) => {
-    // Opened before the link arrives, so the browser treats it as the click's own window; the link is never stored.
-    const tab = window.open('about:blank', '_blank');
-    if (tab) tab.opener = null;
-    const result = await evidenceDownload(evidence.id).catch(() => null);
-    if (result?.ok && tab) tab.location.href = result.data;
-    else {
-      tab?.close();
-      toast({
-        tone: 'error',
-        message: result?.ok
-          ? 'Allow pop-ups for this site to open evidence.'
-          : (result?.message ?? 'The file didn’t open. Try again.'),
-      });
-    }
+    const failure = await openEvidence(evidence.id, evidenceDownload);
+    if (failure) toast({ tone: 'error', message: failure });
   }, []);
 
   const remove = useCallback(
