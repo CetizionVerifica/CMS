@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { CONSUMERS } from './consumers.js';
 import { JOBS, startJobRunner, type JobRunner } from './runner.js';
 import type { EvidenceObjects, Scanner } from './ports.js';
 import {
@@ -415,5 +416,95 @@ describe.skipIf(!url)('job runner as its own login, without CREATE on the databa
       `The jobs' database login may not use the job schema "${owned}": set JOBS_DATABASE_URL to a login that is a member of canopy_jobs`,
     );
     await expect(failure).rejects.toMatchObject({ cause: { code: '42501' } });
+  });
+});
+
+describe.skipIf(!url)('job runner with another module’s job', () => {
+  it('schedules and runs it beside its own, and refuses a name already taken', async () => {
+    const schema = `pgboss_extra_${randomUUID().replaceAll('-', '').slice(0, 12)}`;
+    await createSchema(schema);
+    const h = harness([memoryFirm()]);
+    const runs: string[] = [];
+    const extra = {
+      name: 'operator-digest',
+      cron: '30 9 * * *',
+      tz: 'Asia/Kolkata',
+      sendsMail: true,
+      run: async (_deps: unknown, requestId: string) => {
+        runs.push(requestId);
+        return { sent: 0 };
+      },
+    };
+    await expect(
+      startJobRunner(h.deps, {
+        connectionString: url!,
+        schema,
+        extraJobs: [{ ...extra, name: JOBS[0]!.name }],
+      }),
+    ).rejects.toThrow(`A job or event queue is already named ${JOBS[0]!.name}`);
+    await expect(
+      startJobRunner(h.deps, {
+        connectionString: url!,
+        schema,
+        extraJobs: [{ ...extra, name: CONSUMERS[0]!.type }],
+      }),
+    ).rejects.toThrow(`A job or event queue is already named ${CONSUMERS[0]!.type}`);
+    const runner = await startJobRunner(h.deps, {
+      connectionString: url!,
+      schema,
+      extraJobs: [extra],
+    });
+    try {
+      expect(await runner.schedules()).toContainEqual({
+        name: 'operator-digest',
+        cron: '30 9 * * *',
+        tz: 'Asia/Kolkata',
+      });
+      await runner.trigger('operator-digest');
+      const deadline = Date.now() + 20_000;
+      while (runs.length === 0) {
+        if (Date.now() > deadline) throw new Error('Timed out waiting for the extra job');
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      }
+      expect(runs[0]).toMatch(/^job:operator-digest:/);
+    } finally {
+      await runner.stop();
+      const pgClient = new pg.Client({ connectionString: url });
+      await pgClient.connect();
+      await pgClient.query(`DROP SCHEMA IF EXISTS ${schema} CASCADE`);
+      await pgClient.end();
+    }
+  });
+
+  it('leaves out a mail job of another module when there is no mail transport', async () => {
+    const schema = `pgboss_extranomail_${randomUUID().replaceAll('-', '').slice(0, 12)}`;
+    await createSchema(schema);
+    const h = harness([memoryFirm()]);
+    const runner = await startJobRunner(h.deps, {
+      connectionString: url!,
+      schema,
+      mail: false,
+      extraJobs: [
+        {
+          name: 'operator-digest',
+          cron: '30 9 * * *',
+          tz: 'Asia/Kolkata',
+          sendsMail: true,
+          run: async () => ({}),
+        },
+      ],
+    });
+    try {
+      expect((await runner.schedules()).map((s) => s.name)).not.toContain('operator-digest');
+      expect(() => runner.trigger('operator-digest')).toThrow(
+        'Job not running without a mail transport: operator-digest',
+      );
+    } finally {
+      await runner.stop();
+      const pgClient = new pg.Client({ connectionString: url });
+      await pgClient.connect();
+      await pgClient.query(`DROP SCHEMA IF EXISTS ${schema} CASCADE`);
+      await pgClient.end();
+    }
   });
 });
