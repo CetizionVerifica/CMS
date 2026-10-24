@@ -8,7 +8,7 @@ describe('the account actions on offer', () => {
     const open = (
       status: Parameters<typeof accountActions>[0]['status'],
       onboardedAt: string | null = null,
-    ) => accountActions({ status, onboardedAt });
+    ) => accountActions({ status, onboardedAt, purgeAfter: null });
     expect(open('PROVISIONING')).toEqual(['resendInvite']);
     expect(open('TRIAL')).toEqual(['convert', 'extendTrial', 'suspend', 'markOnboarded']);
     expect(open('ACTIVE')).toEqual(['suspend', 'markOnboarded', 'requestDeletion']);
@@ -16,6 +16,14 @@ describe('the account actions on offer', () => {
     expect(open('SUSPENDED')).toEqual(['resume', 'requestDeletion']);
     expect(open('PENDING_DELETION')).toEqual(['cancelDeletion']);
     expect(open('DELETED')).toEqual([]);
+  });
+
+  it('stops offering the cancel once the account is due for purge', () => {
+    const now = Date.parse('2026-11-23T05:00:00.000Z');
+    const pending = (purgeAfter: string) =>
+      accountActions({ status: 'PENDING_DELETION', onboardedAt: null, purgeAfter }, now);
+    expect(pending('2026-11-23T05:00:01.000Z')).toEqual(['cancelDeletion']);
+    expect(pending('2026-11-23T05:00:00.000Z')).toEqual([]);
   });
 });
 

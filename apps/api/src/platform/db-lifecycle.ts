@@ -4,6 +4,7 @@ import type { FastifyInstance } from 'fastify';
 import { ApiError } from '../auth/index.js';
 import { operatorToday, ownerInviteExpiry, statusMove } from './accounts.js';
 import { accountView, changeAccount, choosablePlan, requireAccount } from './db-accounts.js';
+import { lockDeletion } from './db-deletion.js';
 import { mountPlatform, signedInOf, type PlatformDeps } from './db-http.js';
 import { trail } from './db-trail.js';
 
@@ -233,12 +234,16 @@ export function registerLifecycleRoutes(api: FastifyInstance, deps: PlatformDeps
     PLATFORM_ENDPOINTS.cancelAccountDeletion,
     async ({ request, requestId, params, body }) =>
       db.withOperator(requestId, async (tx) => {
+        // Lock first: a purge in progress holds this lock, so the cancel waits and then reads the account DELETED.
+        const deletion = await lockDeletion(tx, params.id!);
         const record = await requireAccount(tx, params.id!);
         const reason = body.reason;
         const to = record.statusBeforeDeletion ?? 'SUSPENDED';
         if (record.status !== 'PENDING_DELETION' || !canMoveAccount(record.status, to)) {
           refuseMove(record.status, to);
         }
+        // Past its 30 days the account is the purge's, which may already be deleting its files (ADR M15-0002).
+        if (deletion?.graceOver) refuseMove(record.status, to);
         const { before, after } = await changeAccount(tx, record, body.version, {
           status: to,
           statusBeforeDeletion: null,
