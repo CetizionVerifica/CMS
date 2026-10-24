@@ -32,6 +32,11 @@ export interface AccountStore extends AuthStore {
   /** The firm's account: kind, status, trial end, effective limits and whole-firm usage (ADR M15-0001). */
   account(firmId: string): Promise<AccountView | null>;
   /**
+   * Whether M6 has copied the master library into the account (`firm.library_copied_at`). Its owner may not open a
+   * PROVISIONING account before it (ADR M15-0001 decision 8).
+   */
+  libraryCopied(firmId: string): Promise<boolean>;
+  /**
    * Counts a failed password or MFA code; after `LOCKOUT.attempts` failures in a row the account locks for
    * `LOCKOUT.minutes`. True when the account is locked after this failure.
    */
@@ -78,8 +83,9 @@ export interface AccountStore extends AuthStore {
    * one. Outbox: `person.invited { personId, inviteId, role, clientId }`.
    * An invite holds a seat: when it adds one to the account's user count past the plan's limit, it throws
    * PLAN_LIMIT_REACHED `{ limit: 'users', max, used }` and changes nothing. The count is read in the same
-   * transaction as the insert, so someone not yet counted (new, imported, or with only an expired invite) is
-   * always checked and someone already counted never is.
+   * transaction as the insert, under the account's usage lock, so someone not yet counted (new, imported, or with
+   * only an expired invite) is always checked, someone already counted never is, and two concurrent invites cannot
+   * both take the last seat.
    */
   createInvite(invite: NewInvite): Promise<InviteRecord>;
   findInvite(firmId: string, inviteId: string): Promise<InviteRecord | null>;

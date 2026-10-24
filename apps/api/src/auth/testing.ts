@@ -156,6 +156,8 @@ export class InMemoryAuthStore implements AccountStore {
   readonly invites = new Map<string, InviteRecord>();
   /** Accounts by firm id; a firm missing here is an active consultancy with no limits. */
   readonly accounts = new Map<string, AccountView>();
+  /** Accounts whose master library M6 has not copied yet; every other account has its library. */
+  readonly libraryPending = new Set<string>();
   /** Support tokens by hash, as the console's `platform_issue_support_token` stores them. */
   readonly supportTokens = new Map<string, SupportToken>();
   /** Support grants by id: when each ends and whether it was revoked. */
@@ -176,6 +178,10 @@ export class InMemoryAuthStore implements AccountStore {
 
   async account(firmId: string): Promise<AccountView | null> {
     return this.accounts.get(firmId) ?? accountView(firmId);
+  }
+
+  async libraryCopied(firmId: string): Promise<boolean> {
+    return !this.libraryPending.has(firmId);
   }
 
   async findSupportToken(tokenHash: string): Promise<SupportToken | null> {
@@ -527,9 +533,13 @@ export class InMemoryAuthStore implements AccountStore {
         change: 'GRANTED',
       },
     });
-    // The db trigger canopy_activate_account: an admin accepting opens a PROVISIONING account.
+    // The db trigger canopy_activate_account: an admin accepting opens a PROVISIONING account, once its library
+    // is copied (the trigger refuses before, and the transaction rolls back).
     const account = this.accounts.get(invite.firmId);
     if (account?.status === 'PROVISIONING' && invite.role === 'FIRM_ADMIN') {
+      if (this.libraryPending.has(invite.firmId)) {
+        throw new Error('canopy_activate_account: the account is still being set up');
+      }
       const status = account.trialEndsOn === null ? 'ACTIVE' : 'TRIAL';
       this.accounts.set(invite.firmId, { ...account, status });
       this.outbox.push({

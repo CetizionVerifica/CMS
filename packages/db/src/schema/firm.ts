@@ -42,6 +42,8 @@ export const firm = pgTable(
     /** Last day of the trial, in the account's time zone. */
     trialEndsOn: date('trial_ends_on', { mode: 'string' }),
     onboardedAt: timestamp('onboarded_at', { withTimezone: true, mode: 'date' }),
+    /** When the M6 master library copy finished; the owner can accept only after it (ADR M15-0001 decision 8). */
+    libraryCopiedAt: timestamp('library_copied_at', { withTimezone: true, mode: 'date' }),
     /** ADR M15-0002: when the operator asked for deletion, and the status a cancel returns to. */
     deletionRequestedAt: timestamp('deletion_requested_at', { withTimezone: true, mode: 'date' }),
     statusBeforeDeletion: accountStatusEnum('status_before_deletion'),

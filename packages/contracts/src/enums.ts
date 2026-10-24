@@ -108,7 +108,8 @@ export const AuditAction = z.enum([
 ]);
 export type AuditAction = z.infer<typeof AuditAction>;
 
-export const AuditActorKind = z.enum(['PERSON', 'SYSTEM', 'IMPORT']);
+/** `OPERATOR`: PlanetPulse acting on the account from the console (ADR M15-0001 decision 12); its actor id is null. */
+export const AuditActorKind = z.enum(['PERSON', 'SYSTEM', 'IMPORT', 'OPERATOR']);
 export type AuditActorKind = z.infer<typeof AuditActorKind>;
 
 /** Entity types named in audit events and in `can()` resources. */
@@ -128,6 +129,8 @@ export const EntityType = z.enum([
   'evidence',
   'import_batch',
   'export',
+  /** The account (firm) itself, in the entries the operator's changes write. */
+  'account',
 ]);
 export type EntityType = z.infer<typeof EntityType>;
 

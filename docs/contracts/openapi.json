@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Canopy API",
-    "version": "1.5.0",
+    "version": "1.5.1",
     "description": "Generated from @canopy/contracts; do not edit. Conventions: docs/contracts/api-conventions.md. Role permissions per operation are in x-canopy-roles (all, own, limited); a missing role is 403."
   },
   "servers": [
@@ -6423,7 +6423,8 @@
                 "instance",
                 "evidence",
                 "import_batch",
-                "export"
+                "export",
+                "account"
               ]
             }
           },
@@ -9341,7 +9342,7 @@
           },
           "actorKind": {
             "type": "string",
-            "enum": ["PERSON", "SYSTEM", "IMPORT"]
+            "enum": ["PERSON", "SYSTEM", "IMPORT", "OPERATOR"]
           },
           "action": {
             "type": "string",
@@ -9381,7 +9382,8 @@
               "instance",
               "evidence",
               "import_batch",
-              "export"
+              "export",
+              "account"
             ]
           },
           "entityId": {

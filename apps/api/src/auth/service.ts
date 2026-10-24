@@ -374,6 +374,11 @@ export class AuthService {
     if (account && !working.includes(account.status) && !opening) {
       throw new ApiError('ACCOUNT_SUSPENDED', { status: account.status });
     }
+    // The owner waits for M6's master library copy (ADR M15-0001 decision 8): the page says the account is still
+    // being set up. The trigger refuses too, so nothing opens without its library.
+    if (opening && !(await this.store.libraryCopied(invite.firmId))) {
+      throw new ApiError('ACCOUNT_SUSPENDED', { status: 'PROVISIONING' });
+    }
     const passwordHash = await hashPassword(input.password);
     const accepted = await this.store.acceptInvite({
       firmId: invite.firmId,

@@ -551,6 +551,7 @@ describe("an email already used outside the actor's clients", () => {
     expect(res.status).toBe(400);
     expect(error(res.body)).toMatchObject({
       code: 'VALIDATION',
+      message: "This email can't be used here; ask your account admin.",
       details: { issues: [{ path: ['body', 'email'] }] },
     });
     expect(JSON.stringify(res.body)).not.toContain(heldId);
