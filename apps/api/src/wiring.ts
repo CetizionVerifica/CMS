@@ -3,6 +3,7 @@ import { inferRule } from '@canopy/engine';
 import { AuthService, SecretBox, createDbAccountStore } from './auth/index.js';
 import { startJobsFromEnv, type JobRunner, type JobRunnerOptions } from './jobs/index.js';
 import { PostgresReportsStore } from './modules/dashboard/db-store.js';
+import { createS3Storage } from './modules/evidence/storage.js';
 import { PostgresStore } from './modules/entities/service.js';
 import { repositoryStore, s3ImportFilesFromEnv } from './modules/imports/index.js';
 import { S3ExportFiles } from './modules/reports/files.js';
@@ -23,7 +24,7 @@ export interface Wiring {
 /**
  * The server options for the environment. With DATABASE_URL, the modules that read and write the database are
  * mounted: M6 (library and entities), M7 (instances), M10 (dashboards and reports on the Postgres store) and, when
- * object storage is configured too (S3_*), M8 (imports) and M10's export files. Without it (the e2e web server, a
+ * object storage is configured too (S3_*), M7's evidence routes, M8 (imports) and M10's export files. Without it (the e2e web server, a
  * UI-only dev run) they stay unmounted, and M10 keeps its empty default store. Sign-in (registerAuth) runs before
  * every route; with DATABASE_URL it reads sessions and accounts from M5's database store and serves the sign-in,
  * MFA and invite routes, which need AUTH_SECRET_KEY (32 bytes, base64) to seal MFA secrets.
@@ -43,6 +44,7 @@ export function wiringFromEnv(env: NodeJS.ProcessEnv, logImportError: ImportErro
   const accountStore = createDbAccountStore(database, {});
   const importFiles = s3ImportFilesFromEnv(env);
   const exportFiles = s3ExportFilesFromEnv(env);
+  const s3 = s3SettingsFromEnv(env);
   return {
     database,
     auth: new AuthService({ store: accountStore, secrets }),
@@ -50,6 +52,8 @@ export function wiringFromEnv(env: NodeJS.ProcessEnv, logImportError: ImportErro
       database,
       accountStore,
       authSecretKey,
+      // Evidence keys live under `evidence/` in the bucket imports and exports share; the routes mount only with storage.
+      ...(s3 && { evidenceStorage: createS3Storage(s3) }),
       libraryAndEntities: { store: new PostgresStore(database) },
       reports: {
         store: new PostgresReportsStore(database),
