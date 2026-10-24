@@ -101,8 +101,9 @@ remind for complied or not-applicable items, and reach the database only through
 15. **Evidence virus scan** (`scan-evidence.ts`, every minute, stately). Evidence is `PENDING` from upload until the
     scan records `CLEAN`, `INFECTED` or `FAILED`, and only `CLEAN` files can be downloaded (M7). The job reads PENDING,
     non-archived files oldest first, streams each from the evidence bucket to the scanner, and writes the result with
-    an `UPDATE` audit row on the evidence (`before`/`after` scan status, plus the signature when infected) and an
-    `evidence.scanned` event on the instance, in one transaction. The event carries ids and the status only.
+    an `UPDATE` audit row and an `evidence.scanned` event, both on the instance, in one transaction. The audit row
+    carries the evidence id and the `before`/`after` scan status, plus the signature when infected, as M7's
+    `scanned()` writes it, so scan results show in the instance's history. The event carries ids and the status only.
     - **Scanner port:** `Scanner.scan(stream, signal)`. The default is ClamAV's daemon over TCP
       (`clamav-scanner.ts`, the `INSTREAM` command, no new dependency), set by `CLAMAV_HOST` with `CLAMAV_PORT` (3310)
       and `CLAMAV_TIMEOUT_MS` (180000, at most 240000). The timeout must stay above clamd's `MaxScanTime` (120 s by
@@ -118,14 +119,17 @@ remind for complied or not-applicable items, and reach the database only through
     - **Deadlines:** each file gets one 5-minute deadline (an `AbortController` passed to the S3 read and the scan).
       The S3 client also fails a connection that does not open in 10 s or a socket idle for 60 s.
     - **Three kinds of failure** (`ports.ts`):
-      - `ScanServiceError`: storage or the scanner cannot be reached, storage answers 5xx or rejects the credentials or
-        bucket, or a stream breaks mid-transfer. Every file would fail the same way, so the run stops and nothing is
-        counted against the file. The next run starts over.
+      - `ScanServiceError`: storage or the scanner cannot be reached, or storage answers 5xx or rejects the
+        credentials or bucket. Every file would fail the same way, so the run stops and nothing is counted against the
+        file. The next run starts over.
+      - `ScanInterruptedError` (storage stops sending a file part-way): the network or that one object, so it is a
+        failed attempt (`INTERRUPTED`) and the run stops. One bad object cannot block the queue, and an outage costs
+        each file at most one attempt per run.
       - `ScanTimeoutError` (the file's deadline, or clamd not answering in time): a failed attempt on the file, and
         the run stops in case the scanner is stuck.
       - Anything else (storage refuses this one object, an unexpected reply): a failed attempt, and the run moves on.
-    - **Attempts:** each failed attempt is an `UPDATE` audit row on the evidence (`after: {scanStatus: 'PENDING',
-      scanAttempt, scanError}`, a code with no error text). The job counts those rows, so attempts survive restarts
+    - **Attempts:** each failed attempt is an `UPDATE` audit row on the instance (`after: {evidenceId, scanStatus:
+      'PENDING', scanAttempt, scanError}`, a code with no error text). The job counts those rows, so attempts survive restarts
       with no new column. On the third the file is FAILED (`after.attempts: 3`), so one file that never scans cannot
       hold up the rest of the firm's. A file that failed in a run is not tried again in the same run.
     - **FAILED** is about the file: nothing is stored at its key, clamd answers `… ERROR` (over its size limit, or a

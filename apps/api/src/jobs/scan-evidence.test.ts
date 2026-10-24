@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  ScanInterruptedError,
   ScanServiceError,
   ScanTimeoutError,
   type EvidenceObjects,
@@ -16,11 +17,12 @@ import {
 import { assignment, evidenceFile, harness, instance, person } from './testing/builders.js';
 import { memoryClient, memoryFirm, type MemoryFirm } from './testing/memory-store.js';
 
-type Storage = 'ok' | 'down' | 'refused' | 'cut' | 'stall';
+type Storage = 'ok' | 'down' | 'refused' | 'cut' | 'stall' | 'broken';
 
 /**
  * Bytes per storage key; a key with no entry has nothing stored. `down` throws a service error, `refused` a file
- * error, `cut` ends the stream after half the bytes, `stall` sends nothing until the deadline aborts.
+ * error, `cut` ends the stream after half the bytes, `stall` sends nothing until the deadline aborts, `broken`
+ * breaks off mid-transfer.
  */
 function fakeObjects(
   files: Map<string, string>,
@@ -41,6 +43,10 @@ function fakeObjects(
           await new Promise((_, reject) =>
             signal!.addEventListener('abort', () => reject(new ScanTimeoutError('stopped'))),
           );
+        }
+        if (mode === 'broken') {
+          yield Buffer.from(text.slice(0, 2));
+          throw new ScanInterruptedError('Object storage stopped sending the file');
         }
         yield Buffer.from(mode === 'cut' ? text.slice(0, text.length / 2) : text);
       })();
@@ -106,8 +112,14 @@ function withScanning(
 }
 
 const statuses = (f: MemoryFirm) => f.evidence.map((e) => e.scanStatus);
+/** An audit row's `after` without the evidence id, which the first test checks. */
+const scanAfter = (a: MemoryFirm['audits'][number]) => {
+  const { evidenceId, ...rest } = a.after ?? {};
+  void evidenceId;
+  return rest;
+};
 const attemptRows = (f: MemoryFirm) =>
-  f.audits.filter((a) => a.after?.scanStatus === 'PENDING').map((a) => a.after);
+  f.audits.filter((a) => a.after?.scanStatus === 'PENDING').map(scanAfter);
 
 describe('runScanEvidence', () => {
   it('marks clean and infected files, with an audit row and an evidence.scanned event each', async () => {
@@ -131,15 +143,21 @@ describe('runScanEvidence', () => {
         actorId: null,
         actorKind: 'SYSTEM',
         action: 'UPDATE',
-        entityType: 'evidence',
-        entityId: clean!.id,
-        before: { scanStatus: 'PENDING' },
-        after: { scanStatus: 'CLEAN' },
+        // On the instance, as M7's scanned() writes it, so the result shows in the instance history.
+        entityType: 'instance',
+        entityId: i.id,
+        before: { evidenceId: clean!.id, scanStatus: 'PENDING' },
+        after: { evidenceId: clean!.id, scanStatus: 'CLEAN' },
         reason: null,
       },
       expect.objectContaining({
-        entityId: infected!.id,
-        after: { scanStatus: 'INFECTED', signature: 'Eicar-Test-Signature' },
+        entityType: 'instance',
+        entityId: i.id,
+        after: {
+          evidenceId: infected!.id,
+          scanStatus: 'INFECTED',
+          signature: 'Eicar-Test-Signature',
+        },
       }),
     ]);
     expect(firm().events.map((e) => ({ ...e, id: undefined, occurredAt: undefined }))).toEqual([
@@ -167,7 +185,7 @@ describe('runScanEvidence', () => {
     expect(await runScanEvidence(h.deps, 'r')).toMatchObject({ failed: 2, retry: 0 });
     expect(statuses(firm())).toEqual(['FAILED', 'FAILED']);
     expect(scanner.scanned).toEqual(['%PDF too big']);
-    expect(firm().audits.map((a) => a.after)).toEqual([
+    expect(firm().audits.map(scanAfter)).toEqual([
       { scanStatus: 'FAILED' },
       { scanStatus: 'FAILED' },
     ]);
@@ -211,7 +229,10 @@ describe('runScanEvidence', () => {
 
     expect(await runScanEvidence(h.deps, 'last')).toMatchObject({ failed: 1, retry: 0 });
     expect(statuses(firm())).toEqual(['FAILED', 'CLEAN']);
-    expect(firm().audits.at(-1)!.after).toEqual({ scanStatus: 'FAILED', attempts: SCAN_ATTEMPTS });
+    expect(scanAfter(firm().audits.at(-1)!)).toEqual({
+      scanStatus: 'FAILED',
+      attempts: SCAN_ATTEMPTS,
+    });
     expect(firm().events.at(-1)!.data).toMatchObject({ scanStatus: 'FAILED' });
     expect(scanner.scanned.filter((t) => t.includes('garbled'))).toHaveLength(SCAN_ATTEMPTS);
     // Error text never reaches the audit trail.
@@ -246,6 +267,36 @@ describe('runScanEvidence', () => {
     expect(attemptRows(firm())).toEqual([
       { scanStatus: 'PENDING', scanAttempt: 1, scanError: 'TIMEOUT' },
     ]);
+  });
+
+  it('counts storage breaking off mid-file against the file and stops the run, so one bad object cannot block the queue', async () => {
+    const { firm: seed, files } = setup(['%PDF broken', '%PDF later']);
+    const broken = seed.evidence[0]!.storageKey;
+    const { h, scanner, firm } = withScanning([seed], files, (key) =>
+      key === broken ? 'broken' : 'ok',
+    );
+    for (let run = 1; run < SCAN_ATTEMPTS; run++) {
+      expect(await runScanEvidence(h.deps, `r${run}`)).toMatchObject({ retry: 1, clean: 0 });
+    }
+    // The run stopped at the broken file each time, in case storage itself is failing.
+    expect(scanner.scanned).toEqual([]);
+    expect(attemptRows(firm())).toEqual([
+      { scanStatus: 'PENDING', scanAttempt: 1, scanError: 'INTERRUPTED' },
+      { scanStatus: 'PENDING', scanAttempt: 2, scanError: 'INTERRUPTED' },
+    ]);
+    expect(await runScanEvidence(h.deps, 'last')).toMatchObject({ failed: 1 });
+    expect(statuses(firm())).toEqual(['FAILED', 'PENDING']);
+    expect(await runScanEvidence(h.deps, 'next')).toMatchObject({ clean: 1 });
+  });
+
+  it('counts only attempts on the same file', async () => {
+    const { firm: seed, files } = setup(['%PDF garbled a', '%PDF garbled b']);
+    const { h, firm } = withScanning([seed], files);
+    await runScanEvidence(h.deps, 'r1');
+    await runScanEvidence(h.deps, 'r2');
+    // Two files on one instance: each has its own two attempts, so neither is FAILED yet.
+    expect(statuses(firm())).toEqual(['PENDING', 'PENDING']);
+    expect(attemptRows(firm()).map((a) => a.scanAttempt)).toEqual([1, 1, 2, 2]);
   });
 
   it('never marks a file CLEAN from fewer bytes than were uploaded', async () => {
@@ -300,7 +351,7 @@ describe('runScanEvidence', () => {
     const files = new Map([...a.files, ...b.files]);
     const { h, stored } = withScanning([a.firm, b.firm], files);
     expect(await runScanEvidence(h.deps, 'r')).toMatchObject({ firms: 2, clean: 1, infected: 1 });
-    expect(stored.map((f) => f.audits.map((x) => x.after))).toEqual([
+    expect(stored.map((f) => f.audits.map(scanAfter))).toEqual([
       [{ scanStatus: 'CLEAN' }],
       [{ scanStatus: 'INFECTED', signature: 'Eicar-Test-Signature' }],
     ]);

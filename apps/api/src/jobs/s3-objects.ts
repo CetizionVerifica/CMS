@@ -1,6 +1,11 @@
 import { GetObjectCommand, NoSuchKey, S3Client } from '@aws-sdk/client-s3';
 import type { S3Settings } from '../s3-env.js';
-import { ScanServiceError, ScanTimeoutError, type EvidenceObjects } from './ports.js';
+import {
+  ScanInterruptedError,
+  ScanServiceError,
+  ScanTimeoutError,
+  type EvidenceObjects,
+} from './ports.js';
 
 /** The part of the S3 client the reader uses; tests pass a fake. */
 export type S3Send = Pick<S3Client, 'send'>;
@@ -40,7 +45,7 @@ function sorted(error: unknown, signal: AbortSignal | undefined): Error {
   return new Error('Object storage refused the file');
 }
 
-/** Errors mid-transfer are the network's: the read stops the run rather than counting against the file. */
+/** An error mid-transfer is counted against the file and stops the run (`ScanInterruptedError`). */
 async function* guarded(
   body: AsyncIterable<Uint8Array>,
   signal: AbortSignal | undefined,
@@ -50,7 +55,7 @@ async function* guarded(
   } catch {
     throw signal?.aborted
       ? new ScanTimeoutError('The read was stopped at its deadline')
-      : new ScanServiceError('Object storage stopped sending the file');
+      : new ScanInterruptedError('Object storage stopped sending the file');
   }
 }
 
