@@ -3,7 +3,7 @@
 // change through the actions and read the result back from the mock API.
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { createApiClient } from '../../../../../../lib/api/client';
+import { ApiError, createApiClient } from '../../../../../../lib/api/client';
 import {
   MOCK_CLIENTS,
   MOCK_MFA_CODE,
@@ -22,6 +22,20 @@ vi.mock('server-only', () => ({}));
 vi.mock('next/headers', () => nextHeaders);
 vi.mock('next/navigation', () => nextNavigation);
 vi.mock('next/cache', () => ({ revalidatePath }));
+// A call can be made to refuse with a contract error the demo API never sends.
+const refuse = vi.hoisted(() => ({ error: null as Error | null }));
+vi.mock('../../../../../../lib/api/server', async (original) => {
+  const real = await original<typeof import('../../../../../../lib/api/server')>();
+  return {
+    ...real,
+    sessionApi: async () => {
+      const client = await real.sessionApi();
+      if (!refuse.error) return client;
+      const error = refuse.error;
+      return { ...client, call: () => Promise.reject(error) } as typeof client;
+    },
+  };
+});
 
 const actions = await import('./actions');
 
@@ -47,6 +61,7 @@ const session = () =>
 beforeEach(() => {
   resetRequest();
   revalidatePath.mockReset();
+  refuse.error = null;
 });
 
 const list = async () => {
@@ -166,5 +181,34 @@ describe('entity actions', () => {
       ok: false,
       message: "You can no longer change this client's setup.",
     });
+  });
+
+  it('says when the plan has no room for another company or unit', async () => {
+    await signIn('admin@demo.test', true);
+    const { companies, locations } = await list();
+    const message =
+      'Your plan’s company or unit limit is reached, so nothing was added. Your account admin can ask PlanetPulse to raise it.';
+    refuse.error = new ApiError(403, 'PLAN_LIMIT_REACHED', 'Plan limit reached', {
+      limit: 'companies',
+      max: 1,
+      used: 1,
+    });
+    expect(await actions.createCompanyAction(CLIENT, { name: 'Kestrel Fibres' })).toEqual({
+      ok: false,
+      message,
+    });
+    refuse.error = new ApiError(403, 'PLAN_LIMIT_REACHED', 'Plan limit reached', {
+      limit: 'units',
+      max: 5,
+      used: 5,
+    });
+    expect(
+      await actions.createUnitAction(CLIENT, {
+        companyId: companies[0]!.id,
+        name: 'Highmoor Works',
+        locationId: locations[0]!.id,
+      }),
+    ).toEqual({ ok: false, message });
+    expect(revalidatePath).toHaveBeenCalledWith(`/c/${CLIENT}/setup/entities`);
   });
 });
