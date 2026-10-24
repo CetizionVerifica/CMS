@@ -2,7 +2,7 @@
 
 `apps/api/CLAUDE.md` and the root `CLAUDE.md` apply. Decisions: `docs/adr/M15-0001-operator-controlled-accounts.md`
 (decisions 8, 9, 11, 12), `docs/adr/M15-0003-operator-api.md` (this API's own choices), `docs/adr/M15-0004-customer-account-routes.md` (the
-customer's `/account` routes) and
+customer's `/account` routes), `docs/adr/M15-0005-operator-digest.md` (the operator's daily renewals email) and
 `docs/adr/M3-0003-operator-storage-and-account-jobs.md`.
 
 ## Rules here
@@ -29,3 +29,5 @@ customer's `/account` routes) and
   M15-0003 decision 10). Support-session links go to `APP_URL` with the token in the fragment, never the query.
 - Files that need the database are `db-*.ts` and are tested in `*.db.test.ts` against Postgres; the rest are pure and
   unit tested.
+- The operator's daily renewals email (`db-digest.ts`) is a `JobDefinition` M9's runner runs; it reads on the operator
+  login like the routes and sends account names and dates only.
