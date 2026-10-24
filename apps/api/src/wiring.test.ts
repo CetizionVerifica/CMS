@@ -73,7 +73,14 @@ describe('wiringFromEnv', () => {
 });
 
 describe('jobsFromEnv', () => {
-  const runner = (mail: boolean) => ({ trigger: vi.fn(), schedules: vi.fn(), stop: vi.fn(), mail });
+  const runner = (mail: boolean, loginEmails = mail, scan = true) => ({
+    trigger: vi.fn(),
+    schedules: vi.fn(),
+    stop: vi.fn(),
+    mail,
+    loginEmails,
+    scan,
+  });
 
   it('starts nothing and says nothing without a database', async () => {
     const start = vi.fn();
@@ -117,12 +124,27 @@ describe('jobsFromEnv', () => {
 
   it('warns when mail runs but nothing can issue sign-in tokens', async () => {
     const { database } = wiringFromEnv({ ...DB }, vi.fn());
-    const start = vi.fn().mockResolvedValue(runner(true));
+    const start = vi.fn().mockResolvedValue(runner(true, false));
     const warn = vi.fn();
     await jobsFromEnv({ ...DB, SMTP_URL: 'smtp://mail.example:587' }, database, { warn, start });
     expect(start.mock.calls[0]![1]).not.toHaveProperty('issueLoginToken');
     expect(warn).toHaveBeenCalledOnce();
     expect(warn.mock.calls[0]![0]).toMatch(/sign-in link and invite emails not sent/);
+    await database?.close();
+  });
+
+  it('warns when no virus scanner is configured, since evidence then stays unavailable', async () => {
+    const { database } = wiringFromEnv({ ...DB }, vi.fn());
+    const start = vi.fn().mockResolvedValue(runner(true, true, false));
+    const warn = vi.fn();
+    const auth = { issueLoginToken: vi.fn() };
+    await jobsFromEnv({ ...DB, SMTP_URL: 'smtp://mail.example:587' }, database, {
+      warn,
+      auth,
+      start,
+    });
+    expect(warn).toHaveBeenCalledOnce();
+    expect(warn.mock.calls[0]![0]).toMatch(/evidence scan not started/);
     await database?.close();
   });
 
