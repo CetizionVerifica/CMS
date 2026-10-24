@@ -13,6 +13,10 @@ export default defineConfig({
     // Under reduced motion the UI's fades and slides last 1ms (packages/ui styles.css), so axe and the journeys never
     // judge a page mid-animation, when a fading element's contrast is still part-way.
     contextOptions: { reducedMotion: 'reduce' },
+    // A machine whose Chromium isn't the one this Playwright downloads can point at its own.
+    ...(process.env.PLAYWRIGHT_CHROMIUM_PATH && {
+      launchOptions: { executablePath: process.env.PLAYWRIGHT_CHROMIUM_PATH },
+    }),
   },
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
   // Starts the built web app and the API. Run `pnpm build` first (turbo does this for `pnpm test:e2e`).
