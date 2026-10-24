@@ -347,6 +347,14 @@ describe('MFA', () => {
     expect(replay.statusCode).toBe(400);
     const again = await app.inject({ method: 'POST', url: '/api/v1/auth/mfa/enroll', headers });
     expect(errorCode(again)).toBe('DUPLICATE');
+    // F14 mitigation 3: the setup, completed once, asks M9 to tell the person; the replay adds nothing.
+    expect(store.outbox.filter((e) => e.type === 'person.mfa_enrolled')).toEqual([
+      {
+        firmId: expect.any(String),
+        type: 'person.mfa_enrolled',
+        data: { personId: Me.parse(ok.json()).person.id, via: 'SETTINGS' },
+      },
+    ]);
   });
 
   it('requires a code in every new session once enrolled', async () => {
@@ -622,6 +630,14 @@ describe('invites', () => {
       enrolled: true,
       satisfied: true,
     });
+    // Only the accept that committed says MFA was set up; the failed one above recorded nothing.
+    expect(store.outbox.filter((e) => e.type === 'person.mfa_enrolled')).toEqual([
+      {
+        firmId: created.firmId,
+        type: 'person.mfa_enrolled',
+        data: { personId: imported.personId, via: 'INVITE' },
+      },
+    ]);
     const me = await app.inject({ url: '/api/v1/me', headers: sessionHeaders(accepted) });
     expect(me.statusCode).toBe(200);
     // The setup is done, so it cannot be restarted, and the next sign-in asks for a code, not a new authenticator.

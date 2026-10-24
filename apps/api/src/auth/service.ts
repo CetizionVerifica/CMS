@@ -285,11 +285,12 @@ export class AuthService {
     this.mfaFailures.delete(session.id);
     await this.store.resetLoginFailures(ctx.firmId, ctx.personId);
     if (record.enrolledAt === null) {
-      await this.store.saveMfa(ctx.firmId, ctx.personId, {
-        ...record,
-        enrolledAt: now.toISOString(),
-        lastStep: step,
-      });
+      await this.store.completeMfa(
+        ctx.firmId,
+        ctx.personId,
+        { ...record, enrolledAt: now.toISOString(), lastStep: step },
+        ctx.requestId,
+      );
     }
     await this.store.markSessionMfa(session.firmId, session.id);
     return this.me({ ...ctx, mfaSatisfied: true }, { ...session, mfaSatisfied: true });
