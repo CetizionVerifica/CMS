@@ -66,7 +66,7 @@ export function accountNotice(me: Pick<Me, 'person' | 'account'>): ShellNotice |
 export type NavSection = { label?: string; items: { path: string; label: string; href: string }[] };
 
 const ROLE_LABEL: Record<Role, string> = {
-  FIRM_ADMIN: 'Firm admin',
+  FIRM_ADMIN: 'Account admin',
   CONSULTANT: 'Consultant',
   CLIENT_ADMIN: 'Client admin',
   APPROVER: 'Approver',

@@ -51,6 +51,7 @@ describe('shell model', () => {
     const me = await meFor('admin@demo.test');
     me.clients.reverse();
     const model = buildShellModel(me);
+    expect(model.user.detail).toBe('Account admin');
     expect(model.clients.map((c) => c.name)).toEqual([
       'Demo Metals',
       'Northwind Textiles',
