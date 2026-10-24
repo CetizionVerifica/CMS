@@ -119,6 +119,9 @@ const addDays = (instant: string, days: number) =>
 
 const MFA_ISSUER = 'PlanetPulse Compliance';
 
+/** The authenticator code the mock's invite acceptance takes; any other 6 digits are wrong. */
+export const MOCK_INVITE_MFA_CODE = '123456';
+
 /** A TOTP setup link for `account`. The client-facing product name, as the real provider uses. */
 function enrolment(account: string) {
   const label = `${encodeURIComponent(MFA_ISSUER)}:${encodeURIComponent(account)}`;
@@ -301,16 +304,25 @@ export const authHandlers: PartialHandlers<
   enrollInviteMfa(ctx) {
     const { invite } = findInvite(ctx.store, ctx.params.token!, ctx.clock.now());
     if (!isFirmRole(invite.role)) throw notFound();
+    // Setup restarts until the invite is accepted (endpoints.md §2).
+    invite.mfaSetUp = true;
     return enrolment(invite.email);
   },
 
   acceptInvite(ctx) {
     const { firm, invite } = findInvite(ctx.store, ctx.params.token!, ctx.clock.now());
     const person = firm.data.people.find((p) => p.id === invite.personId)!;
-    // A firm role sets up MFA in the same step (F14). The mock takes any 6 digits as the authenticator's code.
+    // A firm role sets up MFA in the same step (F14): setup first, then its first code. A refusal changes nothing.
     const mfa = isFirmRole(invite.role);
-    if (mfa && ctx.body.mfaCode === undefined) {
-      throw new MockError('MFA_REQUIRED', 'Set up MFA first', { enrolled: false });
+    if (mfa && (invite.mfaSetUp !== true || ctx.body.mfaCode === undefined)) {
+      throw new MockError('MFA_REQUIRED', 'Set up MFA first', {
+        enrolled: invite.mfaSetUp === true,
+      });
+    }
+    if (mfa && ctx.body.mfaCode !== MOCK_INVITE_MFA_CODE) {
+      throw new MockError('VALIDATION', 'The code is wrong', {
+        issues: [{ path: ['mfaCode'], message: 'The code is wrong' }],
+      });
     }
     const now = ctx.clock.now();
     Object.assign(person, {

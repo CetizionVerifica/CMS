@@ -138,5 +138,7 @@ public `POST /invites/{token}/mfa/enroll` answers an `MfaEnrollment` for such an
 `InviteAcceptBody` gains an optional `mfaCode`, the authenticator's first code. When the preview says `mfaRequired`, accept without a correct code is refused
 (`MFA_REQUIRED`, or `VALIDATION` on `mfaCode`) and changes nothing; with one, it sets the password, completes MFA setup
 and starts an MFA-satisfied session, so no session ever exists with a password and no MFA.
+The mock follows the provider: accept refuses a code before setup (`MFA_REQUIRED`, `enrolled: false`) and takes only
+`123456` as the first code (`MOCK_INVITE_MFA_CODE`; any other is `VALIDATION` on `mfaCode`); setup restarts freely.
 Also, from the 1.5.3 audit: the `TRIAL_ENDING` and `ACCOUNT_NOTIFICATION_KINDS` comments and the 1.5.3 entry now cite
 the ADR's order of work (step 6, M9's reminders), not decision 4, which is about what each status allows.

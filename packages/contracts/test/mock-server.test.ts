@@ -256,6 +256,21 @@ describe('mock server', () => {
       params: { token },
     });
     expect(preview.mfaRequired).toBe(true);
+    // A code before setup is refused: the authenticator must come from this invite.
+    const early = await fails(
+      app,
+      'acceptInvite',
+      {
+        as: null,
+        params: { token },
+        body: { password: 'a long enough password', mfaCode: '123456' },
+      },
+      'MFA_REQUIRED',
+      401,
+    );
+    expect(early.error.details).toEqual({ enrolled: false });
+    // Setup can restart until the invite is accepted.
+    await ok(app, 'enrollInviteMfa', { as: null, params: { token } });
     const setup = await ok<{ otpauthUrl: string }>(app, 'enrollInviteMfa', {
       as: null,
       params: { token },
@@ -269,6 +284,18 @@ describe('mock server', () => {
       'MFA_REQUIRED',
       401,
     );
+    const wrong = await fails(
+      app,
+      'acceptInvite',
+      {
+        as: null,
+        params: { token },
+        body: { password: 'a long enough password', mfaCode: '654321' },
+      },
+      'VALIDATION',
+      400,
+    );
+    expect(wrong.error.details).toMatchObject({ issues: [{ path: ['mfaCode'] }] });
     const me = await ok<{ mfa: { required: boolean; satisfied: boolean } }>(app, 'acceptInvite', {
       as: null,
       params: { token },
