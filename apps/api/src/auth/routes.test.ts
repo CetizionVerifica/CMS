@@ -817,6 +817,7 @@ describe('server wiring', () => {
     expect(trustProxyFromEnv('')).toBe(false);
     expect(trustProxyFromEnv('false')).toBe(false);
     expect(trustProxyFromEnv('10.0.0.0/8')).toEqual(['10.0.0.0/8']);
+    expect(trustProxyFromEnv('::ffff:10.0.0.0/104')).toEqual(['::ffff:10.0.0.0/104']);
     expect(trustProxyFromEnv('10.0.0.5, 172.16.0.0/12,fd00::/8,::1')).toEqual([
       '10.0.0.5',
       '172.16.0.0/12',
@@ -840,6 +841,10 @@ describe('server wiring', () => {
       '10.0.0.0/7',
       '::/0',
       'fc00::/7',
+      // IPv4-mapped ranges match IPv4 clients: ::ffff:0.0.0.0/96 is every one of them.
+      '::ffff:0.0.0.0/96',
+      '::ffff:0:0/103',
+      '0:0:0:0:0:FFFF:0A00:0/100',
     ]) {
       expect(() => trustProxyFromEnv(bad), bad).toThrow(/TRUST_PROXY/);
     }
