@@ -67,6 +67,8 @@ describe('the session', () => {
     expect(loginHref('/')).toBe('/login');
     expect(loginHref('//evil.example')).toBe('/login');
     expect(loginHref('/login?next=x')).toBe('/login');
+    expect(loginHref('/\\evil.test')).toBe('/login');
+    expect(loginHref('/accounts?status=TRIAL')).toBe('/login?next=%2Faccounts%3Fstatus%3DTRIAL');
   });
 
   it('refuses to be used outside its provider, and signs out even when the API fails', async () => {

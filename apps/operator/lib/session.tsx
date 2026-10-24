@@ -13,6 +13,7 @@ import {
 } from 'react';
 
 import { createOperatorClient, isOperatorApiError, type OperatorClient } from './api';
+import { consolePath } from './security/console-path';
 
 type Session = { me: OperatorMe; api: OperatorClient; signOut: () => Promise<void> };
 
@@ -26,8 +27,8 @@ export function useSession(): Session {
 
 /** The sign-in page's address that brings the operator back to `path` (only console paths, never another site). */
 export function loginHref(path: string): string {
-  const safe = path.startsWith('/') && !path.startsWith('//') && !path.startsWith('/login');
-  return safe && path !== '/' ? `/login?next=${encodeURIComponent(path)}` : '/login';
+  const safe = consolePath(path);
+  return safe && safe !== '/' ? `/login?next=${encodeURIComponent(safe)}` : '/login';
 }
 
 export type SessionState =

@@ -4,6 +4,8 @@ import type { NextConfig } from 'next';
 // console's pages never see it. In production the load balancer sends /api/platform straight to the API; this rewrite
 // is for `next dev` and for a deployment without one. OPERATOR_API_URL is the API's origin, never the customer app's;
 // Next reads it when it builds the routes, so set it for `next build` too.
+// Through this rewrite the API's client is this Next server: TRUST_PROXY must list its address, or
+// PLATFORM_IP_ALLOWLIST checks the console server instead of the operator (CLAUDE.md).
 const apiOrigin = (process.env.OPERATOR_API_URL ?? 'http://localhost:4000').replace(/\/+$/, '');
 
 const config: NextConfig = {

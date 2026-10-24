@@ -67,5 +67,7 @@ describe('operator sign-in', () => {
     expect(nextPath('https://evil.example')).toBe('/accounts');
     expect(nextPath('/login')).toBe('/accounts');
     expect(nextPath(null)).toBe('/accounts');
+    expect(nextPath('/\\evil.test')).toBe('/accounts');
+    expect(nextPath('/\t/evil.test')).toBe('/accounts');
   });
 });

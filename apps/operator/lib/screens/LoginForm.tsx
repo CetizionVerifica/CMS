@@ -6,14 +6,12 @@ import { useState, type FormEvent } from 'react';
 
 import { createOperatorClient, isOperatorApiError } from '../api';
 import { CONSOLE_NAME } from '../format';
+import { consolePath } from '../security/console-path';
 import { FormError } from '../ui/parts';
 
 /** Where to go after signing in: a console path from `?next=`, else the accounts list. */
 export function nextPath(next: string | null | undefined): string {
-  if (!next || !next.startsWith('/') || next.startsWith('//') || next.startsWith('/login')) {
-    return '/accounts';
-  }
-  return next;
+  return consolePath(next) ?? '/accounts';
 }
 
 export function LoginForm({
