@@ -162,6 +162,13 @@
       "when": 1792830280302,
       "tag": "0022_pgboss_schema",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1792831475882,
+      "tag": "0023_pgboss_jobs_role",
+      "breakpoints": true
     }
   ]
 }
