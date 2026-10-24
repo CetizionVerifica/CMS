@@ -58,6 +58,8 @@ export type InstanceDrawerProps = {
   canManage: boolean;
   personId: string;
   onClose: () => void;
+  /** The phone layout's back button, named after the page under the drawer. */
+  backLabel?: string;
   onPrev?: () => void;
   onNext?: () => void;
   /** The instance changed here (an action, evidence, a comment); the grid shows the new row. */
@@ -141,6 +143,7 @@ export function InstanceDrawer({
   canManage,
   personId,
   onClose,
+  backLabel = 'Back to the register',
   onPrev,
   onNext,
   onChanged,
@@ -461,7 +464,7 @@ export function InstanceDrawer({
             : undefined
         }
         unavailable={load.state === 'unavailable'}
-        backLabel="Back to the register"
+        backLabel={backLabel}
       >
         {data && detail ? (
           <>
