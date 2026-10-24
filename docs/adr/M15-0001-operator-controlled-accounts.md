@@ -66,8 +66,10 @@ sits outside every tenant, and a way for PlanetPulse to help a customer without 
     and the `account.created` and `person.invited` outbox events. MFA enrolment is required at first sign-in for account
     admins, as today.
 11. **Support access, not a back door.** An account admin grants PlanetPulse support access for 1 to 30 days (default 7),
-    `READ_ONLY` or `ADMIN`, from the account's settings, and can revoke it at any time. The grant creates (or reuses) a
-    person in that account named "PlanetPulse support (<operator name>)" with status `ACTIVE`, and memberships with
+    `READ_ONLY` or `ADMIN`, from the account's settings, and can revoke it at any time. One live grant at a time: a new
+    one ends the last. The grant creates (or reuses) the account's support person, "PlanetPulse support", status
+    `ACTIVE`, email `support@planetpulse.life` and no password (so it signs in only through support sessions), and
+    memberships with
     `expires_at` = the grant end: `ADMIN` is one `FIRM_ADMIN` membership; `READ_ONLY` is one `VIEWER` membership per
     client at grant time. From the console, the operator opens a support session, which mints a normal customer-app
     session for that person, valid until the earlier of 2 hours and the grant end, with MFA marked satisfied because the
@@ -91,6 +93,9 @@ sits outside every tenant, and a way for PlanetPulse to help a customer without 
     the operator table `PLATFORM_ENDPOINTS` under `/api/platform/v1`, kept out of the customer OpenAPI document and
     published as `openapi.platform.json`; events `account.created`, `account.status_changed`, `account.plan_changed`,
     `support_access.granted`, `support_access.revoked`, with event actor `{ kind: "OPERATOR"; operatorId }` added.
+    `AuditActorKind` and `EntityType` are Postgres enums, so their new values ship in a later contracts bump after
+    M3's migration adds them ahead (the `NotificationKind` precedent); the account export (M10) is its own bump.
+    The new error codes reach M5's message table ahead of the contracts, so no merge leaves `main` red.
 14. **No sign-up.** No route creates a firm except `POST /api/platform/v1/accounts`. M5 adds a test that lists every
     customer route and asserts none inserts a firm; M14's security review re-checks it.
 
@@ -112,8 +117,11 @@ These are the plan's §10 open questions. Each is data or one constant, so chang
 2. M0 contracts (decision 13).
 3. M3 migration: `firm` columns (add nullable, backfill, constrain), platform tables, `canopy_operator`, `app_account()`,
    `platform_create_account()`, `platform_usage()`, purge function, isolation tests.
-4. M5: account status in the request context and at sign-in, support-access grants and sessions, the no-sign-up test.
-5. M15: operator auth, operator API, provisioning, lifecycle; then the console.
+4. M5: account status in the request context and at sign-in, support sessions (`POST /auth/support/verify`), the
+   no-sign-up test.
+5. M15: operator auth, operator API, provisioning, lifecycle, the customer `/account` and support-grant routes; then
+   the console. API boot wiring (`wiring.ts`, `main.ts`) and e2e journeys are not M15 paths and go through the
+   Tooling thread and M14.
 6. In parallel after 2-4: M6 entitlement checks and library copy on provisioning; M9 skip non-active accounts, nightly
    usage snapshot, trial-ending and renewal reminders, trial expiry and purge jobs; M10 account export; M11 single-client
    shell, paused and trial banners, "Account" wording; M13 setup checklist, plan and usage page, support-access screen.
