@@ -49,6 +49,28 @@ async function enrolMfa(key: AccountKey): Promise<void> {
   writeFileSync(file, secret);
 }
 
+// Browsers upload evidence and workbooks straight to storage, so the web app's Content-Security-Policy must allow the
+// storage origin in connect-src (docs/security/review.md, deploy item 7). The web app drops origins it does not accept,
+// and every upload would then fail deep inside a journey: fail here first, naming the cause.
+setup('the CSP lets browsers upload to storage', async ({ request: http }) => {
+  const endpoint = process.env.S3_ENDPOINT;
+  setup.skip(!endpoint, 'S3_ENDPOINT is not set: the web app uploads to AWS S3 itself');
+  const origin = new URL(endpoint!).origin;
+  const res = await http.get('/login');
+  const policy =
+    res.headers()['content-security-policy'] ??
+    res.headers()['content-security-policy-report-only'];
+  expect(policy, 'the web app sends no Content-Security-Policy').toBeTruthy();
+  const connectSrc = policy!
+    .split(';')
+    .map((d) => d.trim().split(/\s+/))
+    .find(([name]) => name === 'connect-src');
+  expect(
+    connectSrc?.slice(1).map((s) => s.replace(/\/$/, '')),
+    `connect-src drops ${origin} (CANOPY_CSP_CONNECT_SRC), so every browser upload would fail`,
+  ).toContain(origin);
+});
+
 for (const key of Object.keys(ACCOUNTS) as AccountKey[]) {
   setup(`sign in as ${key}`, async ({ browser }) => {
     if (isFirmRole(key)) await enrolMfa(key);
