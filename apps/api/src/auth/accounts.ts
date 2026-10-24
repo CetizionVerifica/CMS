@@ -32,6 +32,11 @@ export interface AccountStore extends AuthStore {
   /** The firm's account: kind, status, trial end, effective limits and whole-firm usage (ADR M15-0001). */
   account(firmId: string): Promise<AccountView | null>;
   /**
+   * Whether M6 has copied the master library into the account (`firm.library_copied_at`). Its owner may not open a
+   * PROVISIONING account before it (ADR M15-0001 decision 8).
+   */
+  libraryCopied(firmId: string): Promise<boolean>;
+  /**
    * Counts a failed password or MFA code; after `LOCKOUT.attempts` failures in a row the account locks for
    * `LOCKOUT.minutes`. True when the account is locked after this failure.
    */

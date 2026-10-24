@@ -19,7 +19,9 @@ customer route. Storage is ADR M3-0002.
    life. An invite cannot be accepted unless the account is TRIAL or ACTIVE, with one exception: in PROVISIONING the
    owner's own FIRM_ADMIN invite (the one provisioning wrote, invited by the owner themselves) is accepted, and the
    database opens the account in the same transaction (ADR M3-0002 decision 4), so the session starts in TRIAL or
-   ACTIVE.
+   ACTIVE. The owner waits for M6's master library copy (ADR M15-0001 decision 8): until
+   `AccountStore.libraryCopied` is true their invite answers `403 ACCOUNT_SUSPENDED { status: PROVISIONING }`, which
+   the invite page shows as "still being set up", and the token stays usable.
 3. **Invites hold a seat.** An invite that would take the account's `usage.users` past its plan's `users` limit
    answers `403 PLAN_LIMIT_REACHED { limit: 'users', max, used }` and changes nothing. The store compares the count
    before and after the insert in the invite's own transaction, under the account's usage lock

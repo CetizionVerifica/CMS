@@ -213,6 +213,10 @@ export function createDbAccountStore(db: Database, options: DbAccountStoreOption
       });
     },
 
+    async libraryCopied(firmId: string) {
+      return asFirm(firmId, LOOKUP_REQUEST, (tx) => accounts.libraryCopied(tx));
+    },
+
     async findSupportToken(tokenHash: string): Promise<SupportToken | null> {
       return db.findSupportToken(tokenHash);
     },

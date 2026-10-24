@@ -325,8 +325,9 @@ describe('invites and accounts', () => {
     expect(store.invites.get(inviteId)!.status).toBe('PENDING');
   });
 
-  async function provisioning(owner: boolean) {
+  async function provisioning(owner: boolean, copied = true) {
     const { send, firmId } = await admin({ max: null, used: 0 });
+    if (!copied) store.libraryPending.add(firmId);
     const inviteId = (
       await send({ displayName: 'Asha Rao', email: 'asha.rao@kestrel-metals.example' })
     ).json().id as string;
@@ -348,13 +349,27 @@ describe('invites and accounts', () => {
     });
     store.accounts.set(firmId, { ...store.accounts.get(firmId)!, status: 'PROVISIONING' });
     const res = await post(`/api/v1/invites/${token}/accept`, { password: PASSWORD });
-    return { res, firmId, inviteId };
+    return { res, firmId, inviteId, token };
   }
 
   it('lets the owner accept while PROVISIONING, which opens the account', async () => {
     const { res, firmId, inviteId } = await provisioning(true);
     expect(res.statusCode, res.body).toBeLessThan(300);
     expect(store.invites.get(inviteId)!.status).toBe('ACCEPTED');
+    expect(store.accounts.get(firmId)!.status).toBe('TRIAL');
+  });
+
+  it("waits for the library copy: the owner's invite is refused, then opens the account once copied", async () => {
+    const { res, firmId, inviteId, token } = await provisioning(true, false);
+    expect(error(res)).toMatchObject({
+      code: 'ACCOUNT_SUSPENDED',
+      details: { status: 'PROVISIONING' },
+    });
+    expect(store.invites.get(inviteId)!.status).toBe('PENDING');
+    expect(store.accounts.get(firmId)!.status).toBe('PROVISIONING');
+    store.libraryPending.delete(firmId);
+    const again = await post(`/api/v1/invites/${token}/accept`, { password: PASSWORD });
+    expect(again.statusCode, again.body).toBeLessThan(300);
     expect(store.accounts.get(firmId)!.status).toBe('TRIAL');
   });
 
