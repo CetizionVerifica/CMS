@@ -76,9 +76,10 @@ test.describe('shell navigation at 1280px', () => {
 
   test('the period picker writes the period into the URL', async ({ page }) => {
     await signIn(page, 'consultant@demo.test', `/c/${DEMO_METALS}/register?status=OVERDUE`);
-    await page.getByRole('button', { name: /Period: FY 2022–23, quarter 4/ }).click();
+    // The demo opens on the period holding M0's firm B "today" (2024-11-15).
+    await page.getByRole('button', { name: /Period: FY 2024–25, quarter 3/ }).click();
     await page.getByRole('radio', { name: 'Year' }).click();
-    await expect(page).toHaveURL(`/c/${DEMO_METALS}/register?status=OVERDUE&fy=2022-23`);
+    await expect(page).toHaveURL(`/c/${DEMO_METALS}/register?status=OVERDUE&fy=2024-25`);
     await page.goBack();
     await expect(page).toHaveURL(`/c/${DEMO_METALS}/register?status=OVERDUE`);
   });

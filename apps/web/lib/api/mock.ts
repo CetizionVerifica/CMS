@@ -17,6 +17,8 @@ import {
   type Role,
 } from '@canopy/contracts';
 
+import { FIRM_B_AS_OF } from '@canopy/contracts/fixtures';
+
 import { delegateToM0 } from './mock-delegate';
 
 export const MOCK_PASSWORD = 'demo-password';
@@ -58,30 +60,28 @@ const clients: Client[] = [
   { ...base, id: MOCK_CLIENTS.sunrise, name: 'Sunrise Foods', settings: DEFAULT_CLIENT_SETTINGS },
 ];
 
+/**
+ * The period the demo opens on: the one holding M0's firm B "today" (FIRM_B_AS_OF, 2024-11-15), so the client pages
+ * that M0's mock answers (mock-delegate.ts) show firm B's data rather than an empty period.
+ */
+const DEMO_PERIOD: ClientPeriods = {
+  current: { fy: '2024-25', quarter: 3 },
+  availableFys: ['2023-24', '2024-25'],
+  availableUntil: '2025-05',
+};
+
 const shellInfo: Record<string, { unitCount: number; period: ClientPeriods }> = {
   [MOCK_CLIENTS.demoMetals]: {
     unitCount: 3,
-    period: {
-      current: { fy: '2022-23', quarter: 4 },
-      availableFys: ['2022-23', '2023-24'],
-      availableUntil: '2023-03',
-    },
+    period: DEMO_PERIOD,
   },
   [MOCK_CLIENTS.northwind]: {
     unitCount: 1,
-    period: {
-      current: { fy: '2022-23', quarter: 4 },
-      availableFys: ['2022-23', '2023-24'],
-      availableUntil: '2023-03',
-    },
+    period: DEMO_PERIOD,
   },
   [MOCK_CLIENTS.sunrise]: {
     unitCount: 5,
-    period: {
-      current: { fy: '2022-23', quarter: 4 },
-      availableFys: ['2022-23', '2023-24'],
-      availableUntil: null,
-    },
+    period: { ...DEMO_PERIOD, availableUntil: null },
   },
 };
 
@@ -203,7 +203,7 @@ function emptyResult(asOf: LocalDate, overdueCount: number): PortfolioRow['resul
   return { engineVersion: 'mock', asOf, score: null, onTimeRate: null, counts, instanceIds };
 }
 
-const AS_OF = LocalDate.parse('2023-03-15');
+const AS_OF = LocalDate.parse(FIRM_B_AS_OF);
 
 async function readJson(init: RequestInit | undefined): Promise<Record<string, unknown>> {
   try {

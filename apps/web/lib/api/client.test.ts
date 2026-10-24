@@ -37,7 +37,7 @@ describe('API client against the mock', () => {
       fyStartMonth: 4,
       timeZone: 'Asia/Kolkata',
     });
-    expect(me.clients[0]?.period.current).toEqual({ fy: '2022-23', quarter: 4 });
+    expect(me.clients[0]?.period.current).toEqual({ fy: '2024-25', quarter: 3 });
   });
 
   it('rejects a wrong password with the contract error code', async () => {

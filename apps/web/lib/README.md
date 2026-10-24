@@ -21,7 +21,8 @@ Shared code for every web screen. M12 and M13 import from here; they don't chang
   the login page). It answers the shell's routes itself (sign-in, `/me`, portfolio, approvals count) and hands every
   other endpoint to M0's mock server (`api/mock-delegate.ts`, firm B's synthetic data, in-process). Demo Metals and
   Northwind Textiles map to firm B's two clients there, so client pages get real contract data under our ids and
-  names; Sunrise Foods has no data (NOT_FOUND). A production build uses it only with `CANOPY_DEMO_API=1` (`api/mode.ts`, server env only), so a
+  names; Sunrise Foods has no data (NOT_FOUND). M0's mock runs at firm B's "today" (`FIRM_B_AS_OF`, 2024-11-15), and every demo
+  client opens on FY 2024-25 Q3, the period holding it. A production build uses it only with `CANOPY_DEMO_API=1` (`api/mode.ts`, server env only), so a
   deployment without `CANOPY_API_URL` fails instead of offering demo logins.
 - `api/client.ts` takes methods, paths and schemas from the contracts' `ENDPOINTS` table. Call any endpoint by name,
   never `fetch` directly: `api.call('listInstances', { params: { clientId }, query: { status: 'OVERDUE', limit: '50' } })`.
