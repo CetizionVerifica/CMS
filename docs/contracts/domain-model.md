@@ -57,7 +57,7 @@ Rules: no `any`; unknown keys rejected at the edge; strings trimmed; empty strin
 | `PlanLimitKey` | `companies`, `units`, `users`, `storageBytes` | `PLAN_LIMIT_REACHED.details.limit`. |
 | `SupportAccessLevel` | `READ_ONLY`, `ADMIN` | §9. |
 | `SupportGrantStatus` | `ACTIVE`, `EXPIRED`, `REVOKED` | §9. |
-| `OperatorAuditAction` | `OPERATOR_LOGIN`, `ACCOUNT_CREATE`, `OWNER_INVITE_SEND`, `ACCOUNT_STATUS_CHANGE`, `ACCOUNT_UPDATE`, `PLAN_CHANGE`, `OVERRIDE_CHANGE`, `SUBSCRIPTION_RECORD`, `ACCOUNT_DELETE_REQUEST`, `ACCOUNT_DELETE_CANCEL`, `ACCOUNT_PURGE`, `SUPPORT_ACCESS_START`, `SUPPORT_ACCESS_END` | §9. Append-only. |
+| `OperatorAuditAction` | `OPERATOR_LOGIN`, `ACCOUNT_CREATE`, `OWNER_INVITE_SEND`, `ACCOUNT_ACTIVATE`, `ACCOUNT_SUSPEND`, `ACCOUNT_RESUME`, `TRIAL_CONVERT`, `TRIAL_EXTEND`, `ACCOUNT_UPDATE`, `PLAN_CHANGE`, `OVERRIDE_CHANGE`, `SUBSCRIPTION_RECORD`, `ACCOUNT_DELETE_REQUEST`, `ACCOUNT_DELETE_CANCEL`, `ACCOUNT_PURGE`, `SUPPORT_ACCESS_START`, `SUPPORT_ACCESS_END` | §9. Append-only. |
 
 Excel to enum mapping (import, case-insensitive after trimming): Criticality "Super Critical" → `SUPER_CRITICAL`, "HIGH"/"High" → `HIGH`, etc.;
 Status "Complied" → `APPROVED`, "Pending" → `OPEN`, "Not Applicable" → `NOT_APPLICABLE`.
@@ -392,8 +392,8 @@ interface Account {                                 // the operator's view: neve
 Status moves (`ACCOUNT_TRANSITIONS`, `canMoveAccount`): PROVISIONING → TRIAL | ACTIVE (owner accepts); TRIAL → ACTIVE,
 SUSPENDED (trial ends), PENDING_DELETION; ACTIVE ⇄ SUSPENDED; ACTIVE | SUSPENDED → PENDING_DELETION; PENDING_DELETION →
 the status it left (cancel) or DELETED (purge after 30 days, ADR M15-0002). `WORKING_ACCOUNT_STATUSES` (TRIAL, ACTIVE)
-can do everything and run jobs; in `PAUSED_ACCOUNT_STATUSES` (SUSPENDED, PENDING_DELETION) only account admins sign in,
-to read `/me` and download the account export; everything else answers `403 ACCOUNT_SUSPENDED`.
+can do everything and run jobs. SUSPENDED signs nobody in. In `EXPORT_ACCOUNT_STATUSES` (PENDING_DELETION) only account
+admins sign in, to read `/me` and download the account export. Everything else answers `403 ACCOUNT_SUSPENDED`.
 
 Support access: an account admin grants `READ_ONLY` (a VIEWER membership per client) or `ADMIN` (one FIRM_ADMIN
 membership) for 1-30 days to the account's support person, "PlanetPulse support", whose memberships expire with the

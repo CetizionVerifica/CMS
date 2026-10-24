@@ -47,7 +47,7 @@ Saved views store exactly this query string, so a view, a dashboard link and an 
 | `MFA_REQUIRED` | 401 | Firm role without MFA in this session | `{ enrolled: boolean }` |
 | `FORBIDDEN` | 403 | Authenticated, in tenant, but `can()` says no | `{ action }` |
 | `ACCESS_EXPIRED` | 403 | VIEWER membership past `expiresAt` | `{ expiredAt }` |
-| `ACCOUNT_SUSPENDED` | 403 | The account is not TRIAL or ACTIVE: sign-in by anyone but an account admin, or any route but `/me`, logout and the account export (domain-model.md §9) | `{ status }` |
+| `ACCOUNT_SUSPENDED` | 403 | The account is not TRIAL or ACTIVE: any sign-in or request while SUSPENDED; while PENDING_DELETION, sign-in by anyone but an account admin, or any route but `/me`, logout and the account export (domain-model.md §9) | `{ status }` |
 | `PLAN_LIMIT_REACHED` | 403 | Creating a company, unit or invite past the plan's limit | `{ limit, max, used }` |
 | `NOT_FOUND` | 404 | Missing, archived, **or in another tenant/client the actor cannot see** (never reveal existence) | — |
 | `STALE_VERSION` | 409 | `version` mismatch | `{ currentVersion }` |

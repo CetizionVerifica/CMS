@@ -161,7 +161,7 @@ Notification send log, job admin and library change history have no public endpo
 
 ## 8. M15 · The account, for its own people (`apps/api/src/platform`)
 
-An account is the firm (ADR M15-0001). In `SUSPENDED` and `PENDING_DELETION` only account admins (FA) can sign in, and
+An account is the firm (ADR M15-0001). In `SUSPENDED` nobody can sign in. In `PENDING_DELETION` only account admins (FA) can sign in, and
 every route except `GET /me`, `POST /auth/logout` and the account export answers `403 ACCOUNT_SUSPENDED`. Creating a
 company, unit or invite past the plan's limit answers `403 PLAN_LIMIT_REACHED` (M6, M5).
 

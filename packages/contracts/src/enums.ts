@@ -303,9 +303,11 @@ export const WORKING_ACCOUNT_STATUSES = [
   'ACTIVE',
 ] as const satisfies readonly AccountStatus[];
 
-/** Statuses in which only account admins may sign in, to read `/me` and download the account export. */
-export const PAUSED_ACCOUNT_STATUSES = [
-  'SUSPENDED',
+/**
+ * Statuses in which only account admins may sign in, to read `/me` and download the account export (the plan's
+ * default: a SUSPENDED account signs nobody in). ADR M15-0001 decision 4.
+ */
+export const EXPORT_ACCOUNT_STATUSES = [
   'PENDING_DELETION',
 ] as const satisfies readonly AccountStatus[];
 
@@ -343,7 +345,11 @@ export const OperatorAuditAction = z.enum([
   'OPERATOR_LOGIN',
   'ACCOUNT_CREATE',
   'OWNER_INVITE_SEND',
-  'ACCOUNT_STATUS_CHANGE',
+  'ACCOUNT_ACTIVATE',
+  'ACCOUNT_SUSPEND',
+  'ACCOUNT_RESUME',
+  'TRIAL_CONVERT',
+  'TRIAL_EXTEND',
   'ACCOUNT_UPDATE',
   'PLAN_CHANGE',
   'OVERRIDE_CHANGE',

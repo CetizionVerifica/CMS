@@ -19,7 +19,7 @@ import {
   Gstin,
   Me,
   OPERATOR_SESSION_COOKIE,
-  PAUSED_ACCOUNT_STATUSES,
+  EXPORT_ACCOUNT_STATUSES,
   PLATFORM_ENDPOINTS,
   PlanCode,
   SubscriptionCreateBody,
@@ -66,9 +66,10 @@ describe('account lifecycle', () => {
     expect(ACCOUNT_TRANSITIONS.DELETED).toEqual([]);
   });
 
-  it('splits working and paused statuses with no overlap', () => {
+  it('lets admins export only while deletion is pending, never while working or suspended', () => {
     const working: readonly string[] = WORKING_ACCOUNT_STATUSES;
-    expect(PAUSED_ACCOUNT_STATUSES.some((s) => working.includes(s))).toBe(false);
+    expect(EXPORT_ACCOUNT_STATUSES.some((s) => working.includes(s))).toBe(false);
+    expect(EXPORT_ACCOUNT_STATUSES).toEqual(['PENDING_DELETION']);
   });
 
   it('lets the status route ask only for converts, suspends and resumes', () => {

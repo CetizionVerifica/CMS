@@ -86,7 +86,7 @@ counts, and its FY 2022-23 periods held no firm B items (fixtures.md §6). Addit
 
 ## 1.5.0 · 2026-10-24
 For M15 (company accounts, ADR M15-0001); additive. Enums `AccountKind`, `AccountStatus` (with `ACCOUNT_TRANSITIONS`,
-`canMoveAccount`, `WORKING_ACCOUNT_STATUSES`, `PAUSED_ACCOUNT_STATUSES`), `PlanLimitKey`, `SupportAccessLevel`,
+`canMoveAccount`, `WORKING_ACCOUNT_STATUSES`, `EXPORT_ACCOUNT_STATUSES`), `PlanLimitKey`, `SupportAccessLevel`,
 `SupportGrantStatus`, `OperatorAuditAction`; primitives `Email`, `PlanCode`, `Gstin`; schemas `Plan`, `PlanLimits`,
 `AccountOverride`, `Entitlements`, `Usage`, `AccountSummary`, `Subscription`, `UsageSnapshot`, `PlatformOperator`,
 `OperatorAuditEvent`, `SupportGrant`, `AccountProfile`, `Account` (domain-model.md §9); account defaults
