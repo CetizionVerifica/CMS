@@ -594,6 +594,26 @@ describe('register and queues', () => {
     expect(overdue).not.toContain(ids.submitted);
   });
 
+  it('adds the total of every page when count=true, after the engine status filter', async () => {
+    const all = await allPages('viewer', '');
+    const overdue = await allPages('viewer', '&status=OVERDUE');
+    for (const [query, expected] of [
+      ['', all.length],
+      ['&status=OVERDUE', overdue.length],
+    ] as const) {
+      const res = await call(
+        'viewer',
+        'GET',
+        `/clients/${f.clientId}/instances?limit=1&count=true${query}`,
+      );
+      const page = ENDPOINTS.listInstances.response.parse(res.body);
+      expect(page.items).toHaveLength(1);
+      expect(page.total).toBe(expected);
+    }
+    const plain = await call('viewer', 'GET', `/clients/${f.clientId}/instances?limit=1`);
+    expect(ENDPOINTS.listInstances.response.parse(plain.body).total).toBeUndefined();
+  });
+
   it('filters by financial year', async () => {
     const fy = await allPages('consultant', '&fy=2022-23');
     expect(fy).toContain(ids.early);
@@ -683,6 +703,13 @@ describe('register and queues', () => {
       expect(items.map((r) => r.id)).toContain(ids.submitted);
       expect(items.every((r) => r.workflowState === 'SUBMITTED')).toBe(true);
     }
+  });
+
+  it('a queue adds its total when count=true', async () => {
+    const all = await call('approver', 'GET', '/me/approvals?limit=200');
+    const items = ENDPOINTS.myApprovals.response.parse(all.body).items;
+    const res = await call('approver', 'GET', '/me/approvals?limit=1&count=true');
+    expect(ENDPOINTS.myApprovals.response.parse(res.body).total).toBe(items.length);
   });
 
   it('queues are 403 for roles without one', async () => {
