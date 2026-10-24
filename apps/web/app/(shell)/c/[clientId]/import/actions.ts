@@ -31,6 +31,13 @@ function failure(error: unknown): { ok: false; message: string } {
       message: 'This import moved on in another tab. The page now shows where it is.',
     };
   }
+  // A decision re-runs the analysis, which can remove a later group "Accept every proposal" was about to send.
+  if (isApiError(error, 'NOT_FOUND')) {
+    return {
+      ok: false,
+      message: 'This import changed after an earlier step. The page now shows where it is.',
+    };
+  }
   if (isApiError(error, 'IMPORT_BLOCKED')) {
     return { ok: false, message: 'Some issues still need a decision before the commit.' };
   }
@@ -84,10 +91,15 @@ export async function confirmUploadAction(
   const id = Id.parse(clientId);
   const batch = Id.parse(batchId);
   const { sha256: hash } = ImportUploadedBody.parse({ sha256 });
-  return run(id, async () => {
-    await steps.confirmUpload(await sessionApi(), batch, hash);
-    return undefined;
-  });
+  const result = await run(id, async () => steps.confirmUpload(await sessionApi(), batch, hash));
+  if (!result.ok) return result;
+  if (result.value.sheets.length === 0) {
+    return {
+      ok: false,
+      message: 'This workbook has no sheet to read. Check the file and try again.',
+    };
+  }
+  return { ok: true, value: undefined };
 }
 
 export async function mapAndParseAction(

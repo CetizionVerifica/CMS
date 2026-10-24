@@ -2,7 +2,8 @@ import { fileURLToPath } from 'node:url';
 
 import { expect, test, type Page } from '@playwright/test';
 
-import { checkPage, DEMO_METALS, signIn } from '../shell/helpers.js';
+import { DEMO_METALS, signIn } from '../shell/helpers.js';
+import { checkSettled } from './settled.js';
 
 // The import wizard (M13) against the web app's demo API, which answers imports from M0's mock: every upload reads
 // as the sample register (fixtures.md §3), with its cleaning issues, and the commit marks the batch committed.
@@ -27,7 +28,7 @@ test.describe('import wizard', () => {
     await expect(
       page.getByRole('list', { name: 'Import steps' }).getByRole('listitem').first(),
     ).toHaveAttribute('aria-current', 'step');
-    await checkPage(page);
+    await checkSettled(page);
 
     // Map: the suggestion maps every sample column.
     await uploadSample(page);
@@ -37,7 +38,7 @@ test.describe('import wizard', () => {
     await expect(
       mapping.getByRole('combobox', { name: 'Register field for “Due Date”' }),
     ).toHaveText('Due date');
-    await checkPage(page);
+    await checkSettled(page);
     await page.getByRole('button', { name: 'Read the rows' }).click();
 
     // Review: proposals are shown next to the workbook's values, then decided.
@@ -50,7 +51,7 @@ test.describe('import wizard', () => {
       .filter({ hasText: 'Department names that look the same' });
     await expect(hr).toContainText('“HR”, “Human Resources”');
     await expect(hr).toContainText('Proposed: “Human Resources”');
-    await checkPage(page);
+    await checkSettled(page);
     await expect(page.getByRole('button', { name: 'Run the dry run' })).toHaveAttribute(
       'aria-disabled',
       'true',
@@ -69,13 +70,13 @@ test.describe('import wizard', () => {
     await expect(decided.getByRole('listitem').filter({ hasText: 'Factories Act' })).toContainText(
       'Kept as written',
     );
-    await checkPage(page);
+    await checkSettled(page);
 
     // Dry run, then commit.
     await page.getByRole('button', { name: 'Run the dry run' }).click();
     await expect(page.getByRole('heading', { level: 2, name: 'Dry run' })).toBeVisible();
     await expect(page.getByRole('region', { name: 'To add' })).toContainText('Instances');
-    await checkPage(page);
+    await checkSettled(page);
     await page.getByRole('button', { name: 'Commit the import' }).click();
     const dialog = page.getByRole('alertdialog', { name: 'Commit this import to Demo Metals?' });
     await expect(dialog).toBeVisible();
@@ -85,7 +86,9 @@ test.describe('import wizard', () => {
     await expect(
       page.getByRole('status').filter({ hasText: /rows from sample-register-anonymised\.xlsx/ }),
     ).toBeVisible();
-    await checkPage(page);
+    // The refresh after the commit re-renders the whole client layout, title included; wait for it to settle.
+    await expect(page).toHaveTitle('Import · Demo Metals · PlanetPulse Compliance');
+    await checkSettled(page);
 
     // The history lists it as committed.
     await page.getByRole('link', { name: 'Start another import' }).click();
@@ -115,7 +118,7 @@ test.describe('import wizard', () => {
     const dialog = page.getByRole('alertdialog', { name: 'Cancel this import?' });
     await dialog.getByRole('button', { name: 'Cancel import' }).click();
     await expect(page.getByText('This import was cancelled. Nothing was changed.')).toBeVisible();
-    await checkPage(page);
+    await checkSettled(page);
   });
 
   test('keyboard only: the workbook can be chosen from the drop zone', async ({ page }) => {
@@ -136,7 +139,7 @@ test.describe('import wizard', () => {
     await signIn(page, 'owner@demo.test', IMPORT);
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
     await expect(page.locator('input[type="file"]')).toHaveCount(0);
-    await checkPage(page);
+    await checkSettled(page);
   });
 });
 
@@ -145,8 +148,8 @@ test.describe('import wizard at 375px', () => {
 
   test('the upload and mapping steps fit the screen', async ({ page }) => {
     await signIn(page, 'consultant@demo.test', IMPORT);
-    await checkPage(page);
+    await checkSettled(page);
     await uploadSample(page);
-    await checkPage(page);
+    await checkSettled(page);
   });
 });

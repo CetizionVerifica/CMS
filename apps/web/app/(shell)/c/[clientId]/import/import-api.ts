@@ -35,7 +35,9 @@ export async function confirmUpload(
   sha256: string,
 ): Promise<ImportUploaded> {
   const { data } = await api.call('importUploaded', { params: { id: batchId }, body: { sha256 } });
-  const sheet = data.sheets[0]!;
+  const sheet = data.sheets[0];
+  // A workbook with no sheet leaves the batch unmapped; the action says why.
+  if (!sheet) return data;
   const mapping = suggestedFor(sheet.headers, data.suggestedMapping);
   await api.call('putImportMapping', {
     params: { id: batchId },
