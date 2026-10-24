@@ -1,6 +1,6 @@
 import { ClientParams, ENDPOINTS, IdParams } from '@canopy/contracts';
 import type { FastifyInstance } from 'fastify';
-import { ApiError, authorize } from '../../auth/index.js';
+import { ApiError, authorize, isSupportSession } from '../../auth/index.js';
 import { routePath } from '../dashboard/routes.js';
 import {
   actReport,
@@ -44,7 +44,14 @@ export function registerReportRoutes(app: FastifyInstance, deps: ReportsDeps): v
 
   app.post(
     routePath(create),
-    { config: { auth: 'session', routeLimit: deps.exportRateLimit ?? EXPORT_RATE_LIMIT } },
+    {
+      config: {
+        auth: 'session',
+        routeLimit: deps.exportRateLimit ?? EXPORT_RATE_LIMIT,
+        // The account export stays open to account admins while the account is closing (endpoints.md §8).
+        whilePendingDeletion: true,
+      },
+    },
     async (req, reply) => {
       const { clientId } = ClientParams.parse(req.params);
       const body = create.body.parse(req.body ?? {});
@@ -56,18 +63,30 @@ export function registerReportRoutes(app: FastifyInstance, deps: ReportsDeps): v
         });
       }
       authorize(req, 'export.create', { type: 'client', clientId });
+      // PlanetPulse support may hold FIRM_ADMIN, but never takes a copy of the whole client.
+      if (body.kind === 'CLIENT_ARCHIVE_ZIP' && isSupportSession(req)) {
+        throw new ApiError('FORBIDDEN', { action: 'export.create' });
+      }
       const job = await createExport(deps, req.ctx, clientId, body, key?.data);
       return reply.status(create.status).send(job);
     },
   );
 
-  app.get(routePath(get), { config: { auth: 'session' } }, async (req) => {
-    const { id } = IdParams.parse(req.params);
-    return getExport(deps, req.ctx, id);
-  });
+  app.get(
+    routePath(get),
+    { config: { auth: 'session', whilePendingDeletion: true } },
+    async (req) => {
+      const { id } = IdParams.parse(req.params);
+      return getExport(deps, req.ctx, id);
+    },
+  );
 
-  app.get(routePath(download), { config: { auth: 'session' } }, async (req) => {
-    const { id } = IdParams.parse(req.params);
-    return exportDownloadUrl(deps, req.ctx, id);
-  });
+  app.get(
+    routePath(download),
+    { config: { auth: 'session', whilePendingDeletion: true } },
+    async (req) => {
+      const { id } = IdParams.parse(req.params);
+      return exportDownloadUrl(deps, req.ctx, id);
+    },
+  );
 }

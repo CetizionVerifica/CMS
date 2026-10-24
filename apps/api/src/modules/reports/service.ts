@@ -31,6 +31,7 @@ import {
   type DashboardDeps,
   type DashboardQueryInput,
 } from '../dashboard/service.js';
+import { clientArchive, type ArchiveInstance } from './archive.js';
 import { certificatePdf } from './certificate-pdf.js';
 import type { ExportFiles } from './files.js';
 import { registerWorkbook } from './register-xlsx.js';
@@ -212,6 +213,18 @@ export async function createExport(
     return cached.job;
   }
 
+  if (body.kind === 'CLIENT_ARCHIVE_ZIP') {
+    // The account export: the whole client, for account admins only (endpoints.md §6).
+    if (!ctx.memberships.some((m) => m.role === 'FIRM_ADMIN')) {
+      throw new ApiError('FORBIDDEN', { action: 'export.create' });
+    }
+    if (body.filters !== '' || body.unitId !== undefined || body.fy !== undefined) {
+      throw validation(
+        'kind',
+        'A client archive covers the whole client: send no filters, unitId or fy',
+      );
+    }
+  }
   const client = await requireClientInfo(deps.store, ctx, clientId);
   const query = parseFilters(body.filters);
   if (body.fy !== undefined && hasPeriod(query)) {
@@ -479,11 +492,53 @@ async function buildFile(
         contentType: 'application/pdf',
       };
     }
-    default:
-      // A kind the contracts list before this module builds it (the account export arrives in contracts 1.5.2):
-      // the job fails rather than the build. `runExport` marks it FAILED.
-      throw new Error(`Export kind ${String(job.kind)} is not built yet`);
+    case 'CLIENT_ARCHIVE_ZIP':
+      // Streamed by `storeArchive`, never built in memory.
+      throw new Error('The client archive is streamed');
   }
+}
+
+const ZIP = 'application/zip';
+
+/** The client archive: the whole register and the clean evidence, streamed into storage (ADR M10-0002). */
+async function storeArchive(
+  deps: ReportsDeps,
+  ctx: RequestContext,
+  job: ExportJob,
+  storageKey: (fileName: string) => string,
+): Promise<string> {
+  const scope = await exportScope(deps, ctx, job);
+  const { client, rows } = scope;
+  const details = await deps.store.exportDetails(
+    ctx,
+    client.id,
+    rows.map((r) => r.id),
+  );
+  const register = await registerWorkbook(
+    client.name,
+    rows.map((row) => {
+      const detail = details.get(row.id);
+      if (detail === undefined) throw new Error('Export detail missing for an instance');
+      return { row, detail };
+    }),
+  );
+  const { clean, withheld } = await deps.store.archiveEvidence(ctx, client.id);
+  const instances = new Map<string, ArchiveInstance>(
+    rows.map((r) => [r.id, { dueDate: r.dueDate, title: r.title, unitName: r.unitName }]),
+  );
+  const generatedAt = deps.clock().toISOString();
+  const fileName = `client-archive-${slug(client.name)}-${generatedAt.slice(0, 10)}.zip`;
+  const archive = clientArchive({
+    clientName: client.name,
+    register,
+    evidence: clean,
+    withheld,
+    instances,
+    open: (key) => deps.files.open(key),
+    generatedAt,
+  });
+  await deps.files.putStream(storageKey(fileName), archive, ZIP);
+  return fileName;
 }
 
 /** Builds and stores the file, then marks the job DONE; any failure marks it FAILED. Never throws. */
@@ -494,13 +549,20 @@ export async function runExport(
 ): Promise<void> {
   try {
     await deps.store.setExportStatus(ctx, job.id, { status: 'RUNNING' });
-    const file = await buildFile(deps, ctx, job);
-    const storageKey = `exports/${ctx.firmId}/${job.clientId}/${job.id}/${file.fileName}`;
-    await deps.files.put(storageKey, file.bytes, file.contentType);
+    const keyOf = (fileName: string) =>
+      `exports/${ctx.firmId}/${job.clientId}/${job.id}/${fileName}`;
+    let fileName: string;
+    if (job.kind === 'CLIENT_ARCHIVE_ZIP') {
+      fileName = await storeArchive(deps, ctx, job, keyOf);
+    } else {
+      const file = await buildFile(deps, ctx, job);
+      fileName = file.fileName;
+      await deps.files.put(keyOf(fileName), file.bytes, file.contentType);
+    }
     await deps.store.setExportStatus(ctx, job.id, {
       status: 'DONE',
-      fileName: file.fileName,
-      storageKey,
+      fileName,
+      storageKey: keyOf(fileName),
     });
   } catch (error) {
     deps.onExportError?.({

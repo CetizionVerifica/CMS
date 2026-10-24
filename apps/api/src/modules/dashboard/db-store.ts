@@ -3,6 +3,7 @@ import {
   auditEvents,
   clients,
   DbError,
+  evidence,
   exportJobs,
   firms,
   instances,
@@ -15,6 +16,7 @@ import {
 } from '@canopy/db';
 import { ApiError } from '../../auth/index.js';
 import type {
+  ArchiveEvidence,
   ClientInfo,
   ExportDetail,
   NewExportJob,
@@ -134,6 +136,39 @@ export class PostgresReportsStore implements ReportsStore {
         }
       }
       return details;
+    });
+  }
+
+  archiveEvidence(
+    ctx: RequestContext,
+    clientId: string,
+  ): Promise<{ clean: ArchiveEvidence[]; withheld: number }> {
+    return this.run(ctx, async (tx) => {
+      const clean: ArchiveEvidence[] = [];
+      let withheld = 0;
+      let after: string | undefined;
+      // The vault pages newest first and leaves archived rows out; the storage key needs the full row.
+      do {
+        const page = await evidence.vault(tx, clientId, { limit: 200, ...(after && { after }) });
+        for (const view of page.items) {
+          if (view.scanStatus !== 'CLEAN') {
+            withheld += 1;
+            continue;
+          }
+          const row = await evidence.require(tx, view.id);
+          clean.push({
+            id: row.id,
+            instanceId: row.instanceId,
+            fileName: row.fileName,
+            sizeBytes: row.sizeBytes,
+            sha256: row.sha256,
+            uploadedAt: row.createdAt,
+            storageKey: row.storageKey,
+          });
+        }
+        after = page.nextCursor ?? undefined;
+      } while (after !== undefined);
+      return { clean: clean.reverse(), withheld };
     });
   }
 
