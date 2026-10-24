@@ -15,6 +15,7 @@ vi.mock('./actions', () => {
     verifyMfa: make('verifyMfa'),
     startMfaEnrolment: make('startMfaEnrolment'),
     acceptInvite: make('acceptInvite'),
+    startInviteMfaEnrolment: make('startInviteMfaEnrolment'),
     redeemMagicLink: make('redeemMagicLink'),
     startSupportSession: async (_prev: FormState, data: FormData) => {
       posted.push(String(data.get('token')));
@@ -121,6 +122,30 @@ describe('auth forms', () => {
     expect(email.readOnly).toBe(true);
     expect((screen.getByLabelText('Your name') as HTMLInputElement).value).toBe('Owner 02');
     expect(screen.getByRole('link', { name: 'Sign in' }).getAttribute('href')).toBe('/login');
+  });
+
+  it('has a firm-role invitee add the setup key and send its code with the password', async () => {
+    results.startInviteMfaEnrolment = {
+      status: 'enrolment',
+      secret: 'JBSWY3DPEHPK3PXP',
+      otpauthUrl: 'otpauth://totp/PlanetPulse%20Compliance%3Ac%40b.test?secret=JBSWY3DPEHPK3PXP',
+    };
+    render(<InviteForm token="t" email="new@demo.test" displayName="Consultant 02" mfaRequired />);
+    expect(screen.getByLabelText('6-digit code')).toBeTruthy();
+    await userEvent.click(screen.getByRole('button', { name: 'Get a setup key' }));
+    const heading = await screen.findByRole('heading', {
+      name: 'Add PlanetPulse Compliance to your app',
+    });
+    // Focus moves in an effect after the heading renders, so wait for it.
+    await waitFor(() => expect(document.activeElement).toBe(heading));
+    expect(screen.getByText('JBSW Y3DP EHPK 3PXP')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Create account' })).toBeTruthy();
+  });
+
+  it('asks a client-role invitee for no code', () => {
+    render(<InviteForm token="t" email="new@demo.test" displayName="Owner 02" />);
+    expect(screen.queryByLabelText('6-digit code')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Get a setup key' })).toBeNull();
   });
 
   it('offers a way back when a magic link fails', async () => {

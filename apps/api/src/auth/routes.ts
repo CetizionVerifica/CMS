@@ -132,6 +132,12 @@ export function registerAuthRoutes(app: FastifyInstance, options: AuthRoutesOpti
       );
 
       api.post(
+        '/invites/:token/mfa/enroll',
+        { config: { auth: 'public', routeLimit: LIMITS.mfa } },
+        async (req) => service.enrollInviteMfa(InviteTokenParams.parse(req.params).token),
+      );
+
+      api.post(
         '/invites/:token/accept',
         { config: { auth: 'public', routeLimit: LIMITS.token } },
         async (req, reply) => {

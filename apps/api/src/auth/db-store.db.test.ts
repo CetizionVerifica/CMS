@@ -630,6 +630,7 @@ describe.skipIf(!url)('database AccountStore', () => {
         tokenId: unknown,
         passwordHash: await hashPassword(PASSWORD),
         displayName: null,
+        mfa: null,
         requestId: 'unknown-invite',
         now,
       }),
@@ -675,6 +676,7 @@ describe.skipIf(!url)('database AccountStore', () => {
         tokenId: stored!.id,
         passwordHash: await hashPassword(PASSWORD),
         displayName: null,
+        mfa: null,
         requestId: 'firm-invite',
         now,
       }),
@@ -848,11 +850,21 @@ describe.skipIf(!url)('database AccountStore', () => {
         kind: 'INVITE',
         inviteId: created.inviteId,
       });
+      // The owner is a FIRM_ADMIN, so they set up MFA while accepting (docs/security/review.md F14).
+      const enroll = await app.inject({
+        method: 'POST',
+        url: `/api/v1/invites/${token}/mfa/enroll`,
+      });
+      expect(enroll.statusCode, enroll.body).toBe(200);
+      const secret = new URL(MfaEnrollment.parse(enroll.json()).otpauthUrl).searchParams.get(
+        'secret',
+      )!;
+      const mfaCode = hotp(base32Decode(secret), totpStep(now));
       const accept = () =>
         app.inject({
           method: 'POST',
           url: `/api/v1/invites/${token}/accept`,
-          payload: { password: PASSWORD },
+          payload: { password: PASSWORD, mfaCode },
         });
       const early = await accept();
       expect(errorCode(early)).toBe('ACCOUNT_SUSPENDED');
@@ -865,9 +877,14 @@ describe.skipIf(!url)('database AccountStore', () => {
         accountJobs.markLibraryCopied(tx),
       );
       expect(await store.libraryCopied(created.accountId)).toBe(true);
+      // The refused accept left the setup open; the enrolment commits with the accept that opens the account.
+      expect((await store.getMfa(created.accountId, created.ownerId))?.enrolledAt).toBeNull();
       const opened = await accept();
       expect(opened.statusCode, opened.body).toBe(200);
       expect(await store.account(created.accountId)).toMatchObject({ status: 'TRIAL' });
+      expect((await store.getMfa(created.accountId, created.ownerId))?.enrolledAt).toBe(
+        now.toISOString(),
+      );
     } finally {
       await operator.close();
     }
