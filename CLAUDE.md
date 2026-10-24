@@ -28,7 +28,8 @@ Dependency direction: `web → api client → api → engine, db`; `importer →
 - **Assignment**: an obligation applied to a unit, with department, owner and approver.
 - **Instance**: one dated occurrence of an assignment (Excel: one row). Has a due date and a status.
 - **Owner** submits, **Approver** approves. **Unit** = plant/site/office. **Client** = the customer organisation group.
-- **Firm** = the consultancy tenant. **FY** = Indian financial year, April to March, unless the client overrides it.
+- **Firm** = the tenant. **Account** = firm: the word customers and the UI use for it (ADR M15-0001); a customer
+  company or a consultancy buys one, and the platform operator creates it. **FY** = Indian financial year, April to March, unless the client overrides it.
 
 ## Commands
 ```
@@ -54,7 +55,9 @@ pnpm db:seed        # seeds two firms and the sample client from the Excel fixtu
 
 ## Non-negotiables
 1. **Tenant isolation.** Every table holding client data has `firm_id` and an RLS policy. Every query runs inside a request-scoped tenant context. A cross-tenant read is a P0 bug; every new table gets an isolation test.
-2. **Audit everything that changes compliance state.** Status changes, due-date changes, reassignment, evidence add/remove, NA decisions: write an `AuditEvent` in the same transaction. Never update or delete audit rows.
+2. **Audit everything that changes compliance state.** Status changes, due-date changes, reassignment, evidence add/remove, NA decisions: write an `AuditEvent` in the same transaction. Never update or delete audit rows. The one exception is
+   `platform_purge_account` (ADR M15-0002), which removes a deleted account's rows, its audit trail included, after the
+   30-day grace period; operator audit (`platform.operator_audit_event`) is never deleted.
 3. **Compliance logic lives in `packages/engine` only.** No status, due-date or score maths in components, API handlers or SQL views. Call the engine.
 4. **Dates are dates.** Due dates are calendar dates (`date`, no time zone). Timestamps are UTC `timestamptz`. Display in the client's time zone (default Asia/Kolkata). Never compare a date to a timestamp without the engine helpers.
 5. **No silent data changes on import.** Cleaning is proposed, shown, then applied. Keep the raw source value next to the cleaned one.
