@@ -105,8 +105,10 @@ After the 1.5.0 audit: `Account` carries no owner name or email, and the operato
 Fixtures: the firm rows carry the account defaults. README decision 39.
 
 ## 1.5.1 · 2026-10-24
-For M15 (ADR M15-0001 decisions 7 and 13, ADR M15-0003); additive. `AuditActorKind` gains `OPERATOR` and `EntityType`
+For M15 (ADR M15-0001 decisions 7 and 13); additive. `AuditActorKind` gains `OPERATOR` and `EntityType`
 gains `account`, for the entries PlanetPulse's changes write to an account's own trail (actor id null, no client); the
 database already stored both (ADR M3-0002). `Account` gains `libraryCopiedAt` (null until the master library is copied
 in), so the console can flag a PROVISIONING account still waiting for it. The audit page's entity map lists `account`
-already (M13), so the bump keeps web typecheck green.
+already (M13), so the bump keeps web typecheck green. A patch, not 1.6.0: it completes 1.5.0 as decision 13
+planned (the two enum values were deferred only until M3's migration added them), adds no route, and
+`libraryCopiedAt` is on the operator's `Account` alone, which no provider serves yet (the 1.0.1 precedent).
