@@ -8,6 +8,7 @@ import {
   JOBS_LOGIN,
   JOBS_PASSWORD,
   AUTH_SECRET_KEY,
+  CLAMD_PORT,
   E2E_DATABASE,
   WEB_PORT,
   WEB_URL,
@@ -67,7 +68,15 @@ export default defineConfig({
         TRUST_PROXY: '127.0.0.1,::1',
         // Production refuses a privileged database login; this run checks it serves through a plain app login.
         NODE_ENV: 'production',
+        // The evidence scan job reads each upload from storage and sends it to the stand-in clamd below.
+        CLAMAV_HOST: '127.0.0.1',
+        CLAMAV_PORT: String(CLAMD_PORT),
       },
+    },
+    {
+      command: 'pnpm exec tsx integrated/fake-clamd.ts',
+      port: CLAMD_PORT,
+      reuseExistingServer: false,
     },
     {
       command: `pnpm --filter @canopy/web exec next start --port ${WEB_PORT}`,
