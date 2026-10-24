@@ -142,14 +142,19 @@ export async function approveItems(
   return outcome;
 }
 
+/** The most rows one bulk approve takes, however they were selected; more is a job, not a click. */
+export const MAX_APPROVE_AT_ONCE = 2000;
+
 /**
  * "Select all N" in the grid: every matching row that is waiting for approval, with its current version, page by page.
- * A view filtered to other workflow states has nothing to approve.
+ * A view filtered to other workflow states has nothing to approve. It stops after `limit + 1` rows, so a caller can
+ * tell "too many" without listing them all.
  */
 export async function approvableItems(
   api: Pick<ApiClient, 'call'>,
   clientId: string,
   query: string,
+  limit = MAX_APPROVE_AT_ONCE,
 ): Promise<ApproveItem[]> {
   const params = new URLSearchParams(query);
   const states = params.get('workflowState')?.split(',');
@@ -161,8 +166,19 @@ export async function approvableItems(
     const page = await loadPage(api, clientId, params.toString(), cursor);
     items.push(...page.rows.map(({ id, version }) => ({ id, version })));
     cursor = page.nextCursor ?? undefined;
-  } while (cursor);
-  return items;
+  } while (cursor && items.length <= limit);
+  return items.slice(0, limit + 1);
+}
+
+/**
+ * The waiting rows to approve for "Select all": a row the page has loaded keeps the version the person saw, so a change
+ * since then comes back STALE_VERSION and is skipped; a row not loaded yet goes at the version just read.
+ */
+export function pinToLoaded(
+  waiting: readonly ApproveItem[],
+  loaded: ReadonlyMap<string, number>,
+): ApproveItem[] {
+  return waiting.map(({ id, version }) => ({ id, version: loaded.get(id) ?? version }));
 }
 
 const SKIP_TEXT: Record<SkipReason, (n: number) => string> = {

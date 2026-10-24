@@ -43,13 +43,10 @@ describe('register actions', () => {
     await expect(actions.loadMoreRows('not-an-id', '', 'c1')).rejects.toThrow();
     await expect(actions.loadMoreRows(CLIENT, 'status=NOPE', 'c1')).rejects.toThrow();
     await expect(actions.loadMoreRows(CLIENT, '', '')).rejects.toThrow();
-    await expect(actions.bulkApproveRows(CLIENT, { items: [] })).rejects.toThrow();
-    await expect(
-      actions.bulkApproveRows(CLIENT, { items: [{ id: CLIENT, version: 0 }] }),
-    ).rejects.toThrow();
-    await expect(
-      actions.bulkApproveRows(CLIENT, { all: true, query: 'dueFrom=x' }),
-    ).rejects.toThrow();
+    await expect(actions.bulkApproveRows(CLIENT, [])).rejects.toThrow();
+    await expect(actions.bulkApproveRows(CLIENT, [{ id: CLIENT, version: 0 }])).rejects.toThrow();
+    await expect(actions.waitingRows(CLIENT, 'dueFrom=x')).rejects.toThrow();
+    await expect(actions.waitingRows('not-an-id', '')).rejects.toThrow();
     await expect(actions.startRegisterExport(CLIENT, 'limit=5')).rejects.toThrow();
     await expect(actions.registerExportState('../x')).rejects.toThrow();
   });
@@ -67,27 +64,37 @@ describe('register actions', () => {
     expect(page.rows.length).toBeGreaterThan(0);
   });
 
-  it('approves every waiting row in the view, and refreshes the client’s pages', async () => {
+  it('lists the waiting rows with their versions, and approves exactly those', async () => {
     await signIn('approver@demo.test');
-    const result = await actions.bulkApproveRows(CLIENT, { all: true, query: 'sort=dueDate' });
-    expect(result.tone).toBe('success');
-    expect(result.message).toMatch(/^Approved \d+ instances?\.$/);
-    expect(revalidatePath).toHaveBeenCalledWith(`/c/${CLIENT}`, 'layout');
+    const waiting = await actions.waitingRows(CLIENT, 'sort=dueDate');
+    expect(waiting.length).toBeGreaterThan(0);
+    for (const item of waiting) expect(item.version).toBeGreaterThanOrEqual(1);
 
-    // Nothing is left waiting, so a second run approves nothing and refreshes nothing.
-    revalidatePath.mockReset();
-    expect(await actions.bulkApproveRows(CLIENT, { all: true, query: 'sort=dueDate' })).toEqual({
-      tone: 'warn',
-      message: 'Nothing in this view is waiting for approval.',
-    });
+    // A row whose version moved on since it was listed is skipped, not approved.
+    const [first, ...rest] = waiting;
+    const stale = await actions.bulkApproveRows(CLIENT, [
+      { ...first!, version: first!.version + 1 },
+    ]);
+    expect(stale.message).toBe(
+      'Approved 0 instances. Not approved: 1 changed since you opened the register.',
+    );
     expect(revalidatePath).not.toHaveBeenCalled();
+
+    const result = await actions.bulkApproveRows(CLIENT, [first!, ...rest]);
+    expect(result).toEqual({
+      tone: 'success',
+      message: `Approved ${waiting.length} ${waiting.length === 1 ? 'instance' : 'instances'}.`,
+    });
+    expect(revalidatePath).toHaveBeenCalledWith(`/c/${CLIENT}`, 'layout');
+    // Nothing is left waiting.
+    expect(await actions.waitingRows(CLIENT, 'sort=dueDate')).toEqual([]);
   });
 
   it('reports selected rows it could not approve', async () => {
     await signIn('approver@demo.test');
-    const result = await actions.bulkApproveRows(CLIENT, {
-      items: [{ id: '00000000-0000-5000-8000-0000000fffff', version: 1 }],
-    });
+    const result = await actions.bulkApproveRows(CLIENT, [
+      { id: '00000000-0000-5000-8000-0000000fffff', version: 1 },
+    ]);
     expect(result).toEqual({
       tone: 'warn',
       message: 'Approved 0 instances. Not approved: 1 isn’t yours to approve.',

@@ -18,6 +18,7 @@ import {
   exportState,
   loadFacets,
   loadPage,
+  pinToLoaded,
   startExport,
 } from './register-api';
 
@@ -185,6 +186,18 @@ describe('bulk approve', () => {
     expect(fake.call.mock.calls.length).toBe(calls);
   });
 
+  it('stops reading one row past the limit, so the page can say there are too many', async () => {
+    let page = 0;
+    const fake = fakeApi(() => {
+      page += 1;
+      const items = [1, 2].map((n) => ({ id: `id-${page}-${n}`, version: 1 }));
+      return { items, nextCursor: `c${page}` };
+    });
+    const items = await approvableItems(fake, CLIENT, '', 3);
+    expect(items).toHaveLength(4);
+    expect(fake.call).toHaveBeenCalledTimes(2);
+  });
+
   it('says what happened in one sentence', () => {
     expect(bulkMessage({ approved: 1, skipped: {} })).toEqual({
       tone: 'success',
@@ -210,6 +223,20 @@ describe('bulk approve', () => {
     ).toBe(
       'Approved 0 instances. Not approved: 1 isn’t waiting for approval, 2 aren’t yours to approve.',
     );
+  });
+});
+
+describe('pinToLoaded', () => {
+  it('keeps the version the page loaded, and the version just read for rows not loaded', () => {
+    const waiting = [
+      { id: 'a', version: 3 },
+      { id: 'b', version: 1 },
+    ];
+    expect(pinToLoaded(waiting, new Map([['a', 2]]))).toEqual([
+      { id: 'a', version: 2 },
+      { id: 'b', version: 1 },
+    ]);
+    expect(pinToLoaded([], new Map([['a', 2]]))).toEqual([]);
   });
 });
 
