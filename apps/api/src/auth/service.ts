@@ -426,6 +426,7 @@ export class AuthService {
     const record = await this.store.createSession({
       ...pending,
       owesMfa: mfaRequired(principal!, ctx.memberships),
+      createdAt: now.toISOString(),
       tokenHash: hashToken(token),
       requestId,
       method,
