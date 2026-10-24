@@ -67,7 +67,7 @@ function clientSummary(actor: Actor, client: FirmState['data']['clients'][number
   };
 }
 
-function me(
+export function me(
   firm: FirmState,
   person: PersonRecord,
   session: Session,
@@ -86,6 +86,11 @@ function me(
     // Firm-role people in the fixtures count as enrolled, so sign-in goes straight to the code step.
     mfa: { required: firmRole, enrolled: firmRole, satisfied: session.mfaSatisfied },
     session: { expiresAt: session.expiresAt },
+    account: {
+      kind: firm.data.firm.kind ?? 'CONSULTANCY',
+      status: firm.data.firm.status ?? 'ACTIVE',
+      trialEndsOn: firm.data.firm.trialEndsOn ?? null,
+    },
   };
 }
 

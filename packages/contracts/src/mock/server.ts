@@ -17,6 +17,7 @@ import {
   type Scope,
 } from './core.js';
 import type { EndpointId, HandlerContext, Handlers } from './handler.js';
+import { accountHandlers } from './handlers/accounts.js';
 import { authHandlers } from './handlers/auth.js';
 import { dashboardHandlers } from './handlers/dashboards.js';
 import { entityHandlers } from './handlers/entities.js';
@@ -33,6 +34,7 @@ export const HANDLERS: Handlers = {
   ...workHandlers,
   ...importHandlers,
   ...dashboardHandlers,
+  ...accountHandlers,
 };
 
 export interface MockServerOptions {
@@ -258,6 +260,22 @@ export function createMockServer(
 
   // Mock-only helpers, outside the contract.
   app.get('/__mock/outbox', async () => ({ items: store.outbox }));
+  /** Stands in for the operator console's "open support session": a token for `POST /auth/support/verify`. */
+  app.post<{ Params: { grantId: string } }>(
+    '/__mock/support-sessions/:grantId',
+    async (request, reply) => {
+      const firm = store.firms.find((f) =>
+        f.supportGrants.some((g) => g.id === request.params.grantId),
+      );
+      if (firm === undefined) return reply.code(404).send();
+      const token = store.token('support');
+      store.supportTokens.set(token, {
+        firmId: firm.data.firm.id,
+        grantId: request.params.grantId,
+      });
+      return reply.code(201).send({ token });
+    },
+  );
   app.post('/__mock/reset', async (_request, reply) => {
     store.reset();
     return reply.code(204).send();

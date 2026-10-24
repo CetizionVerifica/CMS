@@ -3,6 +3,7 @@
 import { randomUUID } from 'node:crypto';
 import type { z } from 'zod';
 import type { Invite } from '../api/auth.js';
+import type { SupportGrant } from '../schemas/accounts.js';
 import { CLIENT_ROLES, FIRM_ROLES, type Role } from '../enums.js';
 import { type FixtureSet as FixtureSetSchema } from '../fixtures/schema.js';
 import { loadFixtureSet } from '../fixtures/index.js';
@@ -39,6 +40,8 @@ export interface FirmState {
   exports: Plain<typeof ExportJob>[];
   /** Evidence confirmed through the mock whose scan finishes on the next read. */
   scanning: Set<string>;
+  /** PlanetPulse support access grants (M15). */
+  supportGrants: Plain<typeof SupportGrant>[];
 }
 
 /** How long a mock session reports it lasts. */
@@ -70,6 +73,8 @@ export class MockStore {
   magicLinks = new Map<string, { firmId: string; personId: string }>();
   idempotency = new Map<string, { status: number; body: unknown }>();
   outbox: OutboxMessage[] = [];
+  /** One-time support-session tokens from `POST /__mock/support-sessions/{grantId}`. */
+  supportTokens = new Map<string, { firmId: string; grantId: string }>();
   private sequence = 0;
 
   constructor(
@@ -91,11 +96,13 @@ export class MockStore {
       mappingTemplates: [],
       exports: [],
       scanning: new Set(),
+      supportGrants: [],
     }));
     this.sessions.clear();
     this.magicLinks.clear();
     this.idempotency.clear();
     this.outbox = [];
+    this.supportTokens.clear();
     this.sequence = 0;
   }
 

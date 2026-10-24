@@ -1,5 +1,8 @@
 import { z } from 'zod';
+import { DEFAULT_ACCOUNT } from '../defaults.js';
 import {
+  AccountKind,
+  AccountStatus,
   CLIENT_ROLES,
   Criticality,
   FIRM_ROLES,
@@ -14,7 +17,9 @@ import {
   Instant,
   LocalTime,
   Month,
+  LocalDate,
   Name,
+  PlanCode,
   StateCode,
   TimeZone,
   versionedShape,
@@ -34,11 +39,20 @@ export const FirmSettings = z.strictObject({
 });
 export type FirmSettings = z.infer<typeof FirmSettings>;
 
+/**
+ * The tenant. Customers see it as their "Account" (ADR M15-0001). The account fields default to an active consultancy,
+ * so firms stored before accounts existed still parse.
+ */
 export const Firm = z.strictObject({
   ...baseShape,
   ...versionedShape,
   name: Name,
   settings: FirmSettings,
+  kind: AccountKind.default(DEFAULT_ACCOUNT.kind),
+  status: AccountStatus.default(DEFAULT_ACCOUNT.status),
+  planCode: PlanCode.default(DEFAULT_ACCOUNT.planCode),
+  /** Last day of the trial (account time zone); null outside a trial. */
+  trialEndsOn: LocalDate.nullable().default(DEFAULT_ACCOUNT.trialEndsOn),
 });
 export type Firm = z.infer<typeof Firm>;
 

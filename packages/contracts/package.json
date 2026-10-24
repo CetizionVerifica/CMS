@@ -1,7 +1,7 @@
 {
   "name": "@canopy/contracts",
   "private": true,
-  "version": "1.4.3",
+  "version": "1.5.0",
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
@@ -11,7 +11,7 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "openapi": "tsx scripts/write-openapi.ts && prettier --write ../../docs/contracts/openapi.json",
+    "openapi": "tsx scripts/write-openapi.ts && prettier --write ../../docs/contracts/openapi.json ../../docs/contracts/openapi.platform.json",
     "fixtures": "tsx scripts/build-fixtures.ts",
     "mock": "tsx scripts/mock-server.ts"
   },

@@ -1,0 +1,3582 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Canopy platform operator API",
+    "version": "1.5.0",
+    "description": "Generated from @canopy/contracts; do not edit. The operator console API (ADR M15-0001). Every route except sign-in needs the operator session; there are no roles. Conventions as in docs/contracts/api-conventions.md."
+  },
+  "servers": [
+    {
+      "url": "/api/platform/v1"
+    }
+  ],
+  "tags": [
+    {
+      "name": "M15"
+    }
+  ],
+  "paths": {
+    "/auth/login": {
+      "post": {
+        "operationId": "operatorLogin",
+        "summary": "Operator sign-in: email, password and TOTP code together. Rate limited.",
+        "tags": ["M15"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OperatorLoginBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Operator sign-in: email, password and TOTP code together. Rate limited.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperatorMe"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error envelope (api-conventions.md §4-5); clients branch on error.code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [],
+        "x-canopy-module": "M15",
+        "x-canopy-auth": "public",
+        "x-canopy-actions": [],
+        "x-canopy-roles": {},
+        "x-canopy-idempotent": false
+      }
+    },
+    "/auth/logout": {
+      "post": {
+        "operationId": "operatorLogout",
+        "summary": "End the operator session.",
+        "tags": ["M15"],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CsrfToken"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "End the operator session.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            }
+          },
+          "default": {
+            "description": "Error envelope (api-conventions.md §4-5); clients branch on error.code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-canopy-module": "M15",
+        "x-canopy-auth": "session",
+        "x-canopy-actions": [],
+        "x-canopy-roles": {},
+        "x-canopy-idempotent": false
+      }
+    },
+    "/me": {
+      "get": {
+        "operationId": "operatorMe",
+        "summary": "The signed-in operator, CSRF token and session ends.",
+        "tags": ["M15"],
+        "responses": {
+          "200": {
+            "description": "The signed-in operator, CSRF token and session ends.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperatorMe"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error envelope (api-conventions.md §4-5); clients branch on error.code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-canopy-module": "M15",
+        "x-canopy-auth": "session",
+        "x-canopy-actions": [],
+        "x-canopy-roles": {},
+        "x-canopy-idempotent": false
+      }
+    },
+    "/plans": {
+      "get": {
+        "operationId": "listPlans",
+        "summary": "Every plan, retired ones included.",
+        "tags": ["M15"],
+        "responses": {
+          "200": {
+            "description": "Every plan, retired ones included.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListPlansResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error envelope (api-conventions.md §4-5); clients branch on error.code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-canopy-module": "M15",
+        "x-canopy-auth": "session",
+        "x-canopy-actions": [],
+        "x-canopy-roles": {},
+        "x-canopy-idempotent": false
+      }
+    },
+    "/plans/{code}": {
+      "put": {
+        "operationId": "upsertPlan",
+        "summary": "Create or change a plan. Accounts on it get the new limits at once; nothing is removed.",
+        "tags": ["M15"],
+        "parameters": [
+          {
+            "name": "code",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Z][A-Z0-9_]{1,39}$"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/CsrfToken"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpsertPlanBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Create or change a plan. Accounts on it get the new limits at once; nothing is removed.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Plan"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error envelope (api-conventions.md §4-5); clients branch on error.code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-canopy-module": "M15",
+        "x-canopy-auth": "session",
+        "x-canopy-actions": [],
+        "x-canopy-roles": {},
+        "x-canopy-idempotent": false
+      }
+    },
+    "/accounts": {
+      "get": {
+        "operationId": "listAccounts",
+        "summary": "Accounts, newest first.",
+        "tags": ["M15"],
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d+$"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 1000
+            }
+          },
+          {
+            "name": "count",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": ["true", "false"]
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "PROVISIONING",
+                "TRIAL",
+                "ACTIVE",
+                "SUSPENDED",
+                "PENDING_DELETION",
+                "DELETED"
+              ]
+            }
+          },
+          {
+            "name": "kind",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": ["ENTERPRISE", "CONSULTANCY"]
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 2,
+              "maxLength": 200
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Accounts, newest first.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountPage"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error envelope (api-conventions.md §4-5); clients branch on error.code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-canopy-module": "M15",
+        "x-canopy-auth": "session",
+        "x-canopy-actions": [],
+        "x-canopy-roles": {},
+        "x-canopy-idempotent": false
+      },
+      "post": {
+        "operationId": "createAccount",
+        "summary": "Provision an account in PROVISIONING and email its owner an invite valid 72 hours. The only way a firm is created.",
+        "tags": ["M15"],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          },
+          {
+            "$ref": "#/components/parameters/CsrfToken"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateAccountBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Provision an account in PROVISIONING and email its owner an invite valid 72 hours. The only way a firm is created.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Account"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error envelope (api-conventions.md §4-5); clients branch on error.code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-canopy-module": "M15",
+        "x-canopy-auth": "session",
+        "x-canopy-actions": [],
+        "x-canopy-roles": {},
+        "x-canopy-idempotent": true
+      }
+    },
+    "/accounts/{id}": {
+      "get": {
+        "operationId": "getAccount",
+        "summary": "One account: profile, plan, entitlements, usage and owner. No client data.",
+        "tags": ["M15"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "One account: profile, plan, entitlements, usage and owner. No client data.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Account"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error envelope (api-conventions.md §4-5); clients branch on error.code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-canopy-module": "M15",
+        "x-canopy-auth": "session",
+        "x-canopy-actions": [],
+        "x-canopy-roles": {},
+        "x-canopy-idempotent": false
+      },
+      "patch": {
+        "operationId": "updateAccount",
+        "summary": "Change the display name or profile.",
+        "tags": ["M15"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/CsrfToken"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateAccountBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Change the display name or profile.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Account"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error envelope (api-conventions.md §4-5); clients branch on error.code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-canopy-module": "M15",
+        "x-canopy-auth": "session",
+        "x-canopy-actions": [],
+        "x-canopy-roles": {},
+        "x-canopy-idempotent": false
+      }
+    },
+    "/accounts/{id}/status": {
+      "post": {
+        "operationId": "setAccountStatus",
+        "summary": "Convert a trial, suspend or resume, with a reason. 409 INVALID_TRANSITION otherwise.",
+        "tags": ["M15"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/CsrfToken"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetAccountStatusBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Convert a trial, suspend or resume, with a reason. 409 INVALID_TRANSITION otherwise.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Account"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error envelope (api-conventions.md §4-5); clients branch on error.code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-canopy-module": "M15",
+        "x-canopy-auth": "session",
+        "x-canopy-actions": [],
+        "x-canopy-roles": {},
+        "x-canopy-idempotent": false
+      }
+    },
+    "/accounts/{id}/plan": {
+      "post": {
+        "operationId": "setAccountPlan",
+        "summary": "Move the account to another plan, with a reason.",
+        "tags": ["M15"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/CsrfToken"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetAccountPlanBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Move the account to another plan, with a reason.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Account"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error envelope (api-conventions.md §4-5); clients branch on error.code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-canopy-module": "M15",
+        "x-canopy-auth": "session",
+        "x-canopy-actions": [],
+        "x-canopy-roles": {},
+        "x-canopy-idempotent": false
+      }
+    },
+    "/accounts/{id}/override": {
+      "put": {
+        "operationId": "setAccountOverride",
+        "summary": "Replace the account's limit and feature overrides, with a reason.",
+        "tags": ["M15"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/CsrfToken"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetAccountOverrideBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Replace the account's limit and feature overrides, with a reason.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Account"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error envelope (api-conventions.md §4-5); clients branch on error.code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-canopy-module": "M15",
+        "x-canopy-auth": "session",
+        "x-canopy-actions": [],
+        "x-canopy-roles": {},
+        "x-canopy-idempotent": false
+      }
+    },
+    "/accounts/{id}/owner-invite": {
+      "post": {
+        "operationId": "resendOwnerInvite",
+        "summary": "Send the owner a fresh invite (PROVISIONING only); earlier links stop working.",
+        "tags": ["M15"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/CsrfToken"
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Send the owner a fresh invite (PROVISIONING only); earlier links stop working.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            }
+          },
+          "default": {
+            "description": "Error envelope (api-conventions.md §4-5); clients branch on error.code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-canopy-module": "M15",
+        "x-canopy-auth": "session",
+        "x-canopy-actions": [],
+        "x-canopy-roles": {},
+        "x-canopy-idempotent": false
+      }
+    },
+    "/accounts/{id}/onboarded": {
+      "post": {
+        "operationId": "markOnboarded",
+        "summary": "Record that onboarding is complete; reminders start the next morning.",
+        "tags": ["M15"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/CsrfToken"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MarkOnboardedBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Record that onboarding is complete; reminders start the next morning.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Account"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error envelope (api-conventions.md §4-5); clients branch on error.code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-canopy-module": "M15",
+        "x-canopy-auth": "session",
+        "x-canopy-actions": [],
+        "x-canopy-roles": {},
+        "x-canopy-idempotent": false
+      }
+    },
+    "/accounts/{id}/deletion": {
+      "post": {
+        "operationId": "requestAccountDeletion",
+        "summary": "Start the 30-day deletion grace period (ADR M15-0002). Needs the typed account name.",
+        "tags": ["M15"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/CsrfToken"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RequestAccountDeletionBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Start the 30-day deletion grace period (ADR M15-0002). Needs the typed account name.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Account"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error envelope (api-conventions.md §4-5); clients branch on error.code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-canopy-module": "M15",
+        "x-canopy-auth": "session",
+        "x-canopy-actions": [],
+        "x-canopy-roles": {},
+        "x-canopy-idempotent": false
+      }
+    },
+    "/accounts/{id}/deletion/cancel": {
+      "post": {
+        "operationId": "cancelAccountDeletion",
+        "summary": "Cancel a pending deletion; the account returns to the status it left.",
+        "tags": ["M15"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/CsrfToken"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CancelAccountDeletionBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Cancel a pending deletion; the account returns to the status it left.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Account"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error envelope (api-conventions.md §4-5); clients branch on error.code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-canopy-module": "M15",
+        "x-canopy-auth": "session",
+        "x-canopy-actions": [],
+        "x-canopy-roles": {},
+        "x-canopy-idempotent": false
+      }
+    },
+    "/accounts/{id}/subscriptions": {
+      "get": {
+        "operationId": "listSubscriptions",
+        "summary": "Recorded billing periods, newest first.",
+        "tags": ["M15"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Recorded billing periods, newest first.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListSubscriptionsResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error envelope (api-conventions.md §4-5); clients branch on error.code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-canopy-module": "M15",
+        "x-canopy-auth": "session",
+        "x-canopy-actions": [],
+        "x-canopy-roles": {},
+        "x-canopy-idempotent": false
+      },
+      "post": {
+        "operationId": "recordSubscription",
+        "summary": "Record a billing period (offline billing).",
+        "tags": ["M15"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          },
+          {
+            "$ref": "#/components/parameters/CsrfToken"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecordSubscriptionBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Record a billing period (offline billing).",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Subscription"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error envelope (api-conventions.md §4-5); clients branch on error.code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-canopy-module": "M15",
+        "x-canopy-auth": "session",
+        "x-canopy-actions": [],
+        "x-canopy-roles": {},
+        "x-canopy-idempotent": true
+      }
+    },
+    "/accounts/{id}/usage": {
+      "get": {
+        "operationId": "listUsage",
+        "summary": "Nightly usage snapshots between two dates.",
+        "tags": ["M15"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Nightly usage snapshots between two dates.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListUsageResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error envelope (api-conventions.md §4-5); clients branch on error.code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-canopy-module": "M15",
+        "x-canopy-auth": "session",
+        "x-canopy-actions": [],
+        "x-canopy-roles": {},
+        "x-canopy-idempotent": false
+      }
+    },
+    "/accounts/{id}/support-grants": {
+      "get": {
+        "operationId": "listAccountSupportGrants",
+        "summary": "Support grants the account has given, newest first.",
+        "tags": ["M15"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Support grants the account has given, newest first.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListAccountSupportGrantsResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error envelope (api-conventions.md §4-5); clients branch on error.code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-canopy-module": "M15",
+        "x-canopy-auth": "session",
+        "x-canopy-actions": [],
+        "x-canopy-roles": {},
+        "x-canopy-idempotent": false
+      }
+    },
+    "/support-grants/{id}/sessions": {
+      "post": {
+        "operationId": "openSupportSession",
+        "summary": "Open the customer app as the support person of a live grant; 403 ACCESS_EXPIRED once it ended.",
+        "tags": ["M15"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/CsrfToken"
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Open the customer app as the support person of a live grant; 403 ACCESS_EXPIRED once it ended.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenSupportSessionResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error envelope (api-conventions.md §4-5); clients branch on error.code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-canopy-module": "M15",
+        "x-canopy-auth": "session",
+        "x-canopy-actions": [],
+        "x-canopy-roles": {},
+        "x-canopy-idempotent": false
+      }
+    },
+    "/renewals": {
+      "get": {
+        "operationId": "listRenewals",
+        "summary": "Subscriptions and trials ending within the window, soonest first.",
+        "tags": ["M15"],
+        "parameters": [
+          {
+            "name": "withinDays",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "default": 30,
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 365
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Subscriptions and trials ending within the window, soonest first.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListRenewalsResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error envelope (api-conventions.md §4-5); clients branch on error.code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-canopy-module": "M15",
+        "x-canopy-auth": "session",
+        "x-canopy-actions": [],
+        "x-canopy-roles": {},
+        "x-canopy-idempotent": false
+      }
+    },
+    "/audit": {
+      "get": {
+        "operationId": "listOperatorAudit",
+        "summary": "Operator audit events, newest first. The console exports them to Excel.",
+        "tags": ["M15"],
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d+$"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 1000
+            }
+          },
+          {
+            "name": "count",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": ["true", "false"]
+            }
+          },
+          {
+            "name": "accountId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            }
+          },
+          {
+            "name": "action",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "OPERATOR_LOGIN",
+                "ACCOUNT_CREATE",
+                "OWNER_INVITE_SEND",
+                "ACCOUNT_STATUS_CHANGE",
+                "ACCOUNT_UPDATE",
+                "PLAN_CHANGE",
+                "OVERRIDE_CHANGE",
+                "SUBSCRIPTION_RECORD",
+                "ACCOUNT_DELETE_REQUEST",
+                "ACCOUNT_DELETE_CANCEL",
+                "ACCOUNT_PURGE",
+                "SUPPORT_ACCESS_START",
+                "SUPPORT_ACCESS_END"
+              ]
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Operator audit events, newest first. The console exports them to Excel.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperatorAuditEventPage"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error envelope (api-conventions.md §4-5); clients branch on error.code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-canopy-module": "M15",
+        "x-canopy-auth": "session",
+        "x-canopy-actions": [],
+        "x-canopy-roles": {},
+        "x-canopy-idempotent": false
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Account": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 300
+          },
+          "kind": {
+            "type": "string",
+            "enum": ["ENTERPRISE", "CONSULTANCY"]
+          },
+          "status": {
+            "type": "string",
+            "enum": ["PROVISIONING", "TRIAL", "ACTIVE", "SUSPENDED", "PENDING_DELETION", "DELETED"]
+          },
+          "profile": {
+            "type": "object",
+            "properties": {
+              "legalName": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 300
+              },
+              "gstin": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^\\d{2}[A-Z]{5}\\d{4}[A-Z][1-9A-Z]Z[0-9A-Z]$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "timeZone": {
+                "type": "string"
+              },
+              "fyStartMonth": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 12
+              }
+            },
+            "required": ["legalName", "gstin", "timeZone", "fyStartMonth"],
+            "additionalProperties": false
+          },
+          "planCode": {
+            "type": "string",
+            "pattern": "^[A-Z][A-Z0-9_]{1,39}$"
+          },
+          "entitlements": {
+            "type": "object",
+            "properties": {
+              "planCode": {
+                "type": "string",
+                "pattern": "^[A-Z][A-Z0-9_]{1,39}$"
+              },
+              "limits": {
+                "type": "object",
+                "properties": {
+                  "companies": {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "units": {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "users": {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "storageBytes": {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": ["companies", "units", "users", "storageBytes"],
+                "additionalProperties": false
+              },
+              "features": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[a-z][a-zA-Z0-9]{1,39}$"
+                }
+              }
+            },
+            "required": ["planCode", "limits", "features"],
+            "additionalProperties": false
+          },
+          "usage": {
+            "type": "object",
+            "properties": {
+              "companies": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "units": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "users": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "storageBytes": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              }
+            },
+            "required": ["companies", "units", "users", "storageBytes"],
+            "additionalProperties": false
+          },
+          "trialEndsOn": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LocalDate"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "onboardedAt": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Instant"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "deletionRequestedAt": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Instant"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "purgeAfter": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Instant"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "owner": {
+            "type": "object",
+            "properties": {
+              "email": {
+                "type": "string",
+                "maxLength": 320,
+                "format": "email",
+                "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+              },
+              "displayName": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 300
+              },
+              "accepted": {
+                "type": "boolean"
+              }
+            },
+            "required": ["email", "displayName", "accepted"],
+            "additionalProperties": false
+          },
+          "createdAt": {
+            "$ref": "#/components/schemas/Instant"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "kind",
+          "status",
+          "profile",
+          "planCode",
+          "entitlements",
+          "usage",
+          "trialEndsOn",
+          "onboardedAt",
+          "deletionRequestedAt",
+          "purgeAfter",
+          "owner",
+          "createdAt",
+          "version"
+        ],
+        "additionalProperties": false
+      },
+      "AccountPage": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Account"
+            }
+          },
+          "nextCursor": {
+            "type": ["string", "null"]
+          },
+          "total": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": ["items", "nextCursor"],
+        "additionalProperties": false
+      },
+      "CancelAccountDeletionBody": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000
+          }
+        },
+        "required": ["version", "reason"],
+        "additionalProperties": false
+      },
+      "CreateAccountBody": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 300
+          },
+          "kind": {
+            "type": "string",
+            "enum": ["ENTERPRISE", "CONSULTANCY"]
+          },
+          "planCode": {
+            "type": "string",
+            "pattern": "^[A-Z][A-Z0-9_]{1,39}$"
+          },
+          "legalName": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 300
+          },
+          "gstin": {
+            "default": null,
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^\\d{2}[A-Z]{5}\\d{4}[A-Z][1-9A-Z]Z[0-9A-Z]$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "timeZone": {
+            "default": "Asia/Kolkata",
+            "type": "string"
+          },
+          "fyStartMonth": {
+            "default": 4,
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 12
+          },
+          "trialEndsOn": {
+            "$ref": "#/components/schemas/LocalDate"
+          },
+          "activeNow": {
+            "default": false,
+            "type": "boolean"
+          },
+          "clientName": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 300
+          },
+          "owner": {
+            "type": "object",
+            "properties": {
+              "displayName": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 300
+              },
+              "email": {
+                "type": "string",
+                "maxLength": 320,
+                "format": "email",
+                "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+              }
+            },
+            "required": ["displayName", "email"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["name", "kind", "planCode", "legalName", "owner"],
+        "additionalProperties": false
+      },
+      "Error": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "code": {
+                    "type": "string",
+                    "const": "VALIDATION"
+                  },
+                  "message": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "details": {
+                    "type": "object",
+                    "properties": {
+                      "issues": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "path": {
+                              "type": "array",
+                              "items": {
+                                "anyOf": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "integer",
+                                    "minimum": -9007199254740991,
+                                    "maximum": 9007199254740991
+                                  }
+                                ]
+                              }
+                            },
+                            "message": {
+                              "type": "string"
+                            }
+                          },
+                          "required": ["path", "message"],
+                          "additionalProperties": false
+                        }
+                      }
+                    },
+                    "required": ["issues"],
+                    "additionalProperties": false
+                  }
+                },
+                "required": ["code", "message"],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "code": {
+                    "type": "string",
+                    "const": "UNAUTHENTICATED"
+                  },
+                  "message": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": ["code", "message"],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "code": {
+                    "type": "string",
+                    "const": "MFA_REQUIRED"
+                  },
+                  "message": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "details": {
+                    "type": "object",
+                    "properties": {
+                      "enrolled": {
+                        "type": "boolean"
+                      }
+                    },
+                    "required": ["enrolled"],
+                    "additionalProperties": false
+                  }
+                },
+                "required": ["code", "message"],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "code": {
+                    "type": "string",
+                    "const": "FORBIDDEN"
+                  },
+                  "message": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "details": {
+                    "type": "object",
+                    "properties": {
+                      "action": {
+                        "type": "string",
+                        "pattern": "^[a-z][a-zA-Z]*\\.[a-z][a-zA-Z]*$"
+                      }
+                    },
+                    "required": ["action"],
+                    "additionalProperties": false
+                  }
+                },
+                "required": ["code", "message"],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "code": {
+                    "type": "string",
+                    "const": "ACCESS_EXPIRED"
+                  },
+                  "message": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "details": {
+                    "type": "object",
+                    "properties": {
+                      "expiredAt": {
+                        "$ref": "#/components/schemas/Instant"
+                      }
+                    },
+                    "required": ["expiredAt"],
+                    "additionalProperties": false
+                  }
+                },
+                "required": ["code", "message"],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "code": {
+                    "type": "string",
+                    "const": "ACCOUNT_SUSPENDED"
+                  },
+                  "message": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "details": {
+                    "type": "object",
+                    "properties": {
+                      "status": {
+                        "type": "string",
+                        "enum": [
+                          "PROVISIONING",
+                          "TRIAL",
+                          "ACTIVE",
+                          "SUSPENDED",
+                          "PENDING_DELETION",
+                          "DELETED"
+                        ]
+                      }
+                    },
+                    "required": ["status"],
+                    "additionalProperties": false
+                  }
+                },
+                "required": ["code", "message"],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "code": {
+                    "type": "string",
+                    "const": "PLAN_LIMIT_REACHED"
+                  },
+                  "message": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "details": {
+                    "type": "object",
+                    "properties": {
+                      "limit": {
+                        "type": "string",
+                        "enum": ["companies", "units", "users", "storageBytes"]
+                      },
+                      "max": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      "used": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      }
+                    },
+                    "required": ["limit", "max", "used"],
+                    "additionalProperties": false
+                  }
+                },
+                "required": ["code", "message"],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "code": {
+                    "type": "string",
+                    "const": "NOT_FOUND"
+                  },
+                  "message": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": ["code", "message"],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "code": {
+                    "type": "string",
+                    "const": "STALE_VERSION"
+                  },
+                  "message": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "details": {
+                    "type": "object",
+                    "properties": {
+                      "currentVersion": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 9007199254740991
+                      }
+                    },
+                    "required": ["currentVersion"],
+                    "additionalProperties": false
+                  }
+                },
+                "required": ["code", "message"],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "code": {
+                    "type": "string",
+                    "const": "INVALID_TRANSITION"
+                  },
+                  "message": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "details": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "from": {
+                            "type": "string",
+                            "enum": ["OPEN", "SUBMITTED", "SENT_BACK", "APPROVED", "NOT_APPLICABLE"]
+                          },
+                          "action": {
+                            "type": "string",
+                            "enum": [
+                              "SUBMIT",
+                              "REQUEST_NA",
+                              "APPROVE",
+                              "SEND_BACK",
+                              "REOPEN",
+                              "REASSIGN",
+                              "CHANGE_DUE_DATE",
+                              "COMMENT",
+                              "UPLOAD_EVIDENCE"
+                            ]
+                          }
+                        },
+                        "required": ["from", "action"],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "from": {
+                            "type": "string",
+                            "enum": [
+                              "PROVISIONING",
+                              "TRIAL",
+                              "ACTIVE",
+                              "SUSPENDED",
+                              "PENDING_DELETION",
+                              "DELETED"
+                            ]
+                          },
+                          "to": {
+                            "type": "string",
+                            "enum": [
+                              "PROVISIONING",
+                              "TRIAL",
+                              "ACTIVE",
+                              "SUSPENDED",
+                              "PENDING_DELETION",
+                              "DELETED"
+                            ]
+                          }
+                        },
+                        "required": ["from", "to"],
+                        "additionalProperties": false
+                      }
+                    ]
+                  }
+                },
+                "required": ["code", "message"],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "code": {
+                    "type": "string",
+                    "const": "DUPLICATE"
+                  },
+                  "message": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "details": {
+                    "type": "object",
+                    "properties": {
+                      "field": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "existingId": {
+                        "$ref": "#/components/schemas/Id"
+                      }
+                    },
+                    "required": ["field", "existingId"],
+                    "additionalProperties": false
+                  }
+                },
+                "required": ["code", "message"],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "code": {
+                    "type": "string",
+                    "const": "IMPORT_STATE"
+                  },
+                  "message": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "details": {
+                    "type": "object",
+                    "properties": {
+                      "status": {
+                        "type": "string",
+                        "enum": [
+                          "UPLOADED",
+                          "MAPPED",
+                          "PARSED",
+                          "REVIEWED",
+                          "DRY_RUN_READY",
+                          "COMMITTING",
+                          "COMMITTED",
+                          "FAILED",
+                          "CANCELLED"
+                        ]
+                      },
+                      "expected": {
+                        "minItems": 1,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "enum": [
+                            "UPLOADED",
+                            "MAPPED",
+                            "PARSED",
+                            "REVIEWED",
+                            "DRY_RUN_READY",
+                            "COMMITTING",
+                            "COMMITTED",
+                            "FAILED",
+                            "CANCELLED"
+                          ]
+                        }
+                      }
+                    },
+                    "required": ["status", "expected"],
+                    "additionalProperties": false
+                  }
+                },
+                "required": ["code", "message"],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "code": {
+                    "type": "string",
+                    "const": "FIRM_CHOICE_REQUIRED"
+                  },
+                  "message": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "details": {
+                    "type": "object",
+                    "properties": {
+                      "firms": {
+                        "minItems": 2,
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "$ref": "#/components/schemas/Id"
+                            },
+                            "name": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 300
+                            }
+                          },
+                          "required": ["id", "name"],
+                          "additionalProperties": false
+                        }
+                      }
+                    },
+                    "required": ["firms"],
+                    "additionalProperties": false
+                  }
+                },
+                "required": ["code", "message"],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "code": {
+                    "type": "string",
+                    "const": "FILE_TOO_LARGE"
+                  },
+                  "message": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "details": {
+                    "type": "object",
+                    "properties": {
+                      "maxBytes": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 9007199254740991
+                      }
+                    },
+                    "required": ["maxBytes"],
+                    "additionalProperties": false
+                  }
+                },
+                "required": ["code", "message"],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "code": {
+                    "type": "string",
+                    "const": "UNSUPPORTED_FILE"
+                  },
+                  "message": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "details": {
+                    "type": "object",
+                    "properties": {
+                      "allowed": {
+                        "minItems": 1,
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "required": ["allowed"],
+                    "additionalProperties": false
+                  }
+                },
+                "required": ["code", "message"],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "code": {
+                    "type": "string",
+                    "const": "REASON_REQUIRED"
+                  },
+                  "message": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": ["code", "message"],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "code": {
+                    "type": "string",
+                    "const": "DATE_IN_FUTURE"
+                  },
+                  "message": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "details": {
+                    "type": "object",
+                    "properties": {
+                      "today": {
+                        "$ref": "#/components/schemas/LocalDate"
+                      }
+                    },
+                    "required": ["today"],
+                    "additionalProperties": false
+                  }
+                },
+                "required": ["code", "message"],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "code": {
+                    "type": "string",
+                    "const": "EVIDENCE_REQUIRED"
+                  },
+                  "message": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": ["code", "message"],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "code": {
+                    "type": "string",
+                    "const": "EVIDENCE_NOT_READY"
+                  },
+                  "message": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "details": {
+                    "type": "object",
+                    "properties": {
+                      "scanStatus": {
+                        "type": "string",
+                        "enum": ["PENDING", "CLEAN", "INFECTED", "FAILED"]
+                      }
+                    },
+                    "required": ["scanStatus"],
+                    "additionalProperties": false
+                  }
+                },
+                "required": ["code", "message"],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "code": {
+                    "type": "string",
+                    "const": "RULE_INVALID"
+                  },
+                  "message": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "details": {
+                    "type": "object",
+                    "properties": {
+                      "issues": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "path": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            },
+                            "message": {
+                              "type": "string"
+                            }
+                          },
+                          "required": ["path", "message"],
+                          "additionalProperties": false
+                        }
+                      }
+                    },
+                    "required": ["issues"],
+                    "additionalProperties": false
+                  }
+                },
+                "required": ["code", "message"],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "code": {
+                    "type": "string",
+                    "const": "IMPORT_BLOCKED"
+                  },
+                  "message": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "details": {
+                    "type": "object",
+                    "properties": {
+                      "blockingIssueIds": {
+                        "minItems": 1,
+                        "type": "array",
+                        "items": {
+                          "$ref": "#/components/schemas/Id"
+                        }
+                      }
+                    },
+                    "required": ["blockingIssueIds"],
+                    "additionalProperties": false
+                  }
+                },
+                "required": ["code", "message"],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "code": {
+                    "type": "string",
+                    "const": "RATE_LIMITED"
+                  },
+                  "message": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "details": {
+                    "type": "object",
+                    "properties": {
+                      "retryAfterSeconds": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 9007199254740991
+                      }
+                    },
+                    "required": ["retryAfterSeconds"],
+                    "additionalProperties": false
+                  }
+                },
+                "required": ["code", "message"],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "code": {
+                    "type": "string",
+                    "const": "INTERNAL"
+                  },
+                  "message": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": ["code", "message"],
+                "additionalProperties": false
+              }
+            ]
+          },
+          "requestId": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": ["error", "requestId"],
+        "additionalProperties": false
+      },
+      "Id": {
+        "type": "string",
+        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+      },
+      "Instant": {
+        "type": "string",
+        "format": "date-time",
+        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+      },
+      "ListAccountSupportGrantsResponse": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SupportGrant"
+            }
+          }
+        },
+        "required": ["items"],
+        "additionalProperties": false
+      },
+      "ListPlansResponse": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Plan"
+            }
+          }
+        },
+        "required": ["items"],
+        "additionalProperties": false
+      },
+      "ListRenewalsResponse": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "accountId": {
+                  "$ref": "#/components/schemas/Id"
+                },
+                "name": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 300
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "PROVISIONING",
+                    "TRIAL",
+                    "ACTIVE",
+                    "SUSPENDED",
+                    "PENDING_DELETION",
+                    "DELETED"
+                  ]
+                },
+                "planCode": {
+                  "type": "string",
+                  "pattern": "^[A-Z][A-Z0-9_]{1,39}$"
+                },
+                "endsOn": {
+                  "$ref": "#/components/schemas/LocalDate"
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": ["SUBSCRIPTION", "TRIAL"]
+                }
+              },
+              "required": ["accountId", "name", "status", "planCode", "endsOn", "kind"],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": ["items"],
+        "additionalProperties": false
+      },
+      "ListSubscriptionsResponse": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Subscription"
+            }
+          }
+        },
+        "required": ["items"],
+        "additionalProperties": false
+      },
+      "ListUsageResponse": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UsageSnapshot"
+            }
+          }
+        },
+        "required": ["items"],
+        "additionalProperties": false
+      },
+      "LocalDate": {
+        "type": "string",
+        "format": "date",
+        "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+      },
+      "MarkOnboardedBody": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": ["version"],
+        "additionalProperties": false
+      },
+      "OpenSupportSessionResponse": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string",
+            "format": "uri"
+          },
+          "expiresAt": {
+            "$ref": "#/components/schemas/Instant"
+          }
+        },
+        "required": ["url", "expiresAt"],
+        "additionalProperties": false
+      },
+      "OperatorAuditEvent": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "at": {
+            "$ref": "#/components/schemas/Instant"
+          },
+          "operatorId": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Id"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "action": {
+            "type": "string",
+            "enum": [
+              "OPERATOR_LOGIN",
+              "ACCOUNT_CREATE",
+              "OWNER_INVITE_SEND",
+              "ACCOUNT_STATUS_CHANGE",
+              "ACCOUNT_UPDATE",
+              "PLAN_CHANGE",
+              "OVERRIDE_CHANGE",
+              "SUBSCRIPTION_RECORD",
+              "ACCOUNT_DELETE_REQUEST",
+              "ACCOUNT_DELETE_CANCEL",
+              "ACCOUNT_PURGE",
+              "SUPPORT_ACCESS_START",
+              "SUPPORT_ACCESS_END"
+            ]
+          },
+          "accountId": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Id"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "before": {
+            "anyOf": [
+              {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {}
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "after": {
+            "anyOf": [
+              {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {}
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 2000
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "requestId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "ip": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 100
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "at",
+          "operatorId",
+          "action",
+          "accountId",
+          "before",
+          "after",
+          "reason",
+          "requestId",
+          "ip"
+        ],
+        "additionalProperties": false
+      },
+      "OperatorAuditEventPage": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OperatorAuditEvent"
+            }
+          },
+          "nextCursor": {
+            "type": ["string", "null"]
+          },
+          "total": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": ["items", "nextCursor"],
+        "additionalProperties": false
+      },
+      "OperatorLoginBody": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "maxLength": 320,
+            "format": "email",
+            "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+          },
+          "password": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "code": {
+            "type": "string",
+            "pattern": "^\\d{6}$"
+          }
+        },
+        "required": ["email", "password", "code"],
+        "additionalProperties": false
+      },
+      "OperatorMe": {
+        "type": "object",
+        "properties": {
+          "operator": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "$ref": "#/components/schemas/Id"
+              },
+              "email": {
+                "type": "string",
+                "maxLength": 320,
+                "format": "email",
+                "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+              },
+              "displayName": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 300
+              },
+              "createdAt": {
+                "$ref": "#/components/schemas/Instant"
+              },
+              "disabledAt": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/Instant"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["id", "email", "displayName", "createdAt", "disabledAt"],
+            "additionalProperties": false
+          },
+          "csrfToken": {
+            "type": "string",
+            "minLength": 16
+          },
+          "session": {
+            "type": "object",
+            "properties": {
+              "expiresAt": {
+                "$ref": "#/components/schemas/Instant"
+              },
+              "idleExpiresAt": {
+                "$ref": "#/components/schemas/Instant"
+              }
+            },
+            "required": ["expiresAt", "idleExpiresAt"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["operator", "csrfToken", "session"],
+        "additionalProperties": false
+      },
+      "Plan": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "pattern": "^[A-Z][A-Z0-9_]{1,39}$"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 300
+          },
+          "limits": {
+            "type": "object",
+            "properties": {
+              "companies": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "units": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "users": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "storageBytes": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["companies", "units", "users", "storageBytes"],
+            "additionalProperties": false
+          },
+          "features": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z][a-zA-Z0-9]{1,39}$"
+            }
+          },
+          "retiredAt": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Instant"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": ["code", "name", "limits", "features", "retiredAt"],
+        "additionalProperties": false
+      },
+      "RecordSubscriptionBody": {
+        "type": "object",
+        "properties": {
+          "planCode": {
+            "type": "string",
+            "pattern": "^[A-Z][A-Z0-9_]{1,39}$"
+          },
+          "startsOn": {
+            "$ref": "#/components/schemas/LocalDate"
+          },
+          "endsOn": {
+            "$ref": "#/components/schemas/LocalDate"
+          },
+          "amountPaise": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "invoiceNumber": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 100
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "paidOn": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LocalDate"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": ["planCode", "startsOn", "endsOn", "amountPaise", "invoiceNumber", "paidOn"],
+        "additionalProperties": false
+      },
+      "RequestAccountDeletionBody": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000
+          },
+          "confirmName": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 300
+          }
+        },
+        "required": ["version", "reason", "confirmName"],
+        "additionalProperties": false
+      },
+      "SetAccountOverrideBody": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "override": {
+            "type": "object",
+            "properties": {
+              "limits": {
+                "type": "object",
+                "properties": {
+                  "companies": {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "units": {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "users": {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "storageBytes": {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "additionalProperties": false
+              },
+              "features": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[a-z][a-zA-Z0-9]{1,39}$"
+                }
+              },
+              "note": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 2000
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["limits", "features", "note"],
+            "additionalProperties": false
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000
+          }
+        },
+        "required": ["version", "override", "reason"],
+        "additionalProperties": false
+      },
+      "SetAccountPlanBody": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "planCode": {
+            "type": "string",
+            "pattern": "^[A-Z][A-Z0-9_]{1,39}$"
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000
+          }
+        },
+        "required": ["version", "planCode", "reason"],
+        "additionalProperties": false
+      },
+      "SetAccountStatusBody": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "to": {
+            "type": "string",
+            "enum": ["TRIAL", "ACTIVE", "SUSPENDED"]
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000
+          },
+          "trialEndsOn": {
+            "$ref": "#/components/schemas/LocalDate"
+          }
+        },
+        "required": ["version", "to", "reason"],
+        "additionalProperties": false
+      },
+      "Subscription": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "accountId": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "planCode": {
+            "type": "string",
+            "pattern": "^[A-Z][A-Z0-9_]{1,39}$"
+          },
+          "startsOn": {
+            "$ref": "#/components/schemas/LocalDate"
+          },
+          "endsOn": {
+            "$ref": "#/components/schemas/LocalDate"
+          },
+          "amountPaise": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "invoiceNumber": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 100
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "paidOn": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LocalDate"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "recordedAt": {
+            "$ref": "#/components/schemas/Instant"
+          },
+          "recordedById": {
+            "$ref": "#/components/schemas/Id"
+          }
+        },
+        "required": [
+          "id",
+          "accountId",
+          "planCode",
+          "startsOn",
+          "endsOn",
+          "amountPaise",
+          "invoiceNumber",
+          "paidOn",
+          "recordedAt",
+          "recordedById"
+        ],
+        "additionalProperties": false
+      },
+      "SupportGrant": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "accountId": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "level": {
+            "type": "string",
+            "enum": ["READ_ONLY", "ADMIN"]
+          },
+          "status": {
+            "type": "string",
+            "enum": ["ACTIVE", "EXPIRED", "REVOKED"]
+          },
+          "startsAt": {
+            "$ref": "#/components/schemas/Instant"
+          },
+          "endsAt": {
+            "$ref": "#/components/schemas/Instant"
+          },
+          "grantedById": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "revokedAt": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Instant"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "revokedById": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Id"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "supportPersonId": {
+            "$ref": "#/components/schemas/Id"
+          }
+        },
+        "required": [
+          "id",
+          "accountId",
+          "level",
+          "status",
+          "startsAt",
+          "endsAt",
+          "grantedById",
+          "revokedAt",
+          "revokedById",
+          "supportPersonId"
+        ],
+        "additionalProperties": false
+      },
+      "UpdateAccountBody": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 300
+          },
+          "profile": {
+            "type": "object",
+            "properties": {
+              "legalName": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 300
+              },
+              "gstin": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^\\d{2}[A-Z]{5}\\d{4}[A-Z][1-9A-Z]Z[0-9A-Z]$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "timeZone": {
+                "type": "string"
+              },
+              "fyStartMonth": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 12
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "required": ["version"],
+        "additionalProperties": false
+      },
+      "UpsertPlanBody": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 300
+          },
+          "limits": {
+            "type": "object",
+            "properties": {
+              "companies": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "units": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "users": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "storageBytes": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["companies", "units", "users", "storageBytes"],
+            "additionalProperties": false
+          },
+          "features": {
+            "maxItems": 50,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z][a-zA-Z0-9]{1,39}$"
+            }
+          },
+          "retired": {
+            "type": "boolean"
+          }
+        },
+        "required": ["name", "limits", "features", "retired"],
+        "additionalProperties": false
+      },
+      "UsageSnapshot": {
+        "type": "object",
+        "properties": {
+          "accountId": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "takenOn": {
+            "$ref": "#/components/schemas/LocalDate"
+          },
+          "usage": {
+            "type": "object",
+            "properties": {
+              "companies": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "units": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "users": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "storageBytes": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              }
+            },
+            "required": ["companies", "units", "users", "storageBytes"],
+            "additionalProperties": false
+          },
+          "activeUsers30d": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "instances": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": ["accountId", "takenOn", "usage", "activeUsers30d", "instances"],
+        "additionalProperties": false
+      }
+    },
+    "parameters": {
+      "IdempotencyKey": {
+        "name": "Idempotency-Key",
+        "in": "header",
+        "required": false,
+        "description": "A repeat with the same key within 24 hours returns the first response.",
+        "schema": {
+          "type": "string",
+          "format": "uuid"
+        }
+      },
+      "CsrfToken": {
+        "name": "X-CSRF-Token",
+        "in": "header",
+        "required": true,
+        "description": "The csrfToken from GET /me.",
+        "schema": {
+          "type": "string"
+        }
+      }
+    },
+    "headers": {
+      "RequestId": {
+        "description": "Echoed from the request, else generated; the requestId in audit events and logs.",
+        "schema": {
+          "type": "string"
+        }
+      }
+    },
+    "securitySchemes": {
+      "session": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "op_sid"
+      }
+    }
+  }
+}

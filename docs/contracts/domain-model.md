@@ -52,6 +52,12 @@ Rules: no `any`; unknown keys rejected at the edge; strings trimmed; empty strin
 | `NotificationKind` | `OWNER_REMINDER`, `APPROVER_ESCALATION`, `CONSULTANT_DIGEST`, `INVITE`, `MAGIC_LINK`, `EXPORT_READY`, `APPROVAL_REQUESTED`, `SENT_BACK` | |
 | `ExportKind` | `REGISTER_XLSX`, `CERTIFICATE_PDF`, `ACT_REPORT_XLSX`, `DEPARTMENT_REPORT_XLSX`, `OVERDUE_REPORT_XLSX` | |
 | `JobStatus` | `QUEUED`, `RUNNING`, `DONE`, `FAILED` | Exports and imports. |
+| `AccountKind` | `ENTERPRISE`, `CONSULTANCY` | §9. An enterprise account has one client. |
+| `AccountStatus` | `PROVISIONING`, `TRIAL`, `ACTIVE`, `SUSPENDED`, `PENDING_DELETION`, `DELETED` | §9; moves in `ACCOUNT_TRANSITIONS`. |
+| `PlanLimitKey` | `companies`, `units`, `users`, `storageBytes` | `PLAN_LIMIT_REACHED.details.limit`. |
+| `SupportAccessLevel` | `READ_ONLY`, `ADMIN` | §9. |
+| `SupportGrantStatus` | `ACTIVE`, `EXPIRED`, `REVOKED` | §9. |
+| `OperatorAuditAction` | `OPERATOR_LOGIN`, `ACCOUNT_CREATE`, `OWNER_INVITE_SEND`, `ACCOUNT_STATUS_CHANGE`, `ACCOUNT_UPDATE`, `PLAN_CHANGE`, `OVERRIDE_CHANGE`, `SUBSCRIPTION_RECORD`, `ACCOUNT_DELETE_REQUEST`, `ACCOUNT_DELETE_CANCEL`, `ACCOUNT_PURGE`, `SUPPORT_ACCESS_START`, `SUPPORT_ACCESS_END` | §9. Append-only. |
 
 Excel to enum mapping (import, case-insensitive after trimming): Criticality "Super Critical" → `SUPER_CRITICAL`, "HIGH"/"High" → `HIGH`, etc.;
 Status "Complied" → `APPROVED`, "Pending" → `OPEN`, "Not Applicable" → `NOT_APPLICABLE`.
@@ -59,7 +65,13 @@ Status "Complied" → `APPROVED`, "Pending" → `OPEN`, "Not Applicable" → `NO
 ## 3. Tenancy, entities and people
 
 ```ts
-interface Firm extends Base, Versioned { name: string; settings: FirmSettings }
+interface Firm extends Base, Versioned {           // the tenant; customers call it their "Account" (§9)
+  name: string; settings: FirmSettings
+  kind: AccountKind                                 // default CONSULTANCY
+  status: AccountStatus                             // default ACTIVE
+  planCode: string                                  // default "CONSULTANCY"
+  trialEndsOn: LocalDate | null                     // default null
+}
 interface FirmSettings {
   criticalityWeights: Record<Criticality, number>   // default {SUPER_CRITICAL:5, CRITICAL:4, HIGH:3, MEDIUM:2, LOW:1}
   dueSoonDays: number                               // default 7
@@ -350,3 +362,40 @@ can(ctx: RequestContext, action: Action, resource: Resource): boolean
 ```
 
 The M0 stub `can()` (`can` in `@canopy/contracts`, from contracts 1.3.0) allows according to the role matrix in `ENDPOINTS` (endpoints.md), within each membership's client and unit scope, `own` for OWNER and APPROVER, and only after MFA for firm roles. M6, M7, M8 and M10 use it until M5 merges.
+
+## 9. Accounts and the platform operator (ADR M15-0001)
+
+An **Account** is a firm: the same tenant, the same RLS. The platform operator (PlanetPulse staff) sits outside every
+tenant and creates every account; there is no sign-up. Schemas: `packages/contracts/src/schemas/accounts.ts`.
+
+```ts
+interface PlanLimits { companies: number | null; units: number | null; users: number | null; storageBytes: number | null } // null = unlimited
+interface Plan { code: string; name: string; limits: PlanLimits; features: string[]; retiredAt: Instant | null }
+interface AccountOverride { limits: Partial<PlanLimits>; features: string[]; note: string | null }
+interface Entitlements { planCode: string; limits: PlanLimits; features: string[] }       // plan overlaid with the override
+interface Usage { companies: number; units: number; users: number; storageBytes: number } // users: ACTIVE or INVITED, live membership, no support people
+interface AccountSummary { kind: AccountKind; status: AccountStatus; trialEndsOn: LocalDate | null } // Me.account
+interface Subscription { id; accountId; planCode; startsOn: LocalDate; endsOn: LocalDate; amountPaise: number; invoiceNumber: string | null; paidOn: LocalDate | null; recordedAt: Instant; recordedById: Id }
+interface UsageSnapshot { accountId; takenOn: LocalDate; usage: Usage; activeUsers30d: number; instances: number }
+interface PlatformOperator { id; email; displayName; createdAt; disabledAt: Instant | null }
+interface OperatorAuditEvent { id; at; operatorId: Id | null; action: OperatorAuditAction; accountId: Id | null; before; after; reason: string | null; requestId; ip: string | null }
+interface SupportGrant { id; accountId; level: SupportAccessLevel; status: SupportGrantStatus; startsAt; endsAt; grantedById; revokedAt; revokedById; supportPersonId }
+interface Account {                                 // the operator's view: never client data, only the firm row and counts
+  id; name; kind; status; planCode; trialEndsOn; onboardedAt; deletionRequestedAt; purgeAfter
+  profile: { legalName; gstin: string | null; timeZone; fyStartMonth }
+  entitlements: Entitlements; usage: Usage
+  owner: { email; displayName; accepted: boolean }
+  createdAt; version
+}
+```
+
+Status moves (`ACCOUNT_TRANSITIONS`, `canMoveAccount`): PROVISIONING → TRIAL | ACTIVE (owner accepts); TRIAL → ACTIVE,
+SUSPENDED (trial ends), PENDING_DELETION; ACTIVE ⇄ SUSPENDED; ACTIVE | SUSPENDED → PENDING_DELETION; PENDING_DELETION →
+the status it left (cancel) or DELETED (purge after 30 days, ADR M15-0002). `WORKING_ACCOUNT_STATUSES` (TRIAL, ACTIVE)
+can do everything and run jobs; in `PAUSED_ACCOUNT_STATUSES` (SUSPENDED, PENDING_DELETION) only account admins sign in,
+to read `/me` and download the account export; everything else answers `403 ACCOUNT_SUSPENDED`.
+
+Support access: an account admin grants `READ_ONLY` (a VIEWER membership per client) or `ADMIN` (one FIRM_ADMIN
+membership) for 1-30 days to the account's support person, "PlanetPulse support", whose memberships expire with the
+grant. Defaults: `DEFAULT_TRIAL_DAYS` 30, `OWNER_INVITE_HOURS` 72, `ACCOUNT_DELETION_GRACE_DAYS` 30,
+`SUPPORT_GRANT_DEFAULT_DAYS` 7, `SUPPORT_GRANT_MAX_DAYS` 30, `SUPPORT_SESSION_HOURS` 2.

@@ -19,3 +19,24 @@ export const DEFAULT_CLIENT_SETTINGS = {
     consultantDigestWeekday: 1,
   },
 } as const satisfies ClientSettings;
+
+/** Customer account defaults (ADR M15-0001). Each can change without a new ADR. */
+
+/** A new account's trial, in days from the day it is created, unless the operator sets another end date. */
+export const DEFAULT_TRIAL_DAYS = 30;
+/** Hours an account owner's invite link works for; the operator can resend it. */
+export const OWNER_INVITE_HOURS = 72;
+/** Days between a deletion request and the purge (ADR M15-0002). */
+export const ACCOUNT_DELETION_GRACE_DAYS = 30;
+/** Support access grants: default and longest length in days. */
+export const SUPPORT_GRANT_DEFAULT_DAYS = 7;
+export const SUPPORT_GRANT_MAX_DAYS = 30;
+/** A support session ends after this many hours, or at the grant end if sooner. */
+export const SUPPORT_SESSION_HOURS = 2;
+/** Account for firms created before accounts existed, and the `Firm` defaults while a provider omits the fields. */
+export const DEFAULT_ACCOUNT = {
+  kind: 'CONSULTANCY',
+  status: 'ACTIVE',
+  planCode: 'CONSULTANCY',
+  trialEndsOn: null,
+} as const;
