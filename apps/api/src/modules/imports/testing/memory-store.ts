@@ -13,7 +13,7 @@ import {
   type ExistingState,
   type ImportAnalysis,
 } from '@canopy/importer';
-import type { CommitRequest, ImportStore, ImportTx } from '../store.js';
+import type { CommitRequest, ImportStore, ImportTx, PlanAllowance } from '../store.js';
 
 /**
  * In-memory `ImportStore` for the service and route tests. It keeps one firm's data and is not
@@ -30,6 +30,8 @@ export class MemoryImportStore implements ImportStore {
   readonly commits: CommitRequest[] = [];
   /** Instance ids by planned key, kept across commits like stored rows. */
   readonly instanceIds = new Map<string, string>();
+  /** The plan's limit and the account's count, asked for each check; unlimited by default. */
+  allowance: (limit: 'companies' | 'units') => PlanAllowance = () => ({ max: null, used: 0 });
   /** When set, the next commit throws it (and writes nothing). */
   failNextCommit: Error | null = null;
 
@@ -159,6 +161,7 @@ export class MemoryImportStore implements ImportStore {
         return calendar;
       },
       existingState: async () => this.existing,
+      planAllowance: async (limit) => this.allowance(limit),
       commit: async (request) => {
         if (this.failNextCommit) {
           const error = this.failNextCommit;

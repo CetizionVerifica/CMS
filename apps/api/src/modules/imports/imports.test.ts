@@ -517,6 +517,48 @@ describe('import API', { timeout: 60_000 }, () => {
     expect(h.store.commits).toHaveLength(0);
   });
 
+  it("refuses a commit whose new units would pass the plan's limit", async () => {
+    const id = await upload();
+    await reviewed(id);
+    const report = await dryRun(id);
+    expect(report.create.units).toBeGreaterThan(0);
+    expect(report.create.units).toBe(1);
+    h.store.allowance = (limit) => ({ max: limit === 'units' ? 1 : null, used: 1 });
+    const res = await call('POST', `/imports/${id}/commit`);
+    expect(res.statusCode).toBe(403);
+    expect(res.json().error).toMatchObject({
+      code: 'PLAN_LIMIT_REACHED',
+      message:
+        'This import adds 1 unit, but your plan allows 1 and 1 is in use. Contact PlanetPulse to upgrade.',
+      details: { limit: 'units', max: 1, used: 1 },
+    });
+    expect(h.store.batches.get(id)?.status).toBe('DRY_RUN_READY');
+    expect(h.store.commits).toHaveLength(0);
+    // Exactly at the limit is allowed.
+    h.store.allowance = (limit) => ({ max: limit === 'units' ? 2 : null, used: 1 });
+    expect((await committed(id)).status).toBe('COMMITTED');
+  });
+
+  it('fails the batch with PLAN_LIMIT_REACHED when companies were added after the request', async () => {
+    const id = await upload();
+    await reviewed(id);
+    const report = await dryRun(id);
+    expect(report.create.companies).toBeGreaterThan(0);
+    // The request sees room for the import; by the background commit someone has added a company.
+    let checks = 0;
+    h.store.allowance = (limit) =>
+      limit === 'companies'
+        ? { max: report.create.companies, used: checks++ === 0 ? 0 : 1 }
+        : { max: null, used: 0 };
+    const res = await call('POST', `/imports/${id}/commit`);
+    expect(res.statusCode).toBe(202);
+    await h.settle();
+    expect(checks).toBe(2);
+    const batch = ImportBatch.parse((await call('GET', `/imports/${id}`)).json());
+    expect(batch).toMatchObject({ status: 'FAILED', failureCode: 'PLAN_LIMIT_REACHED' });
+    expect(h.store.commits).toHaveLength(0);
+  });
+
   it('marks the batch FAILED when the commit fails, having written nothing', async () => {
     const id = await upload();
     await reviewed(id);

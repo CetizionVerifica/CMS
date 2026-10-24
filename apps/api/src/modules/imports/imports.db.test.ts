@@ -10,6 +10,7 @@ import {
   LocalDate,
 } from '@canopy/contracts';
 import {
+  account,
   acts,
   assignments,
   auditEvents,
@@ -401,6 +402,105 @@ describe.skipIf(!url)('import API on Postgres', { timeout: 180_000 }, () => {
     expect(ImportBatch.parse((await call('GET', `/imports/${again}`)).json()).status).toBe(
       'COMMITTED',
     );
+  });
+
+  it("refuses a commit past the plan's unit limit and reads the limit under the usage lock", async () => {
+    const firm = await seedFirm('c');
+    const owner = new pg.Client({ connectionString: databaseUrl() });
+    await owner.connect();
+    await owner.query(
+      'INSERT INTO platform.account_override (account_id, limits) VALUES ($1, $2)',
+      [firm.firmId, { units: 0 }],
+    );
+    await owner.end();
+    const store = repositoryStore(db);
+    const ctx = systemContext(firm.firmId, 'limit-check');
+    // seedFirm made one unit.
+    expect(await store.transaction(ctx, (tx) => tx.planAllowance('units'))).toEqual({
+      max: 0,
+      used: 1,
+    });
+    expect(await store.transaction(ctx, (tx) => tx.planAllowance('companies'))).toMatchObject({
+      max: null,
+    });
+
+    const id = await importAgain(firm);
+    const call = (path: string) =>
+      app.inject({ method: 'POST', url: `/api/v1${path}`, headers: headers(firm) });
+    const report = DryRunReport.parse((await call(`/imports/${id}/dry-run`)).json());
+    expect(report.create.units).toBeGreaterThan(0);
+    const res = await call(`/imports/${id}/commit`);
+    expect(res.statusCode).toBe(403);
+    expect(res.json().error).toMatchObject({
+      code: 'PLAN_LIMIT_REACHED',
+      details: { limit: 'units', max: 0, used: 1 },
+    });
+    expect(running).toHaveLength(0);
+  });
+
+  it('waits for the usage lock, so a unit added meanwhile is counted and the commit refused', async () => {
+    const firm = await seedFirm('d');
+    const id = await importAgain(firm);
+    const call = (path: string) =>
+      app.inject({ method: 'POST', url: `/api/v1${path}`, headers: headers(firm) });
+    const report = DryRunReport.parse((await call(`/imports/${id}/dry-run`)).json());
+    expect(report.create.units).toBeGreaterThan(0);
+    const ctx = systemContext(firm.firmId, 'lock-holder');
+    const before = (await db.withTenant(ctx, (tx) => account.usage(tx))).units;
+    // Exactly room for the import, until the holder's unit commits.
+    const owner = new pg.Client({ connectionString: databaseUrl() });
+    await owner.connect();
+    await owner.query(
+      'INSERT INTO platform.account_override (account_id, limits) VALUES ($1, $2)',
+      [firm.firmId, { units: before + report.create.units }],
+    );
+    await owner.end();
+
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    let locked!: () => void;
+    const holding = new Promise<void>((resolve) => (locked = resolve));
+    const holder = db.withTenant(ctx, async (tx) => {
+      await account.lockUsage(tx);
+      const company = await companies.create(tx, {
+        clientId: firm.clientId,
+        name: 'Kestrel Fibres',
+      });
+      const location = await locations.create(tx, {
+        country: 'India',
+        countryCode: 'IN',
+        state: 'Odisha',
+        stateCode: 'OD',
+        city: 'Highmoor',
+      });
+      await units.create(tx, {
+        clientId: firm.clientId,
+        companyId: company.id,
+        name: 'Highmoor Works',
+        locationId: location.id,
+      });
+      locked();
+      await gate;
+    });
+    await holding;
+    let settled = false;
+    const pending = call(`/imports/${id}/commit`).finally(() => (settled = true));
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    // Without the lock the request would read the count before the holder commits, and answer 202.
+    expect(settled).toBe(false);
+    release();
+    await holder;
+    const res = await pending;
+    expect(res.statusCode).toBe(403);
+    expect(res.json().error).toMatchObject({
+      code: 'PLAN_LIMIT_REACHED',
+      details: {
+        limit: 'units',
+        max: before + report.create.units,
+        used: before + 1,
+      },
+    });
+    expect(running).toHaveLength(0);
   });
 
   it('commits a plan into existing data: aliases, updates and instance changes, all audited', async () => {
