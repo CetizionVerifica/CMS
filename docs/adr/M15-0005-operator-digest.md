@@ -3,9 +3,11 @@
 ## Context
 
 The company-accounts plan sends trial-ending and renewal reminders "to the owner and the operator" (ADR M15-0001,
-build order step 6). The owner's email is M9's (ADR M9-0003). The operator's copy needs what only the console's login
-reads: the platform schema's subscriptions and operators (ADR M3-0002). The jobs' database login cannot read it, and
-the console's Renewals page (`GET /renewals`, `subscriptions.renewals`) already answers "what ends soon".
+build order step 6). The account admins' emails are M9's: its trial-ending email ships with M9's own job and ADR,
+and a renewal reminder before a paid subscription ends is still to build. This ADR covers only the operator's copy,
+which needs what only the console's login reads: the platform schema's subscriptions and operators (ADR M3-0002). The
+jobs' database login cannot read it, and the console's Renewals page (`GET /renewals`, `subscriptions.renewals`)
+already answers "what ends soon".
 
 ## Decisions
 
@@ -21,11 +23,13 @@ the console's Renewals page (`GET /renewals`, `subscriptions.renewals`) already 
    wiring adds when the operator API is enabled (an M9 option for extra jobs and a wiring change, in their owners'
    paths). It sends mail, so it runs only with a mailer.
 5. **At least once, with no send log.** pg-boss runs each cron slot once across API instances. A transport failure
-   fails the run and pg-boss retries it, which may send that day's digest to an operator twice. The recipients are
-   PlanetPulse's own operators, so a rare duplicate is cheaper than a platform send-log table. Each email carries an
-   idempotency key per operator and day for a transport that honours one.
+   fails the run and pg-boss retries it, which may send that day's digest to an operator twice (a failure on one
+   operator re-sends to the operators before it). The recipients are PlanetPulse's own operators, so a rare duplicate
+   is cheaper than a platform send-log table. Each email carries an idempotency key per operator and day for a
+   transport that honours one.
 
 ## Consequences
 
 - A new operator gets the digest from the next morning; disabling one stops it.
-- Renewal emails to the customer are not sent: billing is offline and the operator contacts the customer.
+- This email does not replace the account admins' renewal reminder, which is pending, not dropped. Until it is built,
+  the operator contacts the customer about a renewal; billing is offline either way.
