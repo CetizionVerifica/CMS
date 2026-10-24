@@ -234,6 +234,30 @@ describe('jobsFromEnv', () => {
     await database?.close();
   });
 
+  it('adds the operators’ renewals digest only when the operator API has its database', async () => {
+    const start = vi.fn().mockResolvedValue(runner(true));
+    const warn = vi.fn();
+    const off = wiringFromEnv({ ...DB }, vi.fn());
+    await jobsFromEnv({ ...DB }, off.database, { warn, start });
+    expect(start.mock.calls[0]![1]).not.toHaveProperty('extraJobs');
+    const env = {
+      ...DB,
+      PLATFORM_ENABLED: 'true',
+      OPERATOR_DATABASE_URL: 'postgres://console@localhost:5432/canopy',
+      APP_URL: 'https://app.planetpulse.example/',
+    };
+    const on = wiringFromEnv(env, vi.fn());
+    await jobsFromEnv(env, on.database, {
+      warn,
+      start,
+      ...(on.operatorDatabase && { operatorDatabase: on.operatorDatabase }),
+    });
+    expect(start.mock.calls[1]![1].extraJobs).toEqual([
+      expect.objectContaining({ name: 'operator-digest', sendsMail: true }),
+    ]);
+    await Promise.all([off.database?.close(), on.database?.close(), on.operatorDatabase?.close()]);
+  });
+
   it('warns when mail runs but nothing can issue sign-in tokens', async () => {
     const { database } = wiringFromEnv({ ...DB }, vi.fn());
     const start = vi.fn().mockResolvedValue(runner(true, false));

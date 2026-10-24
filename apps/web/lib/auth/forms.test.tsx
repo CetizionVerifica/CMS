@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ReactNode } from 'react';
 import { describe, expect, it, vi } from 'vitest';
@@ -142,7 +142,8 @@ describe('auth forms', () => {
     const heading = await screen.findByRole('heading', {
       name: 'Add PlanetPulse Compliance to your app',
     });
-    expect(document.activeElement).toBe(heading);
+    // Focus moves in an effect after the heading renders, so wait for it.
+    await waitFor(() => expect(document.activeElement).toBe(heading));
     expect(screen.getByText('JBSW Y3DP EHPK 3PXP')).toBeTruthy();
     expect(
       screen

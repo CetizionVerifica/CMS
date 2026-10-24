@@ -1,4 +1,5 @@
 import {
+  ACCOUNT_NOTIFICATION_KINDS,
   ExportJob,
   Id,
   Instant,
@@ -130,9 +131,15 @@ export const exportJobs = {
   },
 };
 
+const isAccountKind = (kind: NotificationKind) =>
+  (ACCOUNT_NOTIFICATION_KINDS as readonly NotificationKind[]).includes(kind);
+
 export const NotificationSend = z
   .strictObject({
-    /** Null only for an event-driven send with no client (a magic link, a firm-role invite). */
+    /**
+     * Null only for an event-driven send with no client (a magic link, a firm-role invite) or a send about the whole
+     * account (`ACCOUNT_NOTIFICATION_KINDS`, the trial-ending email).
+     */
     clientId: Id.nullable(),
     instanceId: Id.nullable(),
     recipientId: Id,
@@ -145,10 +152,16 @@ export const NotificationSend = z
      */
     eventId: Id.nullable().optional(),
   })
-  .refine((n) => n.clientId !== null || (n.eventId != null && n.instanceId === null), {
-    message: 'A send without a client answers an event and names no instance',
-    path: ['clientId'],
-  });
+  .refine(
+    (n) =>
+      n.clientId !== null ||
+      (n.instanceId === null && (n.eventId != null || isAccountKind(n.kind))),
+    {
+      message:
+        'A send without a client names no instance, and answers an event or is about the account',
+      path: ['clientId'],
+    },
+  );
 export type NotificationSend = z.input<typeof NotificationSend>;
 
 /**

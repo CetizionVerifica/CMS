@@ -9,6 +9,10 @@ import { ACCOUNTS } from './stack.js';
 // M12's screens on the real stack: the instance drawer (evidence, comment, submit), the approvals inbox (approve in the
 // drawer, send back from the list), the evidence vault and the calendar. Evidence goes through the real upload and
 // the evidence scan (the stand-in clamd, fake-clamd.ts), so "Open" appears only once the scan has passed the file.
+// The journeys run in order and lean on each other: the approver approves the instance the drawer journey submitted,
+// and the vault lists that journey's challan.pdf beside the EICAR file 04-security.spec.ts uploaded. So they run
+// serially, and a failure skips the rest instead of failing them for the wrong reason.
+test.describe.configure({ mode: 'serial' });
 const FY = 'fy=2022-23';
 const PDF = Buffer.from('%PDF-1.4\n% drawer journey evidence\n%%EOF\n');
 

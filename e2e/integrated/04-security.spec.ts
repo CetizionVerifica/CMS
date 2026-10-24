@@ -38,7 +38,12 @@ const endpoints = Object.entries(ENDPOINTS as Record<string, Endpoint>);
  * Contract endpoints the API does not serve yet, with why. Every check below expects them to answer 404 (no route) and
  * fails once one answers anything else, so it must come off this list the day it ships and be checked like the rest.
  */
-const UNMOUNTED: Record<string, string> = {};
+const UNMOUNTED: Record<string, string> = {
+  // F14 (contracts 1.6.0): M5 serves it with the invite-MFA provider; take it off then.
+  ...('enrollInviteMfa' in ENDPOINTS
+    ? { enrollInviteMfa: 'public, takes a secret token, not an id; M5 serves it with F14 patch 2' }
+    : {}),
+};
 
 /**
  * Endpoints the isolation sweep does not call with firm A's ids, with why. The sweep fails on any endpoint that is in
