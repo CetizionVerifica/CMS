@@ -710,6 +710,48 @@ describe.skipIf(!url)('database AccountStore', () => {
     expect(errorCode(await login(ca.email))).toBe('ACCOUNT_SUSPENDED');
   });
 
+  it('holds a seat per invite: a new person past the user limit is refused, a counted one is re-invited', async () => {
+    const seeded = await firmWithClient();
+    const fa = await person(seeded, { role: 'FIRM_ADMIN' });
+    const newInvite = (personId: string | null, email: string) =>
+      store.createInvite({
+        firmId: seeded.firmId,
+        personId,
+        displayName: personId === null ? 'Dev Iyer' : null,
+        email,
+        grant: {
+          role: 'OWNER',
+          clientId: seeded.clientId,
+          consultantClientIds: null,
+          unitIds: null,
+          expiresAt: null,
+        },
+        invitedById: fa.personId,
+        linkExpiresAt: new Date(now.getTime() + 86_400_000).toISOString(),
+        requestId: 'seat-invite',
+        now,
+      });
+    await rows(`INSERT INTO platform.account_override (account_id, limits) VALUES ($1, $2)`, [
+      seeded.firmId,
+      { users: 2 },
+    ]);
+    const dev = await newInvite(null, 'dev.iyer@kestrel-metals.example');
+    expect((await store.account(seeded.firmId))!.usage.users).toBe(2);
+    // Dev's open invite already holds a seat, so re-inviting Dev at the limit takes no other.
+    expect((await newInvite(dev.personId, dev.email)).status).toBe('PENDING');
+    const refused = await newInvite(null, 'meera.nair@kestrel-metals.example').catch(
+      (e: unknown) => e,
+    );
+    expect(refused).toMatchObject({
+      code: 'PLAN_LIMIT_REACHED',
+      details: { limit: 'users', max: 2, used: 2 },
+    });
+    // The refused invite changed nothing: no person was created for it.
+    expect(
+      await rows(`SELECT count(*)::int AS n FROM person WHERE firm_id = $1`, [seeded.firmId]),
+    ).toEqual([{ n: 2 }]);
+  });
+
   it('opens a support session from a console token, and ends it with the grant', async () => {
     const seeded = await firmWithClient();
     const fa = await person(seeded, { role: 'FIRM_ADMIN' });

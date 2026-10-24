@@ -4,7 +4,7 @@
 import type { ReminderSettings } from '@canopy/contracts';
 import { Button, Input, Select } from '@canopy/ui';
 import { useRouter } from 'next/navigation';
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 
 import { saveRemindersAction } from '../actions';
 import { daysText, parseDays, reminderSummary, WEEKDAYS } from '../setup-model';
@@ -30,13 +30,17 @@ export function RemindersForm({
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState<string | null>(null);
 
-  // A new version from the server (after a save, or someone else's) replaces the form.
+  // Only a new version from the server (after a save, or someone else's) replaces the form; a refresh after a
+  // refused save keeps what was typed.
+  const latest = useRef(reminders);
+  latest.current = reminders;
   useEffect(() => {
-    setBefore(daysText(reminders.ownerDaysBefore));
-    setAfter(daysText(reminders.approverDaysAfter));
-    setTime(reminders.sendAtLocalTime);
-    setWeekday(String(reminders.consultantDigestWeekday));
-  }, [version, reminders]);
+    const r = latest.current;
+    setBefore(daysText(r.ownerDaysBefore));
+    setAfter(daysText(r.approverDaysAfter));
+    setTime(r.sendAtLocalTime);
+    setWeekday(String(r.consultantDigestWeekday));
+  }, [version]);
 
   const ownerDays = parseDays(before);
   const approverDays = parseDays(after);

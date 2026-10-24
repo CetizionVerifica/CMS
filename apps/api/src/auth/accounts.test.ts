@@ -195,6 +195,19 @@ describe('an account PENDING_DELETION', () => {
     expect((await post('/api/v1/auth/logout', {}, headers)).statusCode).toBe(204);
   });
 
+  it('sends magic links to its account admins only', async () => {
+    const fa = await seed({ memberships: [{ role: 'FIRM_ADMIN' }], status: 'PENDING_DELETION' });
+    const ca = await seed({ firmId: fa.firmId, memberships: [{ role: 'CLIENT_ADMIN' }] });
+    for (const p of [fa, ca]) {
+      expect((await post('/api/v1/auth/magic-link', { email: p.email })).statusCode).toBe(202);
+    }
+    expect(
+      store.outbox
+        .filter((e) => e.type === 'auth.magic_link_requested')
+        .map((e) => e.data.personId),
+    ).toEqual([fa.personId]);
+  });
+
   it('signs in nobody else', async () => {
     const p = await seed({ memberships: [{ role: 'CLIENT_ADMIN' }], status: 'PENDING_DELETION' });
     expect(error(await login(p.email))).toMatchObject({
@@ -245,6 +258,25 @@ describe('invites and accounts', () => {
     const { send } = await admin({ max: 3, used: 3 });
     const res = await send({ displayName: 'Dev Iyer', email: 'dev.iyer@kestrel-metals.example' });
     expect(error(res)).toEqual({
+      status: 403,
+      code: 'PLAN_LIMIT_REACHED',
+      details: { limit: 'users', max: 3, used: 3 },
+    });
+  });
+
+  it('counts a re-invite whose earlier invite expired, but not one still open', async () => {
+    const { send, firmId } = await admin({ max: 3, used: 2 });
+    const first = await send({ displayName: 'Dev Iyer', email: 'dev.iyer@kestrel-metals.example' });
+    expect(first.statusCode).toBe(201);
+    expect(store.accounts.get(firmId)!.usage.users).toBe(3);
+    const { personId, email } = store.invites.get(first.json().id as string)!;
+    // The open invite already holds Dev's seat, so re-inviting at the limit takes no other.
+    const again = await send({ personId, email });
+    expect(again.statusCode).toBe(201);
+    // Once it expires the seat is free, and here someone else has taken it.
+    const open = store.invites.get(again.json().id as string)!;
+    store.invites.set(open.id, { ...open, linkExpiresAt: '2026-01-01T00:00:00.000Z' });
+    expect(error(await send({ personId, email }))).toEqual({
       status: 403,
       code: 'PLAN_LIMIT_REACHED',
       details: { limit: 'users', max: 3, used: 3 },
