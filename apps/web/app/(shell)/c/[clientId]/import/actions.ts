@@ -17,6 +17,7 @@ import { z } from 'zod';
 import { isApiError } from '../../../../../lib/api/client';
 import { sessionApi, usingMockApi } from '../../../../../lib/api/server';
 import * as steps from './import-api';
+import { PLAN_LIMIT } from './import-model';
 
 export type ActionResult<T = void> = { ok: true; value: T } | { ok: false; message: string };
 
@@ -46,6 +47,9 @@ function failure(error: unknown): { ok: false; message: string } {
   }
   if (isApiError(error, 'FILE_TOO_LARGE')) {
     return { ok: false, message: 'The workbook is too large to import.' };
+  }
+  if (isApiError(error, 'PLAN_LIMIT_REACHED')) {
+    return { ok: false, message: PLAN_LIMIT };
   }
   if (isApiError(error, 'FORBIDDEN', 'ACCESS_EXPIRED')) {
     return { ok: false, message: 'You can no longer import for this client.' };

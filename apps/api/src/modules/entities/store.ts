@@ -121,6 +121,12 @@ export interface PersonReach {
   firmStaff: boolean;
 }
 
+/** One plan limit against the account's firm-wide count; `max` is null when the plan sets none. */
+export interface PlanAllowance {
+  max: number | null;
+  used: number;
+}
+
 export interface Tx {
   clients: Repo<Client>;
   companies: Repo<Company>;
@@ -154,6 +160,12 @@ export interface Tx {
   ): Promise<{ person: Person; membership: Membership }>;
   /** Obligations with an active assignment in a client the context can see. */
   assignedObligationIds(): Promise<Id[]>;
+  /**
+   * Takes the account's usage lock until the transaction ends, then reads the plan's limit and the whole account's
+   * count of live rows, whatever clients the context can see (ADR M15-0001 decision 5). Two creates at the limit
+   * cannot both read the count before either writes.
+   */
+  planAllowance(limit: 'companies' | 'units'): Promise<PlanAllowance>;
   /** Appends an audit row in this transaction (root CLAUDE.md non-negotiable 2). */
   audit(event: AuditInput): Promise<void>;
   /** Adds an event to the outbox in this transaction. */

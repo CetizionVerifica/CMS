@@ -1,13 +1,15 @@
 import { ENDPOINTS, type Id, type Unit } from '@canopy/contracts';
 import type { FastifyInstance } from 'fastify';
 import { unitScope } from './http/access.js';
-import { invalid } from './http/errors.js';
+import { HttpError, invalid } from './http/errors.js';
 import { pageOf } from './http/page.js';
 import { mount, type M6Deps } from './http/route.js';
 import { emit } from './events.js';
 import { mergeInto } from './merge.js';
 import type { Tx } from './store.js';
 import { auditedInsert, auditedUpdate, getLive, instantOf } from './write.js';
+
+const PLAN_NOUN = { companies: ['company', 'companies'], units: ['unit', 'units'] } as const;
 
 /** Companies, units, locations and departments (docs/contracts/endpoints.md §3). */
 export function entityRoutes(app: FastifyInstance, deps: M6Deps): void {
@@ -33,6 +35,18 @@ export function entityRoutes(app: FastifyInstance, deps: M6Deps): void {
     const location = await tx.locations.get(locationId);
     if (!location || location.archivedAt !== null) {
       throw invalid('Unknown location.', ['body', 'locationId']);
+    }
+  }
+
+  /** 403 PLAN_LIMIT_REACHED when one more would pass the plan's limit; holds the usage lock to commit. */
+  async function withinPlan(tx: Tx, limit: 'companies' | 'units') {
+    const { max, used } = await tx.planAllowance(limit);
+    if (max !== null && used >= max) {
+      throw new HttpError(
+        'PLAN_LIMIT_REACHED',
+        `Your plan allows ${max} ${max === 1 ? PLAN_NOUN[limit][0] : PLAN_NOUN[limit][1]}. Contact PlanetPulse to upgrade.`,
+        { limit, max, used },
+      );
     }
   }
 
@@ -68,6 +82,7 @@ export function entityRoutes(app: FastifyInstance, deps: M6Deps): void {
     call.authorize({ type: 'company', clientId });
     return store.transaction(call.ctx, async (tx) => {
       await liveClient(tx, clientId);
+      await withinPlan(tx, 'companies');
       return auditedInsert(
         tx,
         tx.companies,
@@ -145,6 +160,7 @@ export function entityRoutes(app: FastifyInstance, deps: M6Deps): void {
       await liveClient(tx, clientId);
       await companyOf(tx, clientId, body.companyId);
       await liveLocation(tx, body.locationId);
+      await withinPlan(tx, 'units');
       const unit = await auditedInsert(
         tx,
         tx.units,

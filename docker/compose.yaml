@@ -20,8 +20,10 @@ services:
 
   # S3-compatible storage for evidence files (SeaweedFS; MinIO no longer publishes community images).
   s3:
+    # Fixed volume count and size: `-volume.max=0` would size it from free disk in 30 GB volumes and leave none
+    # writable on a machine with less than 30 GB free.
     image: chrislusf/seaweedfs:4.48
-    command: server -dir=/data -s3 -s3.port=9000 -s3.config=/etc/seaweedfs/s3.json -volume.max=0
+    command: server -dir=/data -s3 -s3.port=9000 -s3.config=/etc/seaweedfs/s3.json -volume.max=16 -master.volumeSizeLimitMB=128
     ports:
       - '9000:9000'
     volumes:

@@ -102,6 +102,67 @@ describe('units', () => {
   });
 });
 
+describe('plan limits', () => {
+  it("refuses a company past the plan's limit, counting clients the actor cannot see", async () => {
+    const { call, store } = testApp();
+    // Firm A holds three live companies; the client admin sees only client A's two.
+    store.limits = { companies: 3 };
+    const res = await call('clientAdmin', 'POST', `/clients/${ids.clientA}/companies`, {
+      name: 'Kestrel Fibres',
+    });
+    expect(res.status).toBe(403);
+    expect(error(res.body)).toMatchObject({
+      code: 'PLAN_LIMIT_REACHED',
+      message: 'Your plan allows 3 companies. Contact PlanetPulse to upgrade.',
+      details: { limit: 'companies', max: 3, used: 3 },
+    });
+    expect(store.audits).toEqual([]);
+  });
+
+  it('allows a company below the limit and does not count archived ones', async () => {
+    const { call, store } = testApp();
+    store.limits = { companies: 3 };
+    const archived = await call('firmAdmin', 'POST', `/companies/${ids.companyEmpty}/archive`, {
+      version: 1,
+      reason: 'Merged',
+    });
+    expect(archived.status).toBe(200);
+    const res = await call('clientAdmin', 'POST', `/clients/${ids.clientA}/companies`, {
+      name: 'Kestrel Fibres',
+    });
+    expect(res.status).toBe(201);
+  });
+
+  it("refuses a unit past the plan's limit and writes nothing", async () => {
+    const { call, store } = testApp();
+    store.limits = { units: 1 };
+    const res = await call('consultant', 'POST', `/clients/${ids.clientA}/units`, {
+      companyId: ids.companyA,
+      name: 'Depot',
+      locationId: ids.location,
+    });
+    expect(res.status).toBe(403);
+    expect(error(res.body)).toMatchObject({
+      code: 'PLAN_LIMIT_REACHED',
+      message: 'Your plan allows 1 unit. Contact PlanetPulse to upgrade.',
+      details: { limit: 'units', max: 1, used: 3 },
+    });
+    expect(store.audits).toEqual([]);
+    expect(store.events).toEqual([]);
+  });
+
+  it('has no limit when the plan sets none', async () => {
+    const { call, store } = testApp();
+    store.limits = { units: null };
+    const res = await call('consultant', 'POST', `/clients/${ids.clientA}/units`, {
+      companyId: ids.companyA,
+      name: 'Depot',
+      locationId: ids.location,
+    });
+    expect(res.status).toBe(201);
+  });
+});
+
 describe('locations', () => {
   it('filters by country and state and searches by name', async () => {
     const { call } = testApp();

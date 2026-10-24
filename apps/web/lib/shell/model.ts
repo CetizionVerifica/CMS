@@ -1,7 +1,13 @@
 // What the shell shows for the signed-in user: their roles, the clients in the switcher and the sidebar sections.
 // Plain data, built on the server and passed to the client frame (icons are attached there, since components can't
 // cross the server/client boundary).
-import { FIRM_ROLES, type ClientPeriods, type Me, type Role } from '@canopy/contracts';
+import {
+  DEFAULT_ACCOUNT,
+  FIRM_ROLES,
+  type ClientPeriods,
+  type Me,
+  type Role,
+} from '@canopy/contracts';
 
 import { hrefFor, routeByPath, visibleTo } from '../routes';
 
@@ -27,7 +33,35 @@ export type ShellModel = {
   roles: { firm: Role[]; byClient: Record<string, Role[]> };
   /** Instances waiting on the user's approval (GET /me/approvals), shown on the Approvals item. */
   approvalsWaiting: number;
+  /** A line above every page about the account itself: a support visit, a closing account or a trial. */
+  notice?: ShellNotice;
+  /** False for a company account with one client: there is nothing to switch to (ADR M15-0001). */
+  showClientSwitcher?: boolean;
+  /**
+   * False for a company account with exactly one client: that client is the whole account, so there is no portfolio
+   * to show and firm users land on its overview (ADR M15-0001 decision 2).
+   */
+  showPortfolio?: boolean;
 };
+
+/** The account's state, for the line above every page; ShellFrame words it. */
+export type ShellNotice =
+  { kind: 'support' } | { kind: 'closing' } | { kind: 'trial'; endsOn: string };
+
+/**
+ * What the account's state means for everyone signed in to it. A PlanetPulse support visit comes first, so support
+ * never forgets whose account it is in; then a closing account; then a trial with its end date. A paused account
+ * signs nobody in, so it never reaches the shell.
+ */
+export function accountNotice(me: Pick<Me, 'person' | 'account'>): ShellNotice | undefined {
+  const account = me.account ?? DEFAULT_ACCOUNT;
+  if (me.person.support) return { kind: 'support' };
+  if (account.status === 'PENDING_DELETION') return { kind: 'closing' };
+  if (account.status === 'TRIAL' && account.trialEndsOn) {
+    return { kind: 'trial', endsOn: account.trialEndsOn };
+  }
+  return undefined;
+}
 
 export type NavSection = { label?: string; items: { path: string; label: string; href: string }[] };
 
@@ -84,6 +118,7 @@ export function buildShellModel(
       availableUntil: period.availableUntil,
     }))
     .sort((a, b) => a.name.localeCompare(b.name));
+  const enterprise = (me.account ?? DEFAULT_ACCOUNT).kind === 'ENTERPRISE';
   return {
     user: {
       name: me.person.displayName,
@@ -97,6 +132,9 @@ export function buildShellModel(
       byClient: Object.fromEntries(clients.map((c) => [c.id, rolesFor(me, c.id)])),
     },
     approvalsWaiting,
+    notice: accountNotice(me),
+    showClientSwitcher: !(enterprise && clients.length <= 1),
+    showPortfolio: !(enterprise && clients.length === 1),
   };
 }
 
@@ -106,18 +144,23 @@ const CLIENT_SECTIONS: { label?: string; paths: string[] }[] = [
   { label: 'Setup', paths: ['setup/entities', 'setup/people', 'import'] },
 ];
 
-const FIRM_SECTION = { label: 'Firm', paths: ['portfolio', 'library/acts'] };
+const FIRM_SECTION = { label: 'Firm', paths: ['portfolio', 'library/acts', 'account'] };
 
 /**
  * Sidebar sections (spec 01 "Default nav"). With no client selected only the firm items show. Items a role can't
  * use are left out rather than shown disabled.
  */
-export function navSections(roles: readonly Role[], clientId?: string): NavSection[] {
+export function navSections(
+  roles: readonly Role[],
+  clientId?: string,
+  { showPortfolio = true }: { showPortfolio?: boolean } = {},
+): NavSection[] {
   const groups = clientId ? [...CLIENT_SECTIONS, FIRM_SECTION] : [FIRM_SECTION];
   return groups
     .map((g) => ({
       ...(g.label ? { label: g.label } : {}),
       items: g.paths
+        .filter((path) => showPortfolio || path !== 'portfolio')
         .map(routeByPath)
         .filter((r) => visibleTo(r, roles))
         .map((r) => ({
@@ -129,9 +172,15 @@ export function navSections(roles: readonly Role[], clientId?: string): NavSecti
     .filter((g) => g.items.length > 0);
 }
 
-/** Where a signed-in user lands: firm users on the portfolio, client users on their (first) client's overview. */
-export function homeHref(model: Pick<ShellModel, 'clients' | 'isFirmUser'>): string {
-  if (model.isFirmUser) return '/portfolio';
+/**
+ * Where a signed-in user lands: firm users on the portfolio, client users on their (first) client's overview. A
+ * company account's firm users go straight to its one client, since it has no portfolio.
+ */
+export function homeHref(
+  model: Pick<ShellModel, 'clients' | 'isFirmUser' | 'showPortfolio'>,
+): string {
+  if (model.isFirmUser && model.showPortfolio !== false) return '/portfolio';
   const first = model.clients[0];
-  return first ? `/c/${encodeURIComponent(first.id)}/overview` : '/library/acts';
+  if (first) return `/c/${encodeURIComponent(first.id)}/overview`;
+  return model.isFirmUser ? '/portfolio' : '/library/acts';
 }

@@ -14,7 +14,7 @@ export async function signIn(page: Page, email: string, path = '/'): Promise<voi
   await page.getByLabel('Work email').fill(email);
   await page.getByLabel('Password').fill(PASSWORD);
   await page.getByRole('button', { name: 'Sign in' }).click();
-  if (email === 'consultant@demo.test' || email === 'admin@demo.test') {
+  if (['consultant@demo.test', 'admin@demo.test', 'company@demo.test'].includes(email)) {
     await expect(page).toHaveURL(/\/login\/verify/);
     await page.getByLabel('6-digit code').fill(MFA_CODE);
     await page.getByRole('button', { name: 'Verify' }).click();

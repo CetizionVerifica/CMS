@@ -145,8 +145,10 @@ remind for complied or not-applicable items, and reach the database only through
     platform, operator) has `USAGE` or `CREATE` on it, so tenant code cannot read or change job rows.
     - **Own login:** pg-boss connects with `JOBS_DATABASE_URL`, a login that is a member of `canopy_jobs` only and
       defaults to it, so the tables and queue partitions it creates belong to `canopy_jobs`. The tenant login must
-      never default to `canopy_jobs`. Without `JOBS_DATABASE_URL` (local development) the runner uses the API's
-      `DATABASE_URL`.
+      never default to `canopy_jobs`. Without `JOBS_DATABASE_URL` the runner uses the API's `DATABASE_URL`. Once
+      `canopy_jobs` owns the schema, that works only for a superuser or the database owner, as in local
+      development. The tenant login, a plain member of `canopy_app`, has no `USAGE` on the schema, so the API stops
+      at boot with the "set JOBS_DATABASE_URL" error.
     - **No schema creation:** the runner passes `createSchema: false`, since `CREATE SCHEMA IF NOT EXISTS` needs
       `CREATE` on the database. It refuses to start when the schema is missing ("run the database migrations
       first").

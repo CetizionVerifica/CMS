@@ -7,6 +7,7 @@ import {
 } from '@canopy/contracts';
 import * as r from '@canopy/db';
 import type { FastifyInstance } from 'fastify';
+import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createTestAuth } from '../../auth/testing.js';
 import { buildServer } from '../../server.js';
@@ -687,6 +688,102 @@ describe.skipIf(!url)('M6 on the Postgres store', () => {
       expect(
         await store.transaction(ctx(), (tx) => tx.personReach(w.people.consultant)),
       ).toMatchObject({ firmStaff: true });
+    });
+  });
+
+  describe('plan limits', () => {
+    /** Sets firm A's override as the operator would; null clears it. */
+    async function limit(limits: Record<string, number> | null) {
+      const owner = new pg.Client({ connectionString: t.url });
+      await owner.connect();
+      try {
+        await owner.query('DELETE FROM platform.account_override WHERE account_id = $1', [w.firmA]);
+        if (limits) {
+          await owner.query(
+            'INSERT INTO platform.account_override (account_id, limits) VALUES ($1, $2)',
+            [w.firmA, limits],
+          );
+        }
+      } finally {
+        await owner.end();
+      }
+    }
+    const usage = () => system(w.firmA, (tx) => r.account.usage(tx));
+
+    afterAll(() => limit(null));
+
+    it("refuses a client admin's company at the limit, counting the whole account", async () => {
+      const { companies } = await usage();
+      await limit({ companies });
+      const res = await call('clientAdmin', 'POST', `/clients/${w.clientA}/companies`, {
+        name: 'Kestrel Fibres',
+      });
+      expect(res.status).toBe(403);
+      expect(error(res.body)).toMatchObject({
+        code: 'PLAN_LIMIT_REACHED',
+        details: { limit: 'companies', max: companies, used: companies },
+      });
+      expect((await usage()).companies).toBe(companies);
+    });
+
+    it('lets only one of two simultaneous companies take the last place', async () => {
+      const { companies } = await usage();
+      await limit({ companies: companies + 1 });
+      // Hold the account's usage lock, start both creates, and see both queue behind it before letting them go.
+      let release!: () => void;
+      const held = new Promise<void>((resolve) => (release = resolve));
+      let locked!: () => void;
+      const lockTaken = new Promise<void>((resolve) => (locked = resolve));
+      const holder = system(w.firmA, async (tx) => {
+        await r.account.lockUsage(tx);
+        locked();
+        await held;
+      });
+      await lockTaken;
+      const racing = Promise.all(
+        ['Kestrel Wires', 'Kestrel Foils'].map((name) =>
+          call('consultant', 'POST', `/clients/${w.clientA}/companies`, { name }),
+        ),
+      );
+      const owner = new pg.Client({ connectionString: t.url });
+      await owner.connect();
+      const waiting = async () =>
+        (
+          await owner.query<{ n: number }>(
+            `SELECT count(*)::int AS n FROM pg_locks
+             WHERE locktype = 'advisory' AND NOT granted
+               AND database = (SELECT oid FROM pg_database WHERE datname = current_database())`,
+          )
+        ).rows[0]!.n;
+      try {
+        for (let i = 0; i < 200 && (await waiting()) < 2; i += 1) {
+          await new Promise((resolve) => setTimeout(resolve, 10));
+        }
+        expect(await waiting()).toBe(2);
+      } finally {
+        release();
+        await owner.end();
+      }
+      await holder;
+      const both = await racing;
+      expect(both.map((res) => res.status).sort()).toEqual([201, 403]);
+      expect((await usage()).companies).toBe(companies + 1);
+    });
+
+    it('refuses a unit at the limit and writes no audit row', async () => {
+      const { units } = await usage();
+      await limit({ units });
+      const res = await call('consultant', 'POST', `/clients/${w.clientA}/units`, {
+        companyId: w.companyA,
+        name: 'Highmoor Depot',
+        locationId: w.locationId,
+      });
+      expect(res.status).toBe(403);
+      expect(error(res.body)).toMatchObject({
+        code: 'PLAN_LIMIT_REACHED',
+        details: { limit: 'units', max: units, used: units },
+      });
+      expect((await usage()).units).toBe(units);
     });
   });
 

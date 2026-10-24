@@ -4,6 +4,7 @@
 // (mock-delegate.ts). People are pseudonyms (fixtures.md §5); nothing here is real data.
 import {
   DEFAULT_CLIENT_SETTINGS,
+  type AccountSummary,
   DerivedStatus,
   LocalDate,
   type Client,
@@ -39,6 +40,8 @@ export const MOCK_FIRMS = [
   { id: '00000000-0000-5000-8000-0000000000f2', name: 'Demo Partners' },
 ] as const;
 export const MOCK_TWO_FIRM_EMAIL = 'twofirms@demo.test';
+/** The account admin of a company account on trial with one client, so the shell's account notice can be tried. */
+export const MOCK_COMPANY_EMAIL = 'company@demo.test';
 /** A consultant who hasn't set up MFA yet, so signing in leads to the setup page. */
 export const MOCK_UNENROLLED_EMAIL = 'newconsultant@demo.test';
 /** The TOTP secret the mock hands out at enrolment (RFC 4648 base32). Any authenticator accepts it; the mock still
@@ -103,11 +106,24 @@ const overdue: Record<string, number> = {
   [MOCK_CLIENTS.sunrise]: 12,
 };
 
-type MockUser = { person: Person; memberships: Membership[] };
+/** `account` and `clientIds` stand in for a user of another account: its own state, and only its clients. */
+type MockUser = {
+  person: Person;
+  memberships: Membership[];
+  account?: AccountSummary;
+  clientIds?: string[];
+};
 
-function user(n: number, name: string, email: string, roles: [Role, string | null][]): MockUser {
+function user(
+  n: number,
+  name: string,
+  email: string,
+  roles: [Role, string | null][],
+  other: Pick<MockUser, 'account' | 'clientIds'> = {},
+): MockUser {
   const id = uid(0x200 + n);
   return {
+    ...other,
     person: {
       ...base,
       id,
@@ -139,9 +155,14 @@ export const MOCK_USERS: MockUser[] = [
   user(5, 'Consultant 02', MOCK_TWO_FIRM_EMAIL, [['CONSULTANT', null]]),
   user(6, 'Consultant 03', MOCK_UNENROLLED_EMAIL, [['CONSULTANT', null]]),
   user(7, 'Viewer 01', 'viewer@demo.test', [['VIEWER', MOCK_CLIENTS.demoMetals]]),
+  user(8, 'Company Admin 01', MOCK_COMPANY_EMAIL, [['FIRM_ADMIN', null]], {
+    account: { kind: 'ENTERPRISE', status: 'TRIAL', trialEndsOn: LocalDate.parse('2025-01-31') },
+    clientIds: [MOCK_CLIENTS.demoMetals],
+  }),
 ];
 
 function visibleClientIds(u: MockUser): string[] {
+  if (u.clientIds) return u.clientIds;
   const ids = new Set<string>();
   for (const m of u.memberships) {
     if (m.role === 'FIRM_ADMIN') clients.forEach((c) => ids.add(c.id));
@@ -189,6 +210,7 @@ function meBody(u: MockUser, mfa: boolean): Me {
   return {
     person: u.person,
     memberships: u.memberships,
+    ...(u.account ? { account: u.account } : {}),
     clients: clients
       .filter((c) => ids.includes(c.id))
       .map((c) => ({
