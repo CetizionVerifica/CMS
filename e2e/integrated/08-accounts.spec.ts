@@ -285,6 +285,17 @@ test.describe.serial('company accounts and the operator console', () => {
     ).toContainText('At the limit');
     await checkPage(admin);
     await admin.context().close();
+    // The client admin adding one in the setup page is told why nothing was added.
+    const setup = await pageAs(browser, 'ospreyAdmin');
+    await setup.goto(`/c/${clients.osprey}/setup/entities`);
+    await setup.getByLabel('New company name').fill('Stonebridge Weaving');
+    await setup.getByRole('button', { name: 'Add company' }).click();
+    // Next's route announcer is an alert too, so pick the form's by its words.
+    await expect(setup.getByRole('alert').filter({ hasText: 'limit is reached' })).toHaveText(
+      'Your plan’s company or unit limit is reached, so nothing was added. Your account admin can ask PlanetPulse to raise it.',
+    );
+    await checkPage(setup);
+    await setup.context().close();
     const ospreyAdmin = await apiAs('ospreyAdmin');
     const refused = await ospreyAdmin.post(`/clients/${clients.osprey}/companies`, {
       name: 'Stonebridge Weaving',
