@@ -228,6 +228,7 @@ export function createDbAccountStore(db: Database, options: DbAccountStoreOption
           csrfToken: session.csrfToken,
           mfaSatisfied: session.mfaSatisfied,
           expiresAt: session.expiresAt,
+          createdAt: session.createdAt,
           method: session.method,
         });
         if (!session.owesMfa) await credentials.resetFailures(tx, session.personId);

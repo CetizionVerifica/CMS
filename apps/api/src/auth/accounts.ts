@@ -109,6 +109,8 @@ export interface NewSession {
   /** The person must still pass MFA in this session; failed attempts are then not reset. */
   readonly owesMfa: boolean;
   readonly expiresAt: string;
+  /** The service clock's time at sign-in, the same clock that later judges `expiresAt`. */
+  readonly createdAt: string;
   readonly requestId: string;
   /** How the person signed in, for the audit event. */
   readonly method: 'PASSWORD' | 'MAGIC_LINK' | 'INVITE';
