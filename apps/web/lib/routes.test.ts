@@ -30,6 +30,7 @@ describe('routes', () => {
       'portfolio',
       'library/acts',
       'library/obligations',
+      'account',
     ]);
   });
 
