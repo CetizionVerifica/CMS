@@ -1,11 +1,15 @@
-import type {
-  Invite,
-  InviteBody,
-  InvitePreview,
-  Me,
-  MembershipGrant,
-  MfaEnrollment,
-  RequestContext,
+import {
+  EXPORT_ACCOUNT_STATUSES,
+  SUPPORT_SESSION_HOURS,
+  WORKING_ACCOUNT_STATUSES,
+  type AccountStatus,
+  type Invite,
+  type InviteBody,
+  type InvitePreview,
+  type Me,
+  type MembershipGrant,
+  type MfaEnrollment,
+  type RequestContext,
 } from '@canopy/contracts';
 import {
   INVITE_DAYS,
@@ -42,6 +46,15 @@ const addMinutes = (now: Date, minutes: number) =>
   new Date(now.getTime() + minutes * 60_000).toISOString();
 
 const LINK_EXPIRED = 'This link has expired or was already used.';
+const SUPPORT_LINK =
+  'This support link has expired or was already used. Open it again from the console.';
+
+const working: readonly AccountStatus[] = WORKING_ACCOUNT_STATUSES;
+/** Accounts whose people may still ask for a sign-in: working ones, and admins of one pending deletion. */
+const signInStatuses: readonly AccountStatus[] = [
+  ...WORKING_ACCOUNT_STATUSES,
+  ...EXPORT_ACCOUNT_STATUSES,
+];
 const TOO_MANY_CODES = 'Too many incorrect codes. Sign in again.';
 
 /** Wrong MFA codes one session may send before it is revoked; the person's account locks after `LOCKOUT.attempts`. */
@@ -110,6 +123,10 @@ export class AuthService {
       });
     }
     const [person] = matched as [LoginCandidate];
+    // After the password check, so a wrong password says nothing about the account.
+    if (!signInStatuses.includes(person.accountStatus)) {
+      throw new ApiError('ACCOUNT_SUSPENDED', { status: person.accountStatus });
+    }
     return this.startSession(person.firmId, person.personId, 'PASSWORD', requestId);
   }
 
@@ -117,7 +134,9 @@ export class AuthService {
   async requestMagicLink(email: string, requestId: string): Promise<void> {
     const candidates = await this.store.findLoginCandidates(email);
     const now = this.clock().getTime();
-    for (const c of candidates.filter((x) => x.status === 'ACTIVE')) {
+    for (const c of candidates.filter(
+      (x) => x.status === 'ACTIVE' && signInStatuses.includes(x.accountStatus),
+    )) {
       const key = `${c.firmId}/${c.personId}`;
       const last = this.magicLinks.get(key);
       if (last !== undefined && now - last < MAGIC_LINK_INTERVAL_SECONDS * 1000) continue;
@@ -156,10 +175,46 @@ export class AuthService {
 
   async verifyMagicLink(token: string, requestId: string): Promise<IssuedSession> {
     const found = await this.usableToken(token, 'MAGIC_LINK');
+    // Refused before the link is used up, so it still works if the account is resumed within its life.
+    await this.sessionContext(found.firmId, found.personId, requestId);
     if (!(await this.store.consumeLoginToken(found.firmId, found.id, this.clock()))) {
       throw new ApiError('UNAUTHENTICATED', undefined, LINK_EXPIRED);
     }
     return this.startSession(found.firmId, found.personId, 'MAGIC_LINK', requestId);
+  }
+
+  /**
+   * Exchanges the one-time token the operator console opened the app with for a PlanetPulse support session
+   * (ADR M15-0001 decision 11): MFA satisfied (the operator passed it in the console), ending at the earlier of
+   * `SUPPORT_SESSION_HOURS` and the grant's end. Any unusable token is UNAUTHENTICATED.
+   */
+  async verifySupportSession(token: string, requestId: string): Promise<IssuedSession> {
+    const now = this.clock();
+    const found = await this.store.findSupportToken(hashToken(token));
+    if (
+      found === null ||
+      found.usedAt !== null ||
+      Date.parse(found.expiresAt) <= now.getTime() ||
+      !found.grantLive ||
+      Date.parse(found.grantEndsAt) <= now.getTime()
+    ) {
+      throw new ApiError('UNAUTHENTICATED', undefined, SUPPORT_LINK);
+    }
+    if (!working.includes(found.accountStatus)) {
+      throw new ApiError('ACCOUNT_SUSPENDED', { status: found.accountStatus });
+    }
+    await this.sessionContext(found.firmId, found.personId, requestId, found.supportGrantId);
+    if (!(await this.store.consumeLoginToken(found.firmId, found.id, now))) {
+      throw new ApiError('UNAUTHENTICATED', undefined, SUPPORT_LINK);
+    }
+    const capped = Math.min(
+      now.getTime() + SUPPORT_SESSION_HOURS * 3_600_000,
+      Date.parse(found.grantEndsAt),
+    );
+    return this.startSession(found.firmId, found.personId, 'SUPPORT', requestId, {
+      supportGrantId: found.supportGrantId,
+      expiresAt: new Date(capped).toISOString(),
+    });
   }
 
   async logout(session: SessionRecord): Promise<void> {
@@ -227,11 +282,17 @@ export class AuthService {
   async invite(ctx: RequestContext, body: InviteBody, requestId: string): Promise<Invite> {
     const { personId, displayName, email, ...grant } = body;
     this.authorizeGrant(ctx, grant);
+    let invitee: Awaited<ReturnType<AccountStore['findInvitee']>> = null;
     if (personId !== undefined) {
-      const invitee = await this.store.findInvitee(ctx.firmId, personId, this.clock());
+      invitee = await this.store.findInvitee(ctx.firmId, personId, this.clock());
       // Claiming the account brings every role the person holds, so the inviter must be able to grant each one;
       // otherwise the person is outside their scope and reads as not found.
-      if (invitee === null || invitee.roles.some((r) => !canGrantRole(ctx, r.role, r.clientId))) {
+      // The PlanetPulse support person gets access only from a support grant (ADR M15-0001 decision 11).
+      if (
+        invitee === null ||
+        invitee.support ||
+        invitee.roles.some((r) => !canGrantRole(ctx, r.role, r.clientId))
+      ) {
         throw new ApiError('NOT_FOUND');
       }
       if (invitee.status !== 'UNCLAIMED' && invitee.status !== 'INVITED') {
@@ -249,6 +310,18 @@ export class AuthService {
         { field: 'email', existingId: owner },
         'Someone in this firm already has this email.',
       );
+    }
+    // An invite holds a seat: someone new (or imported, so not yet counted) must fit the plan's user limit.
+    if (personId === undefined || invitee?.status === 'UNCLAIMED') {
+      const account = await this.store.account(ctx.firmId);
+      const max = account?.entitlements.limits.users ?? null;
+      if (account && max !== null && account.usage.users >= max) {
+        throw new ApiError(
+          'PLAN_LIMIT_REACHED',
+          { limit: 'users', max, used: account.usage.users },
+          `Your plan allows ${max} users. Contact PlanetPulse to upgrade.`,
+        );
+      }
     }
     const now = this.clock();
     const record = await this.store.createInvite({
@@ -285,6 +358,16 @@ export class AuthService {
   ): Promise<IssuedSession> {
     const now = this.clock();
     const { found, invite } = await this.pendingInvite(token);
+    const account = await this.store.account(invite.firmId);
+    // A PROVISIONING account takes only its owner's invite, the FIRM_ADMIN invite the owner "created" for
+    // themselves; accepting it opens the account (ADR M15-0001 decision 3, the db's canopy_activate_account).
+    const opening =
+      account?.status === 'PROVISIONING' &&
+      invite.role === 'FIRM_ADMIN' &&
+      invite.invitedById === invite.personId;
+    if (account && !working.includes(account.status) && !opening) {
+      throw new ApiError('ACCOUNT_SUSPENDED', { status: account.status });
+    }
     const passwordHash = await hashPassword(input.password);
     const accepted = await this.store.acceptInvite({
       firmId: invite.firmId,
@@ -400,38 +483,77 @@ export class AuthService {
     remember(this.mfaFailures, session.id, failures);
   }
 
+  /**
+   * The request context a new session would get, or the error that refuses it: the person must be ACTIVE with an
+   * active membership, and the account must let them in (`checkAccount`). Called before a link is used up.
+   */
+  private async sessionContext(
+    firmId: string,
+    personId: string,
+    requestId: string,
+    supportGrantId: string | null = null,
+  ): Promise<{ ctx: RequestContext; principal: Principal }> {
+    const now = this.clock();
+    const [principal, account] = [
+      await this.store.loadPrincipal(firmId, personId),
+      await this.store.account(firmId),
+    ];
+    const ctx = buildRequestContext({
+      requestId,
+      session: {
+        id: 'pending',
+        firmId,
+        personId,
+        csrfToken: 'pending',
+        mfaSatisfied: false,
+        expiresAt: addMinutes(now, 1),
+        accountStatus: account?.status ?? 'ACTIVE',
+        supportGrantId,
+      },
+      principal,
+      now,
+      allowBeforeMfa: true,
+      // A sign-in lands on `/me`, which an admin of an account pending deletion may still reach.
+      allowWhilePendingDeletion: true,
+    });
+    return { ctx, principal: principal! };
+  }
+
   private async startSession(
     firmId: string,
     personId: string,
     method: NewSession['method'],
     requestId: string,
+    support?: { supportGrantId: string; expiresAt: string },
   ): Promise<IssuedSession> {
     const now = this.clock();
-    const principal = await this.store.loadPrincipal(firmId, personId);
+    const { ctx: pendingCtx, principal } = await this.sessionContext(
+      firmId,
+      personId,
+      requestId,
+      support?.supportGrantId ?? null,
+    );
     const token = newToken();
+    // The operator passed MFA in the console to open a support session.
+    const mfaSatisfied = support !== undefined;
     const pending = {
       firmId,
       personId,
       csrfToken: newToken(),
-      mfaSatisfied: false,
-      expiresAt: addMinutes(now, SESSION_HOURS * 60),
+      mfaSatisfied,
+      expiresAt: support?.expiresAt ?? addMinutes(now, SESSION_HOURS * 60),
     };
-    const ctx = buildRequestContext({
-      requestId,
-      session: { id: 'pending', ...pending },
-      principal,
-      now,
-      allowBeforeMfa: true,
-    });
     const record = await this.store.createSession({
       ...pending,
-      owesMfa: mfaRequired(principal!, ctx.memberships),
+      owesMfa: !mfaSatisfied && mfaRequired(principal, pendingCtx.memberships),
       createdAt: now.toISOString(),
       tokenHash: hashToken(token),
       requestId,
       method,
+      ...(support ? { supportGrantId: support.supportGrantId } : {}),
     });
-    return { token, record, me: await this.buildMe(ctx, record, principal!) };
+    const ctx = { ...pendingCtx, mfaSatisfied };
+    return { token, record, me: await this.buildMe(ctx, record, principal) };
   }
 
   private async buildMe(
@@ -439,6 +561,7 @@ export class AuthService {
     session: SessionRecord,
     principal: Principal,
   ): Promise<Me> {
+    const account = await this.store.account(ctx.firmId);
     return {
       person: principal.person,
       memberships: [...ctx.memberships],
@@ -449,6 +572,16 @@ export class AuthService {
         enrolled: principal.mfaEnrolled,
         satisfied: session.mfaSatisfied,
       },
+      session: { expiresAt: session.expiresAt },
+      ...(account
+        ? {
+            account: {
+              kind: account.kind,
+              status: account.status,
+              trialEndsOn: account.trialEndsOn,
+            },
+          }
+        : {}),
     };
   }
 }

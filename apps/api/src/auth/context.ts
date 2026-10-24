@@ -1,5 +1,8 @@
 import {
   DEFAULT_CLIENT_SETTINGS,
+  EXPORT_ACCOUNT_STATUSES,
+  WORKING_ACCOUNT_STATUSES,
+  type AccountStatus,
   type Membership,
   type Person,
   type RequestContext,
@@ -18,6 +21,10 @@ export interface SessionRecord {
   /** True once the person passed MFA in this session. */
   readonly mfaSatisfied: boolean;
   readonly expiresAt: string;
+  /** The account's status when the session was looked up (ADR M15-0001 decision 4). Missing reads as ACTIVE. */
+  readonly accountStatus?: AccountStatus;
+  /** Set on a PlanetPulse support session; such a session is not found once its grant ends. */
+  readonly supportGrantId?: string | null;
 }
 
 /** What the request context is built from: the signed-in person and their firm. */
@@ -80,13 +87,37 @@ export interface BuildContextInput {
   readonly timeZone?: string;
   /** Routes that complete MFA (enroll, verify, `/me`, logout) are reachable before MFA. */
   readonly allowBeforeMfa?: boolean;
+  /**
+   * Routes an account admin may still use while the account is PENDING_DELETION: `/me`, logout and the account
+   * export (endpoints.md §8). Every other route answers ACCOUNT_SUSPENDED then.
+   */
+  readonly allowWhilePendingDeletion?: boolean;
+}
+
+const working: readonly AccountStatus[] = WORKING_ACCOUNT_STATUSES;
+const exporting: readonly AccountStatus[] = EXPORT_ACCOUNT_STATUSES;
+
+/**
+ * Throws ACCOUNT_SUSPENDED unless the account lets this person in here: everyone while TRIAL or ACTIVE; while
+ * PENDING_DELETION, account admins (not PlanetPulse support) on the routes that allow it; nobody otherwise.
+ */
+export function checkAccount(
+  status: AccountStatus,
+  active: readonly Membership[],
+  options: { support: boolean; allowWhilePendingDeletion: boolean },
+): void {
+  if (working.includes(status)) return;
+  const admin = active.some((m) => m.role === 'FIRM_ADMIN');
+  if (exporting.includes(status) && admin && !options.support && options.allowWhilePendingDeletion)
+    return;
+  throw new ApiError('ACCOUNT_SUSPENDED', { status });
 }
 
 /**
  * Builds the request context for a session, or throws the contract error:
  * `UNAUTHENTICATED` (no, expired or orphaned session; person not ACTIVE), `ACCESS_EXPIRED` (every
- * membership has expired), `FORBIDDEN` (no membership at all), `MFA_REQUIRED` (firm role without MFA in
- * this session, unless `allowBeforeMfa`).
+ * membership has expired), `FORBIDDEN` (no membership at all), `ACCOUNT_SUSPENDED` (the account is not working,
+ * see `checkAccount`), `MFA_REQUIRED` (firm role without MFA in this session, unless `allowBeforeMfa`).
  */
 export function buildRequestContext(input: BuildContextInput): RequestContext {
   const { session, principal, now } = input;
@@ -101,6 +132,10 @@ export function buildRequestContext(input: BuildContextInput): RequestContext {
     const expired = principal.memberships.some((m) => m.archivedAt === null);
     throw new ApiError(expired ? 'ACCESS_EXPIRED' : 'FORBIDDEN');
   }
+  checkAccount(session.accountStatus ?? 'ACTIVE', active, {
+    support: (session.supportGrantId ?? null) !== null,
+    allowWhilePendingDeletion: input.allowWhilePendingDeletion ?? false,
+  });
   if (!session.mfaSatisfied && !input.allowBeforeMfa && mfaRequired(principal, active)) {
     throw new ApiError('MFA_REQUIRED', { enrolled: principal.mfaEnrolled });
   }

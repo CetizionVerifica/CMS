@@ -7,6 +7,7 @@ import {
   MagicLinkBody,
   MagicLinkVerifyBody,
   MfaVerifyBody,
+  SupportSessionVerifyBody,
 } from '@canopy/contracts';
 import type { FastifyInstance, FastifyReply } from 'fastify';
 import { z } from 'zod';
@@ -81,11 +82,24 @@ export function registerAuthRoutes(app: FastifyInstance, options: AuthRoutesOpti
         },
       );
 
-      api.post('/auth/logout', { config: { auth: 'session-pre-mfa' } }, async (req, reply) => {
-        await service.logout(sessionOf(req));
-        reply.clearCookie(SESSION_COOKIE, { path: '/' });
-        return reply.code(204).send();
-      });
+      api.post(
+        '/auth/support/verify',
+        { config: { auth: 'public', routeLimit: LIMITS.token } },
+        async (req, reply) => {
+          const { token } = SupportSessionVerifyBody.parse(req.body);
+          return startSession(reply, await service.verifySupportSession(token, req.id));
+        },
+      );
+
+      api.post(
+        '/auth/logout',
+        { config: { auth: 'session-pre-mfa', whilePendingDeletion: true } },
+        async (req, reply) => {
+          await service.logout(sessionOf(req));
+          reply.clearCookie(SESSION_COOKIE, { path: '/' });
+          return reply.code(204).send();
+        },
+      );
 
       api.post(
         '/auth/mfa/enroll',
@@ -100,8 +114,10 @@ export function registerAuthRoutes(app: FastifyInstance, options: AuthRoutesOpti
           service.verifyMfa(req.ctx, sessionOf(req), MfaVerifyBody.parse(req.body).code),
       );
 
-      api.get('/me', { config: { auth: 'session-pre-mfa' } }, async (req) =>
-        service.me(req.ctx, sessionOf(req)),
+      api.get(
+        '/me',
+        { config: { auth: 'session-pre-mfa', whilePendingDeletion: true } },
+        async (req) => service.me(req.ctx, sessionOf(req)),
       );
 
       api.post('/invites', { config: { auth: 'session' } }, async (req, reply) => {
