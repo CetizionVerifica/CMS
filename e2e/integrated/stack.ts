@@ -37,6 +37,9 @@ export const OPERATOR = {
 
 /** The stand-in clamd (fake-clamd.ts) the API's evidence scan calls (CLAMAV_HOST, docs/security/review.md F8). */
 export const CLAMD_PORT = 4110;
+/** The stand-in mail server (fake-smtp.ts) the API's email jobs send through (SMTP_URL). */
+export const SMTP_PORT = 4120;
+export const MAIL_FROM = 'PlanetPulse Compliance <no-reply@planetpulse-e2e.test>';
 /**
  * EICAR's anti-virus test string: harmless, and every scanner reports it. Joined at run time, so a desktop scanner does
  * not quarantine this file in a checkout.
@@ -144,6 +147,9 @@ export const addressOf = (key: AccountKey, visit = 0) =>
  * git nor Prettier sees it.
  */
 export const RUN_DIR = new URL('../node_modules/.cache/integrated/', import.meta.url);
+
+/** Where the stand-in mail server keeps what it receives, one JSON file per message (mailbox.ts reads them). */
+export const MAILBOX_DIR = new URL('mail/', RUN_DIR);
 
 /** Where prepare.ts keeps the operator's TOTP secret, from the otpauth URI `platform:add-operator` prints. */
 export const OPERATOR_TOTP_FILE = new URL('operator.totp', RUN_DIR);

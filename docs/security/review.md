@@ -97,8 +97,18 @@ Each line is a test in `e2e/integrated` unless it says otherwise.
   flagged one as blocked with no way to open it; the calendar's count for a month equals the register's for the same
   dates, and a day and the list view open the instance. Each screen is checked with axe (the drawer on its own, as
   it hides the page behind it).
+- Company accounts and the operator console (`08-accounts.spec.ts`), on the console built against the run's API and
+  its own database login: the operator signs in with a code and sees accounts but no client names; creates an
+  account, whose owner reads the invite from the stand-in mail server (`fake-smtp.ts`; the link is on `APP_URL`,
+  its token in the path), sets a password, sets up sign-in codes and opens the account, after which the link is
+  spent; opens the support session an account admin granted (token in the fragment only); suspends an account, whose
+  open session is refused until it is resumed; holds an account at its companies, which the account admin sees and
+  the API enforces with `PLAN_LIMIT_REACHED`, then lifts it; and reads each step's reason in the operator audit,
+  which carries no owner email. The operator API answers 404 to an address outside `PLATFORM_IP_ALLOWLIST`, even
+  with a live session, and the console's database login is refused (42501) on every customer table it was not
+  granted. Every console page is checked with axe at 1280px and 375px.
 
-Not yet covered: the setup, reports and audit pages (M13), and company accounts (M15). Some journeys take a
+Not yet covered: the setup, reports and audit pages (M13). Some journeys take a
 step through the API when another journey covers its screen (for example the submit in `02-workflow.spec.ts`) and say
 so in a comment.
 
