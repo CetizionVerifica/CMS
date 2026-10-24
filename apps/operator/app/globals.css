@@ -1,0 +1,6 @@
+@import 'tailwindcss';
+@import '@canopy/ui/styles.css';
+
+/* The console's pages and screens use Canopy classes too. */
+@source '../app';
+@source '../lib';
