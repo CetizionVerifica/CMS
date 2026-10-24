@@ -1,5 +1,6 @@
 import {
   MOCK_MFA_CODE,
+  MOCK_COMPANY_EMAIL,
   MOCK_PASSWORD,
   MOCK_TWO_FIRM_EMAIL,
   MOCK_UNENROLLED_EMAIL,
@@ -21,7 +22,8 @@ export function DemoAccounts() {
             {u.person.email} (
             {u.memberships.map((m) => m.role.toLowerCase().replace('_', ' ')).join(', ')}
             {u.person.email === MOCK_TWO_FIRM_EMAIL ? ', in two firms' : ''}
-            {u.person.email === MOCK_UNENROLLED_EMAIL ? ', sets up MFA at first sign-in' : ''})
+            {u.person.email === MOCK_UNENROLLED_EMAIL ? ', sets up MFA at first sign-in' : ''}
+            {u.person.email === MOCK_COMPANY_EMAIL ? ', a company account on trial' : ''})
           </li>
         ))}
       </ul>

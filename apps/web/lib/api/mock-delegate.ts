@@ -39,6 +39,7 @@ export const PERSON_MAP: Readonly<Record<string, string>> = {
   'consultant@demo.test': '7d2ed867-adfc-5e58-b716-9e5a9e1f9d1c',
   'admin@demo.test': '7d2ed867-adfc-5e58-b716-9e5a9e1f9d1c',
   'twofirms@demo.test': '7d2ed867-adfc-5e58-b716-9e5a9e1f9d1c',
+  'company@demo.test': '7d2ed867-adfc-5e58-b716-9e5a9e1f9d1c',
   'owner@demo.test': '487294a3-c71b-5708-9153-f15e95bc7c48',
   'approver@demo.test': 'e06422d9-6bc6-5d81-a932-840a6d5228df',
   // Firm B's viewer whose access runs to March 2027, so it is live at FIRM_B_AS_OF.

@@ -116,6 +116,22 @@ test.describe('shell navigation at 1280px', () => {
     await expect(page.getByRole('heading', { name: 'We couldn’t find that page' })).toBeVisible();
   });
 
+  test('a company account on trial: the notice, its one client, no portfolio', async ({ page }) => {
+    await signIn(page, 'company@demo.test');
+    await expect(page).toHaveURL(`/c/${DEMO_METALS}/overview`);
+    await expect(page.getByRole('note', { name: 'Account' })).toHaveText(
+      'Trial account. Your trial ends on 31 Jan 2025. Contact PlanetPulse to continue.',
+    );
+    const nav = page.getByRole('navigation', { name: 'Main' });
+    await expect(nav.getByRole('link', { name: 'Library' })).toBeVisible();
+    await expect(nav.getByRole('link', { name: 'Portfolio' })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: /Demo Metals/ })).toHaveCount(0);
+    await checkPage(page);
+    await page.setViewportSize({ width: 375, height: 800 });
+    await expect(page.getByRole('note', { name: 'Account' })).toBeVisible();
+    await checkPage(page);
+  });
+
   test('a viewer reads one client, with no import or approvals', async ({ page }) => {
     await signIn(page, 'viewer@demo.test');
     await expect(page).toHaveURL(`/c/${DEMO_METALS}/overview`);

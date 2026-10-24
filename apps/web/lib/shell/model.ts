@@ -37,6 +37,11 @@ export type ShellModel = {
   notice?: ShellNotice;
   /** False for a company account with one client: there is nothing to switch to (ADR M15-0001). */
   showClientSwitcher?: boolean;
+  /**
+   * False for a company account with exactly one client: that client is the whole account, so there is no portfolio
+   * to show and firm users land on its overview (ADR M15-0001 decision 2).
+   */
+  showPortfolio?: boolean;
 };
 
 /** The account's state, for the line above every page; ShellFrame words it. */
@@ -113,6 +118,7 @@ export function buildShellModel(
       availableUntil: period.availableUntil,
     }))
     .sort((a, b) => a.name.localeCompare(b.name));
+  const enterprise = (me.account ?? DEFAULT_ACCOUNT).kind === 'ENTERPRISE';
   return {
     user: {
       name: me.person.displayName,
@@ -127,9 +133,8 @@ export function buildShellModel(
     },
     approvalsWaiting,
     notice: accountNotice(me),
-    showClientSwitcher: !(
-      (me.account ?? DEFAULT_ACCOUNT).kind === 'ENTERPRISE' && clients.length <= 1
-    ),
+    showClientSwitcher: !(enterprise && clients.length <= 1),
+    showPortfolio: !(enterprise && clients.length === 1),
   };
 }
 
@@ -145,12 +150,17 @@ const FIRM_SECTION = { label: 'Firm', paths: ['portfolio', 'library/acts', 'acco
  * Sidebar sections (spec 01 "Default nav"). With no client selected only the firm items show. Items a role can't
  * use are left out rather than shown disabled.
  */
-export function navSections(roles: readonly Role[], clientId?: string): NavSection[] {
+export function navSections(
+  roles: readonly Role[],
+  clientId?: string,
+  { showPortfolio = true }: { showPortfolio?: boolean } = {},
+): NavSection[] {
   const groups = clientId ? [...CLIENT_SECTIONS, FIRM_SECTION] : [FIRM_SECTION];
   return groups
     .map((g) => ({
       ...(g.label ? { label: g.label } : {}),
       items: g.paths
+        .filter((path) => showPortfolio || path !== 'portfolio')
         .map(routeByPath)
         .filter((r) => visibleTo(r, roles))
         .map((r) => ({
@@ -162,9 +172,15 @@ export function navSections(roles: readonly Role[], clientId?: string): NavSecti
     .filter((g) => g.items.length > 0);
 }
 
-/** Where a signed-in user lands: firm users on the portfolio, client users on their (first) client's overview. */
-export function homeHref(model: Pick<ShellModel, 'clients' | 'isFirmUser'>): string {
-  if (model.isFirmUser) return '/portfolio';
+/**
+ * Where a signed-in user lands: firm users on the portfolio, client users on their (first) client's overview. A
+ * company account's firm users go straight to its one client, since it has no portfolio.
+ */
+export function homeHref(
+  model: Pick<ShellModel, 'clients' | 'isFirmUser' | 'showPortfolio'>,
+): string {
+  if (model.isFirmUser && model.showPortfolio !== false) return '/portfolio';
   const first = model.clients[0];
-  return first ? `/c/${encodeURIComponent(first.id)}/overview` : '/library/acts';
+  if (first) return `/c/${encodeURIComponent(first.id)}/overview`;
+  return model.isFirmUser ? '/portfolio' : '/library/acts';
 }

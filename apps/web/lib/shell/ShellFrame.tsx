@@ -50,7 +50,7 @@ import { documentTitle, PRODUCT_NAME } from '../brand';
 import { LAYOUT_COOKIE, layoutForWidth, type ShellLayout } from '../layout-hint';
 import { periodFromParams, withPeriod } from '../period';
 import { clientIdFromPath, findRoute, switchClientHref } from '../routes';
-import { navSections, type ShellModel, type ShellNotice } from './model';
+import { homeHref, navSections, type ShellModel, type ShellNotice } from './model';
 import { rememberClient, recentClients } from './recent';
 import { SearchBox } from './SearchBox';
 
@@ -114,6 +114,7 @@ export function ShellFrame({ model, initialLayout, children }: ShellFrameProps) 
   const nav = navSections(
     current ? (model.roles.byClient[current.id] ?? []) : model.roles.firm,
     current?.id,
+    { showPortfolio: model.showPortfolio !== false },
   );
   const search = searchParams.toString();
   const [recentIds, setRecentIds] = useState<string[]>([]);
@@ -171,7 +172,7 @@ export function ShellFrame({ model, initialLayout, children }: ShellFrameProps) 
       <AppShell
         nav={navGroups}
         activeHref={activeHref}
-        brand={{ name: PRODUCT_NAME, href: model.isFirmUser ? '/portfolio' : '/' }}
+        brand={{ name: PRODUCT_NAME, href: model.isFirmUser ? homeHref(model) : '/' }}
         title={settledTitle}
         layout={layout}
         renderLink={renderLink}
@@ -244,18 +245,22 @@ const NOTICE_TEXT = {
   },
 } as const;
 
-/** One line about the account above the page. Not an alert: it is there on every page, so it is not announced. */
+/**
+ * One line about the account above the page. Not an alert: it is there on every page, so it is not announced. A note,
+ * not an aside: it sits inside `main`, where a complementary landmark doesn't belong.
+ */
 function AccountNotice({ notice }: { notice: ShellNotice }) {
   const text = NOTICE_TEXT[notice.kind];
   const warn = notice.kind !== 'trial';
   return (
-    <aside
+    <div
+      role="note"
       aria-label="Account"
       className={`mb-4 rounded-control px-3 py-2 text-body ${warn ? 'bg-warn-soft text-warn-ink' : 'bg-neutral-soft text-ink'}`}
     >
       <strong className="font-semibold">{text.title}.</strong>{' '}
       {text.body(notice.kind === 'trial' ? notice.endsOn : '')}
-    </aside>
+    </div>
   );
 }
 
