@@ -176,6 +176,17 @@ describe('RegisterGrid', () => {
     expect(screen.getByText('10,000 instances')).toBeTruthy();
   });
 
+  it('offers the next page while the server has more rows', async () => {
+    const user = userEvent.setup();
+    const onLoad = vi.fn();
+    const { rerender } = renderGrid({ totalCount: 500, more: { loading: false, onLoad } });
+    expect(screen.getByText('Showing 20 of 500')).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Show more' }));
+    expect(onLoad).toHaveBeenCalled();
+    rerender({ totalCount: 20 });
+    expect(screen.queryByRole('button', { name: 'Show more' })).toBeNull();
+  });
+
   it('exports the current view when the page offers it', async () => {
     const user = userEvent.setup();
     const onExport = vi.fn();
@@ -201,7 +212,25 @@ describe('saved views', () => {
       views: { id: string; name: string; query: string }[];
     };
     expect(stored.views).toEqual([
-      { id: expect.any(String), name: 'Overdue', query: 'status=OVERDUE' },
+      {
+        id: expect.any(String),
+        name: 'Overdue',
+        query: 'status=OVERDUE',
+        layout: {
+          columns: [
+            'externalRef',
+            'title',
+            'actName',
+            'departmentName',
+            'ownerName',
+            'approverName',
+            'dueDate',
+            'status',
+            'criticality',
+          ],
+          density: 'comfortable',
+        },
+      },
     ]);
     expect(lastUrl()).toBe(`${PATH}?fy=2022-23&status=OVERDUE&view=${stored.views[0]!.id}`);
     rerender();
@@ -310,6 +339,63 @@ describe('saved views', () => {
     expect(screen.getByRole('alertdialog')).toBeTruthy();
     expect(JSON.parse(localStorage.getItem(key)!).views).toHaveLength(50);
     expect(nav.replace).not.toHaveBeenCalled();
+  });
+
+  it('keeps the density and columns in the view, as the Save dialog says', async () => {
+    const user = userEvent.setup();
+    localStorage.setItem(
+      key,
+      JSON.stringify({
+        views: [
+          {
+            id: 'v1',
+            name: 'Compact',
+            query: 'ownerId=me',
+            layout: { columns: ['title', 'dueDate', 'status'], density: 'compact' },
+          },
+          // Saved before views kept a layout: opens with the default one.
+          { id: 'v2', name: 'Old', query: 'ownerId=me' },
+        ],
+      }),
+    );
+    nav.search = 'ownerId=me&view=v1';
+    const { rerender } = renderGrid();
+    const headers = () =>
+      within(screen.getByRole('table', { name: 'Register' }))
+        .getAllByRole('columnheader')
+        .map((h) => h.textContent)
+        .filter(Boolean);
+    await waitFor(() => expect(headers()).toEqual(['Title', 'Due date', 'Status']));
+    expect(screen.getByRole('button', { name: 'Comfortable rows' })).toBeTruthy();
+    expect(screen.queryByText(/Edited/)).toBeNull();
+
+    // Changing the density alone edits the view; Discard puts its layout back.
+    await user.click(screen.getByRole('button', { name: 'Comfortable rows' }));
+    expect(screen.getByText(/Edited/)).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Discard' }));
+    expect(screen.getByRole('button', { name: 'Comfortable rows' })).toBeTruthy();
+
+    await user.click(trigger());
+    await user.click(screen.getByRole('menuitemradio', { name: 'Old' }));
+    rerender();
+    await waitFor(() => expect(headers()).toHaveLength(9));
+    expect(screen.getByRole('button', { name: 'Compact rows' })).toBeTruthy();
+    expect(screen.queryByText(/Edited/)).toBeNull();
+  });
+
+  it('saves a changed layout into the current view', async () => {
+    const user = userEvent.setup();
+    localStorage.setItem(
+      key,
+      JSON.stringify({ views: [{ id: 'v1', name: 'Mine', query: 'ownerId=me' }] }),
+    );
+    nav.search = 'ownerId=me&view=v1';
+    renderGrid();
+    await waitFor(() => expect(trigger().textContent).toContain('Mine'));
+    await user.click(screen.getByRole('button', { name: 'Compact rows' }));
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+    expect(JSON.parse(localStorage.getItem(key)!).views[0].layout.density).toBe('compact');
+    expect(screen.queryByText(/Edited/)).toBeNull();
   });
 
   it('warns when the browser blocks storage', async () => {

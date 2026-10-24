@@ -15,7 +15,7 @@ import {
 import NextLink from 'next/link';
 import type { ReactNode } from 'react';
 
-import type { DepartmentRow, OverviewModel } from './overview-model';
+import type { ActSegment, DepartmentRow, KpiDetail, OverviewModel } from './overview-model';
 
 const renderLink = ({
   href,
@@ -31,6 +31,45 @@ const renderLink = ({
   </NextLink>
 );
 
+// The legend swatches match @canopy/ui's stacked ProgressBar fills (tokens only).
+const swatch: Record<ActSegment['key'], string> = {
+  ok: 'bg-ok',
+  warn: 'bg-warn',
+  crit: 'bg-crit',
+  neutral: 'bg-neutral-soft shadow-[inset_0_0_0_1px_var(--line-strong)]',
+};
+
+const detailTone: Record<KpiDetail['tone'], string> = {
+  ok: 'text-ok-ink',
+  warn: 'text-warn-ink',
+  crit: 'text-crit-ink',
+  neutral: 'text-muted',
+};
+
+/** A count as a link to its rows; 0 stays plain text, since an empty register teaches nothing. */
+function CountLink({
+  count,
+  href,
+  label,
+  className,
+}: {
+  count: number;
+  href: string;
+  label: string;
+  className?: string;
+}) {
+  if (count === 0) return <span className="tabular text-muted">0</span>;
+  return (
+    <NextLink
+      href={href}
+      aria-label={label}
+      className={`tabular underline-offset-2 hover:underline focus-visible:underline ${className ?? 'text-ink'}`}
+    >
+      {formatNumber(count)}
+    </NextLink>
+  );
+}
+
 const departmentColumns: DataTableProps<DepartmentRow>['columns'] = [
   {
     id: 'department',
@@ -45,15 +84,13 @@ const departmentColumns: DataTableProps<DepartmentRow>['columns'] = [
     meta: { type: 'number' },
     cell: ({ row }) => {
       const { overdue, overdueHref, name } = row.original;
-      if (overdue === 0) return <span className="tabular text-muted">0</span>;
       return (
-        <NextLink
+        <CountLink
+          count={overdue}
           href={overdueHref}
-          className="tabular font-semibold text-crit-ink underline-offset-2 hover:underline focus-visible:underline"
-          aria-label={`${formatNumber(overdue)} overdue in ${name}, open these instances`}
-        >
-          {formatNumber(overdue)}
-        </NextLink>
+          label={`${formatNumber(overdue)} overdue in ${name}, open these instances`}
+          className="font-semibold text-crit-ink"
+        />
       );
     },
   },
@@ -75,6 +112,16 @@ const departmentColumns: DataTableProps<DepartmentRow>['columns'] = [
     header: 'Complied',
     accessorFn: (row) => row.complied as never,
     meta: { type: 'number' },
+    cell: ({ row }) => {
+      const { complied, compliedHref, name } = row.original;
+      return (
+        <CountLink
+          count={complied}
+          href={compliedHref}
+          label={`${formatNumber(complied)} complied in ${name}, open these instances`}
+        />
+      );
+    },
   },
 ];
 
@@ -83,21 +130,31 @@ export function OverviewView({ model }: { model: OverviewModel }) {
     <div className="flex flex-col gap-3.5">
       <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-4">
         {model.kpis.map((kpi) => (
-          <KpiCard
-            key={kpi.label}
-            label={kpi.label}
-            value={kpi.value}
-            unit={kpi.unit}
-            context={kpi.context}
-            visual={
-              kpi.score === undefined ? undefined : (
-                <ScoreRing value={kpi.score} size="md" label={kpi.label} />
-              )
-            }
-            href={kpi.href}
-            linkHint={kpi.linkHint}
-            renderLink={renderLink}
-          />
+          <div key={kpi.label} className="flex min-w-0 flex-col gap-1">
+            <KpiCard
+              label={kpi.label}
+              value={kpi.value}
+              unit={kpi.unit}
+              context={kpi.context}
+              visual={
+                kpi.score === undefined ? undefined : (
+                  <ScoreRing value={kpi.score} size="md" label={kpi.label} />
+                )
+              }
+              href={kpi.href}
+              linkHint={kpi.linkHint}
+              renderLink={renderLink}
+            />
+            {kpi.detail ? (
+              <NextLink
+                href={kpi.detail.href}
+                aria-label={kpi.detail.label}
+                className={`inline-flex min-h-6 items-center self-start px-1 text-meta tabular underline underline-offset-2 ${detailTone[kpi.detail.tone]}`}
+              >
+                {kpi.detail.text}
+              </NextLink>
+            ) : null}
+          </div>
         ))}
       </div>
 
@@ -156,7 +213,31 @@ export function OverviewView({ model }: { model: OverviewModel }) {
                   >
                     {act.name}
                   </NextLink>
-                  <ProgressBar variant="stacked" label={act.name} segments={act.segments} />
+                  <ProgressBar
+                    variant="stacked"
+                    label={act.name}
+                    segments={act.segments}
+                    legend="none"
+                  />
+                  <ul className="flex flex-wrap gap-x-3 gap-y-1">
+                    {act.segments.map((segment) => (
+                      <li
+                        key={segment.key}
+                        className="inline-flex min-h-6 items-center gap-1.5 text-meta text-muted"
+                      >
+                        <span
+                          aria-hidden
+                          className={`size-[9px] rounded-[2px] ${swatch[segment.key]}`}
+                        />
+                        {segment.label}{' '}
+                        <CountLink
+                          count={segment.count}
+                          href={segment.href}
+                          label={`${formatNumber(segment.count)} ${segment.label.toLowerCase()} under ${act.name}, open these instances`}
+                        />
+                      </li>
+                    ))}
+                  </ul>
                 </li>
               ))}
             </ul>

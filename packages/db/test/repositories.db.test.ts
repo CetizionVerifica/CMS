@@ -895,6 +895,77 @@ describe('audit and outbox', () => {
     );
   });
 
+  it('an event-driven send may have no client; client roles never see or write such rows', async () => {
+    const send = {
+      clientId: null,
+      instanceId: null,
+      recipientId: world.ownerId,
+      kind: 'APPROVAL_REQUESTED' as const,
+      sendDate: '2022-08-01' as never,
+      eventId: '01920000-0000-7000-8000-00000000e002',
+    };
+    expect(await inA((tx) => r.notificationSends.claim(tx, send))).toBe('NEW');
+    expect(await inA((tx) => r.notificationSends.claim(tx, send))).toBe('PENDING');
+    const sendId = await inA((tx) =>
+      r.notificationSends.markSent(tx, send, '2022-08-01T04:00:00.000Z'),
+    );
+    expect(await inA((tx) => r.notificationSends.claim(tx, send))).toBe('DONE');
+    // A client-role context (not firm-wide) sees no null-client row and cannot write one.
+    const clientUser: TenantContext = {
+      firmId: firmA,
+      personId: null,
+      clientIds: [world.clientId],
+      requestId: 'client-user',
+    };
+    const visible = (ctx: TenantContext) =>
+      t.db.withTenant(ctx, async (tx) => {
+        const { rows } = await tx.execute<{ id: string }>(
+          sql`SELECT id FROM notification_send WHERE client_id IS NULL`,
+        );
+        return rows.map((x) => x.id);
+      });
+    expect(await visible(ctxA())).toEqual([sendId]);
+    expect(await visible(clientUser)).toEqual([]);
+    expect(await visible(systemContext(firmB, 'repo-test'))).toEqual([]);
+    expect(
+      await code(
+        t.db.withTenant(clientUser, (tx) =>
+          r.notificationSends.claim(tx, {
+            ...send,
+            eventId: '01920000-0000-7000-8000-00000000e003',
+          }),
+        ),
+      ),
+    ).toBe('FORBIDDEN');
+    // Firm B's context cannot write a null-client row for firm A's person (the recipient key is per firm).
+    expect(
+      await code(
+        inB((tx) =>
+          r.notificationSends.claim(tx, {
+            ...send,
+            eventId: '01920000-0000-7000-8000-00000000e004',
+          }),
+        ),
+      ),
+    ).not.toBe('resolved');
+    // Without a client the send must answer an event and name no instance; the database agrees.
+    const [first] = await inA((tx) => r.instances.forAssignment(tx, world.assignmentId));
+    for (const bad of [
+      { ...send, eventId: null },
+      { ...send, eventId: undefined },
+      { ...send, instanceId: first!.id },
+    ]) {
+      expect(await code(inA((tx) => r.notificationSends.claim(tx, bad)))).toBe('VALIDATION');
+    }
+    await expect(
+      t.ownerQuery(
+        `INSERT INTO notification_send (firm_id, recipient_id, kind, send_date)
+         VALUES ($1, $2, 'APPROVAL_REQUESTED', '2022-08-01')`,
+        [firmA, world.ownerId],
+      ),
+    ).rejects.toThrow(/notification_send_client_check/);
+  });
+
   it('export jobs keep the storage key out of the contract shape', async () => {
     const job = await inA((tx) =>
       r.exportJobs.create(tx, {

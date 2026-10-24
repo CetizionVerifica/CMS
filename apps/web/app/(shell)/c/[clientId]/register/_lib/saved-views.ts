@@ -1,9 +1,12 @@
 // Saved register views, per person and client. The contracts have no saved-view endpoint yet, so views live in this
-// browser's localStorage (ADR M12-0001). A view stores only the register query string (`viewQuery`), never row data,
-// so nothing personal is kept. Storage can be missing or blocked (private windows), so every access is guarded and
+// browser's localStorage (ADR M12-0001). A view stores the register query string (`viewQuery`) and the grid layout
+// (layout.ts), never row data, so nothing personal is kept. Storage can be missing or blocked (private windows), so every access is guarded and
 // the register works without it.
 
-export type StoredView = { id: string; name: string; query: string };
+import { isViewLayout, type ViewLayout } from './layout';
+
+/** `layout` is absent on views saved before views kept the layout; they open with the default layout. */
+export type StoredView = { id: string; name: string; query: string; layout?: ViewLayout };
 export type ViewStore = { views: StoredView[]; defaultId?: string };
 
 /** Names are trimmed and at most 60 characters (SavedViews' name field). */
@@ -25,10 +28,14 @@ function storage(): Storage | undefined {
   }
 }
 
-function isView(v: unknown): v is StoredView {
-  if (!v || typeof v !== 'object') return false;
-  const { id, name, query } = v as Record<string, unknown>;
-  return typeof id === 'string' && typeof name === 'string' && typeof query === 'string';
+/** A stored view, or undefined when the value isn't one. A malformed layout is dropped, keeping the view. */
+function asView(v: unknown): StoredView | undefined {
+  if (!v || typeof v !== 'object') return undefined;
+  const { id, name, query, layout } = v as Record<string, unknown>;
+  if (typeof id !== 'string' || typeof name !== 'string' || typeof query !== 'string') {
+    return undefined;
+  }
+  return isViewLayout(layout) ? { id, name, query, layout } : { id, name, query };
 }
 
 /** The stored views, or none when storage is unavailable or holds something unexpected. */
@@ -38,7 +45,10 @@ export function loadViews(key: string): ViewStore {
     if (!raw) return EMPTY;
     const parsed = JSON.parse(raw) as { views?: unknown; defaultId?: unknown };
     const views = Array.isArray(parsed.views)
-      ? parsed.views.filter(isView).slice(0, MAX_VIEWS)
+      ? parsed.views
+          .map(asView)
+          .filter((v): v is StoredView => v !== undefined)
+          .slice(0, MAX_VIEWS)
       : [];
     const defaultId =
       typeof parsed.defaultId === 'string' && views.some((v) => v.id === parsed.defaultId)
@@ -74,17 +84,29 @@ export function addView(
   store: ViewStore,
   name: string,
   query: string,
+  layout?: ViewLayout,
 ): { store: ViewStore; id: string } {
   const label = cleanName(name);
   if (!label) throw new Error('A view needs a name');
   if (store.views.length >= MAX_VIEWS)
     throw new Error(`You can keep up to ${MAX_VIEWS} views. Delete one to save this view.`);
   const id = newId();
-  return { store: { ...store, views: [...store.views, { id, name: label, query }] }, id };
+  const view: StoredView = layout ? { id, name: label, query, layout } : { id, name: label, query };
+  return { store: { ...store, views: [...store.views, view] }, id };
 }
 
-export function updateView(store: ViewStore, id: string, query: string): ViewStore {
-  return { ...store, views: store.views.map((v) => (v.id === id ? { ...v, query } : v)) };
+export function updateView(
+  store: ViewStore,
+  id: string,
+  query: string,
+  layout?: ViewLayout,
+): ViewStore {
+  return {
+    ...store,
+    views: store.views.map((v) =>
+      v.id === id ? { ...v, query, ...(layout ? { layout } : {}) } : v,
+    ),
+  };
 }
 
 export function renameView(store: ViewStore, id: string, name: string): ViewStore {

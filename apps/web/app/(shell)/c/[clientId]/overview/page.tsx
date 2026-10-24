@@ -31,14 +31,16 @@ function toSearchParams(raw: Record<string, string | string[] | undefined>): URL
 }
 
 // Client overview (PLAN.md §5, screen 2). The client layout has already checked the user can see this client.
-// Numbers are the API's for the period in the URL, or the current period when there is none.
+// Numbers are the API's for the selected period.
 export default async function OverviewPage({ params, searchParams }: Props) {
   const { clientId } = await params;
   const model = await loadShell();
   const client = model.clients.find((c) => c.id === clientId);
   if (!client) notFound();
-  const period = periodFromParams(toSearchParams(await searchParams));
-  const query = period ? periodApiQuery(period, client.fyStartMonth) : {};
+  // The period the picker shows: the URL's, else the client's current one (as the shell does), sent to every call so
+  // the numbers and the register links they open count the same rows.
+  const period = periodFromParams(toSearchParams(await searchParams)) ?? client.thisPeriod;
+  const query = periodApiQuery(period, client.fyStartMonth);
 
   const api = await serverApi();
   const request = { params: { clientId }, query };

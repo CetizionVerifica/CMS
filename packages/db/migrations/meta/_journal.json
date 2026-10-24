@@ -127,6 +127,13 @@
       "when": 1791777467871,
       "tag": "0017_notification_kinds_for_events",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1791781750033,
+      "tag": "0018_send_log_null_client",
+      "breakpoints": true
     }
   ]
 }
