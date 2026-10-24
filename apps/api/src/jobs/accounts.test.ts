@@ -87,7 +87,7 @@ describe(ACCOUNT_DAILY, () => {
     const h = harness([lapsed, lastDay]);
     h.at('2026-10-11T19:00:00Z'); // 12 Oct 00:30 IST
     const report = await runAccountDaily(h.deps, 'job:test');
-    expect(report).toEqual({ firms: 2, trialsEnded: 1, snapshots: 2 });
+    expect(report).toEqual({ firms: 2, trialsEnded: 1, snapshots: 2, supportClosed: 0 });
     expect(h.store.firms.map((f) => f.status)).toEqual(['SUSPENDED', 'TRIAL']);
   });
 
@@ -99,6 +99,7 @@ describe(ACCOUNT_DAILY, () => {
       firms: 6,
       trialsEnded: 0,
       snapshots: 4,
+      supportClosed: 0,
     });
     expect(await runAccountDaily(h.deps, 'job:test')).toMatchObject({ snapshots: 4 });
     expect(h.store.firms.map((f) => f.snapshots)).toEqual([
@@ -109,6 +110,23 @@ describe(ACCOUNT_DAILY, () => {
       ['2026-10-12'],
       [],
     ]);
+  });
+
+  it('closes the support sessions that ran out, in any status, once', async () => {
+    const firms = STATUSES.map((status) => firmIn(status));
+    for (const firm of firms) {
+      firm.supportGrants = [
+        { id: `${firm.id}-ran-out`, endsAt: '2026-10-11T18:59:59Z' },
+        { id: `${firm.id}-live`, endsAt: '2026-10-11T19:00:01Z' },
+      ];
+    }
+    const h = harness(firms);
+    h.at('2026-10-11T19:00:00Z');
+    expect(await runAccountDaily(h.deps, 'job:test')).toMatchObject({ supportClosed: 6 });
+    expect(h.store.firms.map((f) => f.supportGrants.map((g) => g.id))).toEqual(
+      firms.map((f) => [`${f.id}-live`]),
+    );
+    expect(await runAccountDaily(h.deps, 'job:test')).toMatchObject({ supportClosed: 0 });
   });
 
   it('finishes the other accounts when one fails, then fails so pg-boss retries', async () => {

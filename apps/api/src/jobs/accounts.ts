@@ -28,12 +28,13 @@ export async function servedFirmIds(deps: JobDeps, requestId: string): Promise<I
 
 /**
  * Nightly, before generation: ends each trial whose last day has passed (the account becomes SUSPENDED, so the
- * generation that follows skips it), then records each opened account's usage for the operator console. Each
- * account is one transaction, so one failure does not undo the others; the job still fails afterwards so pg-boss
- * retries it. Re-running it the same day changes nothing new.
+ * generation that follows skips it), records each opened account's usage for the operator console, and closes the
+ * support sessions that ran out, in any status, so each gets its SUPPORT_ACCESS_END. Each account is one
+ * transaction, so one failure does not undo the others; the job still fails afterwards so pg-boss retries it.
+ * Re-running it the same day changes nothing new.
  */
 export async function runAccountDaily(deps: JobDeps, requestId: string): Promise<JobReport> {
-  const report: JobReport = { firms: 0, trialsEnded: 0, snapshots: 0 };
+  const report: JobReport = { firms: 0, trialsEnded: 0, snapshots: 0, supportClosed: 0 };
   const now = deps.clock();
   const today = localDateIn(now, SNAPSHOT_TIME_ZONE);
   const failures: unknown[] = [];
@@ -47,6 +48,7 @@ export async function runAccountDaily(deps: JobDeps, requestId: string): Promise
           await tx.takeUsageSnapshot(today);
           report.snapshots! += 1;
         }
+        report.supportClosed! += await tx.closeExpiredSupport(now);
       });
     } catch (error) {
       failures.push(error);

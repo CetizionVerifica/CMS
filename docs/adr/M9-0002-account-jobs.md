@@ -24,8 +24,14 @@ M3-0003), each run in the account's own system context. M15's operator console r
    `PENDING_DELETION`), dated by the India date of the run. A second run that day replaces the snapshot.
 5. **One transaction per account.** A failure in one account does not undo the others; the job fails afterwards so
    pg-boss retries it, and a retry changes nothing already done.
+6. **Support sessions that ran out** are closed in every account, whatever its status, by M3's
+   `supportGrants.closeExpired`: the support person's membership and sessions end, and `app_record_support_expiry`
+   writes `SUPPORT_ACCESS_END` (`source: 'expiry'`) to the operator trail, so a session that simply runs out leaves
+   the same end entry as one an admin ends. The report counts them as `supportClosed`.
 
 ## Not yet
 - Trial-ending emails to the account admins: ADR M9-0003. The operator's copy (trials ending, renewals due) is M15's.
+- A renewal reminder to the account admins before a paid subscription ends is still to build. It needs its own
+  notification kind (M0, then M3), like `TRIAL_ENDING`.
 - The purge job (ADR M15-0002 decision 5) waits for M3's `platform_purge_account` and runs on the operator's
   database login, which alone may execute it.

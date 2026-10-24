@@ -15,6 +15,7 @@ import {
   domainEvents,
   evidence,
   people,
+  supportGrants,
   systemContext,
   units,
   type TenantTx,
@@ -910,6 +911,51 @@ describe.skipIf(!url)('jobs on the Postgres store', () => {
       }
     }
 
+    it('closes a support session that ran out, with SUPPORT_ACCESS_END in the operator trail, once', async () => {
+      const world = await seedFirm('Egret Advisory', 'Kestrel Fibres', 'support');
+      const grant = await inFirm(world.firmId, async (tx) => {
+        const admin = await people.create(tx, {
+          displayName: 'Admin support',
+          nameNormalized: 'admin support',
+          email: 'admin-support@example.com',
+          status: 'ACTIVE',
+        });
+        await memberships.create(tx, {
+          personId: admin.id,
+          role: 'FIRM_ADMIN',
+          clientId: null,
+          consultantClientIds: null,
+          unitIds: null,
+          expiresAt: null,
+        });
+        return (
+          await supportGrants.create(tx, {
+            level: 'READ_ONLY',
+            days: 1,
+            grantedById: admin.id,
+            now: '2026-10-09T06:00:00.000Z',
+          })
+        ).grant;
+      });
+      now = '2026-10-11T19:00:00.000Z';
+      expect(await runAccountDaily(deps, 'job:account-daily:support')).toMatchObject({
+        supportClosed: 1,
+      });
+      expect(await runAccountDaily(deps, 'job:account-daily:support-2')).toMatchObject({
+        supportClosed: 0,
+      });
+      const trail = await asOwner<{ action: string; source: string | null }>(
+        world.firmId,
+        `SELECT action, after->>'source' AS source FROM platform.operator_audit_event
+         WHERE after->>'grantId' = $1 ORDER BY at, id`,
+        [grant.id],
+      );
+      expect(trail).toEqual([
+        { action: 'SUPPORT_ACCESS_START', source: 'grant' },
+        { action: 'SUPPORT_ACCESS_END', source: 'expiry' },
+      ]);
+    });
+
     it('ends a lapsed trial with its audit row and event, records usage, and generation then skips it', async () => {
       const trial = await seedFirm('Osprey Advisory', 'Osprey Textiles Group', 'trial');
       await asOwner(
@@ -991,6 +1037,8 @@ describe.skipIf(!url)('jobs on the Postgres store', () => {
         return {
           live: await make('live', 'admin.live@example.com', null),
           lapsed: await make('lapsed', 'admin.lapsed@example.com', '2026-01-01T00:00:00Z'),
+          // Expired by the job's clock (16 Nov), though not yet by the wall clock when this was written.
+          ended: await make('ended', 'admin.ended@example.com', '2026-11-01T00:00:00Z'),
           unclaimed: await make('unclaimed', null, null),
         };
       });
@@ -1011,9 +1059,9 @@ describe.skipIf(!url)('jobs on the Postgres store', () => {
       now = '2026-11-16T04:30:00.000Z'; // 10:00 IST, 7 days before the last day
       expect(await runTrialReminders(deps, 'job:trial-reminders:1')).toMatchObject({
         firms: 1,
-        admins: 3,
+        admins: 4,
         sent: 1,
-        failedNOT_ACTIVE: 1,
+        failedNOT_ACTIVE: 2,
         failedNO_EMAIL: 1,
       });
       expect(mailer.sent.map((m) => m.to.email)).toEqual(['admin.live@example.com']);
@@ -1035,7 +1083,7 @@ describe.skipIf(!url)('jobs on the Postgres store', () => {
       ).toBe(1);
       // A second run that day sends nothing new; the other firms are not in a trial and hear nothing.
       expect(await runTrialReminders(deps, 'job:trial-reminders:2')).toMatchObject({
-        alreadySent: 3,
+        alreadySent: 4,
       });
       expect(mailer.sent).toHaveLength(1);
       for (const other of [a, b]) {
