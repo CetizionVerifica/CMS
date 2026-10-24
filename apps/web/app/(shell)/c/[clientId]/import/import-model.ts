@@ -29,6 +29,10 @@ export type BatchView =
   | { kind: 'done' }
   | { kind: 'closed'; message: string };
 
+/** An import, or a step of one, that would add more companies or units than the account's plan allows. */
+export const PLAN_LIMIT =
+  'This import would go over your plan’s company or unit limit. Nothing was changed. Ask your account admin.';
+
 /**
  * The wizard screen for a batch. `parseStarted` says the user already asked to read the rows: the API answers 202 and
  * keeps the batch MAPPED until the background parse finishes, so the page waits rather than showing the mapping again.
@@ -60,9 +64,12 @@ export function batchView(
     case 'FAILED':
       return {
         kind: 'closed',
-        message: batch.failureCode
-          ? `This import stopped with an error (${batch.failureCode}). Nothing was changed. Start a new import.`
-          : 'This import stopped with an error. Nothing was changed. Start a new import.',
+        message:
+          batch.failureCode === 'PLAN_LIMIT_REACHED'
+            ? PLAN_LIMIT
+            : batch.failureCode
+              ? `This import stopped with an error (${batch.failureCode}). Nothing was changed. Start a new import.`
+              : 'This import stopped with an error. Nothing was changed. Start a new import.',
       };
   }
 }
