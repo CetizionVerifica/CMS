@@ -31,7 +31,8 @@ describe('API client against the mock', () => {
     const me = (await api(cookie).me()).data;
     expect(me.person.displayName).toBe('Owner 01');
     expect(me.clients.map((c) => c.id)).toEqual([MOCK_CLIENTS.demoMetals]);
-    expect(me.mfa).toEqual({ required: false, enrolled: false, satisfied: true });
+    // As the API: an owner never owes MFA, and `satisfied` says this session has not passed it.
+    expect(me.mfa).toEqual({ required: false, enrolled: false, satisfied: false });
     expect(me.clients[0]).toMatchObject({
       unitCount: 3,
       fyStartMonth: 4,

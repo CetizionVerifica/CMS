@@ -66,6 +66,8 @@ describe('server API access', () => {
     });
     const me = await requireMe('/');
     expect(me.person.displayName).toBe('Owner 01');
+    // A client user never owes MFA, though their session has not passed it (the API's Me says so too).
+    expect(me.mfa).toEqual({ required: false, enrolled: false, satisfied: false });
   });
 
   it('sends firm users without MFA to the verify step', async () => {
