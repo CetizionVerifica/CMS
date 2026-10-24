@@ -14,6 +14,13 @@ import { OPERATOR_PREFIX } from './session.js';
 export { ipAllowlistFromEnv, type IpAllowlist } from './allowlist.js';
 export { addOperator, type AddedOperator } from './db-operators.js';
 export { OPERATOR_DIGEST, operatorDigestJob, runOperatorDigest } from './db-digest.js';
+export { ACCOUNT_PURGE, accountPurgeJob, runAccountPurge } from './db-purge.js';
+export {
+  accountPrefixes,
+  createS3AccountObjects,
+  type AccountObjects,
+  type S3AccountObjectsOptions,
+} from './purge-objects.js';
 export { registerCustomerAccountRoutes, type CustomerAccountDeps } from './db-customer.js';
 export { OPERATOR_COOKIE, OPERATOR_PREFIX } from './session.js';
 

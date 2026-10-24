@@ -31,3 +31,6 @@ customer's `/account` routes), `docs/adr/M15-0005-operator-digest.md` (the opera
   unit tested.
 - The operator's daily renewals email (`db-digest.ts`) is a `JobDefinition` M9's runner runs; it reads on the operator
   login like the routes and sends account names and dates only.
+- The nightly account purge (`db-purge.ts`, ADR M15-0002 decision 5) is also a `JobDefinition`, on the operator login:
+  only `canopy_operator` may call `platform_purge_account`. It deletes the account's `evidence/`, `imports/` and
+  `exports/` prefixes (`purge-objects.ts`) before its rows, and never logs or returns an object key.
