@@ -275,6 +275,10 @@ describe('notification dedupe keys', () => {
     );
     for (const kind of ACCOUNT_NOTIFICATION_KINDS)
       expect(EVENT_NOTIFICATION_KINDS).not.toContain(kind);
+    expect(ACCOUNT_NOTIFICATION_KINDS).toEqual(['TRIAL_ENDING', 'RENEWAL_DUE']);
+    // A person's own MFA notice answers their event; it is neither an account kind nor an instance's.
+    expect(NotificationKind.options).toContain('MFA_ENROLLED');
+    expect(ACCOUNT_NOTIFICATION_KINDS).not.toContain('MFA_ENROLLED' as never);
     expect(NotificationKind.options).toEqual(
       expect.arrayContaining(['APPROVAL_REQUESTED', 'SENT_BACK', 'OWNER_REMINDER']),
     );
