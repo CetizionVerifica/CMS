@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import pg from 'pg';
 import { PgBoss } from 'pg-boss';
 import { ACCOUNT_DAILY, runAccountDaily } from './accounts.js';
-import { activeConsumers, OutboxEventSchema } from './consumers.js';
+import { activeConsumers, CONSUMERS, OutboxEventSchema } from './consumers.js';
 import { runConsultantDigest, CONSULTANT_DIGEST } from './digest.js';
 import { GENERATE_INSTANCES, runGenerateInstances } from './generate-instances.js';
 import { RELAY_OUTBOX, runRelayOutbox } from './outbox-relay.js';
@@ -87,6 +87,11 @@ export interface JobRunnerOptions {
    * send is ever claimed, and events only they consume are marked relayed without a queue. Defaults to true.
    */
   mail?: boolean;
+  /**
+   * Scheduled jobs of other modules, run beside `JOBS` under the same rules (M15's operator digest, ADR M15-0005).
+   * A name already taken by a job or an event consumer's queue fails the start.
+   */
+  extraJobs?: readonly JobDefinition[];
 }
 
 export interface JobRunner {
@@ -109,6 +114,13 @@ export interface JobRunner {
  * that correlates its audit rows, events and logs.
  */
 export async function startJobRunner(deps: JobDeps, options: JobRunnerOptions): Promise<JobRunner> {
+  const all = [...JOBS, ...(options.extraJobs ?? [])];
+  // Event consumers' queues are named after their event types, so a job may not take one of those names either.
+  const names = new Set<string>(CONSUMERS.map((consumer) => consumer.type));
+  for (const job of all) {
+    if (names.has(job.name)) throw new Error(`A job or event queue is already named ${job.name}`);
+    names.add(job.name);
+  }
   const schema = options.schema ?? 'pgboss';
   // CREATE SCHEMA IF NOT EXISTS needs CREATE on the database, which no app login has: a migration creates the schema
   // (owned by canopy_jobs) and pg-boss only creates its tables inside it.
@@ -138,7 +150,7 @@ export async function startJobRunner(deps: JobDeps, options: JobRunnerOptions): 
 
   const mail = options.mail ?? true;
   const scan = deps.scanner !== undefined && deps.evidenceObjects !== undefined;
-  const jobs = JOBS.filter((job) => (mail || !job.sendsMail) && (scan || !job.scansEvidence));
+  const jobs = all.filter((job) => (mail || !job.sendsMail) && (scan || !job.scansEvidence));
   const consumers = activeConsumers(deps, mail);
   const consumed = new Set(consumers.map((c) => c.type));
   const bus: EventBus = {
@@ -187,7 +199,7 @@ export async function startJobRunner(deps: JobDeps, options: JobRunnerOptions): 
     scan,
     trigger: (name) => {
       if (!jobs.some((job) => job.name === name)) {
-        const known = JOBS.find((job) => job.name === name);
+        const known = all.find((job) => job.name === name);
         throw new RangeError(
           !known
             ? `Unknown job: ${name}`
