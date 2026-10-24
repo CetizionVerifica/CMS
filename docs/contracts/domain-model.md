@@ -50,7 +50,7 @@ Rules: no `any`; unknown keys rejected at the edge; strings trimmed; empty strin
 | `ImportIssueType` | see §6 | |
 | `IssueSeverity` | `INFO`, `WARNING`, `ERROR` | `ERROR` blocks the row; `WARNING` needs a decision; `INFO` is shown only. |
 | `NotificationKind` | `OWNER_REMINDER`, `APPROVER_ESCALATION`, `CONSULTANT_DIGEST`, `INVITE`, `MAGIC_LINK`, `EXPORT_READY`, `APPROVAL_REQUESTED`, `SENT_BACK` | |
-| `ExportKind` | `REGISTER_XLSX`, `CERTIFICATE_PDF`, `ACT_REPORT_XLSX`, `DEPARTMENT_REPORT_XLSX`, `OVERDUE_REPORT_XLSX` | |
+| `ExportKind` | `REGISTER_XLSX`, `CERTIFICATE_PDF`, `ACT_REPORT_XLSX`, `DEPARTMENT_REPORT_XLSX`, `OVERDUE_REPORT_XLSX`, `CLIENT_ARCHIVE_ZIP` | `CLIENT_ARCHIVE_ZIP`: account admins only; the client's register and evidence |
 | `JobStatus` | `QUEUED`, `RUNNING`, `DONE`, `FAILED` | Exports and imports. |
 | `AccountKind` | `ENTERPRISE`, `CONSULTANCY` | §9. An enterprise account has one client. |
 | `AccountStatus` | `PROVISIONING`, `TRIAL`, `ACTIVE`, `SUSPENDED`, `PENDING_DELETION`, `DELETED` | §9; moves in `ACCOUNT_TRANSITIONS`. |

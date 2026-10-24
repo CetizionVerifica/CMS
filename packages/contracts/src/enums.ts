@@ -228,6 +228,12 @@ export const ExportKind = z.enum([
   'ACT_REPORT_XLSX',
   'DEPARTMENT_REPORT_XLSX',
   'OVERDUE_REPORT_XLSX',
+  /**
+   * One client's whole register (every FY, re-importable) and its evidence files in a zip, for account admins (FA)
+   * only. With the other export routes it stays reachable while the account is PENDING_DELETION (ADR M15-0001
+   * decision 4).
+   */
+  'CLIENT_ARCHIVE_ZIP',
 ]);
 export type ExportKind = z.infer<typeof ExportKind>;
 

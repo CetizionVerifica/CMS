@@ -155,6 +155,9 @@ Query params: `fy` or `from`/`to`, `unitId`, `asOf` (FA/CO/VI). All numbers are 
 
 AP and OW dashboards are limited to their units (and owners see the same numbers as their register filter).
 `REGISTER_XLSX` uses the 19 sample headers in the same order so it re-imports with no changes.
+`CLIENT_ARCHIVE_ZIP` is the account export, one client at a time: FA only (`403 FORBIDDEN` for anyone else), no
+`filters`, `unitId` or `fy`; a zip of the client's whole register (every FY, the `REGISTER_XLSX` layout) and its clean
+evidence files. The three export routes stay open to FA while the account is PENDING_DELETION (§8).
 
 ## 7. Not exposed in v1
 Notification send log, job admin and library change history have no public endpoints; M9 writes audit/send-log rows only.
@@ -162,7 +165,7 @@ Notification send log, job admin and library change history have no public endpo
 ## 8. M15 · The account, for its own people (`apps/api/src/platform`)
 
 An account is the firm (ADR M15-0001). In `SUSPENDED` nobody can sign in. In `PENDING_DELETION` only account admins (FA) can sign in, and
-every route except `GET /me`, `POST /auth/logout` and the account export answers `403 ACCOUNT_SUSPENDED`. Creating a
+every route except `GET /me`, `POST /auth/logout` and the account export (the three export routes of §6) answers `403 ACCOUNT_SUSPENDED`. Creating a
 company, unit or invite past the plan's limit answers `403 PLAN_LIMIT_REACHED` (M6, M5).
 
 | Method | Path | Action | FA | CO | CA | AP | OW | VI | Notes |

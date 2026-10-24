@@ -1266,6 +1266,22 @@ describe('mock server', () => {
     expect(job.status).toBe('DONE');
     await ok(app, 'getExport', { as: PERSON.kabir, params: { id: job.id } });
     await ok(app, 'exportDownloadUrl', { as: PERSON.kabir, params: { id: job.id } });
+
+    // The account export (1.5.2) is for account admins only.
+    await fails(
+      app,
+      'createExport',
+      { as: PERSON.kabir, params: { clientId: NORTHWIND }, body: { kind: 'CLIENT_ARCHIVE_ZIP' } },
+      'FORBIDDEN',
+      403,
+    );
+    const archive = await ok<{ status: string; fileName: string }>(app, 'createExport', {
+      as: PERSON.meera,
+      params: { clientId: NORTHWIND },
+      body: { kind: 'CLIENT_ARCHIVE_ZIP' },
+    });
+    expect(archive.status).toBe('DONE');
+    expect(archive.fileName).toMatch(/^client-archive-zip-.*\.zip$/);
   });
 
   it('answers unknown routes and bad JSON with the error envelope and a request id', async () => {

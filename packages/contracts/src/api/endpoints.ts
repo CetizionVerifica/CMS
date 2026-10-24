@@ -1338,7 +1338,7 @@ export const ENDPOINTS = {
     module: M10,
     method: 'POST',
     path: '/clients/{clientId}/exports',
-    summary: 'Start an Excel or PDF export.',
+    summary: 'Start an Excel or PDF export, or (FA only) a client archive zip.',
     action: 'export.create',
     roles: 'FA CO CA AP VI',
     body: dash.ExportCreateBody,
