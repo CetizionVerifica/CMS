@@ -12,6 +12,7 @@ import { DbError } from '@canopy/db';
 import { ZodError } from 'zod';
 import { buildRequestContext, mfaRequired, type AuthStore, type SessionRecord } from './context.js';
 import { ApiError, errorEnvelope } from './errors.js';
+import { loggableError } from './log-error.js';
 import { can } from './policy.js';
 import { hashToken, sameToken } from './tokens.js';
 
@@ -233,7 +234,7 @@ export function registerAuth(app: FastifyInstance, options: AuthOptions): void {
   app.setErrorHandler((error: FastifyError | Error, request, reply) => {
     const apiError = toApiError(error);
     if (apiError) return sendError(request, reply, apiError);
-    request.log.error({ err: error }, 'unhandled error');
+    request.log.error({ err: loggableError(error) }, 'unhandled error');
     return sendError(request, reply, new ApiError('INTERNAL'));
   });
 
