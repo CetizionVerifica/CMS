@@ -95,10 +95,10 @@ export interface JobsWiring {
 }
 
 /**
- * Starts the M9 jobs on the API's database: instance generation and the outbox relay always, and reminders, digests
- * and workflow emails when the environment configures mail. Without a database nothing starts and nothing is said,
+ * Starts the M9 jobs on the API's database: instance generation and the outbox relay always, reminders, digests
+ * and workflow emails when the environment configures mail, and the evidence virus scan when it configures a scanner. Without a database nothing starts and nothing is said,
  * as for the modules above; with one but no SMTP server it warns, because reminders and approval emails would
- * silently never go out. Half-set mail settings throw, so a deploy fails at boot rather than running without mail.
+ * silently never go out, and without a scanner, because uploaded evidence would never become downloadable. Half-set mail settings throw, so a deploy fails at boot rather than running without mail.
  */
 export async function jobsFromEnv(
   env: NodeJS.ProcessEnv,
@@ -117,9 +117,13 @@ export async function jobsFromEnv(
     warn(
       'email jobs not started: no SMTP server configured (set SMTP_URL or SMTP_HOST, MAIL_FROM and APP_URL); instance generation still runs',
     );
-  else if (!auth)
+  else if (!jobs.loginEmails)
     warn(
       'sign-in link and invite emails not sent: no sign-in service to issue their one-time tokens',
+    );
+  if (!jobs.scan)
+    warn(
+      'evidence scan not started: no virus scanner configured (set CLAMAV_HOST); uploaded evidence stays unavailable',
     );
   return jobs;
 }
