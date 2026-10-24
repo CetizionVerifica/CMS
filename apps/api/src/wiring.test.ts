@@ -37,6 +37,89 @@ describe('wiringFromEnv', () => {
     await database?.close();
   });
 
+  it('mounts the operator API on its own login only with PLATFORM_ENABLED=true', async () => {
+    const off = wiringFromEnv({ ...DB, PLATFORM_ENABLED: 'false' }, vi.fn());
+    expect(off.options.platform).toBeUndefined();
+    expect(off.operatorDatabase).toBeUndefined();
+    await off.database?.close();
+    const env = {
+      ...DB,
+      PLATFORM_ENABLED: 'true',
+      OPERATOR_DATABASE_URL: 'postgres://console@localhost:5432/canopy',
+      PLATFORM_IP_ALLOWLIST: '203.0.113.0/24',
+      APP_URL: 'https://app.planetpulse.example/',
+    };
+    const on = wiringFromEnv(env, vi.fn());
+    expect(on.options.platform?.db).toBe(on.operatorDatabase);
+    expect(on.options.platform?.appUrl).toBe('https://app.planetpulse.example');
+    expect(on.options.platform?.secrets).toBeDefined();
+    expect(on.options.platform?.allowlist?.('203.0.113.4')).toBe(true);
+    expect(on.options.platform?.allowlist?.('198.51.100.4')).toBe(false);
+    await on.database?.close();
+    await on.operatorDatabase?.close();
+  });
+
+  it('refuses a half-set or reused operator login, a missing APP_URL, and a PLATFORM_ENABLED that is not a boolean', () => {
+    expect(() => wiringFromEnv({ ...DB, PLATFORM_ENABLED: 'true' }, vi.fn())).toThrow(
+      /OPERATOR_DATABASE_URL is required/,
+    );
+    expect(() =>
+      wiringFromEnv(
+        { ...DB, PLATFORM_ENABLED: 'true', OPERATOR_DATABASE_URL: DB.DATABASE_URL },
+        vi.fn(),
+      ),
+    ).toThrow(/its own login/);
+    expect(() => wiringFromEnv({ ...DB, PLATFORM_ENABLED: 'yes' }, vi.fn())).toThrow(
+      /PLATFORM_ENABLED must be/,
+    );
+    expect(() =>
+      wiringFromEnv(
+        {
+          ...DB,
+          PLATFORM_ENABLED: 'true',
+          OPERATOR_DATABASE_URL: 'postgres://console@localhost:5432/canopy',
+          PLATFORM_IP_ALLOWLIST: 'office',
+        },
+        vi.fn(),
+      ),
+    ).toThrow(/PLATFORM_IP_ALLOWLIST/);
+    for (const APP_URL of [undefined, 'app.planetpulse.example', 'ftp://app.planetpulse.example']) {
+      expect(() =>
+        wiringFromEnv(
+          {
+            ...DB,
+            PLATFORM_ENABLED: 'true',
+            OPERATOR_DATABASE_URL: 'postgres://console@localhost:5432/canopy',
+            ...(APP_URL === undefined ? {} : { APP_URL }),
+          },
+          vi.fn(),
+        ),
+      ).toThrow(/APP_URL is required/);
+    }
+  });
+
+  it('refuses the operator API in production without PLATFORM_IP_ALLOWLIST', async () => {
+    const env = {
+      ...DB,
+      NODE_ENV: 'production',
+      PLATFORM_ENABLED: 'true',
+      OPERATOR_DATABASE_URL: 'postgres://console@localhost:5432/canopy',
+      APP_URL: 'https://app.planetpulse.example',
+    };
+    for (const PLATFORM_IP_ALLOWLIST of [undefined, ' ']) {
+      expect(() =>
+        wiringFromEnv(
+          { ...env, ...(PLATFORM_IP_ALLOWLIST === undefined ? {} : { PLATFORM_IP_ALLOWLIST }) },
+          vi.fn(),
+        ),
+      ).toThrow(/PLATFORM_IP_ALLOWLIST is required/);
+    }
+    const allowed = wiringFromEnv({ ...env, PLATFORM_IP_ALLOWLIST: '203.0.113.0/24' }, vi.fn());
+    expect(allowed.options.platform?.allowlist?.('203.0.113.4')).toBe(true);
+    await allowed.database?.close();
+    await allowed.operatorDatabase?.close();
+  });
+
   it('refuses to start with a database but no usable AUTH_SECRET_KEY', () => {
     const noKey = { DATABASE_URL: DB.DATABASE_URL };
     expect(() => wiringFromEnv(noKey, vi.fn())).toThrow(/AUTH_SECRET_KEY is required/);
