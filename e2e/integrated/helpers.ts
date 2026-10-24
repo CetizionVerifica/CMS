@@ -6,6 +6,7 @@ import { checkPage } from '../tests/shell/helpers.js';
 import {
   ACCOUNTS,
   PASSWORD,
+  RUN_DIR,
   TOTP_SECRET,
   addressOf,
   storageStateOf,
@@ -20,7 +21,7 @@ export function seeded(): {
   clients: { kestrel: string; osprey: string };
   people: Record<AccountKey, string>;
 } {
-  return JSON.parse(readFileSync(new URL('../.integrated/seed.json', import.meta.url), 'utf8'));
+  return JSON.parse(readFileSync(new URL('seed.json', RUN_DIR), 'utf8'));
 }
 
 const isFirmRole = (key: AccountKey) =>

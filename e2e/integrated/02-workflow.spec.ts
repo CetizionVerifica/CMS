@@ -4,8 +4,8 @@ import { apiAs, itemsOf } from './api.js';
 import { checkPage, pageAs, seeded } from './helpers.js';
 
 // The owner submits, the approver approves, and the audit trail records both, across M7's state machine, the register
-// (M12) and the audit API. The drawer's Submit button is still building (M12), so the owner submits through the API
-// the drawer will call; swap in the drawer when it lands.
+// (M12) and the audit API. The owner submits through the API the instance drawer calls, so this journey checks the
+// register's bulk approve on its own; the drawer's own journey covers the screen.
 test('an owner submits two items and the approver approves them from the register', async ({
   browser,
 }) => {

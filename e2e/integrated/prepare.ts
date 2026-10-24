@@ -24,6 +24,7 @@ import {
   FIRM_A,
   FIRM_B,
   PASSWORD,
+  RUN_DIR,
   TOTP_SECRET,
   databaseUrl,
   type Account,
@@ -120,9 +121,9 @@ for (const account of Object.values(ACCOUNTS) as Account[]) {
 }
 await db.close();
 
-mkdirSync(new URL('../.integrated/', import.meta.url), { recursive: true });
+mkdirSync(RUN_DIR, { recursive: true });
 writeFileSync(
-  new URL('../.integrated/seed.json', import.meta.url),
+  new URL('seed.json', RUN_DIR),
   JSON.stringify({ clients: clientIds, people: personIds }, null, 2),
 );
 console.log(

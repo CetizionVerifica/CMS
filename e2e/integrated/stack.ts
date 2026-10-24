@@ -1,3 +1,5 @@
+import { fileURLToPath } from 'node:url';
+
 // The integrated stack's fixed facts, shared by the Playwright config, the database preparation and the journeys.
 // Everything here is test data for a throwaway database: fictional names only, never a real client.
 
@@ -20,7 +22,7 @@ export const PASSWORD = 'integrated journey password';
 
 /**
  * Firm A and B are `SEED_FIRMS` from @canopy/db (fixed ids; prepare.ts checks they still match). Firm A has the client
- * Kestrel Metals Group, firm B Osprey Textiles Group; their generated ids are in `.integrated/seed.json`. The owner's
+ * Kestrel Metals Group, firm B Osprey Textiles Group; their generated ids are in `seed.json` under `RUN_DIR`. The owner's
  * and approver's names match an owner and approver in the anonymised sample register, so its import assigns their
  * rows to them.
  */
@@ -106,8 +108,15 @@ export type AccountKey = keyof typeof ACCOUNTS;
 export const addressOf = (key: AccountKey, visit = 0) =>
   `198.51.${100 + (visit % 100)}.${Object.keys(ACCOUNTS).indexOf(key) + 10}`;
 
+/**
+ * Where a run keeps what it generates (seeded ids, signed-in browser states): under node_modules/.cache, so neither
+ * git nor Prettier sees it.
+ */
+export const RUN_DIR = new URL('../node_modules/.cache/integrated/', import.meta.url);
+
 /** Where each account's signed-in browser state is saved by the setup project. */
-export const storageStateOf = (key: AccountKey) => `.integrated/auth/${key}.json`;
+export const storageStateOf = (key: AccountKey) =>
+  fileURLToPath(new URL(`auth/${key}.json`, RUN_DIR));
 
 /** `DATABASE_URL` with its database swapped, e.g. for the e2e database or the app login. */
 export function databaseUrl(base: string, database: string, login?: [string, string]): string {
