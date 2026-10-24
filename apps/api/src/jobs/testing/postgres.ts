@@ -35,6 +35,8 @@ export async function createJobTestDatabase(base: string): Promise<JobTestDataba
   await admin.migrate();
   const db = createDatabase({ connectionString: url.toString(), max: 4 });
   const owner = new pg.Pool({ connectionString: url.toString(), max: 2 });
+  // Like the app pools (`onIdleError`): an idle client the server closes must not crash the test file.
+  owner.on('error', () => {});
 
   return {
     url: url.toString(),
@@ -61,8 +63,26 @@ export async function createJobTestDatabase(base: string): Promise<JobTestDataba
       await Promise.all([db.close(), admin.close(), owner.end()]);
       const cleanup = new pg.Client({ connectionString: base });
       await cleanup.connect();
-      await cleanup.query(`DROP DATABASE IF EXISTS ${name} WITH (FORCE)`);
-      await cleanup.end();
+      try {
+        // pool.end() resolves before every client's socket has closed. Wait for those backends to go, so the
+        // FORCE below never terminates a client that is still ending (an uncaught 57P01 in that client).
+        await waitForNoBackends(cleanup, name);
+        await cleanup.query(`DROP DATABASE IF EXISTS ${name} WITH (FORCE)`);
+      } finally {
+        await cleanup.end();
+      }
     },
   };
+}
+
+/** Waits, up to five seconds, until no other session is connected to `name`. */
+async function waitForNoBackends(client: pg.Client, name: string): Promise<void> {
+  for (let attempt = 0; attempt < 50; attempt += 1) {
+    const { rows } = await client.query<{ n: string }>(
+      'SELECT count(*) AS n FROM pg_stat_activity WHERE datname = $1 AND pid <> pg_backend_pid()',
+      [name],
+    );
+    if (rows[0]!.n === '0') return;
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
 }
