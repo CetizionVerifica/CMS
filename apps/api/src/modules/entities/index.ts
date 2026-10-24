@@ -3,6 +3,7 @@ import { assignmentRoutes } from '../assignments/routes.js';
 import { clientRoutes } from '../clients/routes.js';
 import { libraryRoutes } from '../library/routes.js';
 import { peopleRoutes } from '../people/routes.js';
+import { loggableError } from './http/log-error.js';
 import { errorEnvelope, type M6Deps } from './http/route.js';
 import { entityRoutes } from './routes.js';
 
@@ -25,7 +26,8 @@ export async function libraryAndEntities(app: FastifyInstance, deps: M6Deps): Pr
   app.setErrorHandler((error, request, reply) => {
     const requestId = String(reply.getHeader('x-request-id') ?? request.id);
     const { status, body } = errorEnvelope(error, requestId);
-    if (status >= 500) request.log.error({ err: error, requestId }, 'M6 request failed');
+    if (status >= 500)
+      request.log.error({ err: loggableError(error), requestId }, 'M6 request failed');
     return reply.status(status).send(body);
   });
   clientRoutes(app, deps);
