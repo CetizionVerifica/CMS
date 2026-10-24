@@ -1,7 +1,8 @@
 import { expect, test } from '@playwright/test';
 
 import { expectNoA11yViolations } from '../../support/a11y.js';
-import { checkPage, DEMO_METALS, signIn } from '../shell/helpers.js';
+import { DEMO_METALS, signIn } from '../shell/helpers.js';
+import { checkSettled } from './settled.js';
 
 // Setup screens (M13) against the web app's demo API. The mock keeps its data for the whole run, so each test
 // names what it adds uniquely.
@@ -17,7 +18,7 @@ test.describe('setup', () => {
     await signIn(page, 'consultant@demo.test', DEPARTMENTS);
     await expect(page).toHaveTitle('Departments · Demo Metals · PlanetPulse Compliance');
     await expect(page.getByRole('heading', { level: 1, name: 'Departments' })).toBeVisible();
-    await checkPage(page);
+    await checkSettled(page);
 
     for (const name of [quality, qc]) {
       await page.getByLabel('Department name').fill(name);
@@ -62,14 +63,14 @@ test.describe('setup', () => {
     await expect(drawer).toBeHidden();
     await expect(table.getByRole('rowheader', { name: qc, exact: true })).toHaveCount(0);
     await expect(renamed).toContainText(qc);
-    await checkPage(page);
+    await checkSettled(page);
   });
 
   test('a consultant changes the reminders and sees them read back', async ({ page }) => {
     await signIn(page, 'consultant@demo.test', REMINDERS);
     await expect(page).toHaveTitle('Reminders · Demo Metals · PlanetPulse Compliance');
     await expect(page.getByRole('heading', { level: 1, name: 'Reminders' })).toBeVisible();
-    await checkPage(page);
+    await checkSettled(page);
 
     await page.getByLabel('Remind owners this many days before the due date').fill('10, 3, 0');
     const summary = page.getByRole('region', { name: 'With these settings' });
@@ -102,7 +103,7 @@ test.describe('setup', () => {
       'aria-disabled',
       'true',
     );
-    await checkPage(page);
+    await checkSettled(page);
   });
 
   test('keyboard only: a department is added and opened for editing', async ({ page }) => {
@@ -130,7 +131,7 @@ test.describe('setup', () => {
   test('a client owner cannot open setup', async ({ page }) => {
     await signIn(page, 'owner@demo.test', DEPARTMENTS);
     await expect(page.getByLabel('Department name')).toHaveCount(0);
-    await checkPage(page);
+    await checkSettled(page);
   });
 });
 
@@ -140,9 +141,9 @@ test.describe('setup at 375px', () => {
   test('departments and reminders fit the screen', async ({ page }) => {
     await signIn(page, 'consultant@demo.test', DEPARTMENTS);
     await expect(page.getByRole('heading', { level: 1, name: 'Departments' })).toBeVisible();
-    await checkPage(page);
+    await checkSettled(page);
     await page.goto(REMINDERS);
     await expect(page.getByRole('heading', { level: 1, name: 'Reminders' })).toBeVisible();
-    await checkPage(page);
+    await checkSettled(page);
   });
 });
