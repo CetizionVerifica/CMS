@@ -23,8 +23,8 @@ Do not edit the fixture by hand; add new fixtures instead.
 ## sample-register-anonymised.xlsx
 
 `sample-register.xlsx` with the real group, company and town names replaced by fictional ones, "Kestrel Metals
-Group", "Kestrel Aluminium" and "Riverbend" (852 cells in the Organization, Location and Act columns). Each name maps to
-one replacement, so every golden count still holds. The importer and import API tests read this copy. Rebuild it with:
+Group", "Kestrel Aluminium", "Riverbend" and "Kestrelganj" (855 cells: the Organization, Location and Act columns,
+and three Owner Comments that name a town). Each name maps to one replacement, so every golden count still holds. The importer and import API tests read this copy. Rebuild it with:
 
 ```
 node packages/importer/scripts/anonymise-companies.mjs packages/importer/fixtures/sample-register.xlsx packages/importer/fixtures/sample-register-anonymised.xlsx
