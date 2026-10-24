@@ -848,11 +848,21 @@ describe.skipIf(!url)('database AccountStore', () => {
         kind: 'INVITE',
         inviteId: created.inviteId,
       });
+      // The owner is a FIRM_ADMIN, so they set up MFA while accepting (docs/security/review.md F14).
+      const enroll = await app.inject({
+        method: 'POST',
+        url: `/api/v1/invites/${token}/mfa/enroll`,
+      });
+      expect(enroll.statusCode, enroll.body).toBe(200);
+      const secret = new URL(MfaEnrollment.parse(enroll.json()).otpauthUrl).searchParams.get(
+        'secret',
+      )!;
+      const mfaCode = hotp(base32Decode(secret), totpStep(now));
       const accept = () =>
         app.inject({
           method: 'POST',
           url: `/api/v1/invites/${token}/accept`,
-          payload: { password: PASSWORD },
+          payload: { password: PASSWORD, mfaCode },
         });
       const early = await accept();
       expect(errorCode(early)).toBe('ACCOUNT_SUSPENDED');

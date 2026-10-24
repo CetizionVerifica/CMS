@@ -21,6 +21,7 @@ import {
   type MembershipInput,
 } from './testing.js';
 import { hashToken, newToken } from './tokens.js';
+import { base32Decode, hotp, totpStep } from './totp.js';
 
 /**
  * Accounts at sign-in and on every request (ADR M15-0001 decisions 4 and 11, endpoints.md §8): a SUSPENDED account
@@ -348,8 +349,15 @@ describe('invites and accounts', () => {
       inviteId,
     });
     store.accounts.set(firmId, { ...store.accounts.get(firmId)!, status: 'PROVISIONING' });
-    const res = await post(`/api/v1/invites/${token}/accept`, { password: PASSWORD });
-    return { res, firmId, inviteId, token };
+    // The owner is a FIRM_ADMIN, so they set up MFA while accepting (docs/security/review.md F14).
+    const body: Record<string, string> = { password: PASSWORD };
+    if (owner) {
+      const enroll = await post(`/api/v1/invites/${token}/mfa/enroll`, {});
+      const secret = new URL(enroll.json().otpauthUrl as string).searchParams.get('secret')!;
+      body.mfaCode = hotp(base32Decode(secret), totpStep(now));
+    }
+    const res = await post(`/api/v1/invites/${token}/accept`, body);
+    return { res, firmId, inviteId, token, body };
   }
 
   it('lets the owner accept while PROVISIONING, which opens the account', async () => {
@@ -360,7 +368,7 @@ describe('invites and accounts', () => {
   });
 
   it("waits for the library copy: the owner's invite is refused, then opens the account once copied", async () => {
-    const { res, firmId, inviteId, token } = await provisioning(true, false);
+    const { res, firmId, inviteId, token, body } = await provisioning(true, false);
     expect(error(res)).toMatchObject({
       code: 'ACCOUNT_SUSPENDED',
       details: { status: 'PROVISIONING' },
@@ -368,7 +376,7 @@ describe('invites and accounts', () => {
     expect(store.invites.get(inviteId)!.status).toBe('PENDING');
     expect(store.accounts.get(firmId)!.status).toBe('PROVISIONING');
     store.libraryPending.delete(firmId);
-    const again = await post(`/api/v1/invites/${token}/accept`, { password: PASSWORD });
+    const again = await post(`/api/v1/invites/${token}/accept`, body);
     expect(again.statusCode, again.body).toBeLessThan(300);
     expect(store.accounts.get(firmId)!.status).toBe('TRIAL');
   });

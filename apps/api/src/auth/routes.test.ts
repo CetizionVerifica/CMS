@@ -526,7 +526,11 @@ describe('invites', () => {
       clientName: 'Client',
       role: 'OWNER',
       linkExpiresAt: created.linkExpiresAt,
+      mfaRequired: false,
     });
+    // A client role has no MFA to set up.
+    const noMfa = await app.inject({ method: 'POST', url: `/api/v1/invites/${token}/mfa/enroll` });
+    expect(errorCode(noMfa)).toBe('NOT_FOUND');
 
     const weak = await app.inject({
       method: 'POST',
@@ -551,6 +555,71 @@ describe('invites', () => {
     expect(Me.parse(me.json()).memberships).toMatchObject([{ role: 'OWNER', clientId: CLIENT }]);
     expect((await app.inject({ url: `/api/v1/invites/${token}` })).statusCode).toBe(404);
     expect((await login('new.owner@example.com')).statusCode).toBe(200);
+  });
+
+  // docs/security/review.md F14: a firm role sets up MFA while accepting, so no session ever has a password and no MFA.
+  it('has a firm-role invitee set up MFA in the same step as choosing a password', async () => {
+    const { headers, imported } = await setup('FIRM_ADMIN');
+    const created = Invite.parse(
+      (
+        await invite(headers, {
+          personId: imported.personId,
+          email: 'new.consultant@example.com',
+          role: 'CONSULTANT',
+          clientId: null,
+          consultantClientIds: [CLIENT],
+        })
+      ).json(),
+    );
+    const { token } = await service.issueLoginToken({
+      firmId: created.firmId,
+      personId: imported.personId,
+      kind: 'INVITE',
+      inviteId: created.id,
+    });
+    const preview = InvitePreview.parse(
+      (await app.inject({ url: `/api/v1/invites/${token}` })).json(),
+    );
+    expect(preview.mfaRequired).toBe(true);
+    const accept = (payload: Record<string, unknown>) =>
+      app.inject({ method: 'POST', url: `/api/v1/invites/${token}/accept`, payload });
+
+    // No setup, no code, or a wrong code: refused, and nothing changes.
+    expect(errorCode(await accept({ password: PASSWORD, mfaCode: '123456' }))).toBe('MFA_REQUIRED');
+    const enroll = await app.inject({ method: 'POST', url: `/api/v1/invites/${token}/mfa/enroll` });
+    expect(enroll.statusCode).toBe(200);
+    const secret = new URL(MfaEnrollment.parse(enroll.json()).otpauthUrl).searchParams.get(
+      'secret',
+    )!;
+    expect(errorCode(await accept({ password: PASSWORD }))).toBe('MFA_REQUIRED');
+    const code = hotp(base32Decode(secret), totpStep(now));
+    const wrong = code === '000000' ? '111111' : '000000';
+    const refused = await accept({ password: PASSWORD, mfaCode: wrong });
+    expect(errorCode(refused)).toBe('VALIDATION');
+    expect(store.people.get(`${created.firmId}/${imported.personId}`)).toMatchObject({
+      status: 'INVITED',
+    });
+    expect((await login('new.consultant@example.com')).statusCode).toBe(401);
+
+    const accepted = await accept({ password: PASSWORD, mfaCode: code });
+    expect(accepted.statusCode).toBe(200);
+    expect(Me.parse(accepted.json()).mfa).toEqual({
+      required: true,
+      enrolled: true,
+      satisfied: true,
+    });
+    const me = await app.inject({ url: '/api/v1/me', headers: sessionHeaders(accepted) });
+    expect(me.statusCode).toBe(200);
+    // The setup is done, so it cannot be restarted, and the next sign-in asks for a code, not a new authenticator.
+    expect((await app.inject({ url: `/api/v1/invites/${token}` })).statusCode).toBe(404);
+    const next = await login('new.consultant@example.com');
+    expect(Me.parse(next.json()).mfa).toEqual({ required: true, enrolled: true, satisfied: false });
+    const restart = await app.inject({
+      method: 'POST',
+      url: '/api/v1/auth/mfa/enroll',
+      headers: sessionHeaders(next),
+    });
+    expect(errorCode(restart)).toBe('DUPLICATE');
   });
 
   it('enforces who may grant which role and the membership shape', async () => {

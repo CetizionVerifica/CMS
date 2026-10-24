@@ -26,6 +26,7 @@ const FIELD_MESSAGES: Record<string, string> = {
   // can't belong to an account, so signIn answers as for a wrong one.
   password: 'Use 12 to 200 characters',
   code: 'Enter the 6-digit code',
+  mfaCode: 'Enter the 6-digit code',
   displayName: 'Enter your name',
 };
 
@@ -224,14 +225,50 @@ export async function verifyMfa(_prev: FormState, form: FormData): Promise<FormS
   redirect(next ?? '/');
 }
 
+/**
+ * MFA setup on the invite page, for an invite whose role needs MFA (docs/security/review.md F14): the invite token
+ * stands in for the session the account doesn't have yet. The first code goes with the password in `acceptInvite`.
+ */
+export async function startInviteMfaEnrolment(
+  _prev: FormState,
+  form: FormData,
+): Promise<FormState> {
+  let otpauthUrl: string;
+  try {
+    ({ otpauthUrl } = (await (await serverApi()).enrollInviteMfa(text(form, 'token'))).data);
+  } catch (error) {
+    if (isApiError(error, 'NOT_FOUND', 'VALIDATION')) {
+      return { status: 'error', message: 'This invite is no longer valid. Ask for a new one.' };
+    }
+    // Set up already (an earlier accept got that far): the code is what's left.
+    if (isApiError(error, 'DUPLICATE')) {
+      return {
+        status: 'error',
+        message: 'Your authenticator app is already set up. Enter its code below.',
+      };
+    }
+    if (isApiError(error, 'RATE_LIMITED')) {
+      return { status: 'error', message: 'Too many attempts. Wait a few minutes and try again.' };
+    }
+    return { status: 'error', message: 'We couldn’t start the setup. Try again in a moment.' };
+  }
+  const secret = new URL(otpauthUrl).searchParams.get('secret');
+  if (!secret) {
+    return { status: 'error', message: 'We couldn’t start the setup. Try again in a moment.' };
+  }
+  return { status: 'enrolment', secret, otpauthUrl };
+}
+
 export async function acceptInvite(_prev: FormState, form: FormData): Promise<FormState> {
   const token = text(form, 'token');
   const name = text(form, 'displayName').trim();
   const values = { displayName: text(form, 'displayName') };
+  const mfaRequired = text(form, 'mfaRequired') === 'true';
   const input = InviteAcceptBody.safeParse({
     password: text(form, 'password'),
     // Sent only when the person corrected the name the invite gave them.
     ...(name && name !== text(form, 'invitedName') ? { displayName: name } : {}),
+    ...(mfaRequired ? { mfaCode: text(form, 'mfaCode').replace(/\s/g, '') } : {}),
   });
   const errors = input.success ? {} : fieldErrors(input.error, FIELD_MESSAGES);
   if (!name) errors.displayName = FIELD_MESSAGES.displayName!;
@@ -253,8 +290,30 @@ export async function acceptInvite(_prev: FormState, form: FormData): Promise<Fo
         values,
       };
     }
+    // MFA_REQUIRED: no setup key was asked for yet; VALIDATION on mfaCode: the code is wrong (F14).
+    if (isApiError(error, 'MFA_REQUIRED')) {
+      return {
+        status: 'invalid',
+        fieldErrors: { mfaCode: 'Get a setup key and add it to your authenticator app first.' },
+        values,
+      };
+    }
+    if (isApiError(error, 'VALIDATION') && issueOn(error, 'mfaCode')) {
+      return {
+        status: 'invalid',
+        fieldErrors: { mfaCode: 'That code isn’t right. Check your authenticator app.' },
+        values,
+      };
+    }
     if (isApiError(error, 'VALIDATION')) {
       return { status: 'error', message: 'Check the details and try again.', values };
+    }
+    if (isApiError(error, 'RATE_LIMITED')) {
+      return {
+        status: 'error',
+        message: 'Too many attempts. Wait a few minutes and try again.',
+        values,
+      };
     }
     return {
       status: 'error',
@@ -275,4 +334,10 @@ export async function signOut(): Promise<void> {
       console.error('Sign out failed', (error as Error).name);
   }
   redirect('/login');
+}
+
+/** Whether a VALIDATION error names `field` among its issues. */
+function issueOn(error: { details?: Record<string, unknown> }, field: string): boolean {
+  const issues = error.details?.issues;
+  return Array.isArray(issues) && issues.some((i: { path?: unknown[] }) => i.path?.[0] === field);
 }

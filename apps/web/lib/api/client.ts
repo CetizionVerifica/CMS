@@ -178,6 +178,7 @@ export function createApiClient(options: ApiClientOptions) {
     verifyMfa: (code: string) => call('verifyMfa', { body: { code } }),
     logout: () => call('logout'),
     invite: (value: string) => call('getInvite', token(value)),
+    enrollInviteMfa: (value: string) => call('enrollInviteMfa', token(value)),
     acceptInvite: (value: string, body: InviteAcceptBody) =>
       call('acceptInvite', { ...token(value), body }),
     /** SUBMITTED instances waiting on the signed-in person, for the Approvals badge. */

@@ -131,22 +131,21 @@ test.describe.serial('company accounts and the operator console', () => {
     ).toBeVisible();
     await expect(page.getByLabel('Work email')).toHaveValue(HIGHMOOR.email);
     await checkPage(page);
+    // An account admin signs in with a code too, so the invite page sets up the authenticator before the account
+    // exists (F14, ADR M5-0003): the first code goes with the password, and no session ever lacks MFA.
+    await page.getByRole('button', { name: 'Get a setup key' }).click();
+    const key = (await page.locator('code').first().textContent())!.replace(/\s+/g, '');
+    await checkPage(page);
     // The account opens only once its library is copied (ADR M15-0001 decision 8), a job of its own; until then the
-    // page asks to try again in a moment.
+    // page asks to try again in a moment. Each try takes a fresh code: the API accepts a step once.
     await expect(async () => {
       await page.getByLabel('Choose a password').fill(HIGHMOOR.password);
       await page.getByLabel('Repeat the password').fill(HIGHMOOR.password);
+      await page.getByLabel('6-digit code').fill(await nextUnusedCode('highmoorOwner', key));
       await page.getByRole('button', { name: 'Create account' }).click();
       await expect(page).not.toHaveURL(/\/invite\//, { timeout: 15_000 });
-    }).toPass({ timeout: 120_000, intervals: [5_000] });
-
-    // An account admin signs in with a code too, so the first stop is setting one up.
-    await expect(page).toHaveURL(/\/login\/mfa-setup/);
-    await checkPage(page);
-    await page.getByRole('button', { name: 'Get a setup key' }).click();
-    const key = (await page.locator('code').first().textContent())!.replace(/\s+/g, '');
-    await page.getByLabel('6-digit code').fill(await nextUnusedCode('highmoorOwner', key));
-    await page.getByRole('button', { name: 'Finish setup' }).click();
+    }).toPass({ timeout: 180_000, intervals: [5_000] });
+    // Straight into the app: the codes are already set up, so there is no setup step after the invite.
     await expect(page).not.toHaveURL(/\/login/);
     await expect(page.getByRole('heading', { level: 1 }).first()).toBeVisible();
     await checkPage(page);

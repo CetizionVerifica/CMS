@@ -37,7 +37,12 @@ export default async function InvitePage({ params }: Props) {
         {invite.firmName} invited you
         {invite.clientName ? ` to work on ${invite.clientName}` : ''}. Set a password to finish.
       </p>
-      <InviteForm token={token} email={invite.email} displayName={invite.displayName} />
+      <InviteForm
+        token={token}
+        email={invite.email}
+        displayName={invite.displayName}
+        mfaRequired={invite.mfaRequired === true}
+      />
     </>
   );
 }

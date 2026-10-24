@@ -4,13 +4,14 @@
 import { Button, Input } from '@canopy/ui';
 import { AlertCircle } from 'lucide-react';
 import NextLink from 'next/link';
-import { useActionState, useEffect, useRef, useState } from 'react';
+import { useActionState, useEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
 
 import {
   acceptInvite,
   sendMagicLink,
   signIn,
   redeemMagicLink,
+  startInviteMfaEnrolment,
   startMfaEnrolment,
   startSupportSession,
   verifyMfa,
@@ -200,35 +201,14 @@ export function MfaSetupForm({ next }: { next?: string }) {
 
   if (state.status === 'enrolment') {
     return (
-      <section aria-labelledby="mfa-steps" className="flex flex-col gap-3.5">
-        <h2 id="mfa-steps" ref={heading} tabIndex={-1} className="text-card text-ink outline-none">
-          Add PlanetPulse Compliance to your app
-        </h2>
-        <ol className="flex list-decimal flex-col gap-2 pl-5 text-body text-ink">
-          <li>
-            In your authenticator app, add an account and choose to enter a setup key. Use a
-            time-based key.
-          </li>
-          <li>
-            Enter this key:
-            <code className="mt-1 block rounded-control bg-mist px-3 py-2 font-mono text-body break-all text-ink select-all">
-              {groupKey(state.secret)}
-            </code>
-          </li>
-          <li>Type the 6-digit code the app shows below.</li>
-        </ol>
-        <p className="text-meta text-muted">
-          On a phone with the app installed you can{' '}
-          <a
-            href={state.otpauthUrl}
-            className="font-semibold text-forest underline underline-offset-2"
-          >
-            add the key in your authenticator app
-          </a>{' '}
-          instead.
-        </p>
+      <MfaKeySteps
+        heading={heading}
+        secret={state.secret}
+        otpauthUrl={state.otpauthUrl}
+        last="Type the 6-digit code the app shows below."
+      >
         <MfaForm next={next} submitLabel="Finish setup" />
-      </section>
+      </MfaKeySteps>
     );
   }
   return (
@@ -242,65 +222,168 @@ export function MfaSetupForm({ next }: { next?: string }) {
   );
 }
 
+/** The setup key and the steps to add it, shown once MFA setup has started. */
+function MfaKeySteps({
+  heading,
+  secret,
+  otpauthUrl,
+  last,
+  children,
+}: {
+  heading: RefObject<HTMLHeadingElement | null>;
+  secret: string;
+  otpauthUrl: string;
+  last: string;
+  children?: ReactNode;
+}) {
+  return (
+    <section aria-labelledby="mfa-steps" className="flex flex-col gap-3.5">
+      <h2 id="mfa-steps" ref={heading} tabIndex={-1} className="text-card text-ink outline-none">
+        Add PlanetPulse Compliance to your app
+      </h2>
+      <ol className="flex list-decimal flex-col gap-2 pl-5 text-body text-ink">
+        <li>
+          In your authenticator app, add an account and choose to enter a setup key. Use a
+          time-based key.
+        </li>
+        <li>
+          Enter this key:
+          <code className="mt-1 block rounded-control bg-mist px-3 py-2 font-mono text-body break-all text-ink select-all">
+            {groupKey(secret)}
+          </code>
+        </li>
+        <li>{last}</li>
+      </ol>
+      <p className="text-meta text-muted">
+        On a phone with the app installed you can{' '}
+        <a href={otpauthUrl} className="font-semibold text-forest underline underline-offset-2">
+          add the key in your authenticator app
+        </a>{' '}
+        instead.
+      </p>
+      {children}
+    </section>
+  );
+}
+
+/**
+ * MFA setup on the invite page for a firm role (docs/security/review.md F14): the key is added before the account
+ * exists, and its first code goes with the password, so the account never exists without MFA.
+ */
+function InviteMfaSetup({ token }: { token: string }) {
+  const [state, action, pending] = useActionState(startInviteMfaEnrolment, IDLE);
+  const heading = useRef<HTMLHeadingElement>(null);
+  const started = state.status === 'enrolment';
+  useEffect(() => {
+    if (started) heading.current?.focus();
+  }, [started]);
+
+  if (state.status === 'enrolment') {
+    return (
+      <MfaKeySteps
+        heading={heading}
+        secret={state.secret}
+        otpauthUrl={state.otpauthUrl}
+        last="Type the 6-digit code the app shows in the form below."
+      />
+    );
+  }
+  return (
+    <form action={action} className="flex flex-col gap-3.5" noValidate>
+      <p className="text-body text-ink">
+        Your role signs in with a code from an authenticator app as well as your password. Set it up
+        now.
+      </p>
+      <FormMessage state={state} />
+      <input type="hidden" name="token" value={token} />
+      <Button type="submit" loading={pending}>
+        Get a setup key
+      </Button>
+    </form>
+  );
+}
+
 export function InviteForm({
   token,
   email,
   displayName,
+  mfaRequired = false,
 }: {
   token: string;
   email: string;
   displayName: string;
+  /** A firm role: set up the authenticator app first, and send its code with the password. */
+  mfaRequired?: boolean;
 }) {
   const [state, action, pending] = useActionState(acceptInvite, IDLE);
   return (
-    <form action={action} className="flex flex-col gap-3.5" noValidate>
-      <FormMessage state={state} />
-      <input type="hidden" name="token" value={token} />
-      <input type="hidden" name="invitedName" value={displayName} />
-      <Input
-        label="Work email"
-        helper="You’ll sign in with this address."
-        name="email"
-        type="email"
-        autoComplete="username"
-        defaultValue={email}
-        readOnly
-      />
-      <Input
-        label="Your name"
-        name="displayName"
-        autoComplete="name"
-        defaultValue={typed(state, 'displayName') ?? displayName}
-        required
-        error={fieldError(state, 'displayName')}
-      />
-      <Input
-        label="Choose a password"
-        helper="At least 12 characters."
-        name="password"
-        type="password"
-        autoComplete="new-password"
-        required
-        error={fieldError(state, 'password')}
-      />
-      <Input
-        label="Repeat the password"
-        name="confirm"
-        type="password"
-        autoComplete="new-password"
-        required
-        error={fieldError(state, 'confirm')}
-      />
-      <Button type="submit" variant="primary" loading={pending}>
-        Create account
-      </Button>
-      <p className="text-meta text-muted">
-        Already set up?{' '}
-        <NextLink href="/login" className="font-semibold text-forest underline underline-offset-2">
-          Sign in
-        </NextLink>
-      </p>
-    </form>
+    <div className="flex flex-col gap-6">
+      {mfaRequired ? <InviteMfaSetup token={token} /> : null}
+      <form action={action} className="flex flex-col gap-3.5" noValidate>
+        <FormMessage state={state} />
+        <input type="hidden" name="token" value={token} />
+        <input type="hidden" name="invitedName" value={displayName} />
+        <input type="hidden" name="mfaRequired" value={String(mfaRequired)} />
+        <Input
+          label="Work email"
+          helper="You’ll sign in with this address."
+          name="email"
+          type="email"
+          autoComplete="username"
+          defaultValue={email}
+          readOnly
+        />
+        <Input
+          label="Your name"
+          name="displayName"
+          autoComplete="name"
+          defaultValue={typed(state, 'displayName') ?? displayName}
+          required
+          error={fieldError(state, 'displayName')}
+        />
+        <Input
+          label="Choose a password"
+          helper="At least 12 characters."
+          name="password"
+          type="password"
+          autoComplete="new-password"
+          required
+          error={fieldError(state, 'password')}
+        />
+        <Input
+          label="Repeat the password"
+          name="confirm"
+          type="password"
+          autoComplete="new-password"
+          required
+          error={fieldError(state, 'confirm')}
+        />
+        {mfaRequired ? (
+          <Input
+            label="6-digit code"
+            helper="From your authenticator app, once you’ve added the setup key."
+            name="mfaCode"
+            inputMode="numeric"
+            autoComplete="one-time-code"
+            maxLength={7}
+            required
+            error={fieldError(state, 'mfaCode')}
+          />
+        ) : null}
+        <Button type="submit" variant="primary" loading={pending}>
+          Create account
+        </Button>
+        <p className="text-meta text-muted">
+          Already set up?{' '}
+          <NextLink
+            href="/login"
+            className="font-semibold text-forest underline underline-offset-2"
+          >
+            Sign in
+          </NextLink>
+        </p>
+      </form>
+    </div>
   );
 }
 
