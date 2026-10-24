@@ -23,13 +23,15 @@ async function forwardedCookie(): Promise<string | undefined> {
 }
 
 export async function serverApi(csrfToken?: string): Promise<ApiClient> {
-  const requestId = (await headers()).get('x-request-id') ?? undefined;
+  const incoming = await headers();
+  const requestId = incoming.get('x-request-id') ?? undefined;
   return createApiClient({
     baseUrl: process.env.CANOPY_API_URL ?? 'http://mock.invalid',
     fetch: (await usingMockApi()) ? mockFetch : undefined,
     cookie: await forwardedCookie(),
     csrfToken,
     requestId,
+    forwardedFor: incoming.get('x-forwarded-for') ?? undefined,
   });
 }
 

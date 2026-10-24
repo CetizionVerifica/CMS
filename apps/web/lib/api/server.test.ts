@@ -12,7 +12,7 @@ vi.mock('server-only', () => ({}));
 vi.mock('next/headers', () => nextHeaders);
 vi.mock('next/navigation', () => nextNavigation);
 
-const { getMe, relayCookies, requireMe, serverApi, sessionApi, usingMockApi } =
+const { getMe, mfaPending, relayCookies, requireMe, serverApi, sessionApi, usingMockApi } =
   await import('./server');
 const { MOCK_PASSWORD } = await import('./mock');
 
@@ -94,5 +94,14 @@ describe('server API access', () => {
   it('exports a sign-in helper used by other tests', async () => {
     await signIn('admin@demo.test', true);
     expect((await getMe())?.mfa.satisfied).toBe(true);
+  });
+
+  it('owes MFA only when the role requires it and the session has not passed it', () => {
+    const me = (required: boolean, satisfied: boolean) =>
+      ({ mfa: { required, enrolled: required, satisfied } }) as Parameters<typeof mfaPending>[0];
+    expect(mfaPending(me(true, false))).toBe(true);
+    expect(mfaPending(me(true, true))).toBe(false);
+    expect(mfaPending(me(false, false))).toBe(false);
+    expect(mfaPending(me(false, true))).toBe(false);
   });
 });
