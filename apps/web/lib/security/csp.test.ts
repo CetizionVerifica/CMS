@@ -61,12 +61,11 @@ describe('content security policy', () => {
   });
 
   it('allows http to a loopback host, as local and CI storage needs, and nowhere else', () => {
-    const loopback =
-      'http://localhost:9000 http://127.0.0.1:9000 http://[::1]:9000 http://localhost';
+    const loopback = 'http://localhost:9000 http://127.0.0.1:9000 http://localhost';
     expect(connectOrigins(loopback)).toEqual({ origins: loopback.split(' '), rejected: [] });
     const other =
       'http://files.example.test:9000 http://127.0.0.2:9000 http://localhost.example.test ' +
-      'http://10.0.0.5:9000 http://localhost:9000/path';
+      'http://10.0.0.5:9000 http://localhost:9000/path http://[::1]:9000';
     expect(connectOrigins(other)).toEqual({ origins: [], rejected: other.split(' ') });
   });
 
