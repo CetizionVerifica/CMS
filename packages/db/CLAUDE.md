@@ -46,8 +46,10 @@ Field-level definitions are in `docs/contracts/domain-model.md` (M0); that file 
    The one exception for a whole account is `platform_purge_account` (ADR M15-0002): owned by `canopy_purge`, it runs
    only for a firm `PENDING_DELETION` for 30 days, marks it `DELETED`, and deletes its rows in every firm table from a
    fixed list, `audit_event` included. The audit trigger lets a DELETE through only when `current_user` is
-   `canopy_purge` and the row's firm is `DELETED`; UPDATE and TRUNCATE are always refused. Every new table with
-   `firm_id` must join that list in the same migration (a schema test checks it).
+   `canopy_purge` and the row's firm is `DELETED`; UPDATE and TRUNCATE are always refused. Only `canopy_operator`
+   has EXECUTE on it, and `createDatabase` refuses a login that is, or can `SET ROLE` to, `canopy_purge`. Every new
+   table with `firm_id` must join that list, or the kept list of ADR M15-0002 decision 4, in the same migration (a
+   schema test checks both).
 7. **Derived status is not stored** as the source of truth; the engine derives it. A materialised `status_cache` column is allowed for list performance if a job refreshes it daily and on every transition, and tests prove it matches the engine.
 8. **Migrations**: Drizzle Kit generated, reviewed by hand, forward-only. Each migration is safe on a populated table (add nullable, backfill, then constrain). Never edit an applied migration.
 9. **Indexes** at least on `(firm_id, client_id, due_date)`, `(assignment_id, period_start)`, `(owner_id, workflow_state)`, `(approver_id, workflow_state)`.
