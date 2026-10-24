@@ -211,6 +211,8 @@ export const Account = z.strictObject({
   entitlements: Entitlements,
   usage: Usage,
   trialEndsOn: LocalDate.nullable(),
+  /** When the master library was copied in (ADR M15-0001 decision 7); null while a new account waits for it. */
+  libraryCopiedAt: Instant.nullable(),
   onboardedAt: Instant.nullable(),
   deletionRequestedAt: Instant.nullable(),
   /** When the purge may run: `deletionRequestedAt` + the grace period. */

@@ -131,6 +131,17 @@ describe('the operator wall', () => {
     expect(
       await failure(asOperator((tx) => tx.execute(sql`SELECT granted_by_id FROM support_grant`))),
     ).toBe('42501');
+    const one = await asOperator((tx) => r.platformSupport.get(tx, listed[0]!.id, NOW()));
+    expect(one).toEqual(listed[0]);
+    const later = new Date(Date.parse(listed[0]!.endsAt) + 1000).toISOString();
+    expect(await asOperator((tx) => r.platformSupport.get(tx, listed[0]!.id, later))).toMatchObject(
+      { status: 'EXPIRED' },
+    );
+    expect(
+      await asOperator((tx) =>
+        r.platformSupport.get(tx, '01920000-0000-7000-8000-0000000000ff', NOW()),
+      ),
+    ).toBeNull();
   });
 
   it('cannot change a firm’s settings, and changes nothing of a DELETED account', async () => {
@@ -256,6 +267,50 @@ describe('the app’s own account', () => {
     expect(usage).toMatchObject({ companies: 2, units: 2 });
   });
 
+  it('serialises usage checks per firm with lockUsage, and leaves other firms alone', async () => {
+    const order: string[] = [];
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => (release = resolve));
+    let locked!: () => void;
+    const lockTaken = new Promise<void>((resolve) => (locked = resolve));
+    const first = inFirm(a.firmId, async (tx) => {
+      await r.account.lockUsage(tx);
+      locked();
+      await held;
+      order.push('first done');
+    });
+    await lockTaken;
+    const second = inFirm(a.firmId, async (tx) => {
+      await r.account.lockUsage(tx);
+      order.push('second locked');
+    });
+    // Another firm's lock is a different key, so it does not wait.
+    await inFirm(b.firmId, (tx) => r.account.lockUsage(tx));
+    order.push('other firm locked');
+    // The second transaction is queued behind the first's advisory lock before the first lets go.
+    for (let waiting = 0; waiting === 0;) {
+      const { rows } = await t.ownerQuery<{ n: number }>(
+        `SELECT count(*)::int AS n FROM pg_locks l JOIN pg_database d ON d.oid = l.database
+         WHERE d.datname = current_database() AND l.locktype = 'advisory' AND NOT l.granted`,
+      );
+      waiting = rows[0]!.n;
+    }
+    release();
+    await Promise.all([first, second]);
+    expect(order).toEqual(['other firm locked', 'first done', 'second locked']);
+  });
+
+  it('refuses lockUsage with no firm in context rather than lock nothing', async () => {
+    const error = await t.db
+      .withTenant(systemContext(a.firmId, 'accounts-test'), async (tx) => {
+        await tx.execute(sql`SELECT set_config('app.firm_id', '', true)`);
+        return r.account.lockUsage(tx);
+      })
+      .catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(DbError);
+    expect((error as DbError).code).toBe('NOT_FOUND');
+  });
+
   it('lays the account override over the plan', async () => {
     await asOperator(async (tx) => {
       const current = (await r.platformAccounts.get(tx, a.firmId))!;
@@ -289,7 +344,11 @@ describe('the app’s own account', () => {
 });
 
 describe('the owner accepting their invite', () => {
-  async function accept(account: { accountId: string; ownerId: string; inviteId: string }) {
+  async function accept(
+    account: { accountId: string; ownerId: string; inviteId: string },
+    copied = true,
+  ) {
+    if (copied) await inFirm(account.accountId, (tx) => r.accountJobs.markLibraryCopied(tx));
     await inFirm(account.accountId, async (tx) => {
       const tokenId = await r.loginTokens.create(tx, {
         personId: account.ownerId,
@@ -311,6 +370,43 @@ describe('the owner accepting their invite', () => {
       `SELECT action, operator_id, after FROM platform.operator_audit_event
        WHERE account_id = '${accountId}' AND action = 'ACCOUNT_ACTIVATE'`,
     );
+
+  it('waits for the library copy: nothing opens before it, and the copy is recorded once', async () => {
+    const fresh = await asOperator((tx) =>
+      r.platformAccounts.create(tx, newAccount({ name: 'Riverbend Works' })),
+    );
+    expect(await failure(accept(fresh, false))).toBe('VALIDATION');
+    const before = await asOperator((tx) => r.platformAccounts.get(tx, fresh.accountId));
+    expect(before).toMatchObject({ status: 'PROVISIONING', libraryCopiedAt: null, version: 1 });
+    expect(await inFirm(fresh.accountId, (tx) => r.account.libraryCopied(tx))).toBe(false);
+    expect(await inFirm(fresh.accountId, (tx) => r.accountJobs.markLibraryCopied(tx))).toBe(true);
+    const copied = await asOperator((tx) => r.platformAccounts.get(tx, fresh.accountId));
+    // Set once: a retried event leaves the first time alone.
+    expect(await inFirm(fresh.accountId, (tx) => r.accountJobs.markLibraryCopied(tx))).toBe(false);
+    expect(await asOperator((tx) => r.platformAccounts.get(tx, fresh.accountId))).toEqual(copied);
+    expect(await inFirm(fresh.accountId, (tx) => r.account.libraryCopied(tx))).toBe(true);
+    await accept(fresh, false);
+    expect(await asOperator((tx) => r.platformAccounts.get(tx, fresh.accountId))).toMatchObject({
+      status: 'TRIAL',
+      libraryCopiedAt: copied!.libraryCopiedAt,
+    });
+  });
+
+  it('records the copy only for a PROVISIONING account, in a firm-wide context', async () => {
+    const before = await asOperator((tx) => r.platformAccounts.get(tx, a.firmId));
+    expect(before?.status).toBe('ACTIVE');
+    expect(await inFirm(a.firmId, (tx) => r.accountJobs.markLibraryCopied(tx))).toBe(false);
+    expect(await asOperator((tx) => r.platformAccounts.get(tx, a.firmId))).toEqual(before);
+    const person: TenantContext = {
+      firmId: a.firmId,
+      personId: '01920000-0000-7000-8000-0000000000bb',
+      clientIds: [a.clientIds[0]],
+      requestId: 'accounts-test',
+    };
+    expect(
+      await failure(t.db.withTenant(person, (tx) => r.accountJobs.markLibraryCopied(tx))),
+    ).toBe('FORBIDDEN');
+  });
 
   it('opens a trial account as TRIAL, with its audit row, outbox event and operator entry', async () => {
     const fresh = await asOperator((tx) =>
@@ -633,7 +729,7 @@ describe('support access', () => {
           }),
         ),
       ),
-    ).toBe('P0002');
+    ).toBe('NOT_FOUND');
     await asOperator((tx) =>
       r.platformSupport.issueToken(tx, {
         accountId: a.firmId,
@@ -709,6 +805,96 @@ describe('support access', () => {
     );
     expect(sessionsEnded).toBe(1);
     expect(await t.db.findSession(tokenHash)).toBeNull();
+  });
+
+  it('writes SUPPORT_ACCESS_START and SUPPORT_ACCESS_END to the operator trail with the grant, once each', async () => {
+    const first = await inFirm(a.firmId, (tx) =>
+      r.supportGrants.create(tx, { level: 'ADMIN', days: 1, grantedById: adminId, now: NOW() }),
+    );
+    const { grant, ended } = await inFirm(a.firmId, (tx) =>
+      r.supportGrants.create(tx, { level: 'READ_ONLY', days: 3, grantedById: adminId, now: NOW() }),
+    );
+    expect(ended?.id).toBe(first.grant.id);
+    await inFirm(a.firmId, (tx) => r.supportGrants.revoke(tx, grant.id, adminId, NOW()));
+    // A revoke that finds nothing live changes no row, so it writes nothing.
+    expect(
+      await failure(inFirm(a.firmId, (tx) => r.supportGrants.revoke(tx, grant.id, adminId, NOW()))),
+    ).toBe('NOT_FOUND');
+    const { rows: trail } = await t.ownerQuery<{
+      action: string;
+      operator_id: string | null;
+      account_id: string;
+      before: unknown;
+      after: Record<string, unknown>;
+      request_id: string;
+    }>(
+      `SELECT action, operator_id, account_id, before, after, request_id FROM platform.operator_audit_event
+       WHERE after->>'grantId' = '${grant.id}' ORDER BY at, id`,
+    );
+    expect(trail).toEqual([
+      {
+        action: 'SUPPORT_ACCESS_START',
+        operator_id: null,
+        account_id: a.firmId,
+        before: null,
+        after: {
+          grantId: grant.id,
+          level: 'READ_ONLY',
+          startsAt: expect.any(String),
+          endsAt: expect.any(String),
+          source: 'grant',
+        },
+        request_id: 'accounts-test',
+      },
+      {
+        action: 'SUPPORT_ACCESS_END',
+        operator_id: null,
+        account_id: a.firmId,
+        before: { endsAt: expect.any(String) },
+        after: {
+          grantId: grant.id,
+          level: 'READ_ONLY',
+          revokedAt: expect.any(String),
+          source: 'grant',
+        },
+        request_id: 'accounts-test',
+      },
+    ]);
+    expect(Date.parse(trail[0]!.after.endsAt as string)).toBe(Date.parse(grant.endsAt));
+    // The grant this one ended has its own END entry.
+    const { rows: endedTrail } = await t.ownerQuery<{ action: string }>(
+      `SELECT action FROM platform.operator_audit_event WHERE after->>'grantId' = '${ended!.id}' ORDER BY at, id`,
+    );
+    expect(endedTrail.map((e) => e.action)).toEqual(['SUPPORT_ACCESS_START', 'SUPPORT_ACCESS_END']);
+  });
+
+  it('keeps a revoke final: the tenant cannot revive a revoked grant or rewrite who revoked it', async () => {
+    const { grant } = await inFirm(a.firmId, (tx) =>
+      r.supportGrants.create(tx, { level: 'READ_ONLY', days: 1, grantedById: adminId, now: NOW() }),
+    );
+    await inFirm(a.firmId, (tx) => r.supportGrants.revoke(tx, grant.id, adminId, NOW()));
+    const update = (set: ReturnType<typeof sql>) =>
+      failure(
+        inFirm(a.firmId, (tx) =>
+          tx.execute(sql`UPDATE support_grant SET ${set} WHERE id = ${grant.id}`),
+        ),
+      );
+    expect(await update(sql`revoked_at = NULL, revoked_by_id = NULL`)).toBe('23514');
+    expect(await update(sql`revoked_at = now() + interval '1 day'`)).toBe('23514');
+    const [other] = await inFirm(a.firmId, (tx) =>
+      tx
+        .select({ id: s.person.id })
+        .from(s.person)
+        .where(sql`${s.person.id} <> ${adminId}`)
+        .limit(1),
+    );
+    expect(await update(sql`revoked_by_id = ${other!.id}::uuid`)).toBe('23514');
+    // A write that leaves the revoke as it was still goes through.
+    expect(await update(sql`revoked_at = revoked_at`)).toBe('resolved');
+    const { rows } = await t.ownerQuery<{ revoked: boolean }>(
+      `SELECT revoked_at IS NOT NULL AS revoked FROM support_grant WHERE id = '${grant.id}'`,
+    );
+    expect(rows).toEqual([{ revoked: true }]);
   });
 
   it('a SUPPORT session needs a grant, and only a SUPPORT session has one', async () => {

@@ -1,7 +1,7 @@
 import type { Database } from '@canopy/db';
 import { s3SettingsFromEnv } from '../s3-env.js';
 import { clamAvConfigFromEnv, clamAvScanner } from './clamav-scanner.js';
-import type { Clock, JobDeps, LoginTokenIssuer, Mailer, Scanner } from './ports.js';
+import type { Clock, JobDeps, LibraryCopier, LoginTokenIssuer, Mailer, Scanner } from './ports.js';
 import { postgresJobStore } from './postgres-store.js';
 import { startJobRunner, type JobRunner, type JobRunnerOptions } from './runner.js';
 import { s3EvidenceObjects } from './s3-objects.js';
@@ -13,6 +13,8 @@ export interface JobsFromEnvOptions extends Omit<JobRunnerOptions, 'mail'> {
   issueLoginToken?: LoginTokenIssuer;
   /** Replaces the ClamAV scanner `CLAMAV_HOST` configures, for a host's own scanning service. */
   scanner?: Scanner;
+  /** M6's `copyMasterLibrary` on the API's database. Without it, a new account's library is not copied. */
+  copyLibrary?: LibraryCopier;
   /** Defaults to the system clock; tests pass a fixed one. */
   clock?: Clock;
 }
@@ -23,7 +25,8 @@ const NO_MAILER: Mailer = {
 };
 
 /**
- * Boots the jobs for an API process: pg-boss on `connectionString`, the Postgres store and an SMTP mailer, all from
+ * Boots the jobs for an API process: pg-boss on `JOBS_DATABASE_URL` (its own login; `connectionString` only when that
+ * is unset, as in local development), the Postgres store and an SMTP mailer, all from
  * the environment (`SMTP_URL`, or `SMTP_HOST` with `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS` and `SMTP_SECURE`, plus
  * `MAIL_FROM` and `APP_URL`). Without an SMTP server, instance generation and the outbox relay still run and every
  * email job is left off (the runner's `mail` is false, so the caller can warn), so no send is ever recorded as done
@@ -34,11 +37,17 @@ export async function startJobsFromEnv(
   env: Record<string, string | undefined>,
   options: JobsFromEnvOptions,
 ): Promise<JobRunner> {
-  const { db, clock, issueLoginToken, scanner, ...runnerOptions } = options;
+  const { db, clock, issueLoginToken, copyLibrary, scanner, ...given } = options;
+  // pg-boss runs as its own login, never the tenant one (ADR M9-0001 decision 16).
+  const runnerOptions = {
+    ...given,
+    connectionString: env.JOBS_DATABASE_URL || given.connectionString,
+  };
   const shared: Omit<JobDeps, 'mailer' | 'appUrl'> = {
     store: postgresJobStore(db),
     clock: clock ?? (() => new Date().toISOString()),
     ...(issueLoginToken && { issueLoginToken }),
+    ...(copyLibrary && { copyLibrary }),
     ...scanningFromEnv(env, scanner),
   };
   const mail = mailConfigFromEnv(env);

@@ -3,10 +3,9 @@ import { expect, test } from '@playwright/test';
 import { seeded } from './helpers.js';
 import { addressOf, storageStateOf } from './stack.js';
 
-// F7 (docs/security/review.md): every server render of the shell calls GET /me and, for firm users, GET /portfolio,
-// and link prefetching renders the shell many times per page, so one person browsing at an ordinary pace spends the
-// API's per-visitor budget (300 requests a minute). The other journeys give each run its own address to stay clear
-// of it (stack.ts `addressOf`); this one browses as a consultant would, from one fixed address, and keeps F7 fixed.
+// F7 (docs/security/review.md, fixed in #147): the shell used to call GET /me and /portfolio on every server render
+// and prefetch, so one person browsing at an ordinary pace spent the API's per-visitor budget (300 requests a minute).
+// This journey browses as a consultant would, from one fixed address, and must never be refused.
 test('a consultant browses the main pages for a minute from one address without being refused', async ({
   browser,
 }) => {

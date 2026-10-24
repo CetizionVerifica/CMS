@@ -116,6 +116,18 @@ test.describe('shell navigation at 1280px', () => {
     await expect(page.getByRole('heading', { name: 'We couldn’t find that page' })).toBeVisible();
   });
 
+  test('a viewer reads one client, with no import or approvals', async ({ page }) => {
+    await signIn(page, 'viewer@demo.test');
+    await expect(page).toHaveURL(`/c/${DEMO_METALS}/overview`);
+    await checkPage(page);
+    const nav = page.getByRole('navigation', { name: 'Main' });
+    await expect(nav.getByRole('link', { name: 'Register' })).toBeVisible();
+    await expect(nav.getByRole('link', { name: 'Import' })).toHaveCount(0);
+    await expect(nav.getByRole('link', { name: 'Approvals' })).toHaveCount(0);
+    await page.goto(`/c/${NORTHWIND}/overview`);
+    await expect(page.getByRole('heading', { name: 'We couldn’t find that page' })).toBeVisible();
+  });
+
   test('keyboard only: skip link, sidebar, top bar, then main', async ({ page }) => {
     await signIn(page, 'approver@demo.test', `/c/${DEMO_METALS}/overview`);
     await page.keyboard.press('Tab');

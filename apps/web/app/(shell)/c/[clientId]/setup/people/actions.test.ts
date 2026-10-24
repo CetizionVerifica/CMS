@@ -89,7 +89,10 @@ describe('people actions', () => {
         email: 'divya.hegde@northwind.example',
         role: 'OWNER',
       }),
-    ).toEqual({ ok: false, message: 'Someone in your firm already has this email.' });
+    ).toEqual({
+      ok: false,
+      message: "This email can't be used. Check it, or use a different one.",
+    });
     const meera = (await people()).find((p) => p.displayName === 'Meera Rao')!;
     expect(meera.status).toBe('UNCLAIMED');
     expect(await actions.rolesAction(CLIENT, meera.id)).toEqual({

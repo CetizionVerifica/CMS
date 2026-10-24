@@ -30,6 +30,14 @@ const anyObject: EvidenceObjects = {
     })(),
 };
 
+/** The migrations create the job schema; the runner never does, so each test creates its own. */
+async function createSchema(schema: string): Promise<void> {
+  const client = new pg.Client({ connectionString: url });
+  await client.connect();
+  await client.query(`CREATE SCHEMA ${schema}`);
+  await client.end();
+}
+
 async function dropSchema(schema: string): Promise<void> {
   const client = new pg.Client({ connectionString: url });
   await client.connect();
@@ -62,6 +70,7 @@ describe.skipIf(!url)('job runner on pg-boss', () => {
     firm.evidence.push(evidenceFile(i));
     h = harness([firm]);
     h.at('2026-10-12T01:30:00Z');
+    await createSchema(schema);
     runner = await startJobRunner(
       { ...h.deps, scanner: cleanScanner, evidenceObjects: anyObject },
       {
@@ -173,6 +182,7 @@ describe.skipIf(!url)('job runner on pg-boss', () => {
 describe.skipIf(!url)('job runner without a login token issuer', () => {
   it('relays sign-in link and invite events as done and sends nothing', async () => {
     const schema = `pgboss_notoken_${randomUUID().replaceAll('-', '').slice(0, 12)}`;
+    await createSchema(schema);
     const firm = memoryFirm();
     const h = harness([firm]);
     const logs: { job: string; report?: Record<string, number> }[] = [];
@@ -221,6 +231,7 @@ describe.skipIf(!url)('job runner without a login token issuer', () => {
 describe.skipIf(!url)('job runner without a mail transport', () => {
   it('registers generation and the relay only, and relays an event only an email consumer reads as done', async () => {
     const schema = `pgboss_nomail_${randomUUID().replaceAll('-', '').slice(0, 12)}`;
+    await createSchema(schema);
     const firm = memoryFirm();
     const client = memoryClient('Kestrel Metals Group');
     firm.clients.push(client);
@@ -287,6 +298,7 @@ describe.skipIf(!url)('jobs booted from the environment', () => {
     const t = await createJobTestDatabase(url!);
     const smtp = await startFakeSmtp();
     const schema = `pgboss_env_${randomUUID().replaceAll('-', '').slice(0, 12)}`;
+    await createSchema(schema);
     try {
       const runner = await startJobsFromEnv(
         {
@@ -299,10 +311,12 @@ describe.skipIf(!url)('jobs booted from the environment', () => {
           S3_BUCKET: 'canopy-evidence',
           S3_ACCESS_KEY_ID: 'key',
           S3_SECRET_ACCESS_KEY: 'secret',
+          // pg-boss's own login; the API's connection below would fail.
+          JOBS_DATABASE_URL: url!,
         },
         {
           db: t.db,
-          connectionString: url!,
+          connectionString: 'postgres://nobody@127.0.0.1:1/none',
           schema,
           issueLoginToken: async () => ({ token: 't', expiresAt: new Date().toISOString() }),
         },
@@ -323,28 +337,33 @@ describe.skipIf(!url)('jobs booted from the environment', () => {
   });
 });
 
-describe.skipIf(!url)('job runner as a login without CREATE on the database', () => {
+describe.skipIf(!url)('job runner as its own login, without CREATE on the database', () => {
   const suffix = randomUUID().replaceAll('-', '').slice(0, 12);
-  const group = `canopy_jobs_app_${suffix}`;
-  const role = `canopy_jobs_${suffix}`;
+  // As in a deploy (M3 migrations): a NOLOGIN jobs role owns the schema, pg-boss's login is a member that defaults
+  // to it, and the tenant login is no member at all.
+  const jobsRole = `canopy_jobs_${suffix}`;
+  const login = `canopy_jobs_login_${suffix}`;
+  const tenant = `canopy_tenant_${suffix}`;
   const owned = `pgboss_owned_${suffix}`;
   const missing = `pgboss_missing_${suffix}`;
-  let asRole: string;
+  const as = (role: string) => {
+    const u = new URL(url!);
+    u.username = role;
+    u.password = suffix;
+    return u.toString();
+  };
 
   beforeAll(async () => {
     const admin = new pg.Client({ connectionString: url });
     await admin.connect();
-    // As in a deploy: a login that is a plain member of the app's group role, which owns the pre-created schema.
-    await admin.query(`CREATE ROLE ${group} NOLOGIN NOSUPERUSER NOCREATEDB`);
+    await admin.query(`CREATE ROLE ${jobsRole} NOLOGIN NOSUPERUSER NOCREATEDB`);
     await admin.query(
-      `CREATE ROLE ${role} LOGIN PASSWORD '${suffix}' NOSUPERUSER NOCREATEDB IN ROLE ${group}`,
+      `CREATE ROLE ${login} LOGIN PASSWORD '${suffix}' NOSUPERUSER NOCREATEDB IN ROLE ${jobsRole}`,
     );
-    await admin.query(`CREATE SCHEMA ${owned} AUTHORIZATION ${group}`);
+    await admin.query(`ALTER ROLE ${login} SET role = ${jobsRole}`);
+    await admin.query(`CREATE ROLE ${tenant} LOGIN PASSWORD '${suffix}' NOSUPERUSER NOCREATEDB`);
+    await admin.query(`CREATE SCHEMA ${owned} AUTHORIZATION ${jobsRole}`);
     await admin.end();
-    const login = new URL(url!);
-    login.username = role;
-    login.password = suffix;
-    asRole = login.toString();
   });
 
   afterAll(async () => {
@@ -352,14 +371,13 @@ describe.skipIf(!url)('job runner as a login without CREATE on the database', ()
     await dropSchema(missing);
     const admin = new pg.Client({ connectionString: url });
     await admin.connect();
-    await admin.query(`DROP ROLE IF EXISTS ${role}`);
-    await admin.query(`DROP ROLE IF EXISTS ${group}`);
+    for (const role of [login, tenant, jobsRole]) await admin.query(`DROP ROLE IF EXISTS ${role}`);
     await admin.end();
   });
 
-  it('starts on a schema its group role owns, without creating one', async () => {
+  it('starts on the schema the jobs role owns, and its tables belong to that role', async () => {
     const runner = await startJobRunner(harness([memoryFirm()]).deps, {
-      connectionString: asRole,
+      connectionString: as(login),
       schema: owned,
     });
     try {
@@ -367,11 +385,35 @@ describe.skipIf(!url)('job runner as a login without CREATE on the database', ()
     } finally {
       await runner.stop();
     }
+    const admin = new pg.Client({ connectionString: url });
+    await admin.connect();
+    const { rows } = await admin.query<{ tableowner: string }>(
+      'SELECT DISTINCT tableowner FROM pg_tables WHERE schemaname = $1',
+      [owned],
+    );
+    await admin.end();
+    expect(rows.map((r) => r.tableowner)).toEqual([jobsRole]);
   });
 
-  it('cannot create the schema itself, which is why the deploy pre-creates it', async () => {
+  it('refuses to start on a missing schema rather than try to create it', async () => {
     await expect(
-      startJobRunner(harness([memoryFirm()]).deps, { connectionString: asRole, schema: missing }),
-    ).rejects.toThrow(/permission denied/);
+      startJobRunner(harness([memoryFirm()]).deps, {
+        connectionString: as(login),
+        schema: missing,
+      }),
+    ).rejects.toThrow(
+      `The job schema "${missing}" does not exist: run the database migrations first`,
+    );
+  });
+
+  it('refuses to start as the tenant login, at boot and saying what to set', async () => {
+    const failure = startJobRunner(harness([memoryFirm()]).deps, {
+      connectionString: as(tenant),
+      schema: owned,
+    });
+    await expect(failure).rejects.toThrow(
+      `The jobs' database login may not use the job schema "${owned}": set JOBS_DATABASE_URL to a login that is a member of canopy_jobs`,
+    );
+    await expect(failure).rejects.toMatchObject({ cause: { code: '42501' } });
   });
 });

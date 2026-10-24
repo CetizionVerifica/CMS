@@ -140,10 +140,22 @@ remind for complied or not-applicable items, and reach the database only through
       and sorts them in memory, which is quadratic for a large backlog. A repository call with `ORDER BY created_at,
       id LIMIT n` would replace it.
     - **Not yet:** telling the uploader about an INFECTED file (`evidence.scanned`'s consumer, events.md).
-16. **Job schema.** pg-boss keeps its tables in the `pgboss` schema. The app's login has no `CREATE` on the database
-    (M3 roles), so a migration creates the schema owned by `canopy_app`, and the runner asks pg-boss to create it
-    only when it is missing (a test database, or a deploy before that migration). pg-boss then creates its tables and
-    each queue's partition inside the schema, which the login can do as a member of the owner.
+16. **Job schema and login.** pg-boss keeps its tables in the `pgboss` schema, which M3 migration 0022 creates and a
+    later M3 migration hands to the NOLOGIN role `canopy_jobs`. From then on no app login (`canopy_app`, lookup,
+    platform, operator) has `USAGE` or `CREATE` on it, so tenant code cannot read or change job rows.
+    - **Own login:** pg-boss connects with `JOBS_DATABASE_URL`, a login that is a member of `canopy_jobs` only and
+      defaults to it, so the tables and queue partitions it creates belong to `canopy_jobs`. The tenant login must
+      never default to `canopy_jobs`. Without `JOBS_DATABASE_URL` (local development) the runner uses the API's
+      `DATABASE_URL`.
+    - **No schema creation:** the runner passes `createSchema: false`, since `CREATE SCHEMA IF NOT EXISTS` needs
+      `CREATE` on the database. It refuses to start when the schema is missing ("run the database migrations
+      first").
+    - **Deploy, once, as an admin:**
+      1. `CREATE ROLE canopy_jobs NOLOGIN;` (if the migrations have not), then `GRANT canopy_jobs TO <migrating
+         owner>;` so the migrations can hand it the schema.
+      2. `CREATE ROLE canopy_jobs_login LOGIN PASSWORD '…' IN ROLE canopy_jobs;` and
+         `ALTER ROLE canopy_jobs_login SET role = canopy_jobs;`.
+      3. Set `JOBS_DATABASE_URL=postgres://canopy_jobs_login:…@<host>/<db>` for the API.
 
 ## Consequences
 - M3 PR 2 must provide, as repository calls: list firm ids (system), clients, generation targets, instance keys,

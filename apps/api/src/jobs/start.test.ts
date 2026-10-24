@@ -67,9 +67,27 @@ describe('startJobsFromEnv', () => {
     expect(close).toHaveBeenCalledOnce();
   });
 
+  it("runs pg-boss as its own login from JOBS_DATABASE_URL, not the API's", async () => {
+    await startJobsFromEnv({ JOBS_DATABASE_URL: 'postgres://jobs@db/canopy' }, options);
+    expect(started[0]!.options.connectionString).toBe('postgres://jobs@db/canopy');
+  });
+
+  it("falls back to the API's connection without JOBS_DATABASE_URL, as in local development", async () => {
+    await startJobsFromEnv({ JOBS_DATABASE_URL: '' }, options);
+    expect(started[0]!.options.connectionString).toBe('postgres://unused');
+  });
+
   it('leaves the issuer out when the API passes none', async () => {
     await startJobsFromEnv(SMTP, { db: {} as never, connectionString: 'postgres://unused' });
     expect(started[0]!.deps).not.toHaveProperty('issueLoginToken');
+    expect(started[0]!.deps).not.toHaveProperty('copyLibrary');
+  });
+
+  it("passes M6's library copier through, with or without mail", async () => {
+    const copyLibrary = async () => ({ copied: true, categories: 0, acts: 0, obligations: 0 });
+    await startJobsFromEnv({}, { ...options, copyLibrary });
+    await startJobsFromEnv(SMTP, { ...options, copyLibrary });
+    expect(started.map((s) => s.deps.copyLibrary)).toEqual([copyLibrary, copyLibrary]);
   });
 
   it('leaves the scan off without a scanner', async () => {

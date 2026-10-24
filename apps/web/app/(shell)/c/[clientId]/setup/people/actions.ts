@@ -12,7 +12,7 @@ export type ActionResult<T = void> = { ok: true; value: T } | { ok: false; messa
 
 function failure(error: unknown): { ok: false; message: string } {
   if (isApiError(error, 'DUPLICATE')) {
-    return { ok: false, message: 'Someone in your firm already has this email.' };
+    return { ok: false, message: "This email can't be used. Check it, or use a different one." };
   }
   if (isApiError(error, 'STALE_VERSION')) {
     return {

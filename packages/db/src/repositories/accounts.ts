@@ -89,6 +89,30 @@ export const account = {
     const { rows } = await tx.execute<Record<string, unknown>>(sql`SELECT * FROM app_usage()`);
     return usageOf(rows[0]);
   },
+  /**
+   * Holds the account's usage lock until the transaction ends, so two plan-limit checks (say, two invites at the user
+   * limit) cannot both read the count before either writes. Call it before reading `usage`. It is a transaction-scoped
+   * advisory lock on the firm, not a row lock: the firm row's UPDATE policy admits firm staff only, so a client admin
+   * could not lock the row. Without a firm in context the key would be null and nothing would lock, so it throws.
+   */
+  async lockUsage(tx: TenantTx): Promise<void> {
+    const { rows } = await tx
+      .execute(
+        sql`SELECT pg_advisory_xact_lock(hashtextextended('canopy.usage:' || f::text, 0))::text AS locked
+            FROM app_firm_id() AS f WHERE f IS NOT NULL`,
+      )
+      .catch(rethrow);
+    if (rows.length === 0) throw new DbError('NOT_FOUND', 'No account in this context');
+  },
+  /** Whether M6 has copied the master library into the account; its owner can accept only after (ADR M15-0001). */
+  async libraryCopied(tx: TenantTx): Promise<boolean> {
+    const [row] = await tx
+      .select({ at: s.firm.libraryCopiedAt })
+      .from(s.firm)
+      .where(sql`${s.firm.id} = app_firm_id()`)
+      .catch(rethrow);
+    return row !== undefined && row.at !== null;
+  },
 };
 
 export const SupportGrantRequest = z.strictObject({
@@ -296,6 +320,7 @@ export const AccountRecord = z.strictObject({
   trialEndsOn: LocalDate.nullable(),
   profile: AccountProfile.partial(),
   onboardedAt: Instant.nullable(),
+  libraryCopiedAt: Instant.nullable(),
   deletionRequestedAt: Instant.nullable(),
   statusBeforeDeletion: AccountStatus.nullable(),
   createdAt: Instant,
@@ -312,6 +337,7 @@ const recordColumns = {
   trialEndsOn: s.firm.trialEndsOn,
   profile: s.firm.profile,
   onboardedAt: s.firm.onboardedAt,
+  libraryCopiedAt: s.firm.libraryCopiedAt,
   deletionRequestedAt: s.firm.deletionRequestedAt,
   statusBeforeDeletion: s.firm.statusBeforeDeletion,
   createdAt: s.firm.createdAt,
@@ -324,6 +350,7 @@ function recordOf(r: {
   return validate(AccountRecord, {
     ...r,
     onboardedAt: iso(r.onboardedAt as Date | null),
+    libraryCopiedAt: iso(r.libraryCopiedAt as Date | null),
     deletionRequestedAt: iso(r.deletionRequestedAt as Date | null),
     createdAt: (r.createdAt as Date).toISOString(),
   });
@@ -552,6 +579,15 @@ export const platformSupport = {
       .orderBy(desc(s.supportGrant.startsAt), desc(s.supportGrant.id))
       .catch(rethrow);
     return rows.map((r) => operatorGrantOf(r, at(now)));
+  },
+  /** One grant by id, whatever its account and status (the console's "open support session"). */
+  async get(tx: OperatorTx, grantId: string, now: string): Promise<OperatorSupportGrant | null> {
+    const [row] = await tx
+      .select(operatorGrantColumns)
+      .from(s.supportGrant)
+      .where(eq(s.supportGrant.id, validate(Id, grantId)))
+      .catch(rethrow);
+    return row ? operatorGrantOf(row, at(now)) : null;
   },
   /** Every account's live grant (the console's "support access" column). */
   async live(tx: OperatorTx, now: string): Promise<OperatorSupportGrant[]> {

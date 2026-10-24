@@ -31,7 +31,13 @@ function parseUuidArray(text: string): string[] {
 const firmEntity = entity<Firm>({
   table: s.firm,
   schema: Firm,
-  omit: ['onboardedAt', 'deletionRequestedAt', 'statusBeforeDeletion', 'profile'],
+  omit: [
+    'onboardedAt',
+    'libraryCopiedAt',
+    'deletionRequestedAt',
+    'statusBeforeDeletion',
+    'profile',
+  ],
   fromRow: (row) => ({ ...row, firmId: row.id }),
 });
 

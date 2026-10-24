@@ -8,7 +8,8 @@
     "start": "tsx src/main.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:db": "vitest run --config vitest.db.config.mjs"
+    "test:db": "vitest run --config vitest.db.config.mjs",
+    "platform:add-operator": "tsx src/platform/add-operator.ts"
   },
   "canopy": {
     "seed": "./src/modules/imports/seed.ts"

@@ -26,6 +26,7 @@ import type { EvidenceStorage } from './modules/evidence/storage.js';
 import { imports, type ImportOptions } from './modules/imports/index.js';
 import { registerInstanceRoutes } from './modules/instances/routes.js';
 import { createInstanceService } from './modules/instances/service.js';
+import { registerPlatform, type PlatformOptions } from './platform/index.js';
 
 export interface ServerOptions {
   /** Session storage for auth. Until M5's repository-backed store lands, the default knows no sessions. */
@@ -56,6 +57,8 @@ export interface ServerOptions {
   readonly database?: Database;
   /** M7 · Evidence file storage; with `database`, the evidence routes are mounted too. */
   readonly evidenceStorage?: EvidenceStorage;
+  /** M15 · The operator API under /api/platform/v1, mounted when given (`PLATFORM_ENABLED=true`). */
+  readonly platform?: PlatformOptions;
 }
 
 const NO_SESSIONS: AuthStore = {
@@ -175,6 +178,8 @@ export function buildServer(options: ServerOptions = {}): FastifyInstance {
       { prefix: '/api/v1' },
     );
   }
+
+  if (options.platform) registerPlatform(app, { clock: options.clock, ...options.platform });
 
   return app;
 }

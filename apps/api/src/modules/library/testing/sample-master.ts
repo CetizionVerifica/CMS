@@ -1,0 +1,55 @@
+import type { MasterLibrary } from '../master.js';
+
+/** A two-obligation master library for the copy tests. */
+export const SAMPLE_MASTER: MasterLibrary = {
+  version: 3,
+  categories: [{ key: 'returns', name: 'Returns', aliases: ['Return'] }],
+  acts: [
+    {
+      key: 'factories',
+      name: 'Factories Act, 1948',
+      shortName: 'Factories Act',
+      jurisdiction: 'CENTRAL',
+      stateCode: null,
+      aliases: [],
+    },
+  ],
+  obligations: [
+    {
+      act: 'factories',
+      category: 'returns',
+      externalRef: 'EHS-MASTER-0001',
+      domain: 'EHS',
+      jurisdiction: 'CENTRAL',
+      stateCode: null,
+      title: 'Annual return',
+      description: 'File the annual return for the factory.',
+      applicabilityText: null,
+      criticality: 'HIGH',
+      timelineType: 'TIME_BASED',
+      recurrenceRule: { kind: 'ANNUAL', month: 1, day: 31 },
+      ruleStatus: 'CONFIRMED',
+      evidenceRequired: true,
+      forms: [],
+      logSheets: [],
+    },
+    {
+      act: 'factories',
+      category: 'returns',
+      externalRef: 'EHS-MASTER-0002',
+      domain: 'EHS',
+      jurisdiction: 'CENTRAL',
+      stateCode: null,
+      title: 'Half-yearly return',
+      description: 'File the half-yearly return for the factory.',
+      applicabilityText: null,
+      criticality: 'MEDIUM',
+      timelineType: 'TIME_BASED',
+      recurrenceRule: { kind: 'HALF_YEARLY', anchor: 'AFTER_PERIOD_END', days: 31 },
+      ruleStatus: 'CONFIRMED',
+      evidenceRequired: false,
+      forms: [],
+      logSheets: [],
+    },
+  ],
+};
