@@ -48,7 +48,7 @@ const PLATFORM_ROLE = 'canopy_platform';
 /** Owner of the SECURITY DEFINER pre-tenant lookups (migration 0007); no request login may become it. */
 const LOOKUP_ROLE = 'canopy_lookup';
 
-/** Owner of the pgboss schema (migration 0023, ADR M3-0004): every firm's queued jobs, with no RLS. */
+/** Owner of the pgboss schema (migration 0025, ADR M3-0004): every firm's queued jobs, with no RLS. */
 const JOBS_ROLE = 'canopy_jobs';
 
 export const MIGRATIONS_FOLDER = fileURLToPath(new URL('../migrations', import.meta.url));
