@@ -986,6 +986,23 @@ describe('support access', () => {
     ]);
   });
 
+  it("keeps one END per grant for the grant's own ends only", async () => {
+    const { grant } = await inFirm(a.firmId, (tx) =>
+      r.supportGrants.create(tx, { level: 'READ_ONLY', days: 1, grantedById: adminId, now: NOW() }),
+    );
+    const end = (source: string) =>
+      t.ownerQuery(
+        `INSERT INTO platform.operator_audit_event (action, account_id, after, request_id)
+         VALUES ('SUPPORT_ACCESS_END', $1, jsonb_build_object('grantId', $2::text, 'source', $3::text), 'accounts-test')`,
+        [a.firmId, grant.id, source],
+      );
+    // Another source that names the grant, such as a support session's end, may appear any number of times.
+    await end('session');
+    await end('session');
+    await end('grant');
+    await expect(end('expiry')).rejects.toThrow(/operator_audit_event_support_end_key/);
+  });
+
   it('lets a late revoke through when the expiry is already in the trail, keeping one END', async () => {
     const past = new Date(Date.now() - 30 * 86_400_000).toISOString();
     const { grant } = await inFirm(a.firmId, (tx) =>
