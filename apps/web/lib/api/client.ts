@@ -171,6 +171,7 @@ export function createApiClient(options: ApiClientOptions) {
     login: (body: LoginBody) => call('login', { body }),
     requestMagicLink: (email: string) => call('requestMagicLink', { body: { email } }),
     verifyMagicLink: (value: string) => call('verifyMagicLink', { body: { token: value } }),
+    enrollMfa: () => call('enrollMfa'),
     verifyMfa: (code: string) => call('verifyMfa', { body: { code } }),
     logout: () => call('logout'),
     invite: (value: string) => call('getInvite', token(value)),

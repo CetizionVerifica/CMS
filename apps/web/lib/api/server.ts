@@ -63,11 +63,17 @@ export function mfaPending(me: Me): boolean {
   return me.mfa.required && !me.mfa.satisfied;
 }
 
+/** The MFA step a session that owes MFA goes to: the code, or setting up an authenticator first. */
+export function mfaStepPath(me: Me, next?: string): string {
+  const path = me.mfa.enrolled ? '/login/verify' : '/login/mfa-setup';
+  return next ? `${path}?next=${encodeURIComponent(next)}` : path;
+}
+
 /** The signed-in user, or a redirect to the login page that comes back to `returnTo`. */
 export async function requireMe(returnTo: string): Promise<Me> {
   const me = await getMe();
   if (!me) redirect(`/login?next=${encodeURIComponent(returnTo)}`);
-  if (mfaPending(me)) redirect(`/login/verify?next=${encodeURIComponent(returnTo)}`);
+  if (mfaPending(me)) redirect(mfaStepPath(me, returnTo));
   return me;
 }
 

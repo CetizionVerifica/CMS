@@ -39,6 +39,11 @@ export const MOCK_FIRMS = [
   { id: '00000000-0000-5000-8000-0000000000f2', name: 'Demo Partners' },
 ] as const;
 export const MOCK_TWO_FIRM_EMAIL = 'twofirms@demo.test';
+/** A consultant who hasn't set up MFA yet, so signing in leads to the setup page. */
+export const MOCK_UNENROLLED_EMAIL = 'newconsultant@demo.test';
+/** The TOTP secret the mock hands out at enrolment (RFC 4648 base32). Any authenticator accepts it; the mock still
+ * only takes MOCK_MFA_CODE. */
+export const MOCK_TOTP_SECRET = 'JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP';
 const T = '2026-01-01T00:00:00.000Z';
 const base = { firmId: FIRM_ID, createdAt: T, updatedAt: T, archivedAt: null, version: 1 };
 const uid = (n: number) => `00000000-0000-5000-8000-${n.toString(16).padStart(12, '0')}`;
@@ -132,6 +137,7 @@ export const MOCK_USERS: MockUser[] = [
   user(3, 'Owner 01', 'owner@demo.test', [['OWNER', MOCK_CLIENTS.demoMetals]]),
   user(4, 'Approver 01', 'approver@demo.test', [['APPROVER', MOCK_CLIENTS.demoMetals]]),
   user(5, 'Consultant 02', MOCK_TWO_FIRM_EMAIL, [['CONSULTANT', null]]),
+  user(6, 'Consultant 03', MOCK_UNENROLLED_EMAIL, [['CONSULTANT', null]]),
 ];
 
 function visibleClientIds(u: MockUser): string[] {
@@ -146,6 +152,11 @@ function visibleClientIds(u: MockUser): string[] {
 
 const isFirmUser = (u: MockUser) =>
   u.memberships.some((m) => m.role === 'FIRM_ADMIN' || m.role === 'CONSULTANT');
+
+// Like the API, a firm user who hasn't enrolled has no secret until enrolment starts. The mock keeps no state, so this
+// person counts as enrolled only in a session that has passed MFA (the code that completes enrolment).
+const enrolled = (u: MockUser, mfa: boolean) =>
+  isFirmUser(u) && (u.person.email !== MOCK_UNENROLLED_EMAIL || mfa);
 
 // Session cookie: "<personId>.<mfa 0|1>". Mock only; the real API issues opaque, server-side sessions.
 function sessionUser(cookieHeader: string | null): { user: MockUser; mfa: boolean } | undefined {
@@ -188,7 +199,7 @@ function meBody(u: MockUser, mfa: boolean): Me {
       })),
     csrfToken: `mock-csrf-${u.person.id}`,
     // As the API: `satisfied` is whether this session passed MFA, so a client user's stays false.
-    mfa: { required: firm, enrolled: firm, satisfied: firm && mfa },
+    mfa: { required: firm, enrolled: enrolled(u, mfa), satisfied: firm && mfa },
   };
 }
 
@@ -288,14 +299,38 @@ export const mockFetch: typeof fetch = async (input, init) => {
   const { user: me } = session;
 
   if (method === 'POST' && path === '/auth/logout') return json(204, null, sessionCookie('', 0));
+  if (method === 'POST' && path === '/auth/mfa/enroll') {
+    if (enrolled(me, session.mfa)) {
+      return fail(409, 'DUPLICATE', 'MFA is already set up.', {
+        field: 'mfa',
+        existingId: me.person.id,
+      });
+    }
+    const label = encodeURIComponent(`PlanetPulse Compliance:${me.person.email}`);
+    const params = new URLSearchParams({
+      secret: MOCK_TOTP_SECRET,
+      issuer: 'PlanetPulse Compliance',
+      algorithm: 'SHA1',
+      digits: '6',
+      period: '30',
+    });
+    return json(200, { otpauthUrl: `otpauth://totp/${label}?${params.toString()}` });
+  }
   if (method === 'POST' && path === '/auth/mfa/verify') {
-    if (body.code !== MOCK_MFA_CODE)
-      return fail(401, 'MFA_REQUIRED', 'That code is not right.', { enrolled: true });
+    // As the API: a wrong code is a validation error on the field.
+    if (body.code !== MOCK_MFA_CODE) {
+      return fail(400, 'VALIDATION', 'Code is not correct.', {
+        issues: [{ path: ['code'], message: 'Code is not correct.' }],
+      });
+    }
     return json(200, meBody(me, true), sessionCookie(`${me.person.id}.1`));
   }
   if (method === 'GET' && path === '/me') return json(200, meBody(me, session.mfa));
-  if (isFirmUser(me) && !session.mfa)
-    return fail(401, 'MFA_REQUIRED', 'Verify your sign-in code.', { enrolled: true });
+  if (isFirmUser(me) && !session.mfa) {
+    return fail(401, 'MFA_REQUIRED', 'Verify your sign-in code.', {
+      enrolled: enrolled(me, session.mfa),
+    });
+  }
   if (method === 'GET' && path === '/portfolio') {
     if (!isFirmUser(me))
       return fail(403, 'FORBIDDEN', 'Not allowed.', { action: 'dashboard.portfolio' });

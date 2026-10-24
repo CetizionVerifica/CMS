@@ -264,6 +264,37 @@ describe('auth actions', () => {
     });
   });
 
+  it('starts MFA setup and finishes it with the first code', async () => {
+    await run(
+      actions.signIn(IDLE, form({ email: 'newconsultant@demo.test', password: 'demo-password' })),
+    );
+    const started = await actions.startMfaEnrolment(IDLE, form({ next: '/portfolio' }));
+    expect(started).toMatchObject({
+      status: 'enrolment',
+      secret: 'JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP',
+    });
+    expect(started.status === 'enrolment' && started.otpauthUrl).toMatch(/^otpauth:\/\/totp\//);
+    expect(
+      await run(actions.verifyMfa(IDLE, form({ code: '123456', next: '/portfolio' }))),
+    ).toEqual({ redirect: '/portfolio' });
+  });
+
+  it('sends a firm user who already has an authenticator to the code step', async () => {
+    await run(
+      actions.signIn(IDLE, form({ email: 'consultant@demo.test', password: 'demo-password' })),
+    );
+    expect(await run(actions.startMfaEnrolment(IDLE, form({ next: '/portfolio' })))).toEqual({
+      redirect: '/login/verify?next=%2Fportfolio',
+    });
+    expect(await run(actions.startMfaEnrolment(IDLE, form({})))).toEqual({
+      redirect: '/login/verify',
+    });
+  });
+
+  it('sends MFA setup without a session back to login', async () => {
+    expect(await run(actions.startMfaEnrolment(IDLE, form({})))).toEqual({ redirect: '/login' });
+  });
+
   it('sends MFA without a session back to login', async () => {
     expect(await run(actions.verifyMfa(IDLE, form({ code: '123456' })))).toEqual({
       redirect: '/login',

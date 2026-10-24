@@ -12,6 +12,7 @@ vi.mock('./actions', () => {
     signIn: make('signIn'),
     sendMagicLink: make('sendMagicLink'),
     verifyMfa: make('verifyMfa'),
+    startMfaEnrolment: make('startMfaEnrolment'),
     acceptInvite: make('acceptInvite'),
     redeemMagicLink: make('redeemMagicLink'),
   };
@@ -24,7 +25,7 @@ vi.mock('next/link', () => ({
   ),
 }));
 
-const { InviteForm, LoginForm, MagicLinkForm, MfaForm } = await import('./forms');
+const { InviteForm, LoginForm, MagicLinkForm, MfaForm, MfaSetupForm } = await import('./forms');
 
 describe('auth forms', () => {
   it('signs in and shows field errors beside the fields', async () => {
@@ -121,5 +122,43 @@ describe('auth forms', () => {
     render(<MagicLinkForm token="t" />);
     await userEvent.click(screen.getByRole('button', { name: 'Continue to sign in' }));
     expect(await screen.findByRole('link', { name: 'Back to sign in' })).toBeTruthy();
+  });
+
+  it('shows the setup key once asked, moves focus to the steps, then takes the first code', async () => {
+    results.startMfaEnrolment = {
+      status: 'enrolment',
+      secret: 'JBSWY3DPEHPK3PXP',
+      otpauthUrl: 'otpauth://totp/PlanetPulse%20Compliance%3Aa%40b.test?secret=JBSWY3DPEHPK3PXP',
+    };
+    render(<MfaSetupForm next="/portfolio" />);
+    expect(screen.queryByLabelText('6-digit code')).toBeNull();
+    await userEvent.click(screen.getByRole('button', { name: 'Get a setup key' }));
+    const heading = await screen.findByRole('heading', {
+      name: 'Add PlanetPulse Compliance to your app',
+    });
+    expect(document.activeElement).toBe(heading);
+    expect(screen.getByText('JBSW Y3DP EHPK 3PXP')).toBeTruthy();
+    expect(
+      screen
+        .getByRole('link', { name: 'add the key in your authenticator app' })
+        .getAttribute('href'),
+    ).toBe(results.startMfaEnrolment.otpauthUrl);
+    expect(screen.getByLabelText('6-digit code')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Finish setup' })).toBeTruthy();
+    expect((document.querySelector('input[name="next"]') as HTMLInputElement).value).toBe(
+      '/portfolio',
+    );
+  });
+
+  it('says so when setup could not start', async () => {
+    results.startMfaEnrolment = {
+      status: 'error',
+      message: 'We couldn’t start the setup. Try again in a moment.',
+    };
+    render(<MfaSetupForm />);
+    await userEvent.click(screen.getByRole('button', { name: 'Get a setup key' }));
+    expect((await screen.findByRole('alert')).textContent).toBe(
+      'We couldn’t start the setup. Try again in a moment.',
+    );
   });
 });
