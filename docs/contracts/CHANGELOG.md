@@ -112,3 +112,10 @@ in), so the console can flag a PROVISIONING account still waiting for it. The au
 already (M13), so the bump keeps web typecheck green. A patch, not 1.6.0: it completes 1.5.0 as decision 13
 planned (the two enum values were deferred only until M3's migration added them), adds no route, and
 `libraryCopiedAt` is on the operator's `Account` alone, which no provider serves yet (the 1.0.1 precedent).
+
+## 1.5.2 · 2026-10-24
+For M10 (ADR M15-0001 decision 4, the plan's account export); additive. `ExportKind` gains `CLIENT_ARCHIVE_ZIP`: one
+client's whole register and its evidence in a zip, for account admins only, through the existing export routes, which
+stay open to account admins while the account is PENDING_DELETION (endpoints.md §6, §8). The database stored the value
+first (M3). No route or schema shape changes; M10's export switch has a default branch, so the bump keeps api
+typecheck green.

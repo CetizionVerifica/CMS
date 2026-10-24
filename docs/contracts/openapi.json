@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Canopy API",
-    "version": "1.5.1",
+    "version": "1.5.2",
     "description": "Generated from @canopy/contracts; do not edit. Conventions: docs/contracts/api-conventions.md. Role permissions per operation are in x-canopy-roles (all, own, limited); a missing role is 403."
   },
   "servers": [
@@ -8736,7 +8736,7 @@
     "/clients/{clientId}/exports": {
       "post": {
         "operationId": "createExport",
-        "summary": "Start an Excel or PDF export.",
+        "summary": "Start an Excel or PDF export, or (FA only) a client archive zip.",
         "tags": ["M10"],
         "parameters": [
           {
@@ -8767,7 +8767,7 @@
         },
         "responses": {
           "202": {
-            "description": "Start an Excel or PDF export.",
+            "description": "Start an Excel or PDF export, or (FA only) a client archive zip.",
             "headers": {
               "X-Request-Id": {
                 "$ref": "#/components/headers/RequestId"
@@ -10315,7 +10315,8 @@
               "CERTIFICATE_PDF",
               "ACT_REPORT_XLSX",
               "DEPARTMENT_REPORT_XLSX",
-              "OVERDUE_REPORT_XLSX"
+              "OVERDUE_REPORT_XLSX",
+              "CLIENT_ARCHIVE_ZIP"
             ]
           },
           "filters": {
@@ -11711,7 +11712,8 @@
               "CERTIFICATE_PDF",
               "ACT_REPORT_XLSX",
               "DEPARTMENT_REPORT_XLSX",
-              "OVERDUE_REPORT_XLSX"
+              "OVERDUE_REPORT_XLSX",
+              "CLIENT_ARCHIVE_ZIP"
             ]
           },
           "params": {

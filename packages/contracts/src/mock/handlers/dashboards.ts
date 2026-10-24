@@ -1,7 +1,7 @@
 // M10 endpoints: portfolio, client overview, breakdowns, calendar, reports and exports. Every number comes with
 // the instance ids behind it, computed by the mock's copy of the engine rules (derive.ts).
 import { RegisterQuery } from '../../api/workflow.js';
-import type { BreakdownBy } from '../../enums.js';
+import type { BreakdownBy, ExportKind } from '../../enums.js';
 import {
   type Actor,
   asOfFor,
@@ -94,7 +94,8 @@ const EXPORT_EXTENSION = {
   ACT_REPORT_XLSX: 'xlsx',
   DEPARTMENT_REPORT_XLSX: 'xlsx',
   OVERDUE_REPORT_XLSX: 'xlsx',
-};
+  CLIENT_ARCHIVE_ZIP: 'zip',
+} satisfies Record<ExportKind, string>;
 
 function findExport(actor: Actor, id: string | undefined) {
   const job = actor.firm.exports.find((e) => e.id === id);
@@ -230,6 +231,13 @@ export const dashboardHandlers: PartialHandlers<
     const actor = actorOf(ctx);
     const clientId = ctx.params.clientId!;
     ctx.authorize({ clientId });
+    // The account export is for account admins only (endpoints.md §6).
+    if (
+      ctx.body.kind === 'CLIENT_ARCHIVE_ZIP' &&
+      !actor.memberships.some((m) => m.role === 'FIRM_ADMIN')
+    ) {
+      throw new MockError('FORBIDDEN', 'Not allowed: export.create', { action: 'export.create' });
+    }
     const filters = Object.fromEntries(new URLSearchParams(ctx.body.filters));
     const parsed = RegisterQuery.safeParse(filters);
     if (!parsed.success) {
