@@ -1,7 +1,9 @@
 // Recreates the integrated run's database before the API starts (playwright.integrated.config.ts runs it first in
-// the API's webServer command): migrations, the two seed firms, one client each and a signed-in account per role.
+// the API's webServer command): migrations, the two seed firms, one client each, a signed-in account per role and the
+// platform operator.
 // The register itself is not seeded: the import journey loads it through the API, as a consultant would. Firm roles
 // enrol in MFA through the API in auth.setup.ts, as a new firm user would.
+import { execFileSync } from 'node:child_process';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { DEFAULT_CLIENT_SETTINGS } from '@canopy/contracts';
 import {
@@ -23,6 +25,10 @@ import {
   APP_PASSWORD,
   JOBS_LOGIN,
   JOBS_PASSWORD,
+  OPERATOR,
+  OPERATOR_LOGIN,
+  OPERATOR_LOGIN_PASSWORD,
+  OPERATOR_TOTP_FILE,
   E2E_DATABASE,
   FIRM_A,
   FIRM_B,
@@ -80,6 +86,14 @@ if (jobsGroup === 'canopy_jobs') await owner.query(`REVOKE canopy_app FROM ${JOB
 await owner.query(`GRANT ${jobsGroup} TO ${JOBS_LOGIN}`);
 await owner.query(`ALTER ROLE ${JOBS_LOGIN} SET role = ${jobsGroup}`);
 await owner.query(`GRANT CONNECT ON DATABASE ${E2E_DATABASE} TO ${JOBS_LOGIN}`);
+// The operator console's login (OPERATOR_DATABASE_URL, ADR M3-0002): a member of canopy_operator only.
+await owner.query(`DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '${OPERATOR_LOGIN}') THEN
+    CREATE ROLE ${OPERATOR_LOGIN} LOGIN PASSWORD '${OPERATOR_LOGIN_PASSWORD}' NOSUPERUSER NOBYPASSRLS;
+  END IF;
+END $$`);
+await owner.query(`GRANT canopy_operator TO ${OPERATOR_LOGIN}`);
+await owner.query(`GRANT CONNECT ON DATABASE ${E2E_DATABASE} TO ${OPERATOR_LOGIN}`);
 await owner.end();
 
 for (const firm of Object.values(SEED_FIRMS)) await admin.createFirm(firm);
@@ -130,11 +144,42 @@ for (const account of Object.values(ACCOUNTS) as Account[]) {
 }
 await db.close();
 
+// The operator is created as in production: the API's command, the password on stdin. Its secret is kept from the
+// otpauth URI it prints, as an authenticator app would keep it; the URI itself is never logged.
+const added = execFileSync(
+  'pnpm',
+  [
+    '--silent',
+    '--filter',
+    '@canopy/api',
+    'platform:add-operator',
+    '--email',
+    OPERATOR.email,
+    '--name',
+    OPERATOR.displayName,
+  ],
+  {
+    input: `${OPERATOR.password}\n`,
+    encoding: 'utf8',
+    env: {
+      ...process.env,
+      OPERATOR_DATABASE_URL: databaseUrl(base, E2E_DATABASE, [
+        OPERATOR_LOGIN,
+        OPERATOR_LOGIN_PASSWORD,
+      ]),
+    },
+  },
+);
+const otpauth = added.split('\n').find((line) => line.startsWith('otpauth://'));
+const operatorSecret = otpauth && new URL(otpauth).searchParams.get('secret');
+if (!operatorSecret) throw new Error('platform:add-operator printed no otpauth URI');
+
 mkdirSync(RUN_DIR, { recursive: true });
+writeFileSync(OPERATOR_TOTP_FILE, operatorSecret);
 writeFileSync(
   new URL('seed.json', RUN_DIR),
   JSON.stringify({ clients: clientIds, people: personIds }, null, 2),
 );
 console.log(
-  `e2e database ${E2E_DATABASE} ready: 2 firms, 2 clients, ${Object.keys(personIds).length} accounts`,
+  `e2e database ${E2E_DATABASE} ready: 2 firms, 2 clients, ${Object.keys(personIds).length} accounts, 1 operator`,
 );

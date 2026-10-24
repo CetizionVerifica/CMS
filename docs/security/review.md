@@ -142,3 +142,11 @@ What a deployment must set for the findings above to stay closed. Never put real
 8. HTTPS everywhere, with HSTS at the load balancer.
 9. Evidence scanning (F8): `CLAMAV_HOST` (and `CLAMAV_PORT`) pointing at a clamd whose `StreamMaxLength` is at least
    26M. Without it every file stays unscanned and cannot be downloaded.
+10. The operator console (M15, ADR M15-0003), when `PLATFORM_ENABLED=true`: `OPERATOR_DATABASE_URL` is a login of its
+    own, a member of `canopy_operator` only (ADR M3-0002); `PLATFORM_IP_ALLOWLIST` lists the addresses the operator
+    signs in from (the API refuses to start without it in production); `APP_URL` is the customer app's https origin,
+    where support sessions open. The operator is created with `pnpm --filter @canopy/api platform:add-operator`, never
+    through a route. The console is built with `OPERATOR_API_URL` set, since Next fixes its rewrite at build time. When
+    the load balancer sends `/api/platform` to the console server rather than straight to the API, the API sees the
+    console server as its client: `TRUST_PROXY` must list it, or the allowlist checks the console server's address
+    instead of the operator's.
