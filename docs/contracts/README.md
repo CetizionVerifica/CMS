@@ -123,3 +123,6 @@ with sign-off per "How to change a contract".
     it password sign-in, magic links and invites, expires console tokens after `SUPPORT_TOKEN_SECONDS`, ends support
     sessions at the earlier of 2 hours and the grant end, and audits each support membership granted or ended as
     `MEMBERSHIP_CHANGE`. Like every mock handler, it keeps no domain-event outbox.
+40. Account reminder schedules (contracts 1.6.1, ADR M15-0001 order of work step 6) are defaults, not fixed by the
+    ADR: `TRIAL_ENDING` goes 7 days and 1 day before `trialEndsOn`, and `RENEWAL_DUE` 30 days and 7 days before the
+    latest paid subscription ends. Changing the offsets changes no schema; M9 owns the schedule.

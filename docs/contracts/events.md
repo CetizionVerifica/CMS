@@ -69,6 +69,7 @@ interface DomainEvent<T extends string, D> {
 | `person.claimed` | `{ personId }` | — |
 | `membership.changed` | `{ membershipId, personId, role, clientId, change: "GRANTED" \| "UPDATED" \| "REVOKED" \| "EXPIRED" }` | M9 (stop reminders to revoked) |
 | `auth.magic_link_requested` | `{ personId }` | M9 send email |
+| `person.mfa_enrolled` | `{ personId, via: "SETTINGS" \| "INVITE" }`: MFA set up from a signed-in session or while accepting an invite (F14) | M9 email the person |
 
 ### Accounts (producer M15, M9 for the trial end)
 | Type | `data` | Consumers |
@@ -104,10 +105,12 @@ interface DomainEvent<T extends string, D> {
 4. Notifications are deduplicated on `(instanceId, kind, sendDate, recipientId)` (`NOTIFICATION_DEDUPE_KEY`), the
    recipient included: after a same-day reassignment the new owner or approver is still reminded. A store's unique
    index must cover all four columns. That key is for scheduled kinds. Event-driven kinds (`EVENT_NOTIFICATION_KINDS`:
-   `APPROVAL_REQUESTED` to the approver on `instance.submitted`, `SENT_BACK` to the owner on `instance.sent_back`)
+   `APPROVAL_REQUESTED` to the approver on `instance.submitted`, `SENT_BACK` to the owner on `instance.sent_back`,
+   and `INVITE`, `MAGIC_LINK` and `MFA_ENROLLED`, which answer a person's own event)
    dedupe on `(sourceEventId, recipientId)` (`EVENT_NOTIFICATION_DEDUPE_KEY`), the id of the event that caused them,
    so a redelivered event sends nothing and each new submission or send-back notifies once. `sourceEventId` is null
-   for scheduled kinds. Scheduled kinds about no instance (`CONSULTANT_DIGEST`, `TRIAL_ENDING`) have `instanceId`
-   null and dedupe on `(recipientId, kind, sendDate)`; `ACCOUNT_NOTIFICATION_KINDS` (`TRIAL_ENDING`) are about the
-   whole account, so they name no client either.
+   for scheduled kinds. Scheduled kinds about no instance (`CONSULTANT_DIGEST`, `TRIAL_ENDING`, `RENEWAL_DUE`) have
+   `instanceId` null and dedupe on `(recipientId, kind, sendDate)`; `ACCOUNT_NOTIFICATION_KINDS` (`TRIAL_ENDING`,
+   `RENEWAL_DUE`) are about the whole account, so they name no client either. Sends that answer a person's own
+   event (`INVITE`, `MAGIC_LINK`, `MFA_ENROLLED`) name no client or instance and keep the event id.
 5. Importer commit emits domain events with `actor.kind = "IMPORT"`, but M9 must **not** send reminders for instances created as already APPROVED or NOT_APPLICABLE (engine already returns none for them).
