@@ -14,7 +14,7 @@ Shared code for every web screen. M12 and M13 import from here; they don't chang
 ## Data
 
 - Server Components: `serverApi()` from `api/server.ts` (forwards the session cookie). For state-changing calls use
-  `sessionApi()`, which adds the CSRF token. `getMe()` is cached per request.
+  `sessionApi()`, which adds the CSRF token. `getMe()` is cached per request, and briefly per session (`api/session-cache.ts`).
 - `api/client.ts` parses every response with its Zod schema and throws `ApiError` with the contract `code`
   (`isApiError(err, 'NOT_FOUND')`).
 - Until `CANOPY_API_URL` is set, `api/mock.ts` answers in-process with pseudonymous demo data (accounts are listed on
@@ -29,6 +29,11 @@ Shared code for every web screen. M12 and M13 import from here; they don't chang
   never `fetch` directly: `api.call('listInstances', { params: { clientId }, query: { status: 'OVERDUE', limit: '50' } })`.
   `query` and `body` are typed as the contract's input, the query is serialised as api-conventions.md §3 says (arrays
   comma-separated) and the response is parsed with the endpoint's schema.
+- `proxy.ts` sends a Content-Security-Policy with a fresh nonce per response (`security/csp.ts`); Next puts the nonce on
+  its own scripts, and the root layout renders every page per request so none is prerendered without it. Browser
+  uploads go straight to object storage, so a deployment sets `CANOPY_CSP_CONNECT_SRC` to the storage origin of the
+  presigned upload URLs (space-separated); unset, `connect-src` is `'self'` only. In e2e, wait with a function, not a
+  string: `page.waitForFunction('…')` evaluates the string in the page, which the policy refuses.
 - The sidebar's Approvals item shows the count from `GET /me/approvals` for approvers and client admins. That count
   covers every client the user approves in (the endpoint has no client filter), and its label says so.
 - Unit tests next to a route (`app/**/*.test.{ts,tsx}`) run with the web tests; non-page files under `app/`
