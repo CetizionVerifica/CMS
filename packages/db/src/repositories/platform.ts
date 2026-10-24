@@ -563,6 +563,13 @@ export type NewOperatorAuditEvent = z.infer<typeof NewOperatorAuditEvent>;
 /** Person fields never go in the operator's trail (audit note I4 on PR #123), as in platform_record_account_event. */
 const PERSON_FIELDS = ['email', 'displayName', 'phone', 'ownerEmail', 'ownerName'];
 
+/** A person field at any depth, as `platform_record_account_event` checks (audit of #171, Low 2). */
+function carriesPersonField(value: unknown): boolean {
+  if (Array.isArray(value)) return value.some(carriesPersonField);
+  if (value === null || typeof value !== 'object') return false;
+  return Object.entries(value).some(([k, v]) => PERSON_FIELDS.includes(k) || carriesPersonField(v));
+}
+
 const auditOf = (r: typeof s.operatorAuditEvent.$inferSelect): OperatorAuditEvent =>
   validate(OperatorAuditEvent, { ...r, at: r.at.toISOString() });
 
@@ -580,10 +587,8 @@ export const operatorAudit = {
   /** Appends one entry; the table refuses UPDATE, DELETE and TRUNCATE for every role. */
   async append(tx: OperatorTx, entry: NewOperatorAuditEvent): Promise<OperatorAuditEvent> {
     const e = validate(NewOperatorAuditEvent, entry);
-    for (const side of [e.before, e.after]) {
-      if (side && PERSON_FIELDS.some((k) => k in side)) {
-        throw new DbError('VALIDATION', 'Operator audit carries account fields only');
-      }
+    if (carriesPersonField([e.before, e.after])) {
+      throw new DbError('VALIDATION', 'Operator audit carries account fields only');
     }
     const [row] = await tx.insert(s.operatorAuditEvent).values(e).returning().catch(rethrow);
     return auditOf(row!);

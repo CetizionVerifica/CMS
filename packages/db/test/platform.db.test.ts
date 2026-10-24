@@ -408,6 +408,31 @@ describe('usage snapshots', () => {
       ),
     ).toBe('FORBIDDEN');
   });
+
+  it('refuses firm staff, scoped or firm-wide: the jobs run in the system context only (audit of #171, Low 3)', async () => {
+    const staff = (clientIds: TenantContext['clientIds']): TenantContext => ({
+      firmId: a.firmId,
+      personId: '01920000-0000-7000-8000-0000000000bb',
+      clientIds,
+      firmStaff: true,
+      requestId: 'platform-test',
+    });
+    for (const ctx of [staff([a.clientIds[0]!]), staff('ALL')]) {
+      expect(
+        await code(
+          t.db.withTenant(ctx, (tx) =>
+            r.accountJobs.endTrial(tx, '2099-01-01T00:00:00.000Z', 'trial-end'),
+          ),
+        ),
+      ).toBe('FORBIDDEN');
+      expect(
+        await code(t.db.withTenant(ctx, (tx) => r.accountJobs.takeUsageSnapshot(tx, '2026-10-25'))),
+      ).toBe('FORBIDDEN');
+      expect(await code(t.db.withTenant(ctx, (tx) => r.accountJobs.markLibraryCopied(tx)))).toBe(
+        'FORBIDDEN',
+      );
+    }
+  });
 });
 
 describe('the operator audit', () => {
@@ -469,11 +494,34 @@ describe('the operator audit', () => {
           ),
         ),
       ).toBe('VALIDATION');
+      // At any depth, as platform_record_account_event checks (audit of #171, Low 2).
+      expect(
+        await code(
+          asOperator((tx) =>
+            r.operatorAudit.append(
+              tx,
+              entry({ [side]: { owner: { email: 'asha.rao@kestrel-metals.example' } } }),
+            ),
+          ),
+        ),
+      ).toBe('VALIDATION');
+      expect(
+        await code(
+          asOperator((tx) =>
+            r.operatorAudit.append(
+              tx,
+              entry({ [side]: { people: [{ displayName: 'Asha Rao' }] } }),
+            ),
+          ),
+        ),
+      ).toBe('VALIDATION');
     }
   });
 });
 
 describe('the owner invite resend', () => {
+  // Checked against the database's now(), so the expiry moves with the clock.
+  const inDays = (days: number) => new Date(Date.now() + days * 86_400_000).toISOString();
   it('revokes the owner’s open invite, writes a new one and person.invited', async () => {
     const created = await asOperator((tx) =>
       r.platformAccounts.create(tx, newAccount({ name: 'Kestrel Aluminium' })),
@@ -481,7 +529,7 @@ describe('the owner invite resend', () => {
     const inviteId = await asOperator((tx) =>
       r.ownerInvites.resend(tx, {
         accountId: created.accountId,
-        expiresAt: '2026-10-27T08:00:00.000Z',
+        expiresAt: inDays(3),
         operatorId: operator.id,
         requestId: 'resend-test',
       }),
@@ -517,7 +565,7 @@ describe('the owner invite resend', () => {
   });
 
   it('only for a PROVISIONING account that exists, with a near expiry', async () => {
-    const resend = (accountId: string, expiresAt = '2026-10-27T08:00:00.000Z') =>
+    const resend = (accountId: string, expiresAt = inDays(3)) =>
       asOperator((tx) =>
         r.ownerInvites.resend(tx, {
           accountId,
@@ -529,6 +577,14 @@ describe('the owner invite resend', () => {
     expect(await code(resend(a.firmId))).toBe('VALIDATION');
     expect(await code(resend('01920000-0000-7000-8000-0000000000cc'))).toBe('NOT_FOUND');
     expect(await code(resend(a.firmId, '2020-01-01T00:00:00.000Z'))).toBe('VALIDATION');
+    const provisioning = await asOperator((tx) =>
+      r.platformAccounts.create(tx, newAccount({ name: 'Kestrel Fibres' })),
+    );
+    expect(await code(resend(provisioning.accountId, inDays(31)))).toBe('VALIDATION');
+    expect(await code(resend(provisioning.accountId, '2020-01-01T00:00:00.000Z'))).toBe(
+      'VALIDATION',
+    );
+    expect(await code(resend(provisioning.accountId))).toBe('resolved');
   });
 });
 

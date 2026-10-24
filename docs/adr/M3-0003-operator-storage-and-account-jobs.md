@@ -24,7 +24,7 @@ It also gates the owner's acceptance on the library copy.
    - each TRIAL whose trial ends in the window.
    DELETED and PENDING_DELETION accounts are left out.
 4. **Operator audit takes account fields only.** `operatorAudit.append` refuses `email`, `displayName`, `phone`,
-   `ownerEmail` and `ownerName` in `before` or `after`, as `platform_record_account_event` does.
+   `ownerEmail` and `ownerName` at any depth of `before` or `after`, as `platform_record_account_event` does.
 5. **Resending the owner's invite is a platform function.** `platform_resend_owner_invite(firm, expiresAt, operator,
    requestId)` works for a PROVISIONING account only, with an expiry within 30 days. It:
    - revokes the owner's open invites;
@@ -32,7 +32,9 @@ It also gates the owner's acceptance on the library copy.
    - emits `person.invited`, from which M9 emails the link as for any invite.
 6. **The M9 account jobs run in the account's own system context.** M9 runs on the tenant login, which can never
    become `canopy_operator` (ADR M3-0002 decision 6). The two jobs are therefore `app_*` functions owned by
-   `canopy_platform`, which act on `app_firm_id()` only and refuse a context that is not firm-wide:
+   `canopy_platform`, which act on `app_firm_id()` only and refuse any context but the account's system context
+   (`app_system_job()`: firm staff, every client, no person), so neither a client-scoped consultant nor a firm admin
+   can end a trial or stamp the library copy (audit of #171, Low 3). `app_end_trial` takes `now` from the job as given (Info 5):
    - `app_end_trial(now, job)` suspends a TRIAL once `now`'s date in the account's time zone (`profile.timeZone`,
      default Asia/Kolkata) is after `trial_ends_on`. It writes the account audit row (actor SYSTEM),
      `account.status_changed` with actor `{ kind: SYSTEM, job }`, and the `ACCOUNT_SUSPEND` operator entry with
@@ -43,7 +45,7 @@ It also gates the owner's acceptance on the library copy.
 7. **The owner waits for the library copy** (ADR M15-0001 decision 8). `firm.library_copied_at` is new and nullable.
    Firms that had already left PROVISIONING are backfilled with their creation time. `app_mark_library_copied()` is
    for M6's `account.created` handler, which calls it in the transaction that copies the library. It sets `now()`
-   once: only while the account is PROVISIONING, only while the time is unset, and only in a firm-wide context.
+   once: only while the account is PROVISIONING, only while the time is unset, and only in the system context.
    `canopy_activate_account` now refuses (`check_violation`) to open a PROVISIONING account whose library is not
    copied yet, so the accepting transaction rolls back. `account.libraryCopied()` lets M5 refuse the owner's invite
    with the contract error first. The operator reads `AccountRecord.libraryCopiedAt`. The tenant `Firm` leaves it

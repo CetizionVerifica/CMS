@@ -66,6 +66,12 @@ END
 $$;
 --> statement-breakpoint
 
+-- The account jobs run in a system context only (audit of #171, Low 3): firm-wide, firm staff and no person. A
+-- consultant scoped to some clients is firm staff too, and must not end its own trial or stamp the library copy.
+CREATE FUNCTION app_system_job() RETURNS boolean
+LANGUAGE sql STABLE PARALLEL SAFE
+AS $$ SELECT app_firm_staff() AND app_all_clients() AND app_person_id() IS NULL $$;
+--> statement-breakpoint
 -- The M9 trial-end job, run in the account's own system context: a TRIAL whose trial_ends_on is before p_now's date
 -- in the account's time zone becomes SUSPENDED (decision 3), with the account's audit row and account.status_changed
 -- (actor SYSTEM, the job) and the system's ACCOUNT_SUSPEND operator entry. True when it suspended the account.
@@ -79,8 +85,8 @@ DECLARE
   v_request text := coalesce(nullif(current_setting('app.request_id', true), ''), p_job);
   f firm%ROWTYPE;
 BEGIN
-  IF v_firm IS NULL OR NOT app_firm_staff() THEN
-    RAISE EXCEPTION 'app_end_trial needs a firm-wide context' USING ERRCODE = 'insufficient_privilege';
+  IF v_firm IS NULL OR NOT app_system_job() THEN
+    RAISE EXCEPTION 'app_end_trial needs the account''s system context' USING ERRCODE = 'insufficient_privilege';
   END IF;
   IF p_job IS NULL OR length(p_job) NOT BETWEEN 1 AND 100 THEN
     RAISE EXCEPTION 'app_end_trial: bad job name' USING ERRCODE = 'check_violation';
@@ -115,8 +121,8 @@ SET search_path = public, pg_temp
 AS $$
 DECLARE v_firm uuid := app_firm_id();
 BEGIN
-  IF v_firm IS NULL OR NOT app_firm_staff() THEN
-    RAISE EXCEPTION 'app_take_usage_snapshot needs a firm-wide context' USING ERRCODE = 'insufficient_privilege';
+  IF v_firm IS NULL OR NOT app_system_job() THEN
+    RAISE EXCEPTION 'app_take_usage_snapshot needs the account''s system context' USING ERRCODE = 'insufficient_privilege';
   END IF;
   INSERT INTO platform.usage_snapshot (account_id, taken_on, companies, units, users, storage_bytes, active_users_30d, instances)
   SELECT v_firm, p_on, u.companies, u.units, u.users, u.storage_bytes, u.active_users_30d, u.instances
@@ -135,8 +141,8 @@ LANGUAGE plpgsql SECURITY DEFINER
 SET search_path = public, pg_temp
 AS $$
 BEGIN
-  IF app_firm_id() IS NULL OR NOT app_firm_staff() THEN
-    RAISE EXCEPTION 'app_mark_library_copied needs a firm-wide context' USING ERRCODE = 'insufficient_privilege';
+  IF app_firm_id() IS NULL OR NOT app_system_job() THEN
+    RAISE EXCEPTION 'app_mark_library_copied needs the account''s system context' USING ERRCODE = 'insufficient_privilege';
   END IF;
   UPDATE firm SET library_copied_at = now()
     WHERE id = app_firm_id() AND status = 'PROVISIONING' AND library_copied_at IS NULL;
