@@ -1,5 +1,6 @@
 import { DEFAULT_CLIENT_SETTINGS } from '@canopy/contracts';
-import { eq, inArray, sql } from 'drizzle-orm';
+import { eq, inArray, sql, type Column } from 'drizzle-orm';
+import type { PgTable } from 'drizzle-orm/pg-core';
 import type { Database, TenantTx } from '../../src/database.js';
 import * as s from '../../src/schema/index.js';
 import { systemContext } from '../../src/tenant-context.js';
@@ -16,6 +17,31 @@ export interface PopulatedFirm {
 }
 
 const SHA = 'a'.repeat(64);
+
+/**
+ * INSERT naming only the given columns, returning the id. Drizzle's insert names every column the schema declares,
+ * so tables that gained columns later (person.support, auth_*.support_grant_id, migration 0019) would fail in the
+ * migrations test, which populates before those columns exist.
+ */
+async function insertNamed<T extends PgTable>(
+  tx: TenantTx,
+  table: T,
+  values: Partial<T['$inferInsert']>,
+): Promise<string> {
+  const entries = Object.entries(values).filter(([, v]) => v !== undefined);
+  const column = (key: string) => (table as unknown as Record<string, Column>)[key]!;
+  const { rows } = await tx.execute<{ id: string }>(
+    sql`INSERT INTO ${table} (${sql.join(
+      entries.map(([k]) => sql.identifier(column(k).name)),
+      sql`, `,
+    )}) VALUES (${sql.join(
+      entries.map(([k, v]) => sql.param(v, column(k))),
+      sql`, `,
+    )}) RETURNING id`,
+  );
+  if (!rows[0]) throw new Error('insert returned no row');
+  return rows[0].id;
+}
 
 async function one<T extends { id: string }>(rows: Promise<T[]>): Promise<string> {
   const [row] = await rows;
@@ -53,17 +79,12 @@ export async function populateFirm(
     const personIds: string[] = [];
     for (const role of ['owner', 'approver', 'admin']) {
       personIds.push(
-        await one(
-          tx
-            .insert(s.person)
-            .values({
-              displayName: `${label} ${role}`,
-              nameNormalized: `${label} ${role}`.toLowerCase(),
-              email: `${role}@${label}.example`,
-              status: 'ACTIVE',
-            })
-            .returning({ id: s.person.id }),
-        ),
+        await insertNamed(tx, s.person, {
+          displayName: `${label} ${role}`,
+          nameNormalized: `${label} ${role}`.toLowerCase(),
+          email: `${role}@${label}.example`,
+          status: 'ACTIVE',
+        }),
       );
     }
     const [ownerId, approverId, adminId] = personIds as [string, string, string];
@@ -418,18 +439,13 @@ export async function populateAuth(
     add(
       'auth_session',
       'firmLevel',
-      await one(
-        tx
-          .insert(s.authSession)
-          .values({
-            personId: adminId,
-            tokenHash: hash(1),
-            csrfToken: 'c'.repeat(43),
-            method: 'PASSWORD',
-            expiresAt: later,
-          })
-          .returning({ id: s.authSession.id }),
-      ),
+      await insertNamed(tx, s.authSession, {
+        personId: adminId,
+        tokenHash: hash(1),
+        csrfToken: 'c'.repeat(43),
+        method: 'PASSWORD',
+        expiresAt: later,
+      }),
     );
     const invite = (clientId: string | null) =>
       one(
@@ -454,18 +470,13 @@ export async function populateAuth(
     add('auth_invite', 'client1', inviteIds[1]!);
     add('auth_invite', 'firmLevel', inviteIds[2]!);
     const token = (n: number, inviteId: string | null) =>
-      one(
-        tx
-          .insert(s.authToken)
-          .values({
-            personId: ownerId,
-            kind: inviteId ? 'INVITE' : 'MAGIC_LINK',
-            inviteId,
-            tokenHash: hash(n),
-            expiresAt: later,
-          })
-          .returning({ id: s.authToken.id }),
-      );
+      insertNamed(tx, s.authToken, {
+        personId: ownerId,
+        kind: inviteId ? 'INVITE' : 'MAGIC_LINK',
+        inviteId,
+        tokenHash: hash(n),
+        expiresAt: later,
+      });
     add('auth_token', 'firmLevel', await token(2, null));
     for (const [i, id] of inviteIds.entries())
       add('auth_token', 'firmLevel', await token(3 + i, id));
@@ -504,5 +515,68 @@ export async function populateIdempotency(
         ),
       );
     }
+  });
+}
+
+/**
+ * PlanetPulse support access (migrations 0019-0020): the support person, one live grant and a one-time SUPPORT
+ * token for it. Added to `firm.rows`; written after populateAuth.
+ */
+export async function populateSupport(
+  db: Database,
+  firm: PopulatedFirm,
+  label: string,
+): Promise<void> {
+  await db.withTenant(systemContext(firm.firmId, `populate-support-${label}`), async (tx) => {
+    const add = (table: string, id: string) => {
+      firm.rows[table] ??= { client0: [], client1: [], firmLevel: [] };
+      firm.rows[table].firmLevel.push(id);
+    };
+    const [admin] = await tx
+      .select({ id: s.person.id })
+      .from(s.person)
+      .where(eq(s.person.email, `admin@${label}.example`));
+    if (!admin) throw new Error(`no admin for ${label}`);
+    const supportId = await one(
+      tx
+        .insert(s.person)
+        .values({
+          displayName: 'PlanetPulse support',
+          nameNormalized: 'planetpulse support',
+          email: 'support@planetpulse.life',
+          status: 'ACTIVE',
+          support: true,
+        })
+        .returning({ id: s.person.id }),
+    );
+    add('person', supportId);
+    const grantId = await one(
+      tx
+        .insert(s.supportGrant)
+        .values({
+          level: 'READ_ONLY',
+          startsAt: new Date('2029-12-25T00:00:00Z'),
+          endsAt: new Date('2030-01-01T00:00:00Z'),
+          grantedById: admin.id,
+          supportPersonId: supportId,
+        })
+        .returning({ id: s.supportGrant.id }),
+    );
+    add('support_grant', grantId);
+    add(
+      'auth_token',
+      await one(
+        tx
+          .insert(s.authToken)
+          .values({
+            personId: supportId,
+            kind: 'SUPPORT',
+            supportGrantId: grantId,
+            tokenHash: `${label === 'a' ? 'a' : 'b'}9`.padEnd(64, '0'),
+            expiresAt: new Date('2030-01-01T00:00:00Z'),
+          })
+          .returning({ id: s.authToken.id }),
+      ),
+    );
   });
 }

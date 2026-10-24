@@ -1,6 +1,7 @@
 import type { ClientSettings } from '@canopy/contracts';
 import { sql } from 'drizzle-orm';
 import {
+  boolean,
   check,
   foreignKey,
   index,
@@ -154,9 +155,17 @@ export const person = pgTable(
     nameNormalized: text('name_normalized').notNull(),
     email: text('email'),
     status: personStatusEnum('status').notNull(),
+    /**
+     * The account's PlanetPulse support person (ADR M15-0001 decision 11). It never signs in by email: the
+     * login lookups skip it and M5 refuses magic links, passwords and invites for it.
+     */
+    support: boolean('support').notNull().default(false),
   },
   (t) => [
     unique('person_firm_key').on(t.firmId, t.id),
+    uniqueIndex('person_support_key')
+      .on(t.firmId)
+      .where(sql`support`),
     index('person_name_normalized_idx').on(t.firmId, t.nameNormalized),
     uniqueIndex('person_email_key')
       .on(t.firmId, sql`lower(${t.email})`)
@@ -192,6 +201,14 @@ export const person = pgTable(
       to: 'public',
       using: sql`firm_id = app_firm_id() and (app_firm_staff() or ((id = app_person_id() or app_person_visible(id)) and not app_person_has_firm_role(id) and (app_all_clients() or not app_person_in_hidden_client(id))))`,
       withCheck: sql`firm_id = app_firm_id()`,
+    }),
+    // Nobody edits, disables or archives the PlanetPulse support person, or makes anyone else one (ADR M3-0002).
+    pgPolicy('support_person_fixed', {
+      as: 'restrictive',
+      for: 'update',
+      to: 'public',
+      using: sql`firm_id = app_firm_id() and not support`,
+      withCheck: sql`firm_id = app_firm_id() and not support`,
     }),
     // Sign-in candidates by email, before a tenant is known (migration 0012; granted columns only).
     pgPolicy('lookup_read', { for: 'select', to: 'canopy_lookup', using: sql`true` }),

@@ -9,6 +9,7 @@ import {
   populateAuth,
   populateFirm,
   populateIdempotency,
+  populateSupport,
   type PopulatedFirm,
 } from './support/populate.js';
 import { clientColumn, TABLES, tenantColumn } from './support/tables.js';
@@ -32,6 +33,8 @@ beforeAll(async () => {
   await populateAuth(t.db, b, 'b');
   await populateIdempotency(t.db, a, 'a');
   await populateIdempotency(t.db, b, 'b');
+  await populateSupport(t.db, a, 'a');
+  await populateSupport(t.db, b, 'b');
 }, 60_000);
 
 afterAll(async () => {
@@ -49,6 +52,11 @@ async function count(tx: TenantTx, table: string, where = 'true') {
   const query = sql.raw(`SELECT count(*)::int AS n FROM "${table}" WHERE ${where}`);
   const result = await tx.execute<{ n: number }>(query);
   return result.rows[0]!.n;
+}
+
+/** An UPDATE that changes nothing; on firm, a column the app role may update (migration 0020). */
+function noop(table: string): string {
+  return table === 'firm' ? 'name = name' : 'id = id';
 }
 
 function errorCode(error: unknown): string | undefined {
@@ -85,7 +93,9 @@ describe.each(TABLES.map((x) => x.name))('%s', (table) => {
 
   it('firm B cannot update rows of firm A', async () => {
     const target = `{${ids(a, table).join(',')}}`;
-    const update = sql.raw(`UPDATE "${table}" SET id = id WHERE id = ANY ('${target}'::uuid[])`);
+    const update = sql.raw(
+      `UPDATE "${table}" SET ${noop(table)} WHERE id = ANY ('${target}'::uuid[])`,
+    );
     if (table === 'audit_event') {
       // Not even its own: the app role has no UPDATE on the audit trail.
       await expect(t.db.withTenant(asFirm(b), (tx) => tx.execute(update))).rejects.toSatisfy(
@@ -162,7 +172,9 @@ describe('client scope within a firm', () => {
       const target = `{${a.rows[table]!.client1.join(',')}}`;
       if (table === 'audit_event') return; // no UPDATE at all; covered above
       const result = await t.db.withTenant(asClient0(), (tx) =>
-        tx.execute(sql.raw(`UPDATE "${table}" SET id = id WHERE id = ANY ('${target}'::uuid[])`)),
+        tx.execute(
+          sql.raw(`UPDATE "${table}" SET ${noop(table)} WHERE id = ANY ('${target}'::uuid[])`),
+        ),
       );
       expect(result.rowCount).toBe(0);
     },
@@ -180,7 +192,7 @@ describe('client scope within a firm', () => {
     '%s: client users cannot change firm-wide rows',
     async (table) => {
       const result = await t.db.withTenant(asClient0(), (tx) =>
-        tx.execute(sql.raw(`UPDATE "${table}" SET id = id`)),
+        tx.execute(sql.raw(`UPDATE "${table}" SET ${noop(table)}`)),
       );
       expect(result.rowCount).toBe(0);
     },

@@ -1,7 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import { sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { createDatabase } from '../src/database.js';
+import { createDatabase, createOperatorDatabase } from '../src/database.js';
 import * as s from '../src/schema/index.js';
 import { systemContext } from '../src/tenant-context.js';
 import { createTestDatabase, type TestDatabase } from './support/database.js';
@@ -22,6 +22,10 @@ const bypassMember = `${login}_bym`;
 const owner = `${login}_owner`;
 const ownerMember = `${login}_ownm`;
 const lookupMember = `${login}_lkm`;
+const platformMember = `${login}_plm`;
+const operatorMember = `${login}_opm`;
+// The operator console's own login (ADR M3-0002): canopy_operator, plus canopy_app for the library copy.
+const operatorLogin = `${login}_op`;
 
 function urlAs(user: string, pass: string): string {
   const url = new URL(t.url);
@@ -53,11 +57,31 @@ beforeAll(async () => {
   await t.ownerQuery(
     `CREATE ROLE ${lookupMember} LOGIN PASSWORD '${password}' IN ROLE canopy_app, canopy_lookup`,
   );
+  await t.ownerQuery(
+    `CREATE ROLE ${platformMember} LOGIN PASSWORD '${password}' IN ROLE canopy_app, canopy_platform`,
+  );
+  await t.ownerQuery(
+    `CREATE ROLE ${operatorMember} LOGIN PASSWORD '${password}' IN ROLE canopy_app, canopy_operator`,
+  );
+  await t.ownerQuery(
+    `CREATE ROLE ${operatorLogin} LOGIN PASSWORD '${password}' IN ROLE canopy_operator, canopy_app`,
+  );
 });
 
 afterAll(async () => {
   await t?.ownerQuery('DROP TABLE IF EXISTS public.login_probe');
-  for (const role of [login, suMember, bypassMember, bypass, ownerMember, owner, lookupMember]) {
+  for (const role of [
+    login,
+    suMember,
+    bypassMember,
+    bypass,
+    ownerMember,
+    owner,
+    lookupMember,
+    platformMember,
+    operatorMember,
+    operatorLogin,
+  ]) {
     await t?.ownerQuery(`DROP ROLE IF EXISTS ${role}`);
   }
   await t?.drop();
@@ -83,6 +107,16 @@ describe('privileged logins', () => {
       'canopy_lookup',
       () => lookupMember,
       /the login is a member of canopy_lookup, which reads across firms/,
+    ],
+    [
+      'canopy_platform',
+      () => platformMember,
+      /the login is a member of canopy_platform, which writes across firms/,
+    ],
+    [
+      'canopy_operator',
+      () => operatorMember,
+      /the login is a member of canopy_operator, which reads every account/,
     ],
   ])('are refused when the login is a member of %s', async (_label, user, reason) => {
     const db = createDatabase({
@@ -125,6 +159,47 @@ describe('privileged logins', () => {
       expect(firms.map((f) => f.id)).toEqual([firmId]);
       // The check runs once per Database and is cached.
       await db.withTenant(systemContext(firmId, 'r'), async () => 1);
+    } finally {
+      await db.close();
+    }
+  });
+});
+
+describe('operator logins', () => {
+  it('refuse a superuser and a canopy_platform member', async () => {
+    for (const [url, reason] of [
+      [t.url, /Refusing operator connections: the login is a superuser/],
+      [urlAs(platformMember, password), /canopy_platform, which writes across firms/],
+    ] as const) {
+      const db = createOperatorDatabase({ connectionString: url, privilegedLogin: 'refuse' });
+      try {
+        await expect(db.withOperator('r', async () => 1)).rejects.toThrow(reason);
+      } finally {
+        await db.close();
+      }
+    }
+  });
+
+  it('accept the console login, which reads accounts and no client data even after RESET ROLE', async () => {
+    const db = createOperatorDatabase({
+      connectionString: urlAs(operatorLogin, password),
+      privilegedLogin: 'refuse',
+    });
+    try {
+      const n = await db.withOperator('r', async (tx) => {
+        const { rows } = await tx.execute<{ n: number }>(sql`SELECT count(*)::int AS n FROM firm`);
+        return rows[0]!.n;
+      });
+      expect(n).toBe(2);
+      const clients = await db.withOperator('r', async (tx) => {
+        await tx.execute(sql`RESET ROLE`);
+        const { rows } = await tx.execute<{ n: number }>(
+          sql`SELECT count(*)::int AS n FROM client`,
+        );
+        return rows[0]!.n;
+      });
+      // As itself the login is a canopy_app member with no tenant set: RLS shows nothing.
+      expect(clients).toBe(0);
     } finally {
       await db.close();
     }
