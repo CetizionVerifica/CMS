@@ -26,12 +26,15 @@ sits outside every tenant, and a way for PlanetPulse to help a customer without 
    `PENDING_DELETION` (operator, reason and the typed account name); `PENDING_DELETION` → back to the status it left
    (operator cancels) or → `DELETED` after 30 days (ADR M15-0002). Every other move is `409 INVALID_TRANSITION`.
    The transition table lives in `@canopy/contracts` (`ACCOUNT_TRANSITIONS`) so the API, the job and the console agree.
-4. **What each status allows.** `TRIAL` and `ACTIVE`: everything. `PROVISIONING`: only accepting the owner invite.
-   `SUSPENDED` and `PENDING_DELETION`: account admins may sign in, see `/me`, sign out and download the account export;
-   every other request answers `403 ACCOUNT_SUSPENDED`, and every other person's sign-in is refused with the same code
-   ("Your account is paused. Contact PlanetPulse."). Jobs (instance generation, reminders, digests) skip accounts not in
-   `TRIAL | ACTIVE`. `DELETED`: nothing. M5 checks status in the request context on every request, so a suspension takes
-   effect on the next request without ending sessions.
+4. **What each status allows** (the plan's §3 table, unchanged). `TRIAL` and `ACTIVE`: everything. `PROVISIONING`:
+   only accepting the owner invite. `SUSPENDED`: nobody signs in; sign-in and every request answer `403
+   ACCOUNT_SUSPENDED` ("Your account is paused. Contact PlanetPulse."), and the data is kept untouched.
+   `PENDING_DELETION`: account admins only may sign in, to see `/me`, sign out and download the account export; every
+   other request and person gets `403 ACCOUNT_SUSPENDED`. `DELETED`: nothing. Jobs (instance generation, reminders,
+   digests) skip accounts not in `TRIAL | ACTIVE`. M5 checks status in the request context on every request, so a
+   suspension takes effect on the next request without ending sessions. (Letting admins export while `SUSPENDED` was
+   floated as a default; it departs from the plan, so it is not adopted. Shyam can switch it on later: it is the one
+   status list `EXPORT_ACCOUNT_STATUSES` in contracts.)
 5. **Plans are data.** Table `plan` (`code`, `name`, `limits` with `companies`, `units`, `users`, `storageBytes`, each a
    number or null for unlimited, and `features` text[]), plus `account_override` per account. Seeded placeholders:
    `STARTER` 1 / 3 / 25 / 10 GB, `BUSINESS` 5 / 25 / 150 / 100 GB, `ENTERPRISE` and `CONSULTANCY` unlimited. Prices are
@@ -40,16 +43,37 @@ sits outside every tenant, and a way for PlanetPulse to help a customer without 
    removed when a plan shrinks. "Users" counts people `ACTIVE` or `INVITED` with a live membership, support people excluded.
 6. **Billing is offline in v1.** The operator records `subscription` periods (plan, start and end dates, amount in paise,
    invoice number, paid date). The console lists renewals due in 30 days. No payments in the app.
-7. **Platform tables sit outside tenants.** `plan`, `subscription`, `account_override`, `usage_snapshot`,
-   `platform_operator`, `operator_credential`, `operator_session`, `operator_audit_event` have no `firm_id` RLS and **no
-   grant to `canopy_app`**. The app reads its own account only through `app_account()` (`SECURITY DEFINER`, keyed by
-   `app.firm_id`), which returns kind, status, plan code, trial end and effective limits.
-8. **Operator database role.** `canopy_operator` (no `BYPASSRLS`, no login in tests except through its own pool) may
-   insert firms through `platform_create_account(...)` (`SECURITY DEFINER`: inserts the firm, its default settings and,
-   for an enterprise, its client, in one transaction), update a firm's `status`, `plan_code`, `trial_ends_on`,
-   `onboarded_at` and `name`, and read and write the platform tables. It has **no SELECT on any client-data table**; usage
-   counts come from `platform_usage(firm_id)` (`SECURITY DEFINER`, returns counts only). An isolation test proves the
-   operator role reads zero client rows.
+7. **Platform tables sit outside tenants**, in their own Postgres schema `platform`: `platform.plan`,
+   `platform.account_override`, `platform.subscription`, `platform.usage_snapshot`, `platform.operator`,
+   `platform.operator_credential`, `platform.operator_session`, `platform.operator_audit_event`. They have no `firm_id`
+   RLS, and `canopy_app` has **no USAGE on the schema**, so no customer request can name them. The app reads its own
+   account only through `app_account()` (`SECURITY DEFINER`, keyed by `app.firm_id`), which returns kind, status, plan
+   code, trial end and effective limits.
+8. **Database roles and every write across the wall.** `canopy_operator` (no login, no `BYPASSRLS`; the API's login
+   is a member and switches to it with `SET LOCAL ROLE`, as it does for `canopy_app`) has USAGE on `platform` and:
+   SELECT, INSERT, UPDATE on the platform tables except `operator_audit_event` (SELECT, INSERT only, decision 12);
+   SELECT on `firm` and UPDATE on its columns `name`, `status`, `plan_code`, `trial_ends_on`, `onboarded_at`, `profile`,
+   `deletion_requested_at`, `status_before_deletion`, `version` (an `operator_*` policy, not the tenant ones); SELECT on
+   the non-personal columns of `support_grant` (`id`, `firm_id`, `level`, `starts_at`, `ends_at`, `revoked_at`). Nothing
+   else in schema `public`. `canopy_app` loses UPDATE on those `firm` columns (column grants keep `name`, `settings`,
+   `version`), so an account admin cannot change their own status or plan.
+   Every write the operator makes inside a tenant is one named `SECURITY DEFINER` function with fixed arguments, owned
+   by `canopy_platform` (no login, no `BYPASSRLS`, not a member of `canopy_app` or `canopy_operator`, its own policies
+   only on the rows it writes), `EXECUTE` granted to `canopy_operator` only:
+   - `platform_create_account(...)`: the `firm` row (decision 10).
+   - `platform_provision_account(firm, ...)`: for a firm still `PROVISIONING` only, the enterprise client, the owner
+     person, the owner's `FIRM_ADMIN` invite, and the `account.created` and `person.invited` outbox events.
+   - The master library copy is M6 code, so it runs as `canopy_app` in `withTenant(systemContext(newFirmId))`, in the
+     same transaction, right after the two calls above. It is the one place operator code runs as the app role, and
+     only for the firm that transaction created (the API refuses when the firm is not `PROVISIONING` with no clients'
+     work yet).
+   - `platform_record_account_event(firm, action, before, after, reason, request_id)`: the account's own `audit_event`
+     (actor kind `OPERATOR`, entity `account`) and the `account.*` outbox event for each operator change (decision 12).
+   - `platform_issue_support_token(grant, token_hash, expires_at)`: refuses unless the grant is live; inserts the
+     one-time `SUPPORT` `auth_token` (decision 11).
+   - `platform_usage(firm)`: counts only (companies, units, users, storage, instances, active users).
+   `platform_purge_account(firm)` is ADR M15-0002's. The "operator reads zero client rows" test runs every client-data
+   table as `canopy_operator`, and calls each function above to check it returns or writes only what is listed.
 9. **Operator sign-in is separate.** Routes live under `/api/platform/v1` on the API process, mounted only when
    `PLATFORM_ENABLED=true`. They use their own cookie `op_sid` (HttpOnly, Secure, SameSite=Strict, `Path=/api/platform`),
    their own session table and their own CSRF token; the customer `sid` is never accepted there and `op_sid` is never
@@ -60,30 +84,41 @@ sits outside every tenant, and a way for PlanetPulse to help a customer without 
    `apps/operator`, deployed on its own host (for example `admin.planetpulse.life`).
 10. **Provisioning.** `POST /api/platform/v1/accounts` takes display name, legal name, GSTIN (optional), kind, plan,
     term or trial end (default 30 days from today), time zone (default Asia/Kolkata), FY start month (default April),
-    and the owner's name and email. One transaction: the firm in `PROVISIONING`, its default client for an enterprise,
-    the owner as an `INVITED` person with a `FIRM_ADMIN` invite (M5's invite path, link valid 72 hours, resendable by the
-    operator), the master obligation library copy (M6), `ACCOUNT_CREATE` and `OWNER_INVITE_SEND` operator audit events,
-    and the `account.created` and `person.invited` outbox events. MFA enrolment is required at first sign-in for account
+    and the owner's name and email. One transaction, through the functions of decision 8: the firm in `PROVISIONING`,
+    its default client for an enterprise, the owner as an `INVITED` person with a `FIRM_ADMIN` invite (link valid 72
+    hours, resendable by the operator; M9 sends the email from the `person.invited` event as today), the master
+    obligation library copy (M6), `ACCOUNT_CREATE` and `OWNER_INVITE_SEND` operator audit events, and the
+    `account.created` and `person.invited` outbox events. MFA enrolment is required at first sign-in for account
     admins, as today.
 11. **Support access, not a back door.** An account admin grants PlanetPulse support access for 1 to 30 days (default 7),
     `READ_ONLY` or `ADMIN`, from the account's settings, and can revoke it at any time. One live grant at a time: a new
-    one ends the last. The grant creates (or reuses) the account's support person, "PlanetPulse support", status
-    `ACTIVE`, email `support@planetpulse.life` and no password (so it signs in only through support sessions), and
-    memberships with
-    `expires_at` = the grant end: `ADMIN` is one `FIRM_ADMIN` membership; `READ_ONLY` is one `VIEWER` membership per
-    client at grant time. From the console, the operator opens a support session, which mints a normal customer-app
-    session for that person, valid until the earlier of 2 hours and the grant end, with MFA marked satisfied because the
-    operator passed MFA in the console. Every action is audited in the account's own trail as that person. The grant,
-    revoke and each support session also write `SUPPORT_ACCESS_START` / `SUPPORT_ACCESS_END` operator events. Without a
-    live grant the console has no path to client data.
-12. **Operator audit.** `operator_audit_event` is append-only (INSERT and SELECT only): operator id (null for the
-    system), action, account id, before, after, reason, at, request id, IP. Actions: `OPERATOR_LOGIN`, `ACCOUNT_CREATE`,
-    `OWNER_INVITE_SEND`, `ACCOUNT_STATUS_CHANGE`, `PLAN_CHANGE`, `OVERRIDE_CHANGE`, `SUBSCRIPTION_RECORD`,
+    one ends the last. The grant is a row in `public.support_grant`, a tenant table (`firm_id`, RLS: every context of
+    the firm reads it, firm staff write it; `canopy_operator` reads its non-personal columns through an `operator_read`
+    policy). It creates (or reuses) the account's support person, "PlanetPulse support", marked `person.support = true`,
+    and memberships with `expires_at` = the grant end: `ADMIN` is one `FIRM_ADMIN` membership; `READ_ONLY` is one
+    `VIEWER` membership per client at grant time.
+    **The support person has exactly one way in.** It has no password and no credential row, and M3 and M5 exclude
+    `support` people from `canopy_login_candidates` (so no password or magic-link sign-in and no firm picker),
+    magic-link requests, password set and reset, and invites (`404`); each refused path has a test. The only session it
+    can get is from `POST /auth/support/verify` with a one-time token that only `platform_issue_support_token` creates:
+    the operator opens it from the console after signing in with MFA. That token works once within 60 seconds, and the
+    session lasts until the earlier of 2 hours and the grant end, with MFA marked satisfied because the operator passed
+    MFA in the console. Revoking or ending the grant revokes its sessions. Every action is audited in the account's own
+    trail as that person; each grant, revoke and support session also writes `SUPPORT_ACCESS_START` /
+    `SUPPORT_ACCESS_END` operator events. Without a live grant the console has no path to client data.
+12. **Operator audit.** `platform.operator_audit_event` is append-only: `canopy_operator` has INSERT and SELECT only,
+    and the same owner-proof reject triggers as `audit_event` (`BEFORE UPDATE OR DELETE` and `BEFORE TRUNCATE` raise for
+    every role, the owner included), with a db test per role (app, operator, owner). Columns: operator id (null for the
+    system), action, account id, before, after, reason, at, request id, IP. Actions: `OPERATOR_LOGIN`,
+    `ACCOUNT_CREATE`, `OWNER_INVITE_SEND`, `ACCOUNT_ACTIVATE` (owner accepted), `ACCOUNT_SUSPEND`, `ACCOUNT_RESUME`,
+    `TRIAL_CONVERT`, `TRIAL_EXTEND`, `ACCOUNT_UPDATE`, `PLAN_CHANGE`, `OVERRIDE_CHANGE`, `SUBSCRIPTION_RECORD`,
     `ACCOUNT_DELETE_REQUEST`, `ACCOUNT_DELETE_CANCEL`, `ACCOUNT_PURGE`, `SUPPORT_ACCESS_START`, `SUPPORT_ACCESS_END`.
-    Suspend, resume, plan change and delete need a typed reason (`422 REASON_REQUIRED`). Every operator action that changes
-    an account is also written to that account's `audit_event` with the new actor kind `OPERATOR` (`actor_id` null) and
-    entity type `account`, so the customer sees "PlanetPulse paused this account on 12 Oct 2026: unpaid invoice". The
-    console exports operator audit to Excel.
+    The plan's `ACCOUNT_SUSPEND` and `ACCOUNT_RESUME` stay separate actions; trial conversion, trial extension and
+    activation get their own. Suspend, resume, plan change and delete need a typed reason (`422 REASON_REQUIRED`).
+    Every operator action that changes an account is also written to that account's `audit_event` through
+    `platform_record_account_event` (decision 8), with actor kind `OPERATOR` (`actor_id` null) and entity type
+    `account`, so the customer sees "PlanetPulse paused this account on 12 Oct 2026: unpaid invoice". The console
+    exports operator audit to Excel.
 13. **Contracts (M0, additive, minor bump).** `AccountKind`, `AccountStatus`, `ACCOUNT_TRANSITIONS`, `PlanLimits`,
     `Plan`, `Entitlements`, `Subscription`, `UsageSnapshot`, `OperatorAuditAction`, `OperatorAuditEvent`,
     `SupportGrant`, `Account` (the operator's view of a firm); `Firm` gains `kind`, `status`, `planCode`, `trialEndsOn`;
@@ -96,7 +131,10 @@ sits outside every tenant, and a way for PlanetPulse to help a customer without 
     `AuditActorKind` and `EntityType` are Postgres enums, so their new values ship in a later contracts bump after
     M3's migration adds them ahead (the `NotificationKind` precedent); the account export (M10) is its own bump.
     The new error codes reach M5's message table ahead of the contracts, so no merge leaves `main` red.
-14. **No sign-up.** No route creates a firm except `POST /api/platform/v1/accounts`. M5 adds a test that lists every
+14. **Rules this changes.** "Account = firm" joins the root `CLAUDE.md` vocabulary, and root non-negotiable 2 and
+    `packages/db/CLAUDE.md` rule 6 gain the purge exception of ADR M15-0002. Those edits go in their own PRs (Tooling
+    for the root file, M3 for the db file) and merge before the purge function.
+15. **No sign-up.** No route creates a firm except `POST /api/platform/v1/accounts`. M5 adds a test that lists every
     customer route and asserts none inserts a firm; M14's security review re-checks it.
 
 ## Defaults Shyam can change at any time
@@ -107,7 +145,7 @@ These are the plan's §10 open questions. Each is data or one constant, so chang
 |---|---|---|
 | Plan names, limits, prices | Placeholders in decision 5; no prices stored | `plan` rows (operator console) |
 | Trial length | 30 days | `DEFAULT_TRIAL_DAYS` in contracts; per account at creation |
-| Export while paused | Allowed: account admins of a `SUSPENDED` or `PENDING_DELETION` account can download it | decision 4 |
+| Export while paused | Plan default kept: only while `PENDING_DELETION`, account admins only; `SUSPENDED` signs nobody in | `EXPORT_ACCOUNT_STATUSES` in contracts (decision 4) |
 | Operators besides Shyam | Shyam only; the model supports more | `platform:add-operator` CLI |
 | Support grant length | 7 days default, 30 maximum | `SUPPORT_GRANT_DEFAULT_DAYS`, `SUPPORT_GRANT_MAX_DAYS` |
 
