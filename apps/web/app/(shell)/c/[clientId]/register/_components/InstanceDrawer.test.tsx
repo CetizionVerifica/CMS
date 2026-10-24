@@ -540,6 +540,30 @@ describe('InstanceDrawer', () => {
     expect(await screen.findByText('Allow pop-ups for this site to open evidence.')).toBeTruthy();
   });
 
+  it('gives a viewer the instance to read and nothing to do', async () => {
+    // A VIEWER's allowedActions are empty: no workflow buttons, no comment box, no upload, no remove.
+    actions.loadInstanceDrawer.mockResolvedValue(ok(as([])));
+    renderDrawer({ personId: '00000000-0000-5000-8000-000000000999' });
+    await screen.findByRole('list', { name: 'Evidence files' });
+    const d = dialog();
+    const names = within(d)
+      .getAllByRole('button')
+      .map((b) => b.getAttribute('aria-label') ?? b.textContent?.trim());
+    for (const action of [
+      /^Submit/,
+      /^Approve/,
+      /^Send back/,
+      /^Not applicable/,
+      /^Reopen/,
+      /^Comment$/,
+      /^Remove/,
+    ])
+      expect(names.filter((n) => action.test(n ?? ''))).toEqual([]);
+    expect(within(d).queryAllByRole('textbox')).toEqual([]);
+    expect(within(d).queryByRole('group', { name: 'Add evidence' })).toBeNull();
+    expect(within(d).getByRole('button', { name: 'Open bank-receipt.pdf' })).toBeTruthy();
+  });
+
   it('removes evidence with a reason, for the owner and managers only', async () => {
     const user = userEvent.setup();
     actions.removeEvidenceFile.mockResolvedValueOnce({

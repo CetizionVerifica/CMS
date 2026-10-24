@@ -6,6 +6,7 @@ import { checkPage, DEMO_METALS, signIn } from '../shell/helpers.js';
 // The register (M12) against the web app's demo API, which hands instance routes to M0's mock server. Its Demo
 // Metals rows fall in FY 2023-24, so the journeys open that year.
 const REGISTER = `/c/${DEMO_METALS}/register`;
+const APPROVALS = `/c/${DEMO_METALS}/approvals`;
 const FY = 'fy=2023-24';
 
 const matchCount = (page: Page) => page.getByText(/^\d+ instances? match$/);
@@ -181,6 +182,85 @@ test.describe('register', () => {
     await checkPage(page);
   });
 
+  test('an approver works through the approvals inbox with J, K, A and S', async ({ page }) => {
+    // The drawer journeys above decided every waiting row; the owner asks for two NA decisions to work through.
+    await signIn(
+      page,
+      'owner@demo.test',
+      `${REGISTER}?dueFrom=2023-04-01&ownerId=me&workflowState=OPEN`,
+    );
+    const first = page.getByRole('table', { name: 'Register' }).getByRole('link').first();
+    await first.click();
+    for (const step of [0, 1]) {
+      const drawer = page.getByRole('dialog');
+      await drawer.getByRole('button', { name: 'Not applicable…' }).click();
+      const na = page.getByRole('alertdialog', { name: 'Ask to mark this not applicable?' });
+      await na.getByLabel(/doesn’t apply/).fill('The unit has no boilers.');
+      await na.getByRole('button', { name: 'Ask for not applicable' }).click();
+      await expect(na).toBeHidden();
+      if (step === 0) await drawer.getByRole('button', { name: 'Next instance' }).click();
+    }
+    await page.context().clearCookies();
+
+    await signIn(page, 'approver@demo.test', APPROVALS);
+    await expect(page).toHaveTitle('Approvals · Demo Metals · PlanetPulse Compliance');
+    await expect(page.getByRole('heading', { level: 1, name: 'Approvals' })).toBeVisible();
+    await expect(
+      page.getByRole('heading', { name: /^2 items waiting for your approval here/ }),
+    ).toBeVisible();
+    const list = page.getByRole('list', { name: 'Waiting for approval' });
+    const rows = list.getByRole('link');
+    await expect(rows).toHaveCount(2);
+    await expect(list).toContainText('asks to mark not applicable');
+    await checkPage(page);
+
+    // Enter opens the drawer over the inbox; closing comes back to it.
+    const title = (await rows.first().getAttribute('aria-label'))!.split(', due ')[0]!;
+    await rows.first().focus();
+    await page.keyboard.press('Enter');
+    const drawer = page.getByRole('dialog', { name: title });
+    await expect(drawer.getByRole('button', { name: 'Approve as not applicable' })).toBeVisible();
+    await expect(page).toHaveURL(/\/approvals\/[0-9a-f-]{36}$/);
+    await expectNoA11yViolations(page);
+    await drawer.getByRole('button', { name: 'Close' }).click();
+    await expect(drawer).toBeHidden();
+    await expect(page).toHaveURL(APPROVALS);
+
+    // J and K move; A approves the focused row and focus moves to the next one.
+    await rows.first().focus();
+    await page.keyboard.press('j');
+    await expect(rows.nth(1)).toBeFocused();
+    await page.keyboard.press('k');
+    await expect(rows.first()).toBeFocused();
+    await page.keyboard.press('?');
+    await expect(page.getByRole('dialog', { name: 'Keyboard shortcuts' })).toBeVisible();
+    await expectNoA11yViolations(page);
+    await page.keyboard.press('Escape');
+    await rows.first().focus();
+    await page.keyboard.press('a');
+    await expect(page.getByText(`Approved “${title}” as not applicable.`).first()).toBeVisible();
+    await expect(rows).toHaveCount(1);
+    await expect(rows.first()).toBeFocused();
+
+    // S asks for a reason, then the inbox is empty.
+    await page.keyboard.press('s');
+    const reason = page.getByRole('alertdialog', { name: /^Send back to / });
+    await expect(reason.getByLabel(/Reason/)).toBeFocused();
+    await expectNoA11yViolations(page);
+    await page.keyboard.type('The unit does have a boiler.');
+    await page.keyboard.press('Control+Enter');
+    await expect(page.getByText(/^Sent “.+” back to /).first()).toBeVisible();
+    await expect(page.getByText('Nothing waiting for your approval.')).toBeVisible();
+    await checkPage(page);
+  });
+
+  test('an owner can’t open approvals', async ({ page }) => {
+    await signIn(page, 'owner@demo.test', APPROVALS);
+    await expect(page.getByText('You don’t have access to approvals')).toBeVisible();
+    await expect(page.getByRole('list', { name: 'Waiting for approval' })).toHaveCount(0);
+    await checkPage(page);
+  });
+
   test('an owner sees their rows with no approve or export', async ({ page }) => {
     await signIn(page, 'owner@demo.test', `${REGISTER}?${FY}`);
     const table = page.getByRole('table', { name: 'Register' });
@@ -259,5 +339,11 @@ test.describe('register at 375px on a phone', () => {
     await drawer.getByRole('button', { name: 'Back to the register' }).click();
     await expect(drawer).toBeHidden();
     await expect(page).toHaveURL(`${REGISTER}?${FY}`);
+  });
+
+  test('shows the approvals inbox', async ({ page }) => {
+    await signIn(page, 'approver@demo.test', APPROVALS);
+    await expect(page.getByRole('heading', { level: 1, name: 'Approvals' })).toBeVisible();
+    await checkPage(page);
   });
 });
