@@ -190,7 +190,8 @@ Every write records an `OperatorAuditEvent`; writes that change an account also 
 | GET | `/accounts` (`status`, `kind`, `q`, paging) → `{ items: Account[], nextCursor }` | |
 | POST | `/accounts` `AccountCreateBody` → `Account` | `201`; the only route that creates a firm; owner invite valid 72 hours; Idempotency-Key |
 | GET | `/accounts/{id}` → `Account` · PATCH `{ version, name?, profile? }` | no client data, only counts |
-| POST | `/accounts/{id}/status` `{ version, to, reason, trialEndsOn? }` → `Account` | convert, suspend, resume; `409 INVALID_TRANSITION` `{ from, to }` |
+| POST | `/accounts/{id}/status` `{ version, to: ACTIVE \| SUSPENDED, reason }` → `Account` | convert, suspend, resume; must pass `canMoveAccount`, else `409 INVALID_TRANSITION` `{ from, to }` |
+| POST | `/accounts/{id}/trial` `{ version, trialEndsOn, reason? }` → `Account` | moves a TRIAL account's trial end; the status stays TRIAL; any other status `409 INVALID_TRANSITION` |
 | POST | `/accounts/{id}/plan` `{ version, planCode, reason }` → `Account` | |
 | PUT | `/accounts/{id}/override` `{ version, override, reason }` → `Account` | |
 | POST | `/accounts/{id}/owner-invite` | `202`; PROVISIONING only; earlier links stop working |
@@ -198,8 +199,8 @@ Every write records an `OperatorAuditEvent`; writes that change an account also 
 | POST | `/accounts/{id}/deletion` `{ version, reason, confirmName }` → `Account` | `PENDING_DELETION` for 30 days (ADR M15-0002) |
 | POST | `/accounts/{id}/deletion/cancel` `{ version, reason }` → `Account` | back to the status it left |
 | GET | `/accounts/{id}/subscriptions` → `{ items: Subscription[] }` · POST `SubscriptionCreateBody` → `Subscription` | POST is `201` with Idempotency-Key |
-| GET | `/accounts/{id}/usage` (`from`, `to`) → `{ items: UsageSnapshot[] }` | |
-| GET | `/accounts/{id}/support-grants` → `{ items: SupportGrant[] }` | |
+| GET | `/accounts/{id}/usage` (`from`, `to`) → `{ items: UsageSnapshot[] }` | `to` not before `from` |
+| GET | `/accounts/{id}/support-grants` → `{ items: OperatorSupportGrant[] }` | non-personal columns only: no person ids (ADR M15-0001 decision 8) |
 | POST | `/support-grants/{id}/sessions` → `SupportSession` | `201`; live grants only, else `403 ACCESS_EXPIRED` |
 | GET | `/renewals` (`withinDays`, default 30) → `{ items: Renewal[] }` | |
-| GET | `/audit` (`accountId`, `action`, `from`, `to`, paging) → `{ items: OperatorAuditEvent[], nextCursor }` | the console exports to Excel |
+| GET | `/audit` (`accountId`, `action`, `from`, `to`, paging) → `{ items: OperatorAuditEvent[], nextCursor }` | the console exports to Excel; `to` not before `from` |

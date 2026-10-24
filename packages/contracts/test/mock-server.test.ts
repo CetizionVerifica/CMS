@@ -1379,6 +1379,130 @@ describe('mock server', () => {
     );
     expect(live).toEqual([]);
   });
+
+  it('gives the support person exactly one way in, audits grants and caps support sessions', async () => {
+    const before = await ok<{ usage: { users: number } }>(app, 'getAccount');
+    const grant = await ok<{ id: string; supportPersonId: string; endsAt: string }>(
+      app,
+      'createSupportGrant',
+      { body: { level: 'ADMIN', days: 1 } },
+    );
+    const firm = app.store.firms[1]!;
+    const person = firm.data.people.find((p) => p.id === grant.supportPersonId)!;
+    expect(person.support).toBe(true);
+    // Not counted as a user, though it has a live FIRM_ADMIN membership.
+    const after = await ok<{ usage: { users: number } }>(app, 'getAccount');
+    expect(after.usage.users).toBe(before.usage.users);
+
+    // Each support membership is audited when granted.
+    const granted = firm.data.auditEvents.filter(
+      (e) => e.action === 'MEMBERSHIP_CHANGE' && e.after?.['supportGrantId'] === grant.id,
+    );
+    expect(granted.map((e) => e.entityType)).toEqual(['membership']);
+
+    // No password sign-in, magic link or invite for the support person (ADR M15-0001 decision 11).
+    const email = person.email!;
+    await fails(
+      app,
+      'login',
+      { as: null, body: { email, password: 'anything' } },
+      'UNAUTHENTICATED',
+      401,
+    );
+    await ok(app, 'requestMagicLink', { as: null, body: { email } });
+    expect(app.store.outbox.some((m) => m.to === email)).toBe(false);
+    const invite = {
+      email,
+      role: 'OWNER',
+      clientId: NORTHWIND,
+      consultantClientIds: null,
+      unitIds: [PUNE],
+      expiresAt: null,
+    };
+    await fails(
+      app,
+      'createInvite',
+      { body: { ...invite, displayName: 'PlanetPulse support' } },
+      'NOT_FOUND',
+      404,
+    );
+    await fails(
+      app,
+      'createInvite',
+      { body: { ...invite, email: 'someone.new@northwind.example', personId: person.id } },
+      'NOT_FOUND',
+      404,
+    );
+    // A real person who happens to share the name is never taken for the support person.
+    expect(firm.data.people.filter((p) => p.support === true)).toHaveLength(1);
+
+    // The console token works once and only within SUPPORT_TOKEN_SECONDS.
+    const open = async () => {
+      const r = await app.inject({ method: 'POST', url: `/__mock/support-sessions/${grant.id}` });
+      return (JSON.parse(r.body) as { token: string }).token;
+    };
+    const stale = await open();
+    app.store.supportTokens.get(stale)!.expiresAt = '2000-01-01T00:00:00Z';
+    await fails(
+      app,
+      'verifySupportSession',
+      { as: null, body: { token: stale } },
+      'UNAUTHENTICATED',
+      401,
+    );
+
+    // The session lasts until the earlier of 2 hours and the grant end, then ends.
+    const verified = await app.inject({
+      method: 'POST',
+      url: `${MOCK_BASE_PATH}/auth/support/verify`,
+      headers: { 'content-type': 'application/json' },
+      payload: JSON.stringify({ token: await open() }),
+    });
+    expect(verified.statusCode).toBe(200);
+    const me = JSON.parse(verified.body) as { session: { expiresAt: string } };
+    const twoHours = new Date(Date.parse(firm.supportGrants.at(-1)!.startsAt) + 2 * 3_600_000)
+      .toISOString()
+      .replace(/\.\d{3}Z$/, 'Z');
+    expect(me.session.expiresAt).toBe(twoHours < grant.endsAt ? twoHours : grant.endsAt);
+    const cookieHeader = verified.headers['set-cookie'];
+    const sid = String(Array.isArray(cookieHeader) ? cookieHeader[0] : cookieHeader)
+      .split(';')[0]!
+      .split('=')[1]!;
+    const meCall = () =>
+      app.inject({
+        method: 'GET',
+        url: `${MOCK_BASE_PATH}/me`,
+        cookies: { [SESSION_COOKIE]: sid },
+      });
+    expect((await meCall()).statusCode).toBe(200);
+    app.store.sessions.get(sid)!.expiresAt = '2000-01-01T00:00:00Z';
+    expect((await meCall()).statusCode).toBe(401);
+
+    // A new grant ends the last one's sessions too, and audits the ended memberships.
+    const verifiedAgain = await app.inject({
+      method: 'POST',
+      url: `${MOCK_BASE_PATH}/auth/support/verify`,
+      headers: { 'content-type': 'application/json' },
+      payload: JSON.stringify({ token: await open() }),
+    });
+    expect(verifiedAgain.statusCode).toBe(200);
+    const next = await ok<{ id: string }>(app, 'createSupportGrant', {
+      body: { level: 'READ_ONLY' },
+    });
+    expect([...app.store.sessions.values()].some((x) => x.personId === person.id)).toBe(false);
+    const ended = firm.data.auditEvents.filter(
+      (e) =>
+        e.action === 'MEMBERSHIP_CHANGE' &&
+        e.reason === 'Replaced by a new support grant' &&
+        e.after?.['supportGrantId'] === grant.id,
+    );
+    expect(ended).toHaveLength(1);
+    await ok(app, 'revokeSupportGrant', { params: { id: next.id } });
+    const revoked = firm.data.auditEvents.filter(
+      (e) => e.reason === 'Support access revoked' && e.after?.['supportGrantId'] === next.id,
+    );
+    expect(revoked.length).toBeGreaterThan(0);
+  });
 });
 
 describe('mock server golden numbers (fixtures.md §4)', () => {

@@ -96,4 +96,10 @@ with a default; `Me` gains optional `account`. Error codes `ACCOUNT_SUSPENDED` a
 `GET|POST /account/support-grants`, `POST /account/support-grants/{id}/revoke` (M15) and
 `POST /auth/support/verify` (M5); the operator table `PLATFORM_ENDPOINTS` (endpoints.md §9) and
 `docs/contracts/openapi.platform.json`. Events `account.*` and `support_access.*` with the `OPERATOR` event actor.
+After the 1.5.0 audit: `Account` carries no owner name or email, and the operator's
+`GET /accounts/{id}/support-grants` returns `OperatorSupportGrant` (no person ids), per ADR M15-0001 decision 8.
+`ACCOUNT_TRANSITIONS` follows decision 3 exactly (no TRIAL → PENDING_DELETION, no cancel back to TRIAL);
+`AccountStatusBody.to` is `ACTIVE | SUSPENDED`, and a trial extension is `POST /accounts/{id}/trial`
+(`AccountTrialBody`). `Person.support` (optional) marks the support person; `SUPPORT_TOKEN_SECONDS` is 60.
+`UsageQuery` and `OperatorAuditQuery` refuse `to` before `from`.
 Fixtures: the firm rows carry the account defaults. README decision 39.

@@ -24,6 +24,7 @@ import {
 import {
   Account,
   OperatorAuditEvent,
+  OperatorSupportGrant,
   Plan,
   Subscription,
   SupportGrant,
@@ -1461,6 +1462,15 @@ export const PLATFORM_ENDPOINTS = {
     body: acct.AccountStatusBody,
     response: Account,
   }),
+  extendTrial: endpoint({
+    module: M15,
+    method: 'POST',
+    path: '/accounts/{id}/trial',
+    summary:
+      "Move a TRIAL account's trial end. The status stays TRIAL; 409 INVALID_TRANSITION otherwise.",
+    body: acct.AccountTrialBody,
+    response: Account,
+  }),
   setAccountPlan: endpoint({
     module: M15,
     method: 'POST',
@@ -1538,8 +1548,8 @@ export const PLATFORM_ENDPOINTS = {
     module: M15,
     method: 'GET',
     path: '/accounts/{id}/support-grants',
-    summary: 'Support grants the account has given, newest first.',
-    response: list(SupportGrant),
+    summary: 'Support grants the account has given, newest first, without person ids.',
+    response: list(OperatorSupportGrant),
   }),
   openSupportSession: endpoint({
     module: M15,

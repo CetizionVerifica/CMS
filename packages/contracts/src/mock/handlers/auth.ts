@@ -205,6 +205,14 @@ export const authHandlers: PartialHandlers<
       });
     }
     const people = actor.firm.data.people;
+    // The support person cannot be invited, by id or by its email (ADR M15-0001 decision 11).
+    const support = people.find((p) => p.support === true);
+    if (
+      support !== undefined &&
+      (body.personId === support.id || support.email?.toLowerCase() === body.email.toLowerCase())
+    ) {
+      throw notFound();
+    }
     const sameEmail = people.find(
       (p) => p.email?.toLowerCase() === body.email.toLowerCase() && p.id !== body.personId,
     );

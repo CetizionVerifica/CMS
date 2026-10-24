@@ -134,6 +134,11 @@ export const Person = z
     /** Null while UNCLAIMED. */
     email: z.email().nullable(),
     status: PersonStatus,
+    /**
+     * True for the account's PlanetPulse support person (ADR M15-0001 decision 11). It has no password or credential,
+     * cannot sign in, get a magic link or be invited, and is not counted in usage. Absent means false.
+     */
+    support: z.boolean().optional(),
   })
   .superRefine((p, ctx) => {
     // Single spaces only: no tabs, newlines or runs of spaces.

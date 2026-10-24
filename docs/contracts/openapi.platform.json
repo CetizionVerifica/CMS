@@ -622,6 +622,74 @@
         "x-canopy-idempotent": false
       }
     },
+    "/accounts/{id}/trial": {
+      "post": {
+        "operationId": "extendTrial",
+        "summary": "Move a TRIAL account's trial end. The status stays TRIAL; 409 INVALID_TRANSITION otherwise.",
+        "tags": ["M15"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/CsrfToken"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExtendTrialBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Move a TRIAL account's trial end. The status stays TRIAL; 409 INVALID_TRANSITION otherwise.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Account"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error envelope (api-conventions.md §4-5); clients branch on error.code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-canopy-module": "M15",
+        "x-canopy-auth": "session",
+        "x-canopy-actions": [],
+        "x-canopy-roles": {},
+        "x-canopy-idempotent": false
+      }
+    },
     "/accounts/{id}/plan": {
       "post": {
         "operationId": "setAccountPlan",
@@ -1215,7 +1283,7 @@
     "/accounts/{id}/support-grants": {
       "get": {
         "operationId": "listAccountSupportGrants",
-        "summary": "Support grants the account has given, newest first.",
+        "summary": "Support grants the account has given, newest first, without person ids.",
         "tags": ["M15"],
         "parameters": [
           {
@@ -1230,7 +1298,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Support grants the account has given, newest first.",
+            "description": "Support grants the account has given, newest first, without person ids.",
             "headers": {
               "X-Request-Id": {
                 "$ref": "#/components/headers/RequestId"
@@ -1709,27 +1777,6 @@
               }
             ]
           },
-          "owner": {
-            "type": "object",
-            "properties": {
-              "email": {
-                "type": "string",
-                "maxLength": 320,
-                "format": "email",
-                "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
-              },
-              "displayName": {
-                "type": "string",
-                "minLength": 1,
-                "maxLength": 300
-              },
-              "accepted": {
-                "type": "boolean"
-              }
-            },
-            "required": ["email", "displayName", "accepted"],
-            "additionalProperties": false
-          },
           "createdAt": {
             "$ref": "#/components/schemas/Instant"
           },
@@ -1752,7 +1799,6 @@
           "onboardedAt",
           "deletionRequestedAt",
           "purgeAfter",
-          "owner",
           "createdAt",
           "version"
         ],
@@ -2586,6 +2632,26 @@
         "required": ["error", "requestId"],
         "additionalProperties": false
       },
+      "ExtendTrialBody": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "trialEndsOn": {
+            "$ref": "#/components/schemas/LocalDate"
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000
+          }
+        },
+        "required": ["version", "trialEndsOn"],
+        "additionalProperties": false
+      },
       "Id": {
         "type": "string",
         "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
@@ -2601,7 +2667,41 @@
           "items": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/SupportGrant"
+              "type": "object",
+              "properties": {
+                "id": {
+                  "$ref": "#/components/schemas/Id"
+                },
+                "accountId": {
+                  "$ref": "#/components/schemas/Id"
+                },
+                "level": {
+                  "type": "string",
+                  "enum": ["READ_ONLY", "ADMIN"]
+                },
+                "status": {
+                  "type": "string",
+                  "enum": ["ACTIVE", "EXPIRED", "REVOKED"]
+                },
+                "startsAt": {
+                  "$ref": "#/components/schemas/Instant"
+                },
+                "endsAt": {
+                  "$ref": "#/components/schemas/Instant"
+                },
+                "revokedAt": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/Instant"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": ["id", "accountId", "level", "status", "startsAt", "endsAt", "revokedAt"],
+              "additionalProperties": false
             }
           }
         },
@@ -3229,15 +3329,12 @@
           },
           "to": {
             "type": "string",
-            "enum": ["TRIAL", "ACTIVE", "SUSPENDED"]
+            "enum": ["ACTIVE", "SUSPENDED"]
           },
           "reason": {
             "type": "string",
             "minLength": 1,
             "maxLength": 2000
-          },
-          "trialEndsOn": {
-            "$ref": "#/components/schemas/LocalDate"
           }
         },
         "required": ["version", "to", "reason"],

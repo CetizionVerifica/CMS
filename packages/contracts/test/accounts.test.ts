@@ -4,9 +4,11 @@ import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import {
   ACCOUNT_TRANSITIONS,
+  Account,
   AccountCreateBody,
   AccountStatus,
   AccountStatusBody,
+  AccountTrialBody,
   ApiErrorResponse,
   buildPlatformOpenApi,
   canMoveAccount,
@@ -19,6 +21,8 @@ import {
   Gstin,
   Me,
   OPERATOR_SESSION_COOKIE,
+  OperatorAuditQuery,
+  OperatorSupportGrant,
   EXPORT_ACCOUNT_STATUSES,
   PLATFORM_ENDPOINTS,
   PlanCode,
@@ -26,6 +30,7 @@ import {
   SupportGrant,
   SupportGrantCreateBody,
   tolerant,
+  UsageQuery,
   WORKING_ACCOUNT_STATUSES,
 } from '../src/index.js';
 import { loadFixtureSet } from '../src/fixtures/index.js';
@@ -63,6 +68,14 @@ describe('account lifecycle', () => {
     expect(canMoveAccount('ACTIVE', 'DELETED')).toBe(false);
     expect(canMoveAccount('PENDING_DELETION', 'DELETED')).toBe(true);
     expect(canMoveAccount('DELETED', 'ACTIVE')).toBe(false);
+    // Only ACTIVE or SUSPENDED accounts go up for deletion, and a cancel returns to one of them.
+    expect(canMoveAccount('TRIAL', 'PENDING_DELETION')).toBe(false);
+    expect(canMoveAccount('ACTIVE', 'PENDING_DELETION')).toBe(true);
+    expect(canMoveAccount('SUSPENDED', 'PENDING_DELETION')).toBe(true);
+    expect(canMoveAccount('PENDING_DELETION', 'TRIAL')).toBe(false);
+    // A trial extension is not a status move.
+    expect(canMoveAccount('TRIAL', 'TRIAL')).toBe(false);
+    expect(canMoveAccount('SUSPENDED', 'TRIAL')).toBe(false);
     expect(ACCOUNT_TRANSITIONS.DELETED).toEqual([]);
   });
 
@@ -77,6 +90,28 @@ describe('account lifecycle', () => {
     expect(AccountStatusBody.parse(body).to).toBe('SUSPENDED');
     expect(AccountStatusBody.safeParse({ ...body, to: 'DELETED' }).success).toBe(false);
     expect(AccountStatusBody.safeParse({ ...body, reason: '' }).success).toBe(false);
+    expect(AccountStatusBody.safeParse({ ...body, to: 'TRIAL' }).success).toBe(false);
+    expect(AccountStatusBody.safeParse({ ...body, trialEndsOn: '2026-12-01' }).success).toBe(false);
+  });
+
+  it('lets every target of the status route pass canMoveAccount from some operator-held status', () => {
+    for (const to of AccountStatusBody.shape.to.options) {
+      const from = (['TRIAL', 'ACTIVE', 'SUSPENDED'] as const).filter((f) => canMoveAccount(f, to));
+      expect(from.length, to).toBeGreaterThan(0);
+    }
+    expect(canMoveAccount('TRIAL', 'ACTIVE')).toBe(true);
+    expect(canMoveAccount('ACTIVE', 'SUSPENDED')).toBe(true);
+    expect(canMoveAccount('SUSPENDED', 'ACTIVE')).toBe(true);
+  });
+
+  it('extends a trial with a required end date and nothing else', () => {
+    expect(AccountTrialBody.parse({ version: 3, trialEndsOn: '2026-12-15' }).trialEndsOn).toBe(
+      '2026-12-15',
+    );
+    expect(AccountTrialBody.safeParse({ version: 3 }).success).toBe(false);
+    expect(
+      AccountTrialBody.safeParse({ version: 3, trialEndsOn: '2026-12-15', to: 'ACTIVE' }).success,
+    ).toBe(false);
   });
 });
 
@@ -147,6 +182,44 @@ describe('account schemas', () => {
     expect(SupportGrant.safeParse(grant).success).toBe(true);
     expect(SupportGrant.safeParse({ ...grant, endsAt: grant.startsAt }).success).toBe(false);
     expect(SupportGrant.safeParse({ ...grant, status: 'REVOKED' }).success).toBe(false);
+  });
+
+  it('shows the operator only the non-personal support grant columns (ADR M15-0001 decision 8)', () => {
+    expect(Object.keys(OperatorSupportGrant.shape).sort()).toEqual(
+      ['accountId', 'endsAt', 'id', 'level', 'revokedAt', 'startsAt', 'status'].sort(),
+    );
+    const grant = {
+      id: ID,
+      accountId: ID2,
+      level: 'ADMIN',
+      status: 'REVOKED',
+      startsAt: '2026-10-24T06:00:00Z',
+      endsAt: '2026-10-31T06:00:00Z',
+      revokedAt: '2026-10-25T06:00:00Z',
+    };
+    expect(OperatorSupportGrant.safeParse(grant).success).toBe(true);
+    expect(OperatorSupportGrant.safeParse({ ...grant, grantedById: ID }).success).toBe(false);
+    expect(OperatorSupportGrant.safeParse({ ...grant, revokedAt: null }).success).toBe(false);
+    expect(OperatorSupportGrant.safeParse({ ...grant, endsAt: grant.startsAt }).success).toBe(
+      false,
+    );
+    expect(PLATFORM_ENDPOINTS.listAccountSupportGrants.response.shape.items.element).toBe(
+      OperatorSupportGrant,
+    );
+  });
+
+  it('gives the operator no personal data on an account', () => {
+    expect(Object.keys(Account.shape)).not.toContain('owner');
+  });
+
+  it('refuses date ranges that end before they start', () => {
+    expect(UsageQuery.safeParse({ from: '2026-10-01', to: '2026-10-31' }).success).toBe(true);
+    expect(UsageQuery.safeParse({ from: '2026-10-31', to: '2026-10-01' }).success).toBe(false);
+    expect(
+      OperatorAuditQuery.safeParse({ from: '2026-10-31T00:00:00Z', to: '2026-10-01T00:00:00Z' })
+        .success,
+    ).toBe(false);
+    expect(OperatorAuditQuery.safeParse({ from: '2026-10-01T00:00:00Z' }).success).toBe(true);
   });
 
   it('refuses a subscription that ends before it starts', () => {

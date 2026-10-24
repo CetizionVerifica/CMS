@@ -116,3 +116,10 @@ with sign-off per "How to change a contract".
     `OPERATOR` and `EntityType` `account` are left for a later bump: they are Postgres enums, so they land with M3's
     migration (as `NotificationKind` did in 1.4.0). The mock serves `/account` and support grants for firm A and B (both
     active consultancies, unlimited) and `POST /__mock/support-sessions/{grantId}` stands in for the console.
+    The operator never sees personal data (ADR M15-0001 decision 8): `Account` has no owner name or email, and the
+    operator's grant list is `OperatorSupportGrant`, without person ids. A trial extension is its own route
+    (`POST /accounts/{id}/trial`), not a status move, so every move the status body allows passes `canMoveAccount`.
+    The support person is marked `Person.support` (optional, absent = false), never matched by name; the mock refuses
+    it password sign-in, magic links and invites, expires console tokens after `SUPPORT_TOKEN_SECONDS`, ends support
+    sessions at the earlier of 2 hours and the grant end, and audits each support membership granted or ended as
+    `MEMBERSHIP_CHANGE`. Like every mock handler, it keeps no domain-event outbox.

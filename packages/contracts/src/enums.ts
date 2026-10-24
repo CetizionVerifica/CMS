@@ -312,15 +312,17 @@ export const EXPORT_ACCOUNT_STATUSES = [
 ] as const satisfies readonly AccountStatus[];
 
 /**
- * Every allowed account status move (ADR M15-0001 decision 3). `PENDING_DELETION` → `TRIAL | ACTIVE | SUSPENDED` is a
- * cancelled deletion, which returns to the status the account left. Anything else is 409 INVALID_TRANSITION.
+ * Every allowed account status move (ADR M15-0001 decision 3). Only `ACTIVE` and `SUSPENDED` accounts can be put up for
+ * deletion, so `PENDING_DELETION` → `ACTIVE | SUSPENDED` is a cancelled deletion returning to the status it left.
+ * Extending a trial changes `trialEndsOn`, not the status (`POST /accounts/{id}/trial`, TRIAL accounts only). Anything
+ * else is 409 INVALID_TRANSITION.
  */
 export const ACCOUNT_TRANSITIONS = {
   PROVISIONING: ['TRIAL', 'ACTIVE'],
-  TRIAL: ['ACTIVE', 'SUSPENDED', 'PENDING_DELETION'],
+  TRIAL: ['ACTIVE', 'SUSPENDED'],
   ACTIVE: ['SUSPENDED', 'PENDING_DELETION'],
   SUSPENDED: ['ACTIVE', 'PENDING_DELETION'],
-  PENDING_DELETION: ['TRIAL', 'ACTIVE', 'SUSPENDED', 'DELETED'],
+  PENDING_DELETION: ['ACTIVE', 'SUSPENDED', 'DELETED'],
   DELETED: [],
 } as const satisfies Record<AccountStatus, readonly AccountStatus[]>;
 

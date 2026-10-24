@@ -163,6 +163,30 @@ export const SupportGrant = z
   });
 export type SupportGrant = z.infer<typeof SupportGrant>;
 
+/**
+ * A support grant as the operator sees it: only the columns `canopy_operator` may read (ADR M15-0001 decision 8), no
+ * person ids.
+ */
+export const OperatorSupportGrant = z
+  .strictObject({
+    id: Id,
+    accountId: Id,
+    level: SupportAccessLevel,
+    status: SupportGrantStatus,
+    startsAt: Instant,
+    endsAt: Instant,
+    revokedAt: Instant.nullable(),
+  })
+  .refine((g) => Date.parse(g.endsAt) > Date.parse(g.startsAt), {
+    path: ['endsAt'],
+    message: 'endsAt must be after startsAt',
+  })
+  .refine((g) => (g.status === 'REVOKED') === (g.revokedAt !== null), {
+    path: ['revokedAt'],
+    message: 'revokedAt is set exactly when the grant is REVOKED',
+  });
+export type OperatorSupportGrant = z.infer<typeof OperatorSupportGrant>;
+
 /** Profile details the operator records for an account. */
 export const AccountProfile = z.strictObject({
   legalName: Name,
@@ -172,7 +196,11 @@ export const AccountProfile = z.strictObject({
 });
 export type AccountProfile = z.infer<typeof AccountProfile>;
 
-/** The operator's view of an account: never any client data, only the firm row, plan and counts. */
+/**
+ * The operator's view of an account: never any client data, only the firm row, plan and counts. The owner's name and
+ * email live in `person` and `invite`, which the operator may not read (ADR M15-0001 decision 8); the owner has
+ * accepted once `status` has left PROVISIONING.
+ */
 export const Account = z.strictObject({
   id: Id,
   name: Name,
@@ -187,12 +215,6 @@ export const Account = z.strictObject({
   deletionRequestedAt: Instant.nullable(),
   /** When the purge may run: `deletionRequestedAt` + the grace period. */
   purgeAfter: Instant.nullable(),
-  owner: z.strictObject({
-    email: Email,
-    displayName: Name,
-    /** True once the owner accepted the invite. */
-    accepted: z.boolean(),
-  }),
   createdAt: Instant,
   version: z.int().min(1),
 });

@@ -107,6 +107,7 @@ interface Person extends Base, Versioned {
   nameNormalized: string                            // lower-case, whitespace collapsed; dedupe key per firm
   email: string | null                              // null while UNCLAIMED
   status: PersonStatus
+  support?: boolean                                 // the account's PlanetPulse support person (§9); absent = false
 }
 interface Membership extends Base, Versioned {
   personId: Id
@@ -380,22 +381,28 @@ interface UsageSnapshot { accountId; takenOn: LocalDate; usage: Usage; activeUse
 interface PlatformOperator { id; email; displayName; createdAt; disabledAt: Instant | null }
 interface OperatorAuditEvent { id; at; operatorId: Id | null; action: OperatorAuditAction; accountId: Id | null; before; after; reason: string | null; requestId; ip: string | null }
 interface SupportGrant { id; accountId; level: SupportAccessLevel; status: SupportGrantStatus; startsAt; endsAt; grantedById; revokedAt; revokedById; supportPersonId }
+interface OperatorSupportGrant { id; accountId; level; status; startsAt; endsAt; revokedAt } // the operator's view: no person ids (ADR M15-0001 decision 8)
 interface Account {                                 // the operator's view: never client data, only the firm row and counts
   id; name; kind; status; planCode; trialEndsOn; onboardedAt; deletionRequestedAt; purgeAfter
   profile: { legalName; gstin: string | null; timeZone; fyStartMonth }
   entitlements: Entitlements; usage: Usage
-  owner: { email; displayName; accepted: boolean }
   createdAt; version
 }
 ```
 
-Status moves (`ACCOUNT_TRANSITIONS`, `canMoveAccount`): PROVISIONING → TRIAL | ACTIVE (owner accepts); TRIAL → ACTIVE,
-SUSPENDED (trial ends), PENDING_DELETION; ACTIVE ⇄ SUSPENDED; ACTIVE | SUSPENDED → PENDING_DELETION; PENDING_DELETION →
-the status it left (cancel) or DELETED (purge after 30 days, ADR M15-0002). `WORKING_ACCOUNT_STATUSES` (TRIAL, ACTIVE)
+`Account` carries no owner name or email: they live in `person` and `invite`, which the operator may not read (ADR
+M15-0001 decision 8). The owner has accepted once the status has left PROVISIONING.
+
+Status moves (`ACCOUNT_TRANSITIONS`, `canMoveAccount`, ADR M15-0001 decision 3): PROVISIONING → TRIAL | ACTIVE (owner
+accepts); TRIAL → ACTIVE (convert), SUSPENDED (trial ends); ACTIVE ⇄ SUSPENDED; ACTIVE | SUSPENDED → PENDING_DELETION;
+PENDING_DELETION → the status it left (cancel, so ACTIVE or SUSPENDED) or DELETED (purge after 30 days, ADR M15-0002).
+A trial extension moves `trialEndsOn` on a TRIAL account and is not a status move. `WORKING_ACCOUNT_STATUSES` (TRIAL, ACTIVE)
 can do everything and run jobs. SUSPENDED signs nobody in. In `EXPORT_ACCOUNT_STATUSES` (PENDING_DELETION) only account
 admins sign in, to read `/me` and download the account export. Everything else answers `403 ACCOUNT_SUSPENDED`.
 
 Support access: an account admin grants `READ_ONLY` (a VIEWER membership per client) or `ADMIN` (one FIRM_ADMIN
-membership) for 1-30 days to the account's support person, "PlanetPulse support", whose memberships expire with the
-grant. Defaults: `DEFAULT_TRIAL_DAYS` 30, `OWNER_INVITE_HOURS` 72, `ACCOUNT_DELETION_GRACE_DAYS` 30,
-`SUPPORT_GRANT_DEFAULT_DAYS` 7, `SUPPORT_GRANT_MAX_DAYS` 30, `SUPPORT_SESSION_HOURS` 2.
+membership) for 1-30 days to the account's support person, "PlanetPulse support" (`Person.support = true`), whose
+memberships expire with the grant. The support person has no password: it cannot sign in, get a magic link or be
+invited, and is not counted in usage. Its only session comes from `POST /auth/support/verify` with a one-time token
+valid `SUPPORT_TOKEN_SECONDS` (60), and lasts until the earlier of `SUPPORT_SESSION_HOURS` and the grant end. Defaults: `DEFAULT_TRIAL_DAYS` 30, `OWNER_INVITE_HOURS` 72, `ACCOUNT_DELETION_GRACE_DAYS` 30,
+`SUPPORT_GRANT_DEFAULT_DAYS` 7, `SUPPORT_GRANT_MAX_DAYS` 30, `SUPPORT_SESSION_HOURS` 2, `SUPPORT_TOKEN_SECONDS` 60.

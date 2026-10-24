@@ -13968,6 +13968,9 @@
           "status": {
             "type": "string",
             "enum": ["UNCLAIMED", "INVITED", "ACTIVE", "DISABLED"]
+          },
+          "support": {
+            "type": "boolean"
           }
         },
         "required": [

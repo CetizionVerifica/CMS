@@ -124,16 +124,26 @@ export const AccountUpdateBody = z
 export type AccountUpdateBody = z.infer<typeof AccountUpdateBody>;
 
 /**
- * `POST /accounts/{id}/status`: convert a trial, suspend or resume. Deletion has its own routes. `trialEndsOn` moves a
- * trial's end (only with `to: TRIAL`, from TRIAL or SUSPENDED).
+ * `POST /accounts/{id}/status`: convert a trial (TRIAL → ACTIVE), suspend or resume (ACTIVE ⇄ SUSPENDED, and
+ * SUSPENDED → ACTIVE for a trial the job suspended). Each move must pass `canMoveAccount`; deletion has its own routes.
  */
 export const AccountStatusBody = z.strictObject({
   ...versionField,
-  to: z.enum(['TRIAL', 'ACTIVE', 'SUSPENDED']),
+  to: z.enum(['ACTIVE', 'SUSPENDED']),
   reason: Reason,
-  trialEndsOn: LocalDate.optional(),
 });
 export type AccountStatusBody = z.infer<typeof AccountStatusBody>;
+
+/**
+ * `POST /accounts/{id}/trial`: move a TRIAL account's `trialEndsOn` (operator action `TRIAL_EXTEND`). The status stays
+ * TRIAL; any other status answers 409 INVALID_TRANSITION.
+ */
+export const AccountTrialBody = z.strictObject({
+  ...versionField,
+  trialEndsOn: LocalDate,
+  reason: Reason.optional(),
+});
+export type AccountTrialBody = z.infer<typeof AccountTrialBody>;
 
 export const AccountPlanBody = z.strictObject({
   ...versionField,
@@ -175,7 +185,9 @@ export const SubscriptionCreateBody = z
   });
 export type SubscriptionCreateBody = z.infer<typeof SubscriptionCreateBody>;
 
-export const UsageQuery = z.strictObject({ from: LocalDate, to: LocalDate });
+export const UsageQuery = z
+  .strictObject({ from: LocalDate, to: LocalDate })
+  .refine((q) => q.from <= q.to, { path: ['to'], message: 'to must not be before from' });
 export type UsageQuery = z.infer<typeof UsageQuery>;
 
 export const RenewalQuery = z.strictObject({
@@ -195,13 +207,21 @@ export const Renewal = z.strictObject({
 });
 export type Renewal = z.infer<typeof Renewal>;
 
-export const OperatorAuditQuery = z.strictObject({
-  ...pageQueryShape,
-  accountId: Id.optional(),
-  action: OperatorAuditAction.optional(),
-  from: Instant.optional(),
-  to: Instant.optional(),
-});
+export const OperatorAuditQuery = z
+  .strictObject({
+    ...pageQueryShape,
+    accountId: Id.optional(),
+    action: OperatorAuditAction.optional(),
+    from: Instant.optional(),
+    to: Instant.optional(),
+  })
+  .refine(
+    (q) => q.from === undefined || q.to === undefined || Date.parse(q.from) <= Date.parse(q.to),
+    {
+      path: ['to'],
+      message: 'to must not be before from',
+    },
+  );
 export type OperatorAuditQuery = z.infer<typeof OperatorAuditQuery>;
 
 /** `POST /support-grants/{id}/sessions`: open the customer app as the grant's support person. */

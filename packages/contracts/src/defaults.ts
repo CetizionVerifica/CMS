@@ -33,6 +33,8 @@ export const SUPPORT_GRANT_DEFAULT_DAYS = 7;
 export const SUPPORT_GRANT_MAX_DAYS = 30;
 /** A support session ends after this many hours, or at the grant end if sooner. */
 export const SUPPORT_SESSION_HOURS = 2;
+/** The one-time token that opens a support session works once, within this many seconds. */
+export const SUPPORT_TOKEN_SECONDS = 60;
 /** Account for firms created before accounts existed, and the `Firm` defaults while a provider omits the fields. */
 export const DEFAULT_ACCOUNT = {
   kind: 'CONSULTANCY',
