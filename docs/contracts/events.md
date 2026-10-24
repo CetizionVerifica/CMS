@@ -105,7 +105,8 @@ interface DomainEvent<T extends string, D> {
 4. Notifications are deduplicated on `(instanceId, kind, sendDate, recipientId)` (`NOTIFICATION_DEDUPE_KEY`), the
    recipient included: after a same-day reassignment the new owner or approver is still reminded. A store's unique
    index must cover all four columns. That key is for scheduled kinds. Event-driven kinds (`EVENT_NOTIFICATION_KINDS`:
-   `APPROVAL_REQUESTED` to the approver on `instance.submitted`, `SENT_BACK` to the owner on `instance.sent_back`)
+   `APPROVAL_REQUESTED` to the approver on `instance.submitted`, `SENT_BACK` to the owner on `instance.sent_back`,
+   and `INVITE`, `MAGIC_LINK` and `MFA_ENROLLED`, which answer a person's own event)
    dedupe on `(sourceEventId, recipientId)` (`EVENT_NOTIFICATION_DEDUPE_KEY`), the id of the event that caused them,
    so a redelivered event sends nothing and each new submission or send-back notifies once. `sourceEventId` is null
    for scheduled kinds. Scheduled kinds about no instance (`CONSULTANT_DIGEST`, `TRIAL_ENDING`, `RENEWAL_DUE`) have

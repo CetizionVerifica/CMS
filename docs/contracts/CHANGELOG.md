@@ -150,3 +150,6 @@ an email to a person when MFA is set up on their account (docs/security/review.m
 `ACCOUNT_NOTIFICATION_KINDS` adds `RENEWAL_DUE`. New event `person.mfa_enrolled { personId, via }` (events.md §3),
 which M5 emits in the transaction that completes MFA setup, from a session or while accepting an invite. The database
 stored both kinds first (M3). No route or schema shape changes.
+Also, from the 1.6.1 audit: `EVENT_NOTIFICATION_KINDS` now lists every event-driven kind (`INVITE`, `MAGIC_LINK` and
+`MFA_ENROLLED` join `APPROVAL_REQUESTED` and `SENT_BACK`), and README decision 40 records the trial and renewal
+reminder offsets as defaults.

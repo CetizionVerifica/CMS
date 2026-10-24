@@ -112,10 +112,17 @@ export const NOTIFICATION_DEDUPE_KEY = [
   'recipientId',
 ] as const satisfies readonly (keyof PlannedNotification)[];
 
-/** Kinds sent in reaction to a domain event rather than on a schedule. */
+/**
+ * Kinds sent in reaction to a domain event rather than on a schedule. All of them dedupe on
+ * `EVENT_NOTIFICATION_DEDUPE_KEY`; `INVITE`, `MAGIC_LINK` and `MFA_ENROLLED` answer a person's own event and name no
+ * client or instance (events.md §4 rule 4).
+ */
 export const EVENT_NOTIFICATION_KINDS = [
   'APPROVAL_REQUESTED',
   'SENT_BACK',
+  'INVITE',
+  'MAGIC_LINK',
+  'MFA_ENROLLED',
 ] as const satisfies readonly NotificationKind[];
 
 /**
