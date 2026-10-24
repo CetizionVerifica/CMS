@@ -22,6 +22,7 @@ No code is written until Shyam says to start a wave.
 | 2 | M5 Auth · M6 Library & entities API · M7 Workflow & evidence API · M9 Jobs & notifications · M12 Web register & approvals | M3 schema merged (M5 first, M6/M7 can stub auth via the contract) |
 | 3 | M10 Dashboards & reports API · M13 Web overview, import, setup, reports | M4 + M7 merged |
 | 4 | M14 Integration, QA & hardening | All modules merged |
+| 5 | M15 Platform operator | M5, M6 and M9 merged |
 
 Up to 5 threads run at once in waves 1 and 2.
 
@@ -62,6 +63,7 @@ M1 underpins all (repo, CI)
 | M12 | Web register & approvals | `apps/web/app/(shell)/c/[clientId]/{register,approvals,calendar,evidence}` | M0 mock, M2, M11 | Register grid, instance drawer, approvals inbox, calendar, evidence vault |
 | M13 | Web overview, import, setup, reports | `apps/web/app/(shell)/portfolio`, `apps/web/app/(shell)/c/[clientId]/{overview,import,setup,reports,audit}`, `apps/web/app/(shell)/library` | M0 mock, M2, M11 | Portfolio, client overview, import wizard, setup screens, reports, library screens |
 | M14 | Integration, QA & hardening | `e2e/`, `docs/security`, perf scripts | everything | E2E suite, isolation and security review, accessibility audit, load test, pilot runbook |
+| M15 | Platform operator | `apps/api/src/platform`, `apps/operator` | M0, M3, M5, M6, M9 | Operator console and API for company accounts: the operator creates an account and its first admin, and renews, suspends or closes it |
 
 ---
 
