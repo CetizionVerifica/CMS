@@ -87,7 +87,8 @@ const shellInfo: Record<string, { unitCount: number; period: ClientPeriods }> = 
   },
   [MOCK_CLIENTS.sunrise]: {
     unitCount: 5,
-    period: { ...DEMO_PERIOD, availableUntil: null },
+    // No data at all, so only the year holding FIRM_B_AS_OF, as M0 reports a client without instances.
+    period: { current: DEMO_PERIOD.current, availableFys: ['2024-25'], availableUntil: null },
   },
 };
 
