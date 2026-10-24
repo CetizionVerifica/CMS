@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
-import { wiringFromEnv } from './wiring.js';
+import { PostgresReportsStore } from './modules/dashboard/db-store.js';
+import { S3ExportFiles } from './modules/reports/files.js';
+import { jobsFromEnv, wiringFromEnv } from './wiring.js';
 
 const DB = { DATABASE_URL: 'postgres://app@localhost:5432/canopy' };
 const S3 = { S3_BUCKET: 'imports', S3_ACCESS_KEY_ID: 'key', S3_SECRET_ACCESS_KEY: 'secret' };
@@ -15,12 +17,15 @@ describe('wiringFromEnv', () => {
     expect(database).toBeDefined();
     expect(options.database).toBe(database);
     expect(options.libraryAndEntities?.store).toBeDefined();
+    expect(options.reports?.store).toBeInstanceOf(PostgresReportsStore);
+    expect(options.reports?.files).toBeUndefined();
     expect(options.imports).toBeUndefined();
     await database?.close();
   });
 
-  it('mounts M8 when S3 upload storage is configured', async () => {
+  it('mounts M8 and M10 export files when S3 object storage is configured', async () => {
     const { options, database } = wiringFromEnv({ ...DB, ...S3 }, vi.fn());
+    expect(options.reports?.files).toBeInstanceOf(S3ExportFiles);
     expect(options.imports?.files).toBeDefined();
     expect(options.imports?.store).toBeDefined();
     expect(typeof options.imports?.inferRule).toBe('function');
@@ -40,6 +45,58 @@ describe('wiringFromEnv', () => {
       [{ batchId: 'batch-2', error: 'unknown' }, 'import parse failed'],
     ]);
     expect(JSON.stringify(log.mock.calls)).not.toContain('Ravi');
+    await database?.close();
+  });
+});
+
+describe('jobsFromEnv', () => {
+  const runner = (mail: boolean) => ({ trigger: vi.fn(), schedules: vi.fn(), stop: vi.fn(), mail });
+
+  it('starts nothing and says nothing without a database', async () => {
+    const start = vi.fn();
+    const warn = vi.fn();
+    expect(await jobsFromEnv({ ...DB }, undefined, { warn, start })).toBeNull();
+    const { database } = wiringFromEnv({ ...DB }, vi.fn());
+    expect(await jobsFromEnv({}, database, { warn, start })).toBeNull();
+    expect(start).not.toHaveBeenCalled();
+    expect(warn).not.toHaveBeenCalled();
+    await database?.close();
+  });
+
+  it('boots the jobs on the API database and connection string, with the job log', async () => {
+    const { database } = wiringFromEnv({ ...DB }, vi.fn());
+    const mailing = runner(true);
+    const start = vi.fn().mockResolvedValue(mailing);
+    const warn = vi.fn();
+    const log = vi.fn();
+    const env = { ...DB, SMTP_URL: 'smtp://mail.example:587' };
+    expect(await jobsFromEnv(env, database, { warn, log, start })).toBe(mailing);
+    expect(start).toHaveBeenCalledWith(env, {
+      db: database,
+      connectionString: DB.DATABASE_URL,
+      log,
+    });
+    expect(warn).not.toHaveBeenCalled();
+    await database?.close();
+  });
+
+  it('still starts the jobs without SMTP, and warns without any setting value', async () => {
+    const { database } = wiringFromEnv({ ...DB }, vi.fn());
+    const silent = runner(false);
+    const start = vi.fn().mockResolvedValue(silent);
+    const warn = vi.fn();
+    expect(await jobsFromEnv({ ...DB }, database, { warn, start })).toBe(silent);
+    expect(warn).toHaveBeenCalledOnce();
+    expect(warn.mock.calls[0]![0]).toMatch(/email jobs not started/);
+    expect(warn.mock.calls[0]![0]).not.toContain(DB.DATABASE_URL);
+    await database?.close();
+  });
+
+  it('fails the boot on half-set mail settings', async () => {
+    const { database } = wiringFromEnv({ ...DB }, vi.fn());
+    await expect(
+      jobsFromEnv({ ...DB, SMTP_HOST: 'mail.example' }, database, { warn: vi.fn() }),
+    ).rejects.toThrow(/Mail settings invalid/);
     await database?.close();
   });
 });
