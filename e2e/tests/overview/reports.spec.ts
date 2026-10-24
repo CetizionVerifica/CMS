@@ -24,7 +24,12 @@ test.describe('reports', () => {
     const href = await count.getAttribute('href');
     expect(href).toMatch(/\/register\?actId=[0-9a-f-]{36}&status=[A-Z_,%2C]+&fy=2024-25$/);
     await count.click();
-    await expect(page).toHaveURL(new RegExp(`${href!.replace(/[?]/g, '\\?')}$`));
+    await expect
+      .poll(() => {
+        const url = new URL(page.url());
+        return `${url.pathname}${url.search}`;
+      })
+      .toBe(href);
   });
 
   test('a report downloads once its export is ready', async ({ page }) => {
