@@ -22,6 +22,8 @@ describe('S3 evidence storage', () => {
     expect(url.searchParams.get('X-Amz-SignedHeaders')).toContain('content-length');
     expect(url.searchParams.get('X-Amz-SignedHeaders')).toContain('content-type');
     expect(put.headers).toEqual({ 'Content-Type': 'application/pdf', 'Content-Length': '4096' });
+    // No checksum of an empty body is signed in, which S3 would hold the uploaded file to.
+    expect([...url.searchParams.keys()].filter((k) => /checksum/i.test(k))).toEqual([]);
   });
 
   it('signs a 5-minute GET that downloads under the original file name', async () => {

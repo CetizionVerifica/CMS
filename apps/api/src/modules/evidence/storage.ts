@@ -52,6 +52,9 @@ export function createS3Storage(options: S3StorageOptions): EvidenceStorage {
     region: options.region,
     ...(options.endpoint ? { endpoint: options.endpoint, forcePathStyle: true } : {}),
     credentials: { accessKeyId: options.accessKeyId, secretAccessKey: options.secretAccessKey },
+    // By default the SDK signs a CRC32 of the (empty) body it presigns into the PUT URL, so S3 rejects the
+    // browser's upload of the real file as a checksum mismatch. Checksums only where an operation requires one.
+    requestChecksumCalculation: 'WHEN_REQUIRED',
   });
   const Bucket = options.bucket;
   return {
