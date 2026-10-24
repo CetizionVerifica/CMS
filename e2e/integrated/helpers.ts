@@ -7,9 +7,9 @@ import {
   ACCOUNTS,
   PASSWORD,
   RUN_DIR,
-  TOTP_SECRET,
   addressOf,
   storageStateOf,
+  totpSecretFileOf,
   type AccountKey,
 } from './stack.js';
 import { nextUnusedCode } from './totp.js';
@@ -24,19 +24,30 @@ export function seeded(): {
   return JSON.parse(readFileSync(new URL('seed.json', RUN_DIR), 'utf8'));
 }
 
-const isFirmRole = (key: AccountKey) =>
+export const isFirmRole = (key: AccountKey) =>
   ACCOUNTS[key].role === 'FIRM_ADMIN' || ACCOUNTS[key].role === 'CONSULTANT';
 
-/** Signs in through the login page (and the code step for firm roles), as a person would. */
-export async function signIn(page: Page, key: AccountKey, path = '/'): Promise<void> {
+/**
+ * Signs in through the login page (and the code step for firm roles), as a person would. `check` runs on each sign-in
+ * page before it is filled in.
+ */
+export async function signIn(
+  page: Page,
+  key: AccountKey,
+  path = '/',
+  check?: (page: Page) => Promise<void>,
+): Promise<void> {
   await page.goto(path);
   await expect(page).toHaveURL(/\/login/);
+  await check?.(page);
   await page.getByLabel('Work email').fill(ACCOUNTS[key].email);
   await page.getByLabel('Password').fill(PASSWORD);
   await page.getByRole('button', { name: 'Sign in' }).click();
   if (isFirmRole(key)) {
     await expect(page).toHaveURL(/\/login\/verify/);
-    await page.getByLabel('6-digit code').fill(await nextUnusedCode(key, TOTP_SECRET));
+    await check?.(page);
+    const secret = readFileSync(totpSecretFileOf(key), 'utf8');
+    await page.getByLabel('6-digit code').fill(await nextUnusedCode(key, secret));
     await page.getByRole('button', { name: 'Verify' }).click();
   }
   await expect(page).not.toHaveURL(/\/login/);

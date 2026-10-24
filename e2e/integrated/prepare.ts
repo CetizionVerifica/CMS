@@ -1,6 +1,7 @@
 // Recreates the integrated run's database before the API starts (playwright.integrated.config.ts runs it first in
 // the API's webServer command): migrations, the two seed firms, one client each and a signed-in account per role.
-// The register itself is not seeded: the import journey loads it through the API, as a consultant would.
+// The register itself is not seeded: the import journey loads it through the API, as a consultant would. Firm roles
+// enrol in MFA through the API in auth.setup.ts, as a new firm user would.
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { DEFAULT_CLIENT_SETTINGS } from '@canopy/contracts';
 import {
@@ -13,19 +14,18 @@ import {
   people,
   systemContext,
 } from '@canopy/db';
-import { hashPassword, SecretBox } from '@canopy/api/src/auth/index.js';
 import pg from 'pg';
+
+import { storedPassword } from './password.js';
 import {
   ACCOUNTS,
   APP_LOGIN,
   APP_PASSWORD,
-  AUTH_SECRET_KEY,
   E2E_DATABASE,
   FIRM_A,
   FIRM_B,
   PASSWORD,
   RUN_DIR,
-  TOTP_SECRET,
   databaseUrl,
   type Account,
 } from './stack.js';
@@ -69,8 +69,7 @@ await admin.close();
 
 // Seeding writes as the owner (the API's NODE_ENV=production would otherwise refuse it), still through withTenant.
 const db = createDatabase({ connectionString: ownerUrl, max: 2, privilegedLogin: 'allow' });
-const secrets = new SecretBox(AUTH_SECRET_KEY);
-const passwordHash = await hashPassword(PASSWORD);
+const passwordHash = await storedPassword(PASSWORD);
 
 async function createClient(firmId: string, name: string): Promise<string> {
   const client = await db.withTenant(systemContext(firmId, 'e2e-seed'), (tx) =>
@@ -107,14 +106,6 @@ for (const account of Object.values(ACCOUNTS) as Account[]) {
         expiresAt: account.role === 'VIEWER' ? '2099-12-31T00:00:00Z' : null,
       });
       await credentials.setPassword(tx, person.id, passwordHash);
-      // Firm roles must pass MFA; they are enrolled with a known secret so the journeys can compute codes.
-      if (firmRole) {
-        await credentials.saveMfa(tx, person.id, {
-          sealedSecret: secrets.seal(TOTP_SECRET),
-          enrolledAt: new Date().toISOString(),
-          lastStep: null,
-        });
-      }
       return person.id;
     },
   );

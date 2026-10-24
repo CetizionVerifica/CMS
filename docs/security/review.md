@@ -18,11 +18,13 @@ Severity: **P0** stops a pilot (data exposure or a core journey broken), **P1** 
 | F4  | P1  | Rate limits              | The API limits requests per client IP, but in production every call comes from the web server, so all users shared one budget: 300 requests a minute for the whole product and 10 sign-ins a minute. Fixed by the web passing on `X-Forwarded-For` and the API trusting it only from the web tier (`TRUST_PROXY`, see the deploy checklist).                         | M11           | Fix in #136                  |
 | F5  | P2  | Deploy                   | The app's database login needs `CREATE` on the database: M9's job runner (pg-boss) creates its own `pgboss` schema at start, so the API does not boot with a login that has only the `canopy_app` grants.                                                                                                                                                                | M9, deploy    | In the deploy checklist      |
 | F6  | P2  | Seed                     | `pnpm db:seed` ran no seed hooks, so the sample register was never seeded (packages/db rule 10).                                                                                                                                                                                                                                                                         | M8            | In #131                      |
-| F7  | P1  | Performance, rate limits | Each server render of the shell calls `GET /me` and, for firm users, `GET /portfolio` (scores for every client), and link prefetching renders the shell many times per page. One consultant's import journey made about 400 API calls in 20 seconds (198 `/me`, 121 `/portfolio`), more than the per-visitor limit allows, and `/portfolio` will be slow at 10,000 instances per client. | M11           | Reported                     |
+| F7  | P1  | Performance, rate limits | Each server render of the shell calls `GET /me` and, for firm users, `GET /portfolio` (scores for every client), and link prefetching renders the shell many times per page. One consultant's import journey made about 400 API calls in 20 seconds (198 `/me`, 121 `/portfolio`), more than the per-visitor limit allows, and `/portfolio` will be slow at 10,000 instances per client. | M11           | Fix in review (#147)         |
 | F8  | P1  | Evidence                 | Nothing scans uploaded evidence, so every file stays `PENDING`: it cannot be downloaded (`EVIDENCE_NOT_READY`) and an obligation that requires evidence can never be submitted. Needs a scan job and a choice of scanner.                                                                                                                                              | M9, Shyam     | Reported                     |
-| F9  | P2  | API contract             | `GET /clients/{clientId}/instances` ignores `?count=true` (api-conventions.md §3), so callers cannot get a total without paging through every row.                                                                                                                                                                                                                       | M7            | Reported                     |
+| F9  | P2  | API contract             | `GET /clients/{clientId}/instances` ignores `?count=true` (api-conventions.md §3), so callers cannot get a total without paging through every row.                                                                                                                                                                                                                       | M7            | Fixed in #142                |
 | F10 | P3  | Web headers              | The web app sends `X-Frame-Options`, `nosniff` and a referrer policy, but no Content-Security-Policy. HSTS is left to the load balancer.                                                                                                                                                                                                                                | M11           | Reported                     |
-| F11 | P3  | Logging                  | Unhandled API errors are logged with the full error object. A Postgres error's `detail` can quote row values (for example an email in a unique violation), which root rule 6 keeps out of logs.                                                                                                                                                                          | M5            | Reported                     |
+| F11 | P3  | Logging                  | Unhandled API errors are logged with the full error object. A Postgres error's `detail` can quote row values (for example an email in a unique violation), which root rule 6 keeps out of logs.                                                                                                                                                                          | M5            | Fixed in #141                |
+| F12 | P1  | Sign-in                  | The web app has no MFA enrolment screen. A firm admin or consultant who has not enrolled yet is sent to the code step with no way to get a code, so a new firm user can never finish signing in. The API's enrolment (`/auth/mfa/enroll`) works; the integrated run enrols through it.                                                                         | M11           | Reported                     |
+| F13 | P1  | API lists                | Every M6 list (clients, companies, units, locations, departments, people, Acts, categories, obligations, assignments) answers 500 to `limit=200`, the largest page the contract allows: the API asks the database for one row more than the page to find the next page, and the repository refuses 201. The library's obligations page asks for every Act this way, so it fails to load. | M6            | Reported                     |
 
 ## What was checked and holds
 
@@ -30,11 +32,15 @@ Each line is a test in `e2e/integrated` unless it says otherwise.
 
 **Tenant isolation**
 
-- Every contract endpoint that names a record, called by firm B's firm admin and by its client admin with firm A's ids
-  (client, instance, evidence, export, import, company, unit, department, assignment, person, membership, Act,
-  category, obligation): reads answer 404 or 403, writes answer exactly as they do for an id that does not exist, and
-  no answer contains firm A's names. Firm-wide lists (`/clients`, `/people`, `/portfolio`, library, approvals) hold
-  firm B's records only. (`04-security.spec.ts`)
+- Every contract endpoint that names a record in its path or body, called by firm B's firm admin and by its client
+  admin with firm A's ids (client, instance, evidence, export, import, invite, company, unit, department, assignment,
+  person, membership, Act, category, obligation): reads answer 404 or 403; writes answer exactly as they do for an id
+  that does not exist, and the writes that change compliance state (submit, approve, bulk approve, send back, reopen,
+  NA, reassign, comment, evidence, export, archive) are sent with valid bodies and firm A's current versions, so only
+  the tenant check stands in their way. Every firm-wide list holds firm B's records only, and no answer contains firm
+  A's names. Endpoints left out are listed with a reason, and a new endpoint fails the check until it is placed;
+  contract endpoints the API does not serve yet (the M15 account routes) are listed too, and the check fails the day
+  one answers. (`04-security.spec.ts`)
 - Row-level security, as the app's own database login (not a superuser, no `BYPASSRLS`): set to firm B, or to no
   tenant, it sees none of firm A's rows in 13 tables, from `firm` to `auth_session`.
 - The API serves through a plain member of `canopy_app` with `NODE_ENV=production`, so `createDatabase` would have
@@ -48,7 +54,8 @@ Each line is a test in `e2e/integrated` unless it says otherwise.
 - The session cookie is `HttpOnly`, `Secure` and `SameSite=Lax`; signing out ends the session on the server, so a
   replayed cookie gets 401.
 - A wrong password and an unknown email get the same answer.
-- Firm roles pass a TOTP step at sign-in (all journeys sign in through the real login page).
+- Firm roles enrol in TOTP MFA through the API (F12) and then pass the code step at every sign-in (all journeys sign
+  in through the real login page, which is checked with axe).
 
 **Roles**
 
@@ -65,7 +72,7 @@ Each line is a test in `e2e/integrated` unless it says otherwise.
 
 **Integration**
 
-- The import wizard loads the anonymised sample register end to end: 422 instances and 119 obligations, the golden
+- The import wizard loads the anonymised sample register end to end: 422 instances and 119 obligations (dry run and library), the golden
   counts in `docs/requirements/excel-analysis.md` §5, and the owner and approver named in it are matched to the
   seeded people. (`01-import.spec.ts`)
 - Owner submits, approver bulk-approves from the register, and the instance audit trail shows import, submission and
@@ -73,6 +80,10 @@ Each line is a test in `e2e/integrated` unless it says otherwise.
 - Every overview count is exactly the register's rows for that status, and they add up to the whole register; the
   overdue number on the page opens a register showing the same count. (`03-dashboards-reports.spec.ts`)
 - Act-wise, department-wise and overdue reports answer for a client admin.
+- Every client and firm list answers a full page of 200, the contract's largest (`06-lists.spec.ts`; the M6 lists in
+  F13 are expected to fail, and the check fails the day one of them answers).
+- One consultant browsing the main pages at an ordinary pace from one address (`05-shell-load.spec.ts`): expected to
+  fail until F7 is fixed, so the day it passes is reported.
 
 Not yet covered, because the screens are still being built: the instance drawer (M12), approvals inbox, evidence
 vault and calendar pages (M12), setup, reports and audit pages (M13), and company accounts (M15). The journeys use the
@@ -109,6 +120,8 @@ What a deployment must set for the findings above to stay closed. Never put real
    `X-Forwarded-For`, and the web servers are reachable only through it, so no browser can talk to them directly
    and pick its own address.
 6. Mail: `SMTP_URL` (or `SMTP_HOST`), `MAIL_FROM` and `APP_URL`, or reminders and approval emails never go out.
-7. The web app: `CANOPY_API_URL` pointing at the API; never `CANOPY_DEMO_API`.
+7. The web app: `CANOPY_API_URL` pointing at the API; never `CANOPY_DEMO_API`. `CANOPY_CSP_CONNECT_SRC`
+   (space-separated) includes the object storage's origin: browsers upload evidence and workbooks straight to storage,
+   and with it unset the Content-Security-Policy allows only the app's own origin, which blocks every upload.
 8. HTTPS everywhere, with HSTS at the load balancer.
 9. Evidence scanning (F8) before evidence-required obligations are used.

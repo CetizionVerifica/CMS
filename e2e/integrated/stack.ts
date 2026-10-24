@@ -14,9 +14,8 @@ export const E2E_DATABASE = 'canopy_e2e';
 export const APP_LOGIN = 'canopy_e2e_app';
 export const APP_PASSWORD = 'e2e-app-login';
 
-/** Test-only keys: 32 bytes of 9 (AUTH_SECRET_KEY) and the seeded firm users' TOTP secret (base32). */
+/** Test-only key: 32 bytes of 9. */
 export const AUTH_SECRET_KEY = Buffer.alloc(32, 9).toString('base64');
-export const TOTP_SECRET = 'JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP';
 
 export const PASSWORD = 'integrated journey password';
 
@@ -117,6 +116,9 @@ export const RUN_DIR = new URL('../node_modules/.cache/integrated/', import.meta
 /** Where each account's signed-in browser state is saved by the setup project. */
 export const storageStateOf = (key: AccountKey) =>
   fileURLToPath(new URL(`auth/${key}.json`, RUN_DIR));
+
+/** Where the setup project keeps a firm user's TOTP secret, from the API's enrolment, as their authenticator would. */
+export const totpSecretFileOf = (key: AccountKey) => new URL(`auth/${key}.totp`, RUN_DIR);
 
 /** `DATABASE_URL` with its database swapped, e.g. for the e2e database or the app login. */
 export function databaseUrl(base: string, database: string, login?: [string, string]): string {

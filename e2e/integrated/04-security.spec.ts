@@ -23,13 +23,107 @@ import {
 // Security review checks (docs/security/review.md) against the running API and database: tenant isolation for every
 // endpoint, sessions and CSRF, evidence upload and download rules, and RLS for the app's own database login.
 const FY = 'fy=2022-23';
+const NO_TENANT = /XXX/;
 const PDF = Buffer.from('%PDF-1.4\n% integrated journey evidence\n%%EOF\n');
 
-type Endpoint = { auth: string; method: string; path: string };
+type Endpoint = {
+  auth: string;
+  method: string;
+  path: string;
+  body?: { parse(v: unknown): unknown } | null;
+};
 const endpoints = Object.entries(ENDPOINTS as Record<string, Endpoint>);
 
-/** Firm A's ids for every kind of record a path can name, read as firm A's own users. */
-async function firmAIds(): Promise<Record<string, string>> {
+/**
+ * Contract endpoints the API does not serve yet, with why. Every check below expects them to answer 404 (no route) and
+ * fails once one answers anything else, so it must come off this list the day it ships and be checked like the rest.
+ */
+const UNMOUNTED: Record<string, string> = {
+  getAccount: 'M15 account routes: contracts 1.5.0 (#127), API not built yet',
+  listSupportGrants: 'M15 account routes: contracts 1.5.0 (#127), API not built yet',
+  createSupportGrant: 'M15 account routes: contracts 1.5.0 (#127), API not built yet',
+  revokeSupportGrant: 'M15 account routes: contracts 1.5.0 (#127), API not built yet',
+  verifySupportSession: 'M15 account routes: contracts 1.5.0 (#127), API not built yet',
+};
+
+/**
+ * Endpoints the isolation sweep does not call with firm A's ids, with why. The sweep fails on any endpoint that is in
+ * neither the sweep nor this list, so a new endpoint has to be placed in one or the other.
+ */
+const NOT_SWEPT: Record<string, string> = {
+  login: 'public, names no record',
+  requestMagicLink: 'public, names no record',
+  verifyMagicLink: 'public, takes a secret token, not an id',
+  getInvite: 'public, takes a secret token, not an id',
+  acceptInvite: 'public, takes a secret token, not an id',
+  logout: 'acts on the caller’s own session',
+  enrollMfa: 'acts on the caller’s own session',
+  verifyMfa: 'acts on the caller’s own session',
+  createClient: 'creates in the caller’s own firm; names no record',
+  createLocation: 'creates in the caller’s own firm; names no record',
+  createAct: 'creates in the caller’s own firm; names no record',
+  createCategory: 'creates in the caller’s own firm; names no record',
+  createObligation: 'creates in the caller’s own firm; names no record',
+  previewRule: 'computes due dates from the body; reads no record',
+  ...UNMOUNTED,
+};
+
+const PROBE = 'isolation probe';
+const SHA = '0'.repeat(64);
+
+/**
+ * Valid bodies for the writes that change compliance state or reach a record through the body, built from firm A's
+ * own record versions, so a write that got past the tenant check would be applied, not refused for its body. Each one
+ * is checked against the contract's schema first.
+ */
+const BODIES: Record<string, (ids: Ids) => unknown> = {
+  submitInstance: ({ v }) => ({ version: v.instances, completedOn: '2023-03-31', comment: PROBE }),
+  requestNa: ({ v }) => ({ version: v.instances, reason: PROBE }),
+  approveInstance: ({ v }) => ({ version: v.instances }),
+  sendBackInstance: ({ v }) => ({ version: v.instances, reason: PROBE }),
+  reopenInstance: ({ v }) => ({ version: v.instances, reason: PROBE }),
+  updateInstance: ({ v }) => ({ version: v.instances, dueDate: '2023-03-31', reason: PROBE }),
+  bulkApprove: ({ id, v }) => ({ items: [{ id: id.instances, version: v.instances }] }),
+  createComment: () => ({ body: PROBE }),
+  evidenceUploadUrl: () => ({ fileName: 'probe.pdf', mimeType: 'application/pdf', sizeBytes: 10 }),
+  confirmEvidence: () => ({ uploadId: UNKNOWN, fileName: 'probe.pdf', sha256: SHA }),
+  removeEvidence: () => ({ reason: PROBE }),
+  createExport: () => ({ kind: 'REGISTER_XLSX', filters: '' }),
+  createImport: () => ({ fileName: 'probe.xlsx', sizeBytes: 10 }),
+  updateClient: ({ v }) => ({ version: v.clientId, name: 'Probe Group' }),
+  archiveClient: ({ v }) => ({ version: v.clientId, reason: PROBE }),
+  restoreClient: ({ v }) => ({ version: v.clientId }),
+  archiveCompany: ({ v }) => ({ version: v.companies, reason: PROBE }),
+  archiveUnit: ({ v }) => ({ version: v.units, reason: PROBE }),
+  archiveAssignment: ({ v }) => ({ version: v.assignments, reason: PROBE }),
+  archiveMembership: ({ v }) => ({ version: v.memberships, reason: PROBE }),
+  archiveObligation: ({ v }) => ({ version: v.obligations, reason: PROBE }),
+  updatePerson: ({ v }) => ({ version: v.people, displayName: 'Probe Person' }),
+  revokeInvite: () => undefined,
+  cancelImport: () => undefined,
+  // Names firm A's person and client in the body rather than the path.
+  createInvite: ({ id }) => ({
+    personId: id.people,
+    email: 'probe@kestrel.test',
+    role: 'VIEWER',
+    clientId: id.clientId,
+    consultantClientIds: null,
+    unitIds: null,
+    expiresAt: '2099-12-31T00:00:00Z',
+  }),
+};
+
+/**
+ * The sweep calls every signed-in endpoint that names a record in its path or (BODIES) its body, and reads every
+ * firm-wide list.
+ */
+const sweepable = (name: string, e: Endpoint) =>
+  e.auth !== 'public' && (e.path.includes('{') || e.method === 'GET' || name in BODIES);
+
+/** Firm A's ids (and record versions) for every kind of record a path can name, read as firm A's own users. */
+type Ids = { id: Record<string, string>; v: Record<string, number> };
+
+async function firmAIds(): Promise<Ids> {
   const { clients, people } = seeded();
   const admin = await apiAs('consultant');
   const get = async (path: string) => {
@@ -44,31 +138,59 @@ async function firmAIds(): Promise<Record<string, string>> {
     obligationId: string;
     actId: string;
   };
-  const first = async (path: string) =>
-    ((await get(path)) as { items: { id: string }[] }).items[0]?.id ?? '';
+  type Rec = { id: string; version: number };
+  const first = async (path: string) => {
+    const item = ((await get(path)) as { items: Rec[] }).items[0];
+    if (!item) throw new Error(`firm A has no record at ${path}`);
+    return item;
+  };
   const exportJob = await admin.post(`/clients/${clients.kestrel}/exports`, {
     kind: 'REGISTER_XLSX',
     filters: FY,
   });
-  const categories = (await get('/library/categories')) as { items: { id: string }[] };
-  const ids = {
+  const invite = await admin.post('/invites', {
+    displayName: 'Invited Viewer',
+    // firmAIds runs once per test, and an email names one person in a firm.
+    email: `invited-${crypto.randomUUID().slice(0, 8)}@kestrel.test`,
+    role: 'VIEWER',
     clientId: clients.kestrel,
-    instances: instance.id,
-    exports: (exportJob.body as { id: string }).id,
-    imports: await first(`/clients/${clients.kestrel}/imports`),
+    consultantClientIds: null,
+    unitIds: null,
+    expiresAt: '2099-12-31T00:00:00Z',
+  });
+  expect(invite.status, JSON.stringify(invite.body)).toBe(201);
+  const batch = (await first(`/clients/${clients.kestrel}/imports`)) as Rec & { mapping: unknown };
+  const template = await admin.post(`/clients/${clients.kestrel}/mapping-templates`, {
+    name: `Kestrel register layout ${crypto.randomUUID().slice(0, 8)}`,
+    mapping: batch.mapping,
+    scope: 'CLIENT',
+  });
+  expect(template.status, JSON.stringify(template.body)).toBe(201);
+  const records: Record<string, Rec> = {
+    clientId: (await get(`/clients/${clients.kestrel}`)) as Rec,
+    instances: instance,
+    exports: exportJob.body as Rec,
+    invites: invite.body as Rec,
+    imports: batch,
+    'mapping-templates': template.body as Rec,
     companies: await first(`/clients/${clients.kestrel}/companies`),
     units: await first(`/clients/${clients.kestrel}/units`),
     departments: await first(`/clients/${clients.kestrel}/departments`),
     assignments: await first(`/clients/${clients.kestrel}/assignments`),
-    people: people.owner,
+    people: (
+      (await get(`/clients/${clients.kestrel}/people?limit=100`)) as { items: Rec[] }
+    ).items.find((p) => p.id === people.owner)!,
     memberships: await first(`/people/${people.owner}/memberships`),
-    acts: detail.actId,
-    obligations: detail.obligationId,
-    categories: categories.items[0]!.id,
-    evidence: await evidenceOf(instance.id),
+    acts: { id: detail.actId, version: 1 },
+    obligations: (await get(`/library/obligations/${detail.obligationId}`)) as Rec,
+    categories: await first('/library/categories'),
+    evidence: { id: await evidenceOf(instance.id), version: 1 },
   };
   await admin.dispose();
-  return ids;
+  return {
+    id: Object.fromEntries(Object.entries(records).map(([k, r]) => [k, r.id])),
+    v: Object.fromEntries(Object.entries(records).map(([k, r]) => [k, r.version])),
+  };
 }
 
 /** Uploads a small PDF to an instance as the client admin, the way the drawer will, and returns its evidence id. */
@@ -97,16 +219,14 @@ async function evidenceOf(instanceId: string): Promise<string> {
   return (confirmed.body as { id: string }).id;
 }
 
-/** The path with every parameter filled from `ids` (by the segment before it), or null when one has no id. */
-function fill(path: string, ids: Record<string, string>): string | null {
-  let missing = false;
-  const filled = path.replace(/([\w-]+)\/\{(\w+)\}/g, (_m, segment: string, param: string) => {
-    const key = param === 'clientId' ? 'clientId' : param === 'groupKey' ? 'group' : segment;
-    const id = key === 'group' ? 'RULE_LOW_CONFIDENCE-0' : ids[key];
-    if (!id) missing = true;
+/** The path with every parameter filled from `ids` (by the segment before it). Throws on a kind it has no id for. */
+function fill(path: string, ids: Record<string, string>): string {
+  return path.replace(/([\w-]+)\/\{(\w+)\}/g, (_m, segment: string, param: string) => {
+    if (param === 'groupKey') return `${segment}/RULE_LOW_CONFIDENCE-0`;
+    const id = ids[param === 'clientId' ? 'clientId' : segment];
+    if (!id) throw new Error(`no id for {${param}} in ${path}: add the record kind to firmAIds`);
     return `${segment}/${id}`;
   });
-  return missing ? null : filled;
 }
 
 const SAFE_DENIALS = [403, 404];
@@ -114,55 +234,65 @@ const UNKNOWN = '01920000-0000-7000-8000-0000000dead0';
 /** Ids no firm has, for every record kind `fill` can name. */
 const NOBODY = new Proxy({} as Record<string, string>, { get: () => UNKNOWN });
 
-async function call(api: ApiSession, method: string, path: string) {
+async function call(api: ApiSession, method: string, path: string, body: unknown = {}) {
   if (method === 'GET') return api.get(path);
   const res = await api.http.fetch(`/api/v1${path}`, {
     method,
     headers: { 'x-csrf-token': api.csrfToken, 'idempotency-key': crypto.randomUUID() },
-    data: {},
+    ...(body === undefined ? {} : { data: body }),
   });
   return { status: res.status(), body: await res.text() };
 }
 
 test.describe('tenant isolation', () => {
+  test('every endpoint is either swept or listed with a reason', () => {
+    for (const name of [...Object.keys(UNMOUNTED), ...Object.keys(BODIES)])
+      expect(ENDPOINTS, name).toHaveProperty(name);
+    for (const [name, e] of endpoints) {
+      expect(
+        sweepable(name, e) !== name in NOT_SWEPT || name in UNMOUNTED,
+        `${name} (${e.method} ${e.path}): sweep it, or list it in NOT_SWEPT with a reason`,
+      ).toBe(true);
+    }
+  });
+
   test('firm B’s admins reach none of firm A’s records through any endpoint', async () => {
     const ids = await firmAIds();
     const kestrelNames = ['Kestrel', 'Person Mike', 'challan.pdf'];
     for (const key of ['ospreyFirmAdmin', 'ospreyAdmin'] as const) {
       const api = await apiAs(key);
       for (const [name, e] of endpoints) {
-        if (e.auth === 'public' || !e.path.includes('{')) continue;
-        if (e.path.startsWith('/invites/')) continue;
-        const path = fill(e.path, ids);
-        if (path === null) continue;
-        const res = await call(api, e.method, path);
-        const label = `${key} ${e.method} ${path} (${name}) -> ${res.status}`;
-        if (e.method === 'GET') {
+        if (!sweepable(name, e) || name in UNMOUNTED) continue;
+        let res: { status: number; body: unknown };
+        let label: string;
+        if (e.method === 'GET' && !e.path.includes('{')) {
+          // A firm-wide list holds firm B's records only.
+          res = await api.get(e.path);
+          label = `${key} GET ${e.path} (${name}) -> ${res.status}`;
+          expect([200, 403], label).toContain(res.status);
+        } else if (e.method === 'GET') {
+          const path = fill(e.path, ids.id);
+          res = await api.get(path);
+          label = `${key} GET ${path} (${name}) -> ${res.status}`;
           // A record in another firm is never shown: not found, or forbidden for the role.
           expect(SAFE_DENIALS, label).toContain(res.status);
         } else {
-          // Never changed, and no existence oracle: firm A's id gets the same answer as an id nobody has (a write
-          // with an empty body may fail validation first, which is fine when it fails the same way for both).
-          expect(res.status, label).toBeGreaterThanOrEqual(400);
-          const nobody = await call(api, e.method, fill(e.path, NOBODY)!);
+          const path = fill(e.path, ids.id);
+          const build = BODIES[name];
+          const body = build ? build(ids) : {};
+          const nobodyBody = build ? build({ id: NOBODY, v: ids.v }) : {};
+          if (build && body !== undefined) e.body!.parse(body);
+          res = await call(api, e.method, path, body);
+          label = `${key} ${e.method} ${path} (${name}) -> ${res.status}`;
+          // Never changed, and no existence oracle: firm A's id gets the same answer as an id nobody has. With a
+          // valid body that answer is a denial; an empty body may fail validation first, the same way for both.
+          if (build) expect(SAFE_DENIALS, label).toContain(res.status);
+          else expect(res.status, label).toBeGreaterThanOrEqual(400);
+          const nobody = await call(api, e.method, fill(e.path, NOBODY), nobodyBody);
           expect(res.status, `${label}; unknown id -> ${nobody.status}`).toBe(nobody.status);
         }
         const text = typeof res.body === 'string' ? res.body : JSON.stringify(res.body);
-        for (const word of kestrelNames) expect(text, `${name} leaks ${word}`).not.toContain(word);
-      }
-      // Firm-wide lists hold only firm B's records.
-      for (const path of [
-        '/clients',
-        '/people',
-        '/portfolio',
-        '/library/obligations',
-        '/me/approvals',
-      ]) {
-        const res = await api.get(path);
-        if (res.status !== 200) continue;
-        const text = JSON.stringify(res.body);
-        for (const word of kestrelNames)
-          expect(text, `${key} ${path} leaks ${word}`).not.toContain(word);
+        for (const word of kestrelNames) expect(text, `${label} leaks ${word}`).not.toContain(word);
       }
       await api.dispose();
     }
@@ -194,8 +324,10 @@ test.describe('tenant isolation', () => {
           [owner],
         );
         return res.rows[0].n as number;
-      } catch {
-        return 0;
+      } catch (error) {
+        // With no tenant set, a policy may refuse outright instead of filtering: that is the only error allowed.
+        if (as === null && NO_TENANT.test(String(error))) return 0;
+        throw error;
       } finally {
         await client.query('ROLLBACK');
       }
@@ -231,11 +363,16 @@ test.describe('sessions', () => {
     const ids = await firmAIds();
     const anon = await anonymousApi();
     for (const [name, e] of endpoints) {
-      if (e.auth === 'public') continue;
-      const path = fill(e.path, ids) ?? e.path;
+      const path = fill(e.path, name in UNMOUNTED ? NOBODY : ids.id);
       const res = await call(anon, e.method, path);
-      // GETs: 401. Writes: 403 (no session means no CSRF match) or 401.
-      expect([401, 403], `${e.method} ${path} (${name}) -> ${res.status}`).toContain(res.status);
+      const label = `${e.method} ${path} (${name}) -> ${res.status}`;
+      if (name in UNMOUNTED) {
+        // Not served yet: no route at all. Anything else means it shipped; take it off UNMOUNTED.
+        expect(res.status, `${label}: now served, remove it from UNMOUNTED`).toBe(404);
+      } else if (e.auth !== 'public') {
+        // GETs: 401. Writes: 403 (no session means no CSRF match) or 401.
+        expect([401, 403], label).toContain(res.status);
+      }
     }
     await anon.dispose();
   });

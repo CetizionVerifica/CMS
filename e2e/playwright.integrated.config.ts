@@ -32,6 +32,7 @@ export default defineConfig({
   use: {
     baseURL: WEB_URL,
     trace: 'retain-on-failure',
+    contextOptions: { reducedMotion: 'reduce' },
     // A machine whose Chromium isn't the one this Playwright downloads can point at its own.
     ...(process.env.PLAYWRIGHT_CHROMIUM_PATH && {
       launchOptions: { executablePath: process.env.PLAYWRIGHT_CHROMIUM_PATH },
