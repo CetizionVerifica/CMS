@@ -35,8 +35,8 @@ export interface Wiring {
  * database login, `OPERATOR_DATABASE_URL`, a member of canopy_operator only (ADR M3-0002), never DATABASE_URL.
  * `PLATFORM_IP_ALLOWLIST` (addresses or CIDRs) answers 404 to every other address, and production needs one (ADR
  * M15-0003 decision 10). `APP_URL`, the customer app's origin, is where support sessions open (decision 7). Anything
- * but "true" or "false" for PLATFORM_ENABLED fails the boot, as does a missing or reused login, a missing APP_URL, or
- * no allowlist with NODE_ENV=production.
+ * but "true" or "false" for PLATFORM_ENABLED fails the boot, as does a missing login or DATABASE_URL's user, a missing
+ * APP_URL, or, with NODE_ENV=production, no allowlist or an http APP_URL.
  */
 function platformFromEnv(env: NodeJS.ProcessEnv, secrets: SecretBox): PlatformOptions | null {
   const enabled = env.PLATFORM_ENABLED?.trim() ?? '';
@@ -50,8 +50,8 @@ function platformFromEnv(env: NodeJS.ProcessEnv, secrets: SecretBox): PlatformOp
       'OPERATOR_DATABASE_URL is required with PLATFORM_ENABLED=true: the console login, a member of canopy_operator only',
     );
   }
-  if (connectionString === env.DATABASE_URL) {
-    throw new Error('OPERATOR_DATABASE_URL must be its own login, not DATABASE_URL');
+  if (env.DATABASE_URL && loginOf(connectionString) === loginOf(env.DATABASE_URL)) {
+    throw new Error('OPERATOR_DATABASE_URL must be its own login, not the user of DATABASE_URL');
   }
   const allowlist = ipAllowlistFromEnv(env.PLATFORM_IP_ALLOWLIST);
   if (!allowlist && env.NODE_ENV === 'production') {
@@ -59,11 +59,21 @@ function platformFromEnv(env: NodeJS.ProcessEnv, secrets: SecretBox): PlatformOp
       'PLATFORM_IP_ALLOWLIST is required with PLATFORM_ENABLED=true in production: the addresses or CIDRs the operator signs in from',
     );
   }
-  const appUrl = appOrigin(env.APP_URL);
+  const appUrl = appOrigin(env.APP_URL, env.NODE_ENV === 'production');
   return { db: createOperatorDatabase({ connectionString }), secrets, allowlist, appUrl };
 }
 
-function appOrigin(value: string | undefined): string {
+/** The user a Postgres URL signs in as; the whole string when it is not a URL, so two equal strings still match. */
+function loginOf(connectionString: string): string {
+  try {
+    return decodeURIComponent(new URL(connectionString).username);
+  } catch {
+    return connectionString;
+  }
+}
+
+/** The customer app's origin. Production needs https: support session tokens are sent there. */
+function appOrigin(value: string | undefined, production: boolean): string {
   let url: URL | undefined;
   try {
     url = value ? new URL(value) : undefined;
@@ -74,6 +84,9 @@ function appOrigin(value: string | undefined): string {
     throw new Error(
       'APP_URL is required with PLATFORM_ENABLED=true: the customer app origin, for example https://app.example.com',
     );
+  }
+  if (production && url.protocol !== 'https:') {
+    throw new Error('APP_URL must use https in production: support session tokens are sent to it');
   }
   return url.origin;
 }
