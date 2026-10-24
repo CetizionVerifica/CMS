@@ -7,7 +7,8 @@ import pg from 'pg';
 import { z } from 'zod';
 import { lookups, type AuthLookups } from './auth-lookups.js';
 import * as schema from './schema/index.js';
-import { tenantSettings, type TenantContext } from './tenant-context.js';
+import { DbError } from './errors.js';
+import { systemContext, tenantSettings, type TenantContext } from './tenant-context.js';
 
 export type Schema = typeof schema;
 type Db = NodePgDatabase<Schema>;
@@ -21,6 +22,14 @@ declare const tenantBrand: unique symbol;
  */
 export type TenantTx = Transaction & { readonly [tenantBrand]: true };
 
+declare const operatorBrand: unique symbol;
+
+/**
+ * A transaction running as `canopy_operator` with no tenant context (ADR M15-0001 decision 8): the platform
+ * tables, the account columns of `firm`, and the `platform_*` functions. Client data is out of reach.
+ */
+export type OperatorTx = Transaction & { readonly [operatorBrand]: true };
+
 /**
  * Runs `fn` in a savepoint of `tx`: if it throws, only its changes roll back and the error is rethrown,
  * so the outer transaction can go on (bulk approve: one savepoint per item, then one summary event).
@@ -32,6 +41,10 @@ export function withSavepoint<T>(tx: TenantTx, fn: (tx: TenantTx) => Promise<T>)
 
 /** The role every tenant transaction switches to (migration 0000). It has no BYPASSRLS. */
 export const APP_ROLE = 'canopy_app';
+/** The operator console's role (ADR M15-0001 decision 8): platform tables, firm rows, no client data. */
+export const OPERATOR_ROLE = 'canopy_operator';
+/** Owner of the SECURITY DEFINER functions that write across the tenant wall for the operator. */
+const PLATFORM_ROLE = 'canopy_platform';
 
 /** Owner of the SECURITY DEFINER pre-tenant lookups (migration 0007); no request login may become it. */
 const LOOKUP_ROLE = 'canopy_lookup';
@@ -96,7 +109,7 @@ function createPool(options: DatabaseOptions): pg.Pool {
  * role the login can become (pg_has_role MEMBER includes itself), since SET ROLE inside withTenant
  * could reach any of them.
  */
-async function privilegedReason(db: Db): Promise<string | null> {
+async function privilegedReason(db: Db, serving: 'tenant' | 'operator'): Promise<string | null> {
   const { rows } = await db.execute<{
     name: string;
     self: boolean;
@@ -108,7 +121,7 @@ async function privilegedReason(db: Db): Promise<string | null> {
            r.rolsuper AS superuser, r.rolbypassrls AS bypassrls,
            EXISTS (SELECT 1 FROM pg_catalog.pg_class c
                    JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
-                   WHERE n.nspname = 'public' AND c.relowner = r.oid) AS owner
+                   WHERE n.nspname IN ('public', 'platform') AND c.relowner = r.oid) AS owner
     FROM pg_catalog.pg_roles r
     WHERE pg_catalog.pg_has_role(session_user, r.oid, 'MEMBER')
     ORDER BY r.rolname = session_user DESC, r.rolname`);
@@ -117,10 +130,16 @@ async function privilegedReason(db: Db): Promise<string | null> {
     const who = role.self ? 'the login' : `the login is a member of ${role.name}, which`;
     if (role.superuser) return `${who} is a superuser`;
     if (role.bypassrls) return `${who} has BYPASSRLS`;
-    if (role.owner) return `${who} owns tables in schema public`;
+    if (role.owner) return `${who} owns tables`;
     // Owns the pre-tenant lookups, which read across firms (migrations 0007, 0012).
     if (role.name === LOOKUP_ROLE)
       return role.self ? 'the login is canopy_lookup' : `${who} reads across firms`;
+    // Owns the cross-wall account functions (migration 0020, ADR M15-0001 decision 8).
+    if (role.name === PLATFORM_ROLE)
+      return role.self ? 'the login is canopy_platform' : `${who} writes across firms`;
+    // The operator reads every firm row; a tenant login that could RESET ROLE into it would too.
+    if (serving === 'tenant' && role.name === OPERATOR_ROLE)
+      return role.self ? 'the login is canopy_operator' : `${who} reads every account`;
   }
   return null;
 }
@@ -132,7 +151,7 @@ export function createDatabase(options: DatabaseOptions): Database {
     options.privilegedLogin ?? (process.env.NODE_ENV === 'production' ? 'refuse' : 'allow');
   let loginChecked: Promise<void> | null = null;
   const checkLogin = () => {
-    loginChecked ??= privilegedReason(db).then((reason) => {
+    loginChecked ??= privilegedReason(db, 'tenant').then((reason) => {
       if (reason) {
         loginChecked = null;
         throw new Error(
@@ -175,6 +194,87 @@ export function createDatabase(options: DatabaseOptions): Database {
   };
 }
 
+/** The operator console's connection (ADR M15-0001 decision 8). Its login is not the tenant login. */
+export interface OperatorDatabase {
+  /**
+   * Runs `fn` in one transaction as `canopy_operator`, with every tenant setting empty, so tenant policies match
+   * nothing and only the operator's own policies and the `platform_*` functions apply.
+   */
+  withOperator<T>(requestId: string, fn: (tx: OperatorTx) => Promise<T>): Promise<T>;
+  /**
+   * Inside `withOperator`, runs `fn` as the app role in `systemContext(accountId)` for an account that is still
+   * PROVISIONING, then switches back (ADR M15-0001 decision 8: the master library copy at provisioning). It is the one
+   * place operator code acts inside a tenant without a function of its own. FORBIDDEN for any other account.
+   */
+  withNewAccount<T>(
+    tx: OperatorTx,
+    accountId: string,
+    fn: (tenant: TenantTx) => Promise<T>,
+  ): Promise<T>;
+  close(): Promise<void>;
+}
+
+const RequestId = z.string().min(1).max(200);
+
+export function createOperatorDatabase(options: DatabaseOptions): OperatorDatabase {
+  const pool = createPool(options);
+  const db = drizzle(pool, { schema });
+  const policy =
+    options.privilegedLogin ?? (process.env.NODE_ENV === 'production' ? 'refuse' : 'allow');
+  let loginChecked: Promise<void> | null = null;
+  const checkLogin = () => {
+    loginChecked ??= privilegedReason(db, 'operator').then((reason) => {
+      if (reason) {
+        loginChecked = null;
+        throw new Error(
+          `Refusing operator connections: ${reason}. Connect as a non-owner member of ${OPERATOR_ROLE}.`,
+        );
+      }
+    });
+    return loginChecked;
+  };
+  return {
+    async withOperator(requestId, fn) {
+      const id = RequestId.parse(requestId);
+      if (policy === 'refuse') await checkLogin();
+      return db.transaction(async (tx) => {
+        await tx.execute(sql.raw(`SET LOCAL ROLE ${OPERATOR_ROLE}`));
+        await tx.execute(sql`
+          SELECT set_config('app.firm_id', '', true), set_config('app.person_id', '', true),
+                 set_config('app.client_ids', '', true), set_config('app.all_clients', '', true),
+                 set_config('app.firm_staff', '', true), set_config('app.request_id', ${id}, true)`);
+        return fn(tx as OperatorTx);
+      });
+    },
+    async withNewAccount(tx, accountId, fn) {
+      const id = Id.parse(accountId);
+      const { rows } = await tx.execute<{ status: string; request_id: string }>(
+        sql`SELECT status, current_setting('app.request_id') AS request_id FROM firm WHERE id = ${id}`,
+      );
+      if (rows[0]?.status !== 'PROVISIONING') {
+        throw new DbError('FORBIDDEN', 'Only an account being provisioned can be entered');
+      }
+      const settings = tenantSettings(systemContext(id, rows[0].request_id));
+      await tx.execute(sql.raw(`SET LOCAL ROLE ${APP_ROLE}`));
+      await tx.execute(sql`
+        SELECT set_config('app.firm_id', ${settings['app.firm_id']}, true),
+               set_config('app.person_id', ${settings['app.person_id']}, true),
+               set_config('app.client_ids', ${settings['app.client_ids']}, true),
+               set_config('app.all_clients', ${settings['app.all_clients']}, true),
+               set_config('app.firm_staff', ${settings['app.firm_staff']}, true)`);
+      // On a throw the transaction rolls back, role and settings with it.
+      const result = await fn(tx as unknown as TenantTx);
+      await tx.execute(sql.raw(`SET LOCAL ROLE ${OPERATOR_ROLE}`));
+      await tx.execute(sql`
+        SELECT set_config('app.firm_id', '', true), set_config('app.person_id', '', true),
+               set_config('app.client_ids', '', true), set_config('app.all_clients', '', true),
+               set_config('app.firm_staff', '', true)`);
+      return result;
+    },
+    close: () => pool.end(),
+  };
+}
+
 const NewFirm = z.strictObject({
   id: Id.optional(),
   name: Name,
@@ -210,7 +310,10 @@ export function createAdminDatabase(options: DatabaseOptions): AdminDatabase {
           (await tx.execute<{ id: string }>(sql`SELECT canopy_uuid_v7() AS id`)).rows[0]!.id;
         // The firm policy (id = app_firm_id()) binds the owner too, so act as the new firm.
         await tx.execute(sql`SELECT set_config('app.firm_id', ${id}, true)`);
-        await tx.insert(schema.firm).values({ id, name: firm.name, settings: firm.settings });
+        // Name the columns: a migrations test creates firms before the account columns exist.
+        await tx.execute(
+          sql`INSERT INTO firm (id, name, settings) VALUES (${id}, ${firm.name}, ${JSON.stringify(firm.settings)}::jsonb)`,
+        );
         return id;
       });
     },

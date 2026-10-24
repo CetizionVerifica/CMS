@@ -175,7 +175,7 @@ export const credentials = {
   },
 };
 
-export const SessionMethod = z.enum(['PASSWORD', 'MAGIC_LINK', 'INVITE']);
+export const SessionMethod = z.enum(['PASSWORD', 'MAGIC_LINK', 'INVITE', 'SUPPORT']);
 export type SessionMethod = z.infer<typeof SessionMethod>;
 
 export const NewSession = z
@@ -191,6 +191,12 @@ export const NewSession = z
      * database clock is used, and `expiresAt` must then be after the database's now.
      */
     createdAt: Instant.optional(),
+    /** A PlanetPulse support session's grant (ADR M15-0001 decision 11); set exactly when `method` is SUPPORT. */
+    supportGrantId: Id.optional(),
+  })
+  .refine((n) => (n.method === 'SUPPORT') === (n.supportGrantId !== undefined), {
+    message: 'A SUPPORT session carries its grant id; no other session does',
+    path: ['supportGrantId'],
   })
   .refine((n) => n.createdAt === undefined || Date.parse(n.expiresAt) > Date.parse(n.createdAt), {
     message: 'A session expires after it is created',

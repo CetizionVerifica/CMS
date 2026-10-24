@@ -60,3 +60,18 @@ export {
   sessions,
 } from './auth.js';
 export type { Credential, Invite, PersonChange, StoredSession } from './auth.js';
+export {
+  account,
+  AccountChange,
+  AccountEvent,
+  accountIdsWithStatus,
+  AccountRecord,
+  AccountUsage,
+  IssueSupportToken,
+  NewAccount,
+  platformAccounts,
+  platformSupport,
+  SUPPORT_PERSON,
+  SupportGrantRequest,
+  supportGrants,
+} from './accounts.js';

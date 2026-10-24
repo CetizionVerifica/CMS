@@ -15,6 +15,7 @@ import {
 } from 'drizzle-orm/pg-core';
 import { firmIdColumn, idColumn, instant } from './columns.js';
 import { roleEnum } from './enums.js';
+import { supportGrant } from './support.js';
 import { client, person } from './tenancy.js';
 
 /**
@@ -95,6 +96,8 @@ export const authSession = pgTable(
     mfaSatisfied: boolean('mfa_satisfied').notNull().default(false),
     /** How the person signed in. */
     method: text('method').notNull(),
+    /** SUPPORT sessions: the grant they run under; revoking the grant revokes them (ADR M15-0001 decision 11). */
+    supportGrantId: uuid('support_grant_id'),
     createdAt: instant('created_at').notNull().defaultNow(),
     lastSeenAt: instant('last_seen_at').notNull().defaultNow(),
     expiresAt: instant('expires_at').notNull(),
@@ -110,7 +113,15 @@ export const authSession = pgTable(
     index('auth_session_person_idx').on(t.personId),
     check('auth_session_token_hash_check', sha256Hex('token_hash')),
     check('auth_session_csrf_check', sql`length(csrf_token) >= 32`),
-    check('auth_session_method_check', sql`method in ('PASSWORD', 'MAGIC_LINK', 'INVITE')`),
+    foreignKey({
+      name: 'auth_session_support_grant_fk',
+      columns: [t.firmId, t.supportGrantId],
+      foreignColumns: [supportGrant.firmId, supportGrant.id],
+    }),
+    check(
+      'auth_session_method_check',
+      sql`(method in ('PASSWORD', 'MAGIC_LINK', 'INVITE') and support_grant_id is null) or (method = 'SUPPORT' and support_grant_id is not null)`,
+    ),
     check('auth_session_expiry_check', sql`expires_at > created_at`),
     ...selfOrStaffPolicies(),
   ],
@@ -194,6 +205,8 @@ export const authToken = pgTable(
     personId: uuid('person_id').notNull(),
     kind: text('kind').notNull(),
     inviteId: uuid('invite_id'),
+    /** SUPPORT tokens: the one-time link the operator console opens the app with. */
+    supportGrantId: uuid('support_grant_id'),
     tokenHash: text('token_hash').notNull(),
     createdAt: instant('created_at').notNull().defaultNow(),
     expiresAt: instant('expires_at').notNull(),
@@ -211,13 +224,18 @@ export const authToken = pgTable(
       columns: [t.firmId, t.inviteId, t.personId],
       foreignColumns: [authInvite.firmId, authInvite.id, authInvite.personId],
     }),
+    foreignKey({
+      name: 'auth_token_support_grant_fk',
+      columns: [t.firmId, t.supportGrantId],
+      foreignColumns: [supportGrant.firmId, supportGrant.id],
+    }),
     uniqueIndex('auth_token_hash_key').on(t.tokenHash),
     index('auth_token_person_idx').on(t.personId),
     index('auth_token_invite_idx').on(t.inviteId),
     check('auth_token_hash_check', sha256Hex('token_hash')),
     check(
       'auth_token_kind_check',
-      sql`(kind = 'MAGIC_LINK' and invite_id is null) or (kind = 'INVITE' and invite_id is not null)`,
+      sql`(kind = 'MAGIC_LINK' and invite_id is null and support_grant_id is null) or (kind = 'INVITE' and invite_id is not null and support_grant_id is null) or (kind = 'SUPPORT' and invite_id is null and support_grant_id is not null)`,
     ),
     // Tokens of an invite are visible wherever the invite is (the subquery runs under auth_invite's RLS).
     ...selfOrStaffPolicies(

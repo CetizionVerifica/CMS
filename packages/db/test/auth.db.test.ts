@@ -139,6 +139,7 @@ describe('login candidates', () => {
         status: 'ACTIVE',
         passwordHash: 'scrypt$32768$8$1$salt$member',
         lockedUntil: null,
+        accountStatus: 'ACTIVE',
       },
       {
         firmId: firmB,
@@ -147,6 +148,7 @@ describe('login candidates', () => {
         status: 'INVITED',
         passwordHash: null,
         lockedUntil: null,
+        accountStatus: 'ACTIVE',
       },
     ]);
     expect((await t.db.findLoginCandidates('gone@example.com')).map((c) => c.status)).toEqual([
@@ -363,7 +365,11 @@ describe('sessions', () => {
       mfaSatisfied: false,
       expiresAt: SESSION_EXPIRY,
     });
-    expect(await t.db.findSession(tokenHash)).toEqual(session);
+    expect(await t.db.findSession(tokenHash)).toEqual({
+      ...session,
+      accountStatus: 'ACTIVE',
+      supportGrantId: null,
+    });
     expect(await as(asClientUser(memberId), (tx) => r.sessions.markMfa(tx, session.id))).toBe(true);
     expect((await t.db.findSession(tokenHash))?.mfaSatisfied).toBe(true);
     await inA((tx) => r.sessions.touch(tx, session.id, NOW));

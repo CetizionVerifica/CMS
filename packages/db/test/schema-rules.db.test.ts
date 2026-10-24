@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createTestDatabase, type TestDatabase } from './support/database.js';
-import { TABLES } from './support/tables.js';
+import { PLATFORM_TABLES, TABLES } from './support/tables.js';
 
 /**
  * Catalogue checks that hold for every table, present and future: a table added without `firm_id`,
@@ -47,7 +47,7 @@ describe('every table', () => {
       check: string | null;
     }>(`
       SELECT tablename AS table, cmd, qual, with_check AS check FROM pg_policies
-      WHERE schemaname = 'public' AND roles <> '{canopy_lookup}'`);
+      WHERE schemaname = 'public' AND roles NOT IN ('{canopy_lookup}', '{canopy_operator}')`);
     for (const { name } of TABLES) {
       const policies = rows.filter((p) => p.table === name);
       const commands = new Set(policies.map((p) => p.cmd));
@@ -115,7 +115,8 @@ describe('every table', () => {
     const fks = await t.ownerQuery<{ table: string }>(`
       SELECT DISTINCT tc.table_name AS table FROM information_schema.table_constraints tc
       JOIN information_schema.constraint_column_usage cu ON cu.constraint_name = tc.constraint_name
-      WHERE tc.constraint_type = 'FOREIGN KEY' AND cu.table_name = 'firm' AND cu.column_name = 'id'`);
+      WHERE tc.constraint_type = 'FOREIGN KEY' AND tc.table_schema = 'public'
+        AND cu.table_name = 'firm' AND cu.column_name = 'id'`);
     expect(fks.rows.map((r) => r.table).sort()).toEqual(
       TABLES.map((x) => x.name).filter((n) => n !== 'firm'),
     );
@@ -144,7 +145,13 @@ describe('every table', () => {
       .filter((r) => r.table === 'firm')
       .map((r) => r.privilege)
       .sort();
-    expect(firm).toEqual(['SELECT', 'UPDATE']);
+    expect(firm).toEqual(['SELECT']);
+    // An account admin renames the firm and edits its settings, never its status or plan (ADR M15-0001 decision 8).
+    const columns = await t.ownerQuery<{ column: string }>(`
+      SELECT column_name AS column FROM information_schema.column_privileges
+      WHERE grantee = 'canopy_app' AND table_schema = 'public' AND table_name = 'firm'
+        AND privilege_type = 'UPDATE' ORDER BY column_name`);
+    expect(columns.rows.map((r) => r.column)).toEqual(['name', 'settings', 'version']);
     for (const { name } of TABLES.filter((x) => !['audit_event', 'firm'].includes(x.name))) {
       const granted = rows
         .filter((r) => r.table === name)
@@ -176,11 +183,146 @@ describe('every table', () => {
   it('stores due dates and periods as date, event times as timestamptz', async () => {
     const { rows } = await t.ownerQuery<{ table: string; column: string; type: string }>(`
       SELECT table_name AS table, column_name AS column, data_type AS type FROM information_schema.columns
-      WHERE table_schema = 'public'
-        AND column_name ~ '(_date|_on|_at)$|^at$|^period_|^active_'`);
+      WHERE table_schema IN ('public', 'platform')
+        AND column_name ~ '(_date|_on|_at)$|^at$|^period_|^active_'
+        AND NOT (table_schema = 'platform' AND column_name = 'active_users_30d')`);
     for (const r of rows) {
       const expected = /(_at|^at)$/.test(r.column) ? 'timestamp with time zone' : 'date';
       expect(`${r.table}.${r.column}: ${r.type}`).toBe(`${r.table}.${r.column}: ${expected}`);
+    }
+  });
+});
+
+/** The operator side (ADR M15-0001 decisions 2, 8 and 12). */
+describe('platform schema and operator roles', () => {
+  async function tableGrants(role: string, schema: string) {
+    const { rows } = await t.ownerQuery<{ table: string; privilege: string }>(
+      `SELECT table_name AS table, privilege_type AS privilege FROM information_schema.role_table_grants
+       WHERE grantee = $1 AND table_schema = $2 ORDER BY 1, 2`,
+      [role, schema],
+    );
+    const out: Record<string, string[]> = {};
+    for (const r of rows) (out[r.table] ??= []).push(r.privilege);
+    return out;
+  }
+
+  it('declares every platform table in Drizzle, and the other way round', async () => {
+    const { rows } = await t.ownerQuery<{ name: string }>(`
+      SELECT c.relname AS name FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+      WHERE n.nspname = 'platform' AND c.relkind IN ('r', 'p') ORDER BY c.relname`);
+    expect(rows.map((r) => r.name)).toEqual(PLATFORM_TABLES.map((x) => x.name));
+  });
+
+  it('keeps the app role out of schema platform', async () => {
+    const { rows } = await t.ownerQuery(
+      `SELECT has_schema_privilege('canopy_app', 'platform', 'USAGE') AS usage`,
+    );
+    expect(rows).toEqual([{ usage: false }]);
+    expect(await tableGrants('canopy_app', 'platform')).toEqual({});
+  });
+
+  it('gives canopy_operator the platform tables, append-only audit, and no client tables', async () => {
+    const platform = await tableGrants('canopy_operator', 'platform');
+    for (const { name } of PLATFORM_TABLES) {
+      expect(platform[name], name).toEqual(
+        name === 'operator_audit_event' ? ['INSERT', 'SELECT'] : ['INSERT', 'SELECT', 'UPDATE'],
+      );
+    }
+    expect(await tableGrants('canopy_operator', 'public')).toEqual({ firm: ['SELECT'] });
+    const columns = await t.ownerQuery<{ table: string; column: string; privilege: string }>(`
+      SELECT table_name AS table, column_name AS column, privilege_type AS privilege
+      FROM information_schema.column_privileges
+      WHERE grantee = 'canopy_operator' AND table_schema = 'public' AND table_name <> 'firm'
+      ORDER BY 1, 3, 2`);
+    expect(columns.rows).toEqual(
+      ['ends_at', 'firm_id', 'id', 'level', 'revoked_at', 'starts_at'].map((column) => ({
+        table: 'support_grant',
+        column,
+        privilege: 'SELECT',
+      })),
+    );
+    const updates = await t.ownerQuery<{ column: string }>(`
+      SELECT column_name AS column FROM information_schema.column_privileges
+      WHERE grantee = 'canopy_operator' AND table_name = 'firm' AND privilege_type = 'UPDATE'
+      ORDER BY 1`);
+    expect(updates.rows.map((r) => r.column)).toEqual([
+      'deletion_requested_at',
+      'name',
+      'onboarded_at',
+      'plan_code',
+      'profile',
+      'status',
+      'status_before_deletion',
+      'trial_ends_on',
+      'version',
+    ]);
+  });
+
+  it('gives canopy_operator its own policies on firm and support_grant only, never DELETED firms to update', async () => {
+    const { rows } = await t.ownerQuery<{ table: string; cmd: string; qual: string | null }>(`
+      SELECT tablename AS table, cmd, qual FROM pg_policies
+      WHERE 'canopy_operator' = ANY (roles) ORDER BY 1, 2`);
+    expect(rows.map((r) => `${r.table} ${r.cmd}`)).toEqual([
+      'firm SELECT',
+      'firm UPDATE',
+      'support_grant SELECT',
+    ]);
+    expect(rows.find((r) => r.cmd === 'UPDATE')?.qual).toContain('DELETED');
+  });
+
+  it('makes canopy_operator and canopy_platform plain roles outside the app role', async () => {
+    const { rows } = await t.ownerQuery(`
+      SELECT rolname, rolsuper, rolbypassrls, rolcanlogin,
+             pg_has_role('canopy_app', oid, 'MEMBER') AS app_member,
+             has_schema_privilege(oid, 'public', 'CREATE') AS can_create
+      FROM pg_roles WHERE rolname IN ('canopy_operator', 'canopy_platform') ORDER BY rolname`);
+    expect(rows).toEqual(
+      ['canopy_operator', 'canopy_platform'].map((rolname) => ({
+        rolname,
+        rolsuper: false,
+        rolbypassrls: false,
+        rolcanlogin: false,
+        app_member: false,
+        can_create: false,
+      })),
+    );
+    const operatorIsPlatform = await t.ownerQuery(
+      `SELECT pg_has_role('canopy_operator', 'canopy_platform', 'MEMBER') AS m`,
+    );
+    expect(operatorIsPlatform.rows).toEqual([{ m: false }]);
+  });
+
+  it('runs every cross-wall write as a canopy_platform definer function the operator alone may call', async () => {
+    const { rows } = await t.ownerQuery<{
+      name: string;
+      definer: boolean;
+      config: string[] | null;
+      operator: boolean;
+      app: boolean;
+    }>(`
+      SELECT p.proname AS name, p.prosecdef AS definer, p.proconfig AS config,
+             has_function_privilege('canopy_operator', p.oid, 'EXECUTE') AS operator,
+             has_function_privilege('canopy_app', p.oid, 'EXECUTE') AS app
+      FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+      WHERE n.nspname = 'public' AND pg_get_userbyid(p.proowner) = 'canopy_platform'
+      ORDER BY p.proname`);
+    expect(rows.map((r) => r.name)).toEqual([
+      'app_account',
+      'app_usage',
+      'platform_account_owner',
+      'platform_create_account',
+      'platform_issue_support_token',
+      'platform_provision_account',
+      'platform_record_account_event',
+      'platform_usage',
+    ]);
+    for (const f of rows) {
+      expect(f.definer, f.name).toBe(true);
+      expect(f.config, f.name).toContain('search_path=public, pg_temp');
+      // app_* are the app's own reads of its account; every platform_* is the operator's.
+      expect({ operator: f.operator, app: f.app }, f.name).toEqual(
+        f.name.startsWith('app_') ? { operator: false, app: true } : { operator: true, app: false },
+      );
     }
   });
 });

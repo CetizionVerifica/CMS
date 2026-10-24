@@ -4,13 +4,17 @@ export * as schema from './schema/index.js';
 export {
   APP_ROLE,
   MIGRATIONS_FOLDER,
+  OPERATOR_ROLE,
   createAdminDatabase,
   createDatabase,
+  createOperatorDatabase,
   withSavepoint,
   type AdminDatabase,
   type Database,
   type DatabaseOptions,
   type NewFirm,
+  type OperatorDatabase,
+  type OperatorTx,
   type Schema,
   type TenantTx,
 } from './database.js';
@@ -28,6 +32,7 @@ export {
   LoginTokenKind,
   LoginTokenLookup,
   SessionLookup,
+  SupportTokenLookup,
   TokenHash,
   type AuthLookups,
 } from './auth-lookups.js';
