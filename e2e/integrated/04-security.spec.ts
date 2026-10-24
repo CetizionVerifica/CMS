@@ -42,7 +42,6 @@ const UNMOUNTED: Record<string, string> = {
   listSupportGrants: 'M15 account routes: contracts 1.5.0 (#127), API not built yet',
   createSupportGrant: 'M15 account routes: contracts 1.5.0 (#127), API not built yet',
   revokeSupportGrant: 'M15 account routes: contracts 1.5.0 (#127), API not built yet',
-  verifySupportSession: 'M15 account routes: contracts 1.5.0 (#127), API not built yet',
 };
 
 /**
@@ -55,6 +54,7 @@ const NOT_SWEPT: Record<string, string> = {
   verifyMagicLink: 'public, takes a secret token, not an id',
   getInvite: 'public, takes a secret token, not an id',
   acceptInvite: 'public, takes a secret token, not an id',
+  verifySupportSession: 'public, takes a secret token, not an id',
   logout: 'acts on the caller’s own session',
   enrollMfa: 'acts on the caller’s own session',
   verifyMfa: 'acts on the caller’s own session',
@@ -307,6 +307,14 @@ test.describe('tenant isolation', () => {
       'SELECT rolsuper, rolbypassrls FROM pg_roles WHERE rolname = current_user',
     );
     expect(role.rows[0]).toEqual({ rolsuper: false, rolbypassrls: false });
+    // pg-boss's rows carry every firm's ids and have no RLS, so from migration 0023 (ADR M3-0004) the tenant login
+    // cannot reach them at all.
+    const jobsRole = await client.query(`SELECT 1 FROM pg_roles WHERE rolname = 'canopy_jobs'`);
+    if (jobsRole.rowCount) {
+      await expect(client.query('SELECT count(*) FROM pgboss.job')).rejects.toMatchObject({
+        code: '42501',
+      });
+    }
     /** Rows of `table` belonging to `owner`, as seen in a transaction set to `as` (or to no tenant). */
     const rowsOf = async (as: string | null, table: string, owner: string) => {
       await client.query('BEGIN');

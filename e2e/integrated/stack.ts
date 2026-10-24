@@ -13,6 +13,9 @@ export const WEB_URL = `http://localhost:${WEB_PORT}`;
 export const E2E_DATABASE = 'canopy_e2e';
 export const APP_LOGIN = 'canopy_e2e_app';
 export const APP_PASSWORD = 'e2e-app-login';
+/** pg-boss's own login (JOBS_DATABASE_URL, ADR M9-0001 decision 16): a member of canopy_jobs, never the app login. */
+export const JOBS_LOGIN = 'canopy_e2e_jobs';
+export const JOBS_PASSWORD = 'e2e-jobs-login';
 
 /** Test-only key: 32 bytes of 9. */
 export const AUTH_SECRET_KEY = Buffer.alloc(32, 9).toString('base64');
