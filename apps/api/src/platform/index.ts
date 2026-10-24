@@ -13,6 +13,7 @@ import { OPERATOR_PREFIX } from './session.js';
 
 export { ipAllowlistFromEnv, type IpAllowlist } from './allowlist.js';
 export { addOperator, type AddedOperator } from './db-operators.js';
+export { registerCustomerAccountRoutes, type CustomerAccountDeps } from './db-customer.js';
 export { OPERATOR_COOKIE, OPERATOR_PREFIX } from './session.js';
 
 export interface PlatformOptions {
