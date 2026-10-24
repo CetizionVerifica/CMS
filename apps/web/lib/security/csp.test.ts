@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { contentSecurityPolicy, newNonce } from './csp';
+import { connectOrigins, contentSecurityPolicy, newNonce } from './csp';
 
 const directive = (policy: string, name: string) =>
   policy
@@ -34,6 +34,38 @@ describe('content security policy', () => {
     expect(directive(policy, 'connect-src')).toBe(
       "'self' https://files.example.test https://other.example.test",
     );
+  });
+
+  it('keeps only bare https origins, so a bad value can neither allow http nor add a directive', () => {
+    const value =
+      'https://files.example.test/ http://files.example.test https://x.test; script-src * ' +
+      'https://a.test/path https://user:pw@b.test https://c.test:8443 * javascript:alert(1)';
+    expect(connectOrigins(value)).toEqual({
+      origins: ['https://files.example.test/', 'https://c.test:8443'],
+      rejected: [
+        'http://files.example.test',
+        'https://x.test;',
+        'script-src',
+        '*',
+        'https://a.test/path',
+        'https://user:pw@b.test',
+        '*',
+        'javascript:alert(1)',
+      ],
+    });
+    const policy = contentSecurityPolicy({ nonce: 'n', connectSrc: value });
+    expect(directive(policy, 'connect-src')).toBe(
+      "'self' https://files.example.test/ https://c.test:8443",
+    );
+    expect(policy.match(/script-src/g)).toHaveLength(1);
+  });
+
+  it('allows a local http storage origin under next dev only', () => {
+    expect(connectOrigins('http://localhost:8333', true).origins).toEqual([
+      'http://localhost:8333',
+    ]);
+    expect(connectOrigins('http://localhost:8333').origins).toEqual([]);
+    expect(connectOrigins(undefined)).toEqual({ origins: [], rejected: [] });
   });
 
   it('makes a different 128-bit nonce each time', () => {
