@@ -8,6 +8,14 @@ export const API_PORT = 4100;
 export const WEB_PORT = 3100;
 export const API_URL = `http://localhost:${API_PORT}`;
 export const WEB_URL = `http://localhost:${WEB_PORT}`;
+/** The operator console (apps/operator, M15), beside its own dev port 3200. */
+export const CONSOLE_PORT = 3300;
+export const CONSOLE_URL = `http://localhost:${CONSOLE_PORT}`;
+/**
+ * The customer app's origin as the API's `APP_URL`: production needs https, so support-session links point here and
+ * the accounts journey opens their path and fragment on WEB_URL instead.
+ */
+export const APP_URL = `https://localhost:${WEB_PORT}`;
 
 /** The database the run recreates on the server `DATABASE_URL` points at, and the app login it serves through. */
 export const E2E_DATABASE = 'canopy_e2e';
@@ -16,6 +24,16 @@ export const APP_PASSWORD = 'e2e-app-login';
 /** pg-boss's own login (JOBS_DATABASE_URL, ADR M9-0001 decision 16): a member of canopy_jobs, never the app login. */
 export const JOBS_LOGIN = 'canopy_e2e_jobs';
 export const JOBS_PASSWORD = 'e2e-jobs-login';
+/** The console's login (OPERATOR_DATABASE_URL, ADR M3-0002): a member of canopy_operator only. */
+export const OPERATOR_LOGIN = 'canopy_e2e_operator';
+export const OPERATOR_LOGIN_PASSWORD = 'e2e-operator-login';
+
+/** The one platform operator, created by `platform:add-operator` as in production. Fictional. */
+export const OPERATOR = {
+  email: 'operator@planetpulse-ops.test',
+  displayName: 'Asha Operator',
+  password: 'integrated operator password',
+} as const;
 
 /** The stand-in clamd (fake-clamd.ts) the API's evidence scan calls (CLAMAV_HOST, docs/security/review.md F8). */
 export const CLAMD_PORT = 4110;
@@ -126,6 +144,9 @@ export const addressOf = (key: AccountKey, visit = 0) =>
  * git nor Prettier sees it.
  */
 export const RUN_DIR = new URL('../node_modules/.cache/integrated/', import.meta.url);
+
+/** Where prepare.ts keeps the operator's TOTP secret, from the otpauth URI `platform:add-operator` prints. */
+export const OPERATOR_TOTP_FILE = new URL('operator.totp', RUN_DIR);
 
 /** Where each account's signed-in browser state is saved by the setup project. */
 export const storageStateOf = (key: AccountKey) =>

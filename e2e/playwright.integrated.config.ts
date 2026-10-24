@@ -5,6 +5,11 @@ import {
   API_URL,
   APP_LOGIN,
   APP_PASSWORD,
+  APP_URL,
+  CONSOLE_PORT,
+  CONSOLE_URL,
+  OPERATOR_LOGIN,
+  OPERATOR_LOGIN_PASSWORD,
   JOBS_LOGIN,
   JOBS_PASSWORD,
   AUTH_SECRET_KEY,
@@ -71,6 +76,15 @@ export default defineConfig({
         // The evidence scan job reads each upload from storage and sends it to the stand-in clamd below.
         CLAMAV_HOST: '127.0.0.1',
         CLAMAV_PORT: String(CLAMD_PORT),
+        // M15's operator API, on the console's own login. The console reaches it through its rewrite, so the API sees
+        // the console server's loopback address, the one address the allowlist lets in.
+        PLATFORM_ENABLED: 'true',
+        OPERATOR_DATABASE_URL: databaseUrl(base, E2E_DATABASE, [
+          OPERATOR_LOGIN,
+          OPERATOR_LOGIN_PASSWORD,
+        ]),
+        PLATFORM_IP_ALLOWLIST: '127.0.0.1,::1',
+        APP_URL,
       },
     },
     {
@@ -89,6 +103,14 @@ export default defineConfig({
           CANOPY_CSP_CONNECT_SRC: new URL(process.env.S3_ENDPOINT).origin,
         }),
       },
+    },
+    {
+      // The console's rewrite to the API is fixed when Next builds it, so it builds here, with this run's API.
+      command: `pnpm --filter @canopy/operator exec next build --webpack && pnpm --filter @canopy/operator exec next start --port ${CONSOLE_PORT}`,
+      url: CONSOLE_URL,
+      reuseExistingServer: false,
+      timeout: 300_000,
+      env: { OPERATOR_API_URL: API_URL },
     },
   ],
 });
