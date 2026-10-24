@@ -11,6 +11,10 @@ test.describe('account', () => {
     await signIn(page, 'admin@demo.test', '/account');
     await expect(page.getByRole('heading', { level: 1, name: 'Account' })).toBeVisible();
     await expect(page.getByRole('table', { name: 'Plan limits and usage' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Download your data' })).toBeVisible();
+    await expect(
+      page.getByRole('button', { name: /^Download the archive of / }).first(),
+    ).toBeVisible();
     await checkSettled(page);
 
     const end = page.getByRole('button', { name: 'End access now' });

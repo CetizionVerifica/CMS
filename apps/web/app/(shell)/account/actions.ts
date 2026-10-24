@@ -1,6 +1,7 @@
 'use server';
-// Server Actions behind the account page: let PlanetPulse support in, or end its access. Input is checked against the
-// contracts first (root rule 7); the API checks the caller is an account admin and writes the audit trail.
+// Server Actions behind the account page: let PlanetPulse support in, or end its access, and start a client's
+// archive. Input is checked against the contracts first (root rule 7); the API checks the caller is an account admin
+// and writes the audit trail.
 import { Id, SupportGrantCreateBody } from '@canopy/contracts';
 import { revalidatePath } from 'next/cache';
 
@@ -55,4 +56,35 @@ export async function revokeSupportAction(grantId: string): Promise<ActionResult
   return run(async () => {
     await (await sessionApi()).call('revokeSupportGrant', { params: { id } });
   });
+}
+
+export type ArchiveStart = { ok: true; id: string } | { ok: false; message: string };
+
+const NOT_STARTED = 'The download didn’t start. Try again.';
+
+/**
+ * Starts the archive of one client: its whole register and clean evidence files as one zip (ADR M10-0002). The
+ * reports page's `exportProgressAction` follows it to the download link. Works while the account is closing.
+ */
+export async function startArchiveAction(clientId: string): Promise<ArchiveStart> {
+  const parsed = Id.safeParse(clientId);
+  if (!parsed.success) return { ok: false, message: NOT_STARTED };
+  try {
+    const { data } = await (
+      await sessionApi()
+    ).call('createExport', {
+      params: { clientId: parsed.data },
+      body: { kind: 'CLIENT_ARCHIVE_ZIP' },
+    });
+    return { ok: true, id: data.id };
+  } catch (error) {
+    await redirectIfSignedOut(error);
+    if (isApiError(error, 'FORBIDDEN', 'ACCESS_EXPIRED')) {
+      return { ok: false, message: 'Only account admins can download a client’s data.' };
+    }
+    if (isApiError(error, 'RATE_LIMITED')) {
+      return { ok: false, message: 'Too many downloads at once. Wait a minute and try again.' };
+    }
+    return { ok: false, message: NOT_STARTED };
+  }
 }

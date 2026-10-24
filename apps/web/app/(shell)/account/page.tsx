@@ -10,14 +10,25 @@ import { loadShell } from '../../../lib/shell/server';
 import { redirectIfSignedOut } from '../c/[clientId]/overview/signed-out';
 import { ACCOUNT_STATUS, usageRows } from './account-model';
 import { PlanUsage, SupportAccess } from './AccountView';
+import { ClientArchives } from './ClientArchives';
 
 export const metadata: Metadata = { title: 'Account' };
 
-// The account's plan and usage, and PlanetPulse support access, for account admins (ADR M15-0001 decisions 5, 11).
+// The account's plan and usage, PlanetPulse support access and each client's data, for account admins (ADR M15-0001
+// decisions 5, 11). A closing account answers only exports, so its page is the downloads alone.
 export default async function AccountPage() {
   const model = await loadShell();
   if (!visibleTo(routeByPath('account'), model.roles.firm)) {
     return <NoPermission what="account" backHref={homeHref(model)} backLabel="Go to home" />;
+  }
+  const clients = model.clients.map(({ id, name }) => ({ id, name }));
+  if (model.notice?.kind === 'closing') {
+    return (
+      <>
+        <PageHeader title="Account" description="Closing" />
+        <ClientArchives clients={clients} closing />
+      </>
+    );
   }
   const api = await serverApi();
   let view: AccountView;
@@ -45,6 +56,10 @@ export default async function AccountPage() {
           trialEndsOn={view.status === 'TRIAL' ? view.trialEndsOn : null}
           usage={usageRows(view)}
         />
+        {/* Support is refused a copy of the client's files (ADR M10-0002 §3), so it doesn't see the offer. */}
+        {model.notice?.kind === 'support' ? null : (
+          <ClientArchives clients={clients} closing={false} />
+        )}
         <SupportAccess grants={grants} />
       </div>
     </>

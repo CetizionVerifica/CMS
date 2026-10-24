@@ -14,7 +14,7 @@ import { revalidatePath } from 'next/cache';
 import { isApiError } from '../../../../../../lib/api/client';
 import { sessionApi } from '../../../../../../lib/api/server';
 
-/** Adding a company or unit (or moving a unit) past the account's plan; the operator raises the limit. */
+/** Adding a company or unit past the account's plan; the operator raises the limit. */
 const PLAN_LIMIT =
   'Your plan’s company or unit limit is reached, so nothing was added. Your account admin can ask PlanetPulse to raise it.';
 
