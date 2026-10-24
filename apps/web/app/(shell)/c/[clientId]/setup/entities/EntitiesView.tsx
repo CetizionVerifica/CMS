@@ -339,7 +339,7 @@ function UnitsSection({
           options={locations}
           value={locationId}
           onValueChange={setLocationId}
-          emptyText="No location matches. Ask your firm admin to add it."
+          emptyText="No location matches. Ask your account admin to add it."
         />
         <Input
           label="Unit name"
@@ -487,7 +487,7 @@ function EditUnit({
           options={locations}
           value={locationId}
           onValueChange={setLocationId}
-          emptyText="No location matches. Ask your firm admin to add it."
+          emptyText="No location matches. Ask your account admin to add it."
         />
         <Alert message={error} />
       </div>
