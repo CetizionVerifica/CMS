@@ -88,11 +88,19 @@ Each line is a test in `e2e/integrated` unless it says otherwise.
 - Every client and firm list answers a full page of 200, the contract's largest (`06-lists.spec.ts`).
 - One consultant browsing the main pages at an ordinary pace from one address is never refused (F7), while a flood
   of anonymous requests from one address gets `429 RATE_LIMITED` once it passes the 300-a-minute budget and another
-  address is still served. (`05-shell-load.spec.ts`)
+  address is still served. A caller outside `TRUST_PROXY` cannot dodge the budget by naming a new address in
+  `X-Forwarded-For` on each request: the API counts the address the request came from. (`05-shell-load.spec.ts`)
+- M12's screens (`07-instance-screens.spec.ts`): the owner attaches evidence in the instance drawer, waits for the
+  scan to pass it, opens it from storage through a 5-minute link, comments and submits; the approver reads the
+  evidence and comment in the approvals inbox's drawer and approves, and sends another back from the list with a
+  reason that lands on the audit trail; the evidence vault lists the client's files, opens a clean one and shows the
+  flagged one as blocked with no way to open it; the calendar's count for a month equals the register's for the same
+  dates, and a day and the list view open the instance. Each screen is checked with axe (the drawer on its own, as
+  it hides the page behind it).
 
-Not yet covered, because the screens are still being built: the instance drawer (M12), approvals inbox, evidence
-vault and calendar pages (M12), setup, reports and audit pages (M13), and company accounts (M15). The journeys use the
-API for steps whose screen has not shipped (for example the owner's submit) and say so in a comment.
+Not yet covered: the setup, reports and audit pages (M13), and company accounts (M15). Some journeys take a
+step through the API when another journey covers its screen (for example the submit in `02-workflow.spec.ts`) and say
+so in a comment.
 
 ## Running the integrated suite
 
