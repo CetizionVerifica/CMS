@@ -1,9 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
+import { AuthService } from './auth/index.js';
 import { PostgresReportsStore } from './modules/dashboard/db-store.js';
 import { S3ExportFiles } from './modules/reports/files.js';
 import { jobsFromEnv, wiringFromEnv } from './wiring.js';
 
-const DB = { DATABASE_URL: 'postgres://app@localhost:5432/canopy' };
+const KEY = Buffer.alloc(32, 7).toString('base64');
+const DB = { DATABASE_URL: 'postgres://app@localhost:5432/canopy', AUTH_SECRET_KEY: KEY };
 const S3 = { S3_BUCKET: 'imports', S3_ACCESS_KEY_ID: 'key', S3_SECRET_ACCESS_KEY: 'secret' };
 
 describe('wiringFromEnv', () => {
@@ -21,6 +23,25 @@ describe('wiringFromEnv', () => {
     expect(options.reports?.files).toBeUndefined();
     expect(options.imports).toBeUndefined();
     await database?.close();
+  });
+
+  it('serves sign-in from the database store, sealing MFA secrets with AUTH_SECRET_KEY', async () => {
+    const { options, database, auth } = wiringFromEnv({ ...DB }, vi.fn());
+    expect(options.accountStore).toBeDefined();
+    expect(options.authSecretKey).toBe(KEY);
+    expect(auth).toBeInstanceOf(AuthService);
+    await database?.close();
+  });
+
+  it('refuses to start with a database but no usable AUTH_SECRET_KEY', () => {
+    const noKey = { DATABASE_URL: DB.DATABASE_URL };
+    expect(() => wiringFromEnv(noKey, vi.fn())).toThrow(/AUTH_SECRET_KEY is required/);
+    expect(() => wiringFromEnv({ ...noKey, AUTH_SECRET_KEY: '' }, vi.fn())).toThrow(
+      /AUTH_SECRET_KEY is required/,
+    );
+    expect(() =>
+      wiringFromEnv({ ...DB, AUTH_SECRET_KEY: Buffer.alloc(16).toString('base64') }, vi.fn()),
+    ).toThrow(/32 bytes/);
   });
 
   it('mounts M8 and M10 export files when S3 object storage is configured', async () => {
