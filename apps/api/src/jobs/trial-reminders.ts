@@ -24,11 +24,12 @@ export function accountUrl(appUrl: string): string {
  */
 export async function runTrialReminders(deps: JobDeps, requestId: string): Promise<JobReport> {
   const report: JobReport = { firms: 0, admins: 0 };
-  const today = localDateIn(deps.clock(), TRIAL_TIME_ZONE);
+  const now = deps.clock();
+  const today = localDateIn(now, TRIAL_TIME_ZONE);
   const failures: unknown[] = [];
   for (const firmId of await deps.store.listFirmIds()) {
     try {
-      await remindAccount(deps, firmId, requestId, today, report);
+      await remindAccount(deps, firmId, requestId, now, today, report);
     } catch (error) {
       failures.push(error);
     }
@@ -43,6 +44,7 @@ async function remindAccount(
   deps: JobDeps,
   firmId: Id,
   requestId: string,
+  now: string,
   today: LocalDate,
   report: JobReport,
 ): Promise<void> {
@@ -52,7 +54,7 @@ async function remindAccount(
     if (trial.trialEndsOn === null) return null;
     const daysLeft = daysBetween(today, trial.trialEndsOn);
     if (!TRIAL_REMINDER_DAYS.includes(daysLeft)) return null;
-    const admins = await tx.listAccountAdmins();
+    const admins = await tx.listAccountAdmins(now);
     return { name: trial.name, trialEndsOn: trial.trialEndsOn, daysLeft, admins };
   });
   if (!found) return;
