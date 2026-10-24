@@ -338,6 +338,7 @@ describe('platform schema and operator roles', () => {
       'app_take_usage_snapshot',
       'app_usage',
       'canopy_activate_account',
+      'canopy_audit_support_grant',
       'platform_create_account',
       'platform_issue_support_token',
       'platform_provision_account',

@@ -169,6 +169,13 @@
       "when": 1792830657724,
       "tag": "0023_platform_jobs_and_owner_invite",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1792837530122,
+      "tag": "0024_support_access_operator_audit",
+      "breakpoints": true
     }
   ]
 }
