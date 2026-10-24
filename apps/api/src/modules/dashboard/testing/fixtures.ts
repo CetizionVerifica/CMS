@@ -24,7 +24,7 @@ import type { MemoryReportsStore, MemoryRow } from '../memory-store.js';
 export const CALENDAR: EngineCalendar = { fyStartMonth: 4, holidayPolicy: 'NONE' };
 
 const SAMPLE = new URL(
-  '../../../../../../packages/importer/fixtures/sample-register.xlsx',
+  '../../../../../../packages/importer/fixtures/sample-register-anonymised.xlsx',
   import.meta.url,
 );
 
@@ -61,7 +61,10 @@ export interface SampleClient {
 /** The sample register imported into a new client of `firmId` and loaded into the store. */
 export async function loadSample(store: MemoryReportsStore, firmId: string): Promise<SampleClient> {
   const bytes = new Uint8Array(await readFile(SAMPLE));
-  const analysis = analyseRecommended(await readSheet(bytes, 'sample-register.xlsx'), EMPTY_STATE);
+  const analysis = analyseRecommended(
+    await readSheet(bytes, 'sample-register-anonymised.xlsx'),
+    EMPTY_STATE,
+  );
   const { plan } = analysis;
   const clientId = randomUUID();
   const clientName = 'Kestrel Metals Group';
