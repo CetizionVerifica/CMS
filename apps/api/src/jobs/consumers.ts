@@ -28,6 +28,8 @@ export interface Consumer {
   type: string;
   /** Sends email, so it is registered only when a mailer is configured. */
   sendsMail?: boolean;
+  /** Issues sign-in tokens, so it is registered only when the API passes M5's `issueLoginToken`. */
+  needsLoginTokens?: boolean;
   /** Idempotent: an event can arrive more than once (events.md §1). */
   handle(deps: JobDeps, event: OutboxEvent, requestId: string): Promise<JobReport>;
 }

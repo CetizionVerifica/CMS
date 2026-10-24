@@ -128,6 +128,53 @@ describe.skipIf(!url)('job runner on pg-boss', () => {
   });
 });
 
+describe.skipIf(!url)('job runner without a login token issuer', () => {
+  it('relays sign-in link and invite events as done and sends nothing', async () => {
+    const schema = `pgboss_notoken_${randomUUID().replaceAll('-', '').slice(0, 12)}`;
+    const firm = memoryFirm();
+    const h = harness([firm]);
+    const logs: { job: string; report?: Record<string, number> }[] = [];
+    const runner = await startJobRunner(
+      { ...h.deps, issueLoginToken: undefined },
+      { connectionString: url!, schema, log: (line) => logs.push(line) },
+    );
+    try {
+      expect(runner.mail).toBe(true);
+      for (const type of ['auth.magic_link_requested', 'person.invited']) {
+        firm.events.push(
+          outboxRow({
+            type,
+            clientId: null,
+            actor: { kind: 'SYSTEM', job: 'test' },
+            requestId: `req:${type}`,
+            aggregate: { type: 'person', id: randomUUID() },
+            aggregateVersion: 1,
+            data: { personId: randomUUID() },
+          }),
+        );
+      }
+      await runner.trigger('relay-outbox');
+      const deadline = Date.now() + 20_000;
+      while (!logs.some((l) => l.job === 'relay-outbox')) {
+        if (Date.now() > deadline) throw new Error('Timed out waiting for the relay');
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      }
+      expect(logs.find((l) => l.job === 'relay-outbox')!.report).toMatchObject({
+        published: 0,
+        skipped: 2,
+      });
+      expect(h.store.firms[0]!.events.every((e) => e.publishedAt !== null)).toBe(true);
+      expect(h.mailer.sent).toHaveLength(0);
+    } finally {
+      await runner.stop();
+      const pgClient = new pg.Client({ connectionString: url });
+      await pgClient.connect();
+      await pgClient.query(`DROP SCHEMA IF EXISTS ${schema} CASCADE`);
+      await pgClient.end();
+    }
+  });
+});
+
 describe.skipIf(!url)('job runner without a mail transport', () => {
   it('registers generation and the relay only, and relays an event only an email consumer reads as done', async () => {
     const schema = `pgboss_nomail_${randomUUID().replaceAll('-', '').slice(0, 12)}`;

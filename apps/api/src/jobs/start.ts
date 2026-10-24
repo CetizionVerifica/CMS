@@ -6,8 +6,8 @@ import { mailConfigFromEnv, smtpMailer } from './smtp-mailer.js';
 
 export interface JobsFromEnvOptions extends Omit<JobRunnerOptions, 'mail'> {
   db: Database;
-  /** M5's `AuthService.issueLoginToken`, for sign-in link and invite emails. */
-  issueLoginToken: LoginTokenIssuer;
+  /** M5's `AuthService.issueLoginToken`. Without it, sign-in link and invite emails are not sent. */
+  issueLoginToken?: LoginTokenIssuer;
   /** Defaults to the system clock; tests pass a fixed one. */
   clock?: Clock;
 }
@@ -34,7 +34,13 @@ export async function startJobsFromEnv(
   const mail = mailConfigFromEnv(env);
   if (!mail) {
     return startJobRunner(
-      { store, mailer: NO_MAILER, clock: now, appUrl: '', issueLoginToken },
+      {
+        store,
+        mailer: NO_MAILER,
+        clock: now,
+        appUrl: '',
+        ...(issueLoginToken && { issueLoginToken }),
+      },
       { ...runnerOptions, mail: false },
     );
   }
@@ -42,7 +48,13 @@ export async function startJobsFromEnv(
   let runner: JobRunner;
   try {
     runner = await startJobRunner(
-      { store, mailer, clock: now, appUrl: mail.appUrl, issueLoginToken },
+      {
+        store,
+        mailer,
+        clock: now,
+        appUrl: mail.appUrl,
+        ...(issueLoginToken && { issueLoginToken }),
+      },
       { ...runnerOptions, mail: true },
     );
   } catch (error) {

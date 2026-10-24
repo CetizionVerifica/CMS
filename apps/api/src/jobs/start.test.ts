@@ -60,6 +60,11 @@ describe('startJobsFromEnv', () => {
     expect(close).toHaveBeenCalledOnce();
   });
 
+  it('leaves the issuer out when the API passes none', async () => {
+    await startJobsFromEnv(SMTP, { db: {} as never, connectionString: 'postgres://unused' });
+    expect(started[0]!.deps).not.toHaveProperty('issueLoginToken');
+  });
+
   it('closes the transport when the runner fails to start', async () => {
     failStart = true;
     await expect(startJobsFromEnv(SMTP, options)).rejects.toThrow('pg-boss did not start');

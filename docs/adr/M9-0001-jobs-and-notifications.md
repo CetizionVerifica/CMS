@@ -91,7 +91,8 @@ remind for complied or not-applicable items, and reach the database only through
       hash. The raw token goes into the link and nowhere else: not the send log, the `notification.sent` event or
       any log line. It is issued only after the claim and the recipient checks pass, so a failed or skipped send
       creates no token. A transport failure retries with a fresh token. The first one, if it was delivered, still
-      works until it expires.
+      works until it expires. Without an issuer the two consumers are left off, like the mail ones without a
+      transport (decision 10): their events are marked relayed and nothing is sent.
     - **Stale:** a sign-in link asked for more than 15 minutes earlier is not sent, since the person has asked
       again or given up. An invite that is accepted, revoked, expired or names another person sends nothing.
     - **Who may receive:** sign-in links go only to ACTIVE people (NOT_ACTIVE or NO_EMAIL otherwise). An invite goes

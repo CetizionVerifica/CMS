@@ -158,6 +158,11 @@ async function sendInvite(
 
 /** A person who asked for a sign-in link, or was invited, gets the email with a fresh one-time link. */
 export const LOGIN_EMAIL_CONSUMERS: readonly Consumer[] = [
-  { type: 'auth.magic_link_requested', sendsMail: true, handle: sendMagicLink },
-  { type: 'person.invited', sendsMail: true, handle: sendInvite },
+  {
+    type: 'auth.magic_link_requested',
+    sendsMail: true,
+    needsLoginTokens: true,
+    handle: sendMagicLink,
+  },
+  { type: 'person.invited', sendsMail: true, needsLoginTokens: true, handle: sendInvite },
 ];
