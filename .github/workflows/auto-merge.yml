@@ -31,7 +31,7 @@ jobs:
       !github.event.pull_request.draft &&
       github.event.pull_request.head.repo.full_name == github.repository &&
       !contains(github.event.pull_request.labels.*.name, 'no-automerge')
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # AUTOMERGE_TOKEN lives in this environment, which only `main` may deploy to. pull_request_target runs on main.
     environment: automerge
     steps:
@@ -48,7 +48,7 @@ jobs:
 
   disable:
     if: github.event.action == 'labeled' && github.event.label.name == 'no-automerge'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - run: gh pr merge "$PR" --disable-auto --repo "$REPO"
         env:

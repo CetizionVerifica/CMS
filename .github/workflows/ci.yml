@@ -22,7 +22,7 @@ permissions:
 jobs:
   checks:
     name: ${{ matrix.task }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:
@@ -48,7 +48,7 @@ jobs:
   # Tests that need a real database (tenant isolation, migrations). Packages opt in with a `test:db` script.
   db:
     name: db
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     services:
       postgres:
         image: postgres:16-alpine
@@ -77,7 +77,7 @@ jobs:
 
   e2e:
     name: e2e
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
@@ -99,7 +99,7 @@ jobs:
   # queued PRs that each edit tooling/modules.json are checked together.
   tooling:
     name: tooling
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -113,7 +113,7 @@ jobs:
   module-paths:
     name: module-paths
     if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
         with:
@@ -128,7 +128,7 @@ jobs:
 
   audit:
     name: audit
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
@@ -140,7 +140,7 @@ jobs:
 
   codeql:
     name: codeql
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
       security-events: write
@@ -161,7 +161,7 @@ jobs:
   module-audit:
     name: module-audit
     if: (github.event_name == 'pull_request' && !github.event.pull_request.draft) || github.event_name == 'merge_group'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
       issues: read
@@ -197,7 +197,7 @@ jobs:
     name: ci-ok
     if: always()
     needs: [checks, tooling, db, e2e, module-paths, audit, codeql, module-audit]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
         run: exit 1
