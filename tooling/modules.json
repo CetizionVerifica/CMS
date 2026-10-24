@@ -92,6 +92,7 @@
       "apps/web/app/(shell)/c/[clientId]/reports/",
       "apps/web/app/(shell)/c/[clientId]/audit/",
       "apps/web/app/(shell)/library/",
+      "apps/web/app/(shell)/account/",
       "e2e/tests/overview/"
     ],
     "M14": ["e2e/", "docs/security/", "perf/"],
