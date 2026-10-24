@@ -11,6 +11,7 @@ import type { DigestClientSummary } from '@canopy/notifications';
 import { clientDay, sendTimeReached } from './client-day.js';
 import type { ClientRef, JobDeps, JobReport } from './ports.js';
 import { deliver } from './send.js';
+import { servedFirmIds } from './accounts.js';
 
 export const CONSULTANT_DIGEST = 'consultant-digest';
 
@@ -36,7 +37,7 @@ export async function runConsultantDigest(deps: JobDeps, requestId: string): Pro
   const now = deps.clock();
   const anchor = clientDay(now, DIGEST_TIME_ZONE);
   const digestDate = anchor.today;
-  for (const firmId of await deps.store.listFirmIds()) {
+  for (const firmId of await servedFirmIds(deps, requestId)) {
     report.firms! += 1;
     const { clients, consultants, firmSettings, done } = await deps.store.withFirm(
       firmId,

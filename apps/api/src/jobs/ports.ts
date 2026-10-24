@@ -1,4 +1,5 @@
 import type {
+  AccountStatus,
   AuditEvent,
   ClientSettings,
   Criticality,
@@ -208,6 +209,16 @@ export type NotificationSentEvent = Omit<JobDomainEvent, 'aggregate' | 'aggregat
 
 export interface FirmTx {
   firmSettings(): Promise<FirmSettings>;
+  /** The account's status. The jobs that act for users serve TRIAL and ACTIVE accounts only (ADR M15-0001 decision 4). */
+  accountStatus(): Promise<AccountStatus>;
+  /**
+   * Ends the trial when its last day is before `now`'s date in the account's time zone: SUSPENDED, with the
+   * account's audit row, account.status_changed (actor SYSTEM, `job`) and the operator entry, all written by M3's
+   * `app_end_trial`. True when it suspended the account.
+   */
+  endTrial(now: string, job: string): Promise<boolean>;
+  /** Records the account's usage for `on`, replacing a snapshot already taken that day. */
+  takeUsageSnapshot(on: LocalDate): Promise<void>;
   /** Clients of the firm that are not archived. */
   listClients(): Promise<ClientRef[]>;
   /** Assignments of one client that are not archived. */

@@ -4,6 +4,7 @@ import type { EmailMessage } from '@canopy/notifications';
 import { clientDay, reminderWindow, sendTimeReached } from './client-day.js';
 import type { ClientRef, JobDeps, JobReport, Recipient, ReminderCandidate } from './ports.js';
 import { deliver, sendKeyString } from './send.js';
+import { servedFirmIds } from './accounts.js';
 
 export const REMINDERS = 'reminders';
 
@@ -118,7 +119,7 @@ async function remindClient(
 export async function runReminders(deps: JobDeps, requestId: string): Promise<JobReport> {
   const report: JobReport = { firms: 0, clients: 0, sent: 0 };
   const failures: unknown[] = [];
-  for (const firmId of await deps.store.listFirmIds()) {
+  for (const firmId of await servedFirmIds(deps, requestId)) {
     report.firms! += 1;
     const clients = await deps.store.withFirm(firmId, requestId, (tx) => tx.listClients());
     for (const client of clients) {

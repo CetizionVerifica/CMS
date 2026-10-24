@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import {
   DEFAULT_CLIENT_SETTINGS,
   DEFAULT_FIRM_SETTINGS,
+  type AccountStatus,
   type ClientSettings,
   type Criticality,
   type FirmSettings,
@@ -11,7 +12,7 @@ import {
   type SubmissionKind,
   type WorkflowState,
 } from '@canopy/contracts';
-import { compareDates } from '@canopy/engine';
+import { compareDates, localDateIn } from '@canopy/engine';
 import type {
   ClaimResult,
   ClientRef,
@@ -113,6 +114,11 @@ export interface MemoryFirm {
   id: Id;
   name: string;
   settings: FirmSettings;
+  status: AccountStatus;
+  /** Last day of the trial (India time here); null outside a trial. */
+  trialEndsOn: LocalDate | null;
+  /** Days a usage snapshot was taken for. */
+  snapshots: LocalDate[];
   clients: ClientRef[];
   assignments: MemoryAssignment[];
   instances: MemoryInstance[];
@@ -129,6 +135,9 @@ export function memoryFirm(id: Id = randomUUID()): MemoryFirm {
     id,
     name: 'Heron Compliance Partners',
     settings: structuredClone(DEFAULT_FIRM_SETTINGS) as FirmSettings,
+    status: 'ACTIVE',
+    trialEndsOn: null,
+    snapshots: [],
     clients: [],
     assignments: [],
     instances: [],
@@ -186,6 +195,16 @@ function firmTx(firm: MemoryFirm, hooks: MemoryStoreHooks): FirmTx {
   };
   return {
     firmSettings: async () => firm.settings,
+    accountStatus: async () => firm.status,
+    endTrial: async (now) => {
+      if (firm.status !== 'TRIAL' || firm.trialEndsOn === null) return false;
+      if (compareDates(firm.trialEndsOn, localDateIn(now, 'Asia/Kolkata')) >= 0) return false;
+      firm.status = 'SUSPENDED';
+      return true;
+    },
+    takeUsageSnapshot: async (on) => {
+      if (!firm.snapshots.includes(on)) firm.snapshots.push(on);
+    },
     listClients: async () => firm.clients,
     listGenerationTargets: async (clientId) =>
       firm.assignments.filter((a) => a.clientId === clientId),

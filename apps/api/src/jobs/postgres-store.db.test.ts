@@ -19,7 +19,9 @@ import {
   units,
   type TenantTx,
 } from '@canopy/db';
+import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { ACCOUNT_DAILY, runAccountDaily } from './accounts.js';
 import { CONSUMERS } from './consumers.js';
 import { runConsultantDigest } from './digest.js';
 import { runGenerateInstances } from './generate-instances.js';
@@ -888,6 +890,79 @@ describe.skipIf(!url)('jobs on the Postgres store', () => {
         ),
       ).toBe(1);
       await expectNoStrays();
+    });
+  });
+
+  describe(ACCOUNT_DAILY, () => {
+    /** Runs `sql` as the table owner inside the firm, as a migration would (FORCE RLS binds the owner). */
+    async function asOwner<T>(firmId: string, sql: string, values: unknown[] = []): Promise<T[]> {
+      const client = new pg.Client({ connectionString: t.url });
+      await client.connect();
+      try {
+        await client.query('BEGIN');
+        await client.query(`SELECT set_config('app.firm_id', $1, true)`, [firmId]);
+        const { rows } = await client.query(sql, values);
+        await client.query('COMMIT');
+        return rows as T[];
+      } finally {
+        await client.end();
+      }
+    }
+
+    it('ends a lapsed trial with its audit row and event, records usage, and generation then skips it', async () => {
+      const trial = await seedFirm('Osprey Advisory', 'Osprey Textiles Group', 'trial');
+      await asOwner(
+        trial.firmId,
+        `UPDATE firm SET status = 'TRIAL', trial_ends_on = '2026-10-11' WHERE id = $1`,
+        [trial.firmId],
+      );
+      now = '2026-10-11T19:00:00.000Z'; // 12 Oct 00:30 IST
+      const report = await runAccountDaily(deps, 'job:account-daily:1');
+      expect(report).toMatchObject({ trialsEnded: 1 });
+      expect(report.snapshots).toBe(report.firms);
+      const [firm] = await asOwner<{ status: string }>(
+        trial.firmId,
+        'SELECT status FROM firm WHERE id = $1',
+        [trial.firmId],
+      );
+      expect(firm).toEqual({ status: 'SUSPENDED' });
+      expect(
+        await t.count(
+          trial.firmId,
+          'audit_event',
+          `entity_type = 'account' and action = 'TRANSITION' and actor_kind = 'SYSTEM'`,
+        ),
+      ).toBe(1);
+      expect(
+        await t.count(
+          trial.firmId,
+          'domain_event',
+          `type = 'account.status_changed' and actor->>'job' = $1`,
+          [ACCOUNT_DAILY],
+        ),
+      ).toBe(1);
+      const snapshots = await asOwner<{ taken_on: string; units: number }>(
+        trial.firmId,
+        `SELECT taken_on::text, units FROM platform.usage_snapshot WHERE account_id = $1`,
+        [trial.firmId],
+      );
+      expect(snapshots).toEqual([{ taken_on: '2026-10-12', units: 1 }]);
+
+      // Again the same night: nothing more to end, the snapshot is replaced, not added.
+      expect(await runAccountDaily(deps, 'job:account-daily:2')).toMatchObject({ trialsEnded: 0 });
+      expect(
+        await asOwner(trial.firmId, 'SELECT 1 FROM platform.usage_snapshot WHERE account_id = $1', [
+          trial.firmId,
+        ]),
+      ).toHaveLength(1);
+
+      const seeded = await t.count(trial.firmId, 'compliance_instance');
+      now = '2026-10-11T20:00:00.000Z';
+      await runGenerateInstances(deps, 'job:generate:suspended');
+      expect(await t.count(trial.firmId, 'compliance_instance')).toBe(seeded);
+      expect(
+        await t.count(trial.firmId, 'audit_event', `request_id = 'job:generate:suspended'`),
+      ).toBe(0);
     });
   });
 });
