@@ -1,5 +1,6 @@
 import { createServer, type AddressInfo, type Server, type Socket } from 'node:net';
 import { afterEach, describe, expect, it } from 'vitest';
+import { ScanServiceError, ScanTimeoutError } from './ports.js';
 import {
   CLAMAV_DEFAULT_PORT,
   CLAMAV_DEFAULT_TIMEOUT_MS,
@@ -126,21 +127,47 @@ describe('clamAvScanner', () => {
     expect(pulled).toBeLessThan(1000);
   });
 
-  it('throws when clamd cannot be reached, so the file is tried again', async () => {
+  it('throws a service error when clamd cannot be reached, so the run stops', async () => {
     const { port, server } = await fakeClamd({});
     await new Promise((r) => server.close(r));
     const scanner = clamAvScanner({ host: '127.0.0.1', port, timeoutMs: 1000 });
-    await expect(scanner.scan(chunksOf('x'))).rejects.toThrow();
+    await expect(scanner.scan(chunksOf('x'))).rejects.toBeInstanceOf(ScanServiceError);
   });
 
-  it('throws when clamd does not answer in time', async () => {
+  it('throws a service error when the connection does not open in time', async () => {
+    // 192.0.2.0/24 is reserved for documentation: nothing answers there.
+    const scanner = clamAvScanner({ host: '192.0.2.1', port: 3310, timeoutMs: 100 });
+    await expect(scanner.scan(chunksOf('x'))).rejects.toBeInstanceOf(ScanServiceError);
+  });
+
+  it('throws a timeout when clamd does not answer in time', async () => {
     const { scanner } = await scannerAt({ silent: true }, 200);
-    await expect(scanner.scan(chunksOf('x'))).rejects.toThrow('clamd did not answer in time');
+    const scan = scanner.scan(chunksOf('x'));
+    await expect(scan).rejects.toBeInstanceOf(ScanTimeoutError);
+    await expect(scan).rejects.toThrow('clamd did not answer in time');
   });
 
-  it('throws when clamd closes without an answer', async () => {
+  it('stops at the deadline, also while waiting for the file', async () => {
+    const { scanner } = await scannerAt({});
+    const deadline = new AbortController();
+    async function* never(): AsyncGenerator<Uint8Array> {
+      yield Buffer.from('%PDF');
+      await new Promise((_, reject) =>
+        deadline.signal.addEventListener('abort', () => reject(new Error('aborted'))),
+      );
+    }
+    setTimeout(() => deadline.abort(), 50);
+    await expect(scanner.scan(never(), deadline.signal)).rejects.toBeInstanceOf(ScanTimeoutError);
+    await expect(scanner.scan(chunksOf('x'), deadline.signal)).rejects.toBeInstanceOf(
+      ScanTimeoutError,
+    );
+  });
+
+  it('throws a plain error, counted against the file, when clamd closes without an answer', async () => {
     const { scanner } = await scannerAt({ answer: () => '' });
-    await expect(scanner.scan(chunksOf('x'))).rejects.toThrow('Unexpected clamd reply');
+    const scan = scanner.scan(chunksOf('x'));
+    await expect(scan).rejects.toThrow('Unexpected clamd reply');
+    await expect(scan).rejects.not.toBeInstanceOf(ScanServiceError);
   });
 });
 
@@ -194,5 +221,9 @@ describe('clamAvConfigFromEnv', () => {
     expect(() => clamAvConfigFromEnv({ CLAMAV_HOST: 'clamav', CLAMAV_TIMEOUT_MS: '0' })).toThrow(
       'CLAMAV_TIMEOUT_MS',
     );
+    // Above the scan job's per-file deadline, the job would always give up first.
+    expect(() =>
+      clamAvConfigFromEnv({ CLAMAV_HOST: 'clamav', CLAMAV_TIMEOUT_MS: '300000' }),
+    ).toThrow('CLAMAV_TIMEOUT_MS');
   });
 });

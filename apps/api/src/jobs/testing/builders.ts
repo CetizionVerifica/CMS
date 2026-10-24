@@ -87,6 +87,7 @@ export function evidenceFile(
     clientId: i.clientId,
     instanceId: i.id,
     storageKey: `${i.clientId}/${i.id}/${randomUUID()}`,
+    sizeBytes: 8,
     scanStatus: 'PENDING',
     archived: false,
     createdAt: '2026-10-12T01:00:00.000Z',

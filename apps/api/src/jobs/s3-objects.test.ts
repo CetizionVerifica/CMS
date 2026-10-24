@@ -1,6 +1,7 @@
 import { Readable } from 'node:stream';
 import { GetObjectCommand, NoSuchKey } from '@aws-sdk/client-s3';
 import { describe, expect, it } from 'vitest';
+import { ScanServiceError, ScanTimeoutError } from './ports.js';
 import { s3EvidenceObjects, type S3Send } from './s3-objects.js';
 
 const SETTINGS = {
@@ -45,15 +46,79 @@ describe('s3EvidenceObjects', () => {
     await expect(s3EvidenceObjects(SETTINGS, client).open('k')).resolves.toBeNull();
   });
 
-  it('throws on any other failure, so the scan is tried again', async () => {
+  it('reports storage that cannot be reached as a service error, which stops the run', async () => {
     const unreachable = fakeClient(() => {
       throw new Error('connect ECONNREFUSED');
     });
-    await expect(s3EvidenceObjects(SETTINGS, unreachable).open('k')).rejects.toThrow(
-      'ECONNREFUSED',
+    const failure = s3EvidenceObjects(SETTINGS, unreachable).open('k');
+    await expect(failure).rejects.toBeInstanceOf(ScanServiceError);
+    await expect(failure).rejects.toThrow('Object storage could not be read');
+    const down = fakeClient(() => {
+      throw Object.assign(new Error('down'), { $metadata: { httpStatusCode: 503 } });
+    });
+    await expect(s3EvidenceObjects(SETTINGS, down).open('k')).rejects.toBeInstanceOf(
+      ScanServiceError,
+    );
+    const badKey = fakeClient(() => {
+      throw Object.assign(new Error('bad key'), {
+        name: 'InvalidAccessKeyId',
+        $metadata: { httpStatusCode: 403 },
+      });
+    });
+    await expect(s3EvidenceObjects(SETTINGS, badKey).open('k')).rejects.toBeInstanceOf(
+      ScanServiceError,
     );
     const empty = fakeClient(() => ({}));
-    await expect(s3EvidenceObjects(SETTINGS, empty).open('k')).rejects.toThrow('no stream');
+    const noStream = s3EvidenceObjects(SETTINGS, empty).open('k');
+    await expect(noStream).rejects.toBeInstanceOf(ScanServiceError);
+    await expect(noStream).rejects.toThrow('no stream');
+  });
+
+  it('counts a refusal of one object against the file, without quoting the SDK', async () => {
+    const refused = fakeClient(() => {
+      throw Object.assign(new Error('Access Denied for firm/client/instance/upload'), {
+        name: 'AccessDenied',
+        $metadata: { httpStatusCode: 403 },
+      });
+    });
+    const failure = s3EvidenceObjects(SETTINGS, refused).open('firm/client/instance/upload');
+    await expect(failure).rejects.toThrow('Object storage refused the file');
+    await expect(failure).rejects.not.toBeInstanceOf(ScanServiceError);
+    await expect(failure).rejects.not.toThrow('firm/client');
+  });
+
+  it('passes the deadline to the request and reports it as a timeout once passed', async () => {
+    const deadline = new AbortController();
+    const seen: unknown[] = [];
+    const client: S3Send = {
+      send: (async (_command: GetObjectCommand, options?: { abortSignal?: AbortSignal }) => {
+        seen.push(options?.abortSignal);
+        deadline.abort();
+        throw new Error('aborted');
+      }) as S3Send['send'],
+    };
+    const failure = s3EvidenceObjects(SETTINGS, client).open('k', deadline.signal);
+    await expect(failure).rejects.toBeInstanceOf(ScanTimeoutError);
+    expect(seen).toEqual([deadline.signal]);
+  });
+
+  it('reports a body that breaks mid-transfer as a service error, or a timeout past the deadline', async () => {
+    async function* broken(): AsyncGenerator<Uint8Array> {
+      yield Buffer.from('%PDF');
+      throw new Error('socket hang up on firm/client/instance/upload');
+    }
+    const read = async (signal?: AbortSignal) => {
+      const content = await s3EvidenceObjects(
+        SETTINGS,
+        fakeClient(() => ({ Body: broken() })),
+      ).open('k', signal);
+      for await (const chunk of content!) void chunk;
+    };
+    await expect(read()).rejects.toBeInstanceOf(ScanServiceError);
+    await expect(read()).rejects.toThrow('Object storage stopped sending the file');
+    const stopped = new AbortController();
+    stopped.abort();
+    await expect(read(stopped.signal)).rejects.toBeInstanceOf(ScanTimeoutError);
   });
 
   it('builds its own client for an S3-compatible endpoint', () => {

@@ -835,5 +835,59 @@ describe.skipIf(!url)('jobs on the Postgres store', () => {
       });
       expect(scanned).toHaveLength(3);
     });
+
+    it('counts failed attempts on the audit trail and marks the file FAILED on the third', async () => {
+      const files = new Map<string, string>();
+      const cut = await upload(a, '%PDF-1.7 cut short', files);
+      const scanDeps: JobDeps = {
+        ...deps,
+        scanner: {
+          async scan(content) {
+            for await (const chunk of content) void chunk;
+            return { status: 'CLEAN' };
+          },
+        },
+        // Storage sends only part of the file each time.
+        evidenceObjects: {
+          async open() {
+            return (async function* () {
+              yield Buffer.from('%PDF');
+            })();
+          },
+        },
+      };
+      const attempts = () =>
+        t.count(
+          a.firmId,
+          'audit_event',
+          `entity_id = $1 and action = 'UPDATE' and after->>'scanStatus' = 'PENDING' and after->>'scanError' = 'TRUNCATED'`,
+          [cut.id],
+        );
+
+      expect(await runScanEvidence(scanDeps, 'job:scan-evidence:try1')).toMatchObject({
+        clean: 0,
+        retry: 1,
+      });
+      expect(await attempts()).toBe(1);
+      await runScanEvidence(scanDeps, 'job:scan-evidence:try2');
+      expect(await attempts()).toBe(2);
+      expect(await runScanEvidence(scanDeps, 'job:scan-evidence:try3')).toMatchObject({
+        clean: 0,
+        failed: 1,
+        retry: 0,
+      });
+      expect(
+        await inFirm(a.firmId, async (tx) => (await evidence.require(tx, cut.id)).scanStatus),
+      ).toBe('FAILED');
+      expect(
+        await t.count(
+          a.firmId,
+          'audit_event',
+          `entity_id = $1 and after->>'scanStatus' = 'FAILED' and (after->>'attempts')::int = 3`,
+          [cut.id],
+        ),
+      ).toBe(1);
+      await expectNoStrays();
+    });
   });
 });

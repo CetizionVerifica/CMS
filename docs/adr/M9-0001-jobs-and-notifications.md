@@ -103,17 +103,38 @@ remind for complied or not-applicable items, and reach the database only through
     non-archived files oldest first, streams each from the evidence bucket to the scanner, and writes the result with
     an `UPDATE` audit row on the evidence (`before`/`after` scan status, plus the signature when infected) and an
     `evidence.scanned` event on the instance, in one transaction. The event carries ids and the status only.
-    - **Scanner port:** `Scanner.scan(stream)`. The default is ClamAV's daemon over TCP (`clamav-scanner.ts`, the
-      `INSTREAM` command, no new dependency), set by `CLAMAV_HOST` with `CLAMAV_PORT` (3310) and `CLAMAV_TIMEOUT_MS`
-      (120000). clamd's `StreamMaxLength` must be at least 26M, above the 25 MiB evidence limit. A host's own
-      scanning service plugs in as `startJobsFromEnv({ scanner })`.
+    - **Scanner port:** `Scanner.scan(stream, signal)`. The default is ClamAV's daemon over TCP
+      (`clamav-scanner.ts`, the `INSTREAM` command, no new dependency), set by `CLAMAV_HOST` with `CLAMAV_PORT` (3310)
+      and `CLAMAV_TIMEOUT_MS` (180000, at most 240000). The timeout must stay above clamd's `MaxScanTime` (120 s by
+      default), so clamd gives its own answer first. clamd's `StreamMaxLength` must be at least 26M, above the 25 MiB
+      evidence limit, and it should run with `AlertExceedsMax yes`, or with `MaxFileSize` and `MaxScanSize` above
+      25 MiB: otherwise clamd answers `OK` for a file it only scanned in part. A host's own scanning service plugs in
+      as `startJobsFromEnv({ scanner })`.
     - **Off without a scanner,** like the mail jobs (decision 10): the runner's `scan` is false, files stay PENDING
       and none is marked clean unscanned. A scanner without the `S3_*` bucket throws at boot.
-    - **FAILED** is about the file: nothing is stored at its key, or clamd answers `… ERROR` (over its size limit, or
-      a scan limit such as an archive bomb). The person uploads it again.
-    - **Retry:** when storage or the scanner cannot be reached, or clamd times out, the file stays PENDING and the run
-      stops, since every other file would fail the same way; the next run starts over. A run starts no new file after
-      10 minutes, inside the 30-minute job expiry.
+    - **CLEAN only for the whole file:** the job counts the bytes it streams and records CLEAN only when they equal
+      the size the upload recorded. A shorter stream is a failed attempt (`TRUNCATED`). INFECTED stands even from
+      part of a file.
+    - **Deadlines:** each file gets one 5-minute deadline (an `AbortController` passed to the S3 read and the scan).
+      The S3 client also fails a connection that does not open in 10 s or a socket idle for 60 s.
+    - **Three kinds of failure** (`ports.ts`):
+      - `ScanServiceError`: storage or the scanner cannot be reached, storage answers 5xx or rejects the credentials or
+        bucket, or a stream breaks mid-transfer. Every file would fail the same way, so the run stops and nothing is
+        counted against the file. The next run starts over.
+      - `ScanTimeoutError` (the file's deadline, or clamd not answering in time): a failed attempt on the file, and
+        the run stops in case the scanner is stuck.
+      - Anything else (storage refuses this one object, an unexpected reply): a failed attempt, and the run moves on.
+    - **Attempts:** each failed attempt is an `UPDATE` audit row on the evidence (`after: {scanStatus: 'PENDING',
+      scanAttempt, scanError}`, a code with no error text). The job counts those rows, so attempts survive restarts
+      with no new column. On the third the file is FAILED (`after.attempts: 3`), so one file that never scans cannot
+      hold up the rest of the firm's. A file that failed in a run is not tried again in the same run.
+    - **FAILED** is about the file: nothing is stored at its key, clamd answers `… ERROR` (over its size limit, or a
+      scan limit such as an archive bomb), or three attempts failed. The person uploads it again.
+    - **Time budget:** a run starts no new file after 10 minutes; with one file's deadline on top it ends inside the
+      30-minute job expiry.
+    - **Follow-up for M3:** `listPendingEvidence` reads each client's PENDING files through the vault page by page
+      and sorts them in memory, which is quadratic for a large backlog. A repository call with `ORDER BY created_at,
+      id LIMIT n` would replace it.
     - **Not yet:** telling the uploader about an INFECTED file (`evidence.scanned`'s consumer, events.md).
 16. **Job schema.** pg-boss keeps its tables in the `pgboss` schema. The app's login has no `CREATE` on the database
     (M3 roles), so a migration creates the schema owned by `canopy_app`, and the runner asks pg-boss to create it

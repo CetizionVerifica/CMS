@@ -239,6 +239,8 @@ export interface FirmTx {
    * nothing changed, when the file is missing, archived or no longer PENDING.
    */
   recordScan(evidenceId: Id, scanStatus: ScanResult): Promise<{ instanceVersion: number } | null>;
+  /** Failed scan attempts recorded for the file: its evidence `UPDATE` audit rows that left it PENDING. */
+  scanAttempts(evidenceId: Id): Promise<number>;
   /** Scheduled send-log rows of one client for one send date that are DONE (sent or failed). */
   listDoneSends(clientId: Id, sendDate: LocalDate): Promise<SendKey[]>;
   /** Recipients whose CONSULTANT_DIGEST for this send date is DONE (sent or failed), across all clients. */
@@ -271,6 +273,8 @@ export interface PendingEvidence {
   clientId: Id;
   instanceId: Id;
   storageKey: string;
+  /** What the upload recorded; a CLEAN verdict counts only when every one of these bytes was scanned. */
+  sizeBytes: number;
 }
 
 /** A scan's outcome as stored: PENDING never comes out of a scan. */
@@ -284,16 +288,33 @@ export type ScanVerdict =
   { status: 'CLEAN' } | { status: 'INFECTED'; signature: string } | { status: 'FAILED' };
 
 /**
- * A virus scanner (ClamAV's clamd by default, clamav-scanner.ts). Reads the whole file. Throws when it could not scan
- * now (unreachable, timed out, an internal error); the file stays PENDING and the next run tries again.
+ * Storage or the scanner is down, so nothing is known about the file: the scan run stops and the attempt is not
+ * counted against the file. Any other error a scanner or storage throws counts as a failed attempt on the file.
  */
-export interface Scanner {
-  scan(content: AsyncIterable<Uint8Array>): Promise<ScanVerdict>;
+export class ScanServiceError extends Error {
+  override readonly name = 'ScanServiceError';
 }
 
-/** Reads evidence bytes from object storage. Null when nothing is stored at the key. */
+/** The scan of one file ran out of time (its deadline, or the scanner's own timeout). Counted, and the run stops. */
+export class ScanTimeoutError extends Error {
+  override readonly name = 'ScanTimeoutError';
+}
+
+/**
+ * A virus scanner (ClamAV's clamd by default, clamav-scanner.ts). Reads the whole file and stops when `signal`
+ * aborts. Throws `ScanServiceError` when it cannot be reached and `ScanTimeoutError` when it runs out of time; the
+ * file stays PENDING either way.
+ */
+export interface Scanner {
+  scan(content: AsyncIterable<Uint8Array>, signal?: AbortSignal): Promise<ScanVerdict>;
+}
+
+/**
+ * Reads evidence bytes from object storage, stopping when `signal` aborts. Null when nothing is stored at the key.
+ * Throws `ScanServiceError` when storage cannot be reached.
+ */
 export interface EvidenceObjects {
-  open(storageKey: string): Promise<AsyncIterable<Uint8Array> | null>;
+  open(storageKey: string, signal?: AbortSignal): Promise<AsyncIterable<Uint8Array> | null>;
 }
 
 /** Publishes an outbox event to its pg-boss queue. Idempotent on the event id. */

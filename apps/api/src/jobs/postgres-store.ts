@@ -109,6 +109,7 @@ function firmTx(tx: TenantTx): FirmTx {
           clientId: e.clientId,
           instanceId: e.instanceId,
           storageKey: e.storageKey,
+          sizeBytes: e.sizeBytes,
         });
       }
       return oldest;
@@ -119,6 +120,11 @@ function firmTx(tx: TenantTx): FirmTx {
       await evidence.setScanStatus(tx, evidenceId, scanStatus);
       return { instanceVersion: (await instances.require(tx, e.instanceId)).version };
     },
+    // A file is FAILED after a few attempts, so its history stays far below one page.
+    scanAttempts: async (evidenceId) =>
+      (await auditEvents.forEntity(tx, 'evidence', evidenceId, { limit: 200 })).filter(
+        (e) => e.action === 'UPDATE' && e.after?.scanStatus === 'PENDING',
+      ).length,
     findInvite: async (inviteId): Promise<InviteNotice | null> => {
       const i = await invites.get(tx, inviteId);
       if (!i) return null;

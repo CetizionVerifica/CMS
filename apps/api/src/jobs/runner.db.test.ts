@@ -17,7 +17,12 @@ import { memoryClient, memoryFirm, outboxRow } from './testing/memory-store.js';
 const url = process.env.DATABASE_URL;
 
 /** Every file is clean; storage holds a few bytes at any key. */
-const cleanScanner: Scanner = { scan: async () => ({ status: 'CLEAN' }) };
+const cleanScanner: Scanner = {
+  async scan(content) {
+    for await (const chunk of content) void chunk;
+    return { status: 'CLEAN' };
+  },
+};
 const anyObject: EvidenceObjects = {
   open: async () =>
     (async function* () {

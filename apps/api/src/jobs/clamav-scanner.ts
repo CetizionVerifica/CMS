@@ -1,10 +1,11 @@
 import { connect, type Socket } from 'node:net';
-import type { Scanner, ScanVerdict } from './ports.js';
+import { ScanServiceError, ScanTimeoutError, type Scanner, type ScanVerdict } from './ports.js';
 
 /**
  * ClamAV's daemon over TCP (clamd INSTREAM), the default scanner. Configured from `CLAMAV_HOST`, with `CLAMAV_PORT`
- * (3310) and `CLAMAV_TIMEOUT_MS` (120000). clamd's `StreamMaxLength` must be at least 26M, above the 25 MiB evidence
- * limit; a file over it comes back FAILED.
+ * (3310) and `CLAMAV_TIMEOUT_MS` (180000, at most 240000). The timeout must stay above clamd's `MaxScanTime`
+ * (120000 by default), so clamd answers a slow file with its own limit first. clamd's `StreamMaxLength` must be at
+ * least 26M, above the 25 MiB evidence limit; a file over it comes back FAILED.
  */
 export interface ClamAvConfig {
   host: string;
@@ -13,7 +14,9 @@ export interface ClamAvConfig {
 }
 
 export const CLAMAV_DEFAULT_PORT = 3310;
-export const CLAMAV_DEFAULT_TIMEOUT_MS = 120_000;
+export const CLAMAV_DEFAULT_TIMEOUT_MS = 180_000;
+/** Below the scan job's per-file deadline (`SCAN_FILE_MS`, 5 minutes). */
+export const CLAMAV_MAX_TIMEOUT_MS = 240_000;
 /** clamd reads the stream in chunks, each prefixed with its length. */
 const CHUNK_BYTES = 64 * 1024;
 
@@ -38,7 +41,7 @@ export function clamAvConfigFromEnv(env: Record<string, string | undefined>): Cl
     host,
     port: port ? positiveInt('CLAMAV_PORT', port, 65_535) : CLAMAV_DEFAULT_PORT,
     timeoutMs: timeout
-      ? positiveInt('CLAMAV_TIMEOUT_MS', timeout, 3_600_000)
+      ? positiveInt('CLAMAV_TIMEOUT_MS', timeout, CLAMAV_MAX_TIMEOUT_MS)
       : CLAMAV_DEFAULT_TIMEOUT_MS,
   };
 }
@@ -63,10 +66,19 @@ function write(socket: Socket, data: Buffer): Promise<void> {
   );
 }
 
+/**
+ * Errors are sorted for the scan job: no connection, however it fails, is `ScanServiceError` (clamd is down, so the
+ * run stops), running out of time once connected is `ScanTimeoutError`, and anything else after connecting (clamd dropped the connection or answered
+ * nonsense) is a plain error, counted against the file.
+ */
 export function clamAvScanner(config: ClamAvConfig): Scanner {
   return {
-    async scan(content) {
+    async scan(content, signal) {
+      if (signal?.aborted) throw new ScanTimeoutError('The scan was stopped at its deadline');
       const socket = connect({ host: config.host, port: config.port });
+      const stop = () =>
+        socket.destroy(new ScanTimeoutError('The scan was stopped at its deadline'));
+      signal?.addEventListener('abort', stop, { once: true });
       let received = '';
       const answered = () => received.includes('\0');
       const reply = new Promise<string>((resolve, reject) => {
@@ -81,7 +93,7 @@ export function clamAvScanner(config: ClamAvConfig): Scanner {
       });
       reply.catch(() => {});
       socket.setTimeout(config.timeoutMs, () =>
-        socket.destroy(new Error('clamd did not answer in time')),
+        socket.destroy(new ScanTimeoutError('clamd did not answer in time')),
       );
       const send = async (data: Buffer) => {
         try {
@@ -93,7 +105,8 @@ export function clamAvScanner(config: ClamAvConfig): Scanner {
       try {
         await new Promise<void>((resolve, reject) => {
           socket.once('connect', resolve);
-          socket.once('error', reject);
+          // Before a connection nothing is about the file, a connect that times out included.
+          socket.once('error', () => reject(new ScanServiceError('clamd could not be reached')));
         });
         await send(Buffer.from('zINSTREAM\0'));
         stream: for await (const chunk of content) {
@@ -107,7 +120,13 @@ export function clamAvScanner(config: ClamAvConfig): Scanner {
         }
         if (!answered()) await send(Buffer.alloc(4));
         return parseClamdReply(await reply);
+      } catch (error) {
+        if (signal?.aborted && !(error instanceof ScanServiceError)) {
+          throw new ScanTimeoutError('The scan was stopped at its deadline');
+        }
+        throw error;
       } finally {
+        signal?.removeEventListener('abort', stop);
         socket.destroy();
       }
     },

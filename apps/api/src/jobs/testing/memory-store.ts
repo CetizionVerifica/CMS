@@ -244,12 +244,21 @@ function firmTx(firm: MemoryFirm, hooks: MemoryStoreHooks): FirmTx {
         .filter((e) => e.scanStatus === 'PENDING' && !e.archived)
         .sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id))
         .slice(0, limit)
-        .map(({ id, clientId, instanceId, storageKey }) => ({
+        .map(({ id, clientId, instanceId, storageKey, sizeBytes }) => ({
           id,
           clientId,
           instanceId,
           storageKey,
+          sizeBytes,
         })),
+    scanAttempts: async (evidenceId) =>
+      firm.audits.filter(
+        (a) =>
+          a.entityType === 'evidence' &&
+          a.entityId === evidenceId &&
+          a.action === 'UPDATE' &&
+          a.after?.scanStatus === 'PENDING',
+      ).length,
     recordScan: async (evidenceId, scanStatus) => {
       const e = firm.evidence.find((x) => x.id === evidenceId);
       if (!e || e.archived || e.scanStatus !== 'PENDING') return null;

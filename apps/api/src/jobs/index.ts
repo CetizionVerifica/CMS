@@ -14,6 +14,7 @@ export {
 } from './generate-instances.js';
 export { RELAY_BATCH, RELAY_OUTBOX, runRelayOutbox } from './outbox-relay.js';
 export type * from './ports.js';
+export { ScanServiceError, ScanTimeoutError } from './ports.js';
 export { postgresJobStore } from './postgres-store.js';
 export { REMINDERS, runReminders } from './reminders.js';
 export { runScanEvidence, SCAN_EVIDENCE } from './scan-evidence.js';
