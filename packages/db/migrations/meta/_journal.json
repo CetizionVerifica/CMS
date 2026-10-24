@@ -225,6 +225,20 @@
       "when": 1792859047457,
       "tag": "0031_support_end_key_sources",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1792861661577,
+      "tag": "0032_notification_kind_renewal_mfa",
+      "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1792861662822,
+      "tag": "0033_subscription_ends_on",
+      "breakpoints": true
     }
   ]
 }
