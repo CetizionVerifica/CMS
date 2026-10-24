@@ -7,6 +7,7 @@ import { ApiError } from '../auth/index.js';
  * (api-conventions.md §2): a repeat with the same key from the same operator within 24 hours gets the first
  * response, so a double click or a retried request never provisions a second account. Kept in the API process
  * (ADR M15-0003): the console has a single operator and runs on one API process. Only successful responses are kept.
+ * A repeat that arrives while the first is still running waits for it, so two concurrent posts run `fn` once.
  */
 
 export const IDEMPOTENCY_TTL_MS = 24 * 3_600_000;
@@ -14,7 +15,8 @@ export const IDEMPOTENCY_TTL_MS = 24 * 3_600_000;
 interface Entry {
   at: number;
   requestHash: string;
-  body: unknown;
+  /** The first request's answer, settled or still running. */
+  body: Promise<unknown>;
 }
 
 function keyError(message: string): ApiError {
@@ -64,11 +66,17 @@ export class OperatorIdempotency {
       if (seen.requestHash !== requestHash) {
         throw keyError('This key was already used for a different request');
       }
-      return seen.body as T;
+      return (await seen.body) as T;
     }
-    const body = await fn();
+    const body = fn();
     this.entries.set(id, { at: now.getTime(), requestHash, body });
-    return body;
+    try {
+      return await body;
+    } catch (error) {
+      // A refused request changed nothing: forget it, so a retry (or a waiting repeat's retry) runs again.
+      if (this.entries.get(id)?.body === body) this.entries.delete(id);
+      throw error;
+    }
   }
 
   private forget(now: Date) {

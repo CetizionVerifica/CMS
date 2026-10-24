@@ -146,11 +146,8 @@ export function registerLifecycleRoutes(api: FastifyInstance, deps: PlatformDeps
     async ({ request, requestId, params, now }) => {
       await db.withOperator(requestId, async (tx) => {
         const record = await requireAccount(tx, params.id!);
-        if (record.status !== 'PROVISIONING') {
-          throw new ApiError('VALIDATION', {
-            issues: [{ path: ['id'], message: 'The owner has accepted already' }],
-          });
-        }
+        // Only before the owner accepts: the account cannot go back to PROVISIONING (409, like any status refusal).
+        if (record.status !== 'PROVISIONING') refuseMove(record.status, 'PROVISIONING');
         const inviteExpiresAt = ownerInviteExpiry(now);
         await ownerInvites.resend(tx, {
           accountId: record.id,

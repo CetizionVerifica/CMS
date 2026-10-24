@@ -41,6 +41,11 @@ export function registerSupportRoutes(api: FastifyInstance, deps: PlatformDeps):
         if (grant.status !== 'ACTIVE') {
           throw new ApiError('ACCESS_EXPIRED', { expiredAt: grant.revokedAt ?? grant.endsAt });
         }
+        // The database refuses a token for a paused or closing account too; this answers why, not a bare 400.
+        const account = await requireAccount(tx, grant.accountId);
+        if (account.status !== 'TRIAL' && account.status !== 'ACTIVE') {
+          throw new ApiError('ACCOUNT_SUSPENDED', { status: account.status });
+        }
         const token = newToken();
         const expiresAt = new Date(now.getTime() + SUPPORT_TOKEN_SECONDS * 1000).toISOString();
         await platformSupport.issueToken(tx, {

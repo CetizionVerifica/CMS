@@ -289,6 +289,17 @@ describe.skipIf(!url)('the operator account routes', () => {
         ).code,
       ).toBe('VALIDATION');
     });
+    it('provisions once for two concurrent posts with the same Idempotency-Key (a double click)', async () => {
+      const key = randomUUID();
+      const payload = body({ name: 'Stonebridge Works' });
+      const [one, two] = await Promise.all([
+        send('POST', '/accounts', payload, { 'idempotency-key': key }),
+        send('POST', '/accounts', payload, { 'idempotency-key': key }),
+      ]);
+      expect(z(Account, two).id).toBe(z(Account, one).id);
+      const named = await asOperator((tx) => r.platformAccounts.list(tx));
+      expect(named.filter((a) => a.name === 'Stonebridge Works')).toHaveLength(1);
+    });
   });
 
   describe('reading and editing', () => {
@@ -504,9 +515,14 @@ describe.skipIf(!url)('the operator account routes', () => {
         (await operatorTrail(account.id)).filter((e) => e.action === 'OWNER_INVITE_SEND'),
       ).toHaveLength(2);
       await ownerAccepts(account.id);
-      expect(error(await send('POST', `/accounts/${account.id}/owner-invite`)).code).toBe(
-        'VALIDATION',
-      );
+      const late = await send('POST', `/accounts/${account.id}/owner-invite`);
+      expect([late.statusCode, error(late)]).toEqual([
+        409,
+        expect.objectContaining({
+          code: 'INVALID_TRANSITION',
+          details: { from: 'TRIAL', to: 'PROVISIONING' },
+        }),
+      ]);
     });
 
     it('records onboarding once', async () => {
@@ -731,6 +747,16 @@ describe.skipIf(!url)('the operator account routes', () => {
       expect((await operatorTrail(account.id)).map((e) => e.action)).toContain(
         'SUPPORT_ACCESS_START',
       );
+      // The customer's own trail shows the support person signing in (M5 writes it with the session).
+      const logins = await t.ownerQuery<{ actorId: string; after: unknown }>(
+        account.id,
+        `SELECT actor_id AS "actorId", after FROM audit_event
+           WHERE firm_id = '${account.id}' AND action = 'LOGIN' AND actor_kind = 'PERSON'`,
+      );
+      expect(logins).toContainEqual({
+        actorId: grant.supportPersonId,
+        after: { method: 'SUPPORT' },
+      });
 
       await inAccount(account.id, (tx) =>
         r.supportGrants.revoke(tx, grant.id, ownerId, new Date().toISOString()),
@@ -744,6 +770,37 @@ describe.skipIf(!url)('the operator account routes', () => {
         'NOT_FOUND',
       );
       expect(error(await get(`/accounts/${randomUUID()}/support-grants`)).code).toBe('NOT_FOUND');
+    });
+
+    it('answers ACCOUNT_SUSPENDED, not a bare 400, for a live grant on a paused account', async () => {
+      const account = await create({ name: 'Osprey Paused Test', activeNow: true });
+      const ownerId = await ownerAccepts(account.id);
+      const { grant } = await inAccount(account.id, (tx) =>
+        r.supportGrants.create(tx, {
+          level: 'READ_ONLY',
+          days: 2,
+          grantedById: ownerId,
+          now: new Date().toISOString(),
+        }),
+      );
+      const current = z(Account, await get(`/accounts/${account.id}`));
+      z(
+        Account,
+        await send('POST', `/accounts/${account.id}/status`, {
+          version: current.version,
+          to: 'SUSPENDED',
+          reason: 'Unpaid invoice',
+        }),
+      );
+      const paused = await send('POST', `/support-grants/${grant.id}/sessions`);
+      expect([paused.statusCode, error(paused)]).toEqual([
+        403,
+        expect.objectContaining({ code: 'ACCOUNT_SUSPENDED', details: { status: 'SUSPENDED' } }),
+      ]);
+      const starts = (await operatorTrail(account.id)).filter(
+        (e) => e.action === 'SUPPORT_ACCESS_START' && e.operatorId !== null,
+      );
+      expect(starts).toEqual([]);
     });
   });
 

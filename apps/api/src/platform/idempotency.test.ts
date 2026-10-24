@@ -56,4 +56,33 @@ describe('operator Idempotency-Key', () => {
     await expect(cache.run(input, t0, fn)).rejects.toThrow('down');
     expect(await cache.run(input, t0, fn)).toEqual({ id: 'a' });
   });
+
+  it('runs once for two concurrent posts with the same key, and both get the first response', async () => {
+    const cache = new OperatorIdempotency();
+    let finish!: (value: { id: string }) => void;
+    const fn = vi.fn(() => new Promise<{ id: string }>((resolve) => (finish = resolve)));
+    const input = { operatorId: 'op', header: KEY, path: '/accounts', body: { name: 'x' } };
+    const first = cache.run(input, t0, fn);
+    const second = cache.run(input, t0, fn);
+    finish({ id: 'a' });
+    expect(await Promise.all([first, second])).toEqual([{ id: 'a' }, { id: 'a' }]);
+    expect(fn).toHaveBeenCalledOnce();
+  });
+
+  it('a repeat waiting on a first request that fails gets the same failure, and a later retry runs', async () => {
+    const cache = new OperatorIdempotency();
+    let fail!: (error: Error) => void;
+    const fn = vi
+      .fn()
+      .mockImplementationOnce(() => new Promise((_, reject) => (fail = reject)))
+      .mockResolvedValueOnce({ id: 'b' });
+    const input = { operatorId: 'op', header: KEY, path: '/accounts', body: { name: 'x' } };
+    const first = cache.run(input, t0, fn);
+    const second = cache.run(input, t0, fn);
+    fail(new Error('down'));
+    await expect(first).rejects.toThrow('down');
+    await expect(second).rejects.toThrow('down');
+    expect(await cache.run(input, t0, fn)).toEqual({ id: 'b' });
+    expect(fn).toHaveBeenCalledTimes(2);
+  });
 });

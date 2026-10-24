@@ -19,9 +19,10 @@ ADR M15-0001 decides what the PlanetPulse operator can do to an account; M0 1.5.
    library was copied, so the console can flag a PROVISIONING account still waiting for it.
 3. **Idempotency is kept in the process for 24 hours.** `POST /accounts` and `POST /accounts/{id}/subscriptions` take an
    `Idempotency-Key` (a UUID). A repeat with the same key and body from the same operator returns the first answer; the
-   same key with another body is `400 VALIDATION`. One operator and one API process make a table unnecessary for now;
-   a restart forgets the keys, and a retried create after a restart can make a second PROVISIONING account, which the
-   operator can delete. A durable table follows if the console ever runs on more than one process.
+   same key with another body is `400 VALIDATION`. A repeat that arrives while the first is still running waits for
+   it and gets the same answer (the cache keeps the in-flight promise), so a double click provisions once. One operator
+   and one API process make a table unnecessary for now; a restart forgets the keys, and a retried create after a
+   restart can make a second PROVISIONING account, which the operator can delete. A durable table follows if the console ever runs on more than one process.
 4. **A blank reason is refused at the edge.** The contract's `Reason` is trimmed and needs at least one character, so
    a blank reason on suspend, resume, convert, plan change, override or deletion answers `400 VALIDATION` naming
    `body.reason`, not the `422 REASON_REQUIRED` that ADR M15-0001 decision 12 mentions. The rule (a typed reason) is the
@@ -35,10 +36,12 @@ ADR M15-0001 decides what the PlanetPulse operator can do to an account; M0 1.5.
    `409 STALE_VERSION { currentVersion }`. An override change bumps the version too, so two operators cannot overwrite
    each other's limits.
 7. **The support session opens in the app, not the console.** `POST /support-grants/{id}/sessions` checks the grant
-   is live (`ACCESS_EXPIRED { expiredAt }` otherwise), issues a 60-second one-time token and answers
+   is live (`ACCESS_EXPIRED { expiredAt }` otherwise) and the account is TRIAL or ACTIVE (`403 ACCOUNT_SUSPENDED
+   { status }` otherwise, since a paused or closing account lets nobody in), issues a 60-second one-time token and answers
    `${APP_URL}/support/start#token=…`. The token travels in the fragment, so no proxy or access log records it; the web
    app's `/support/start` page posts it to `POST /auth/support/verify` (ADR M5-0002 decision 4). `APP_URL` is required
-   when the platform is enabled.
+   when the platform is enabled. The customer's own trail shows the visit as a `LOGIN` by the support person with
+   `{ method: "SUPPORT" }`, which M5 writes when the session starts; the operator trail has `SUPPORT_ACCESS_START`.
 8. **The trial clock is India's.** `operatorToday` reads the date in Asia/Kolkata, the operator's time zone, for trial
    ends, renewals and the "not in the past" check on a trial extension. A new trial ends 30 days after creation.
 9. **Lists are filtered and paged in the API.** Accounts number in the hundreds at most, so `GET /accounts` reads them
@@ -50,6 +53,9 @@ ADR M15-0001 decides what the PlanetPulse operator can do to an account; M0 1.5.
     without `PLATFORM_IP_ALLOWLIST` fails the boot (the API wiring), so only the operator's own addresses reach it.
 11. **Lockouts are not yet in the operator audit.** A lockout shows in the API log only; an `OPERATOR_LOCKED` action
     needs a contracts and database enum change, and follows with the next operator-audit change.
+12. **Resuming needs no subscription.** SUSPENDED to ACTIVE is the operator's call with a reason (plan §3), whether the
+    account was paused by hand or by the trial ending. Recording a subscription is a separate step
+    (`POST /accounts/{id}/subscriptions`) the operator takes when the order is paid. Resending the owner's invite after the owner accepted is `409 INVALID_TRANSITION { from, to: "PROVISIONING" }`.
 
 ## Consequences
 
