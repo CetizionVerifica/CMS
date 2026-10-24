@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { isIP } from 'node:net';
+import { BlockList, isIP } from 'node:net';
 import Fastify, { type FastifyInstance } from 'fastify';
 import type { Database } from '@canopy/db';
 import {
@@ -86,14 +86,20 @@ export function trustProxyFromEnv(value: string | undefined): string[] | false {
 /** The widest proxy range accepted: 10.0.0.0/8 or fd00::/8. */
 const MIN_PROXY_PREFIX = 8;
 
+/** IPv4-mapped IPv6 (::ffff:0:0/96) matches IPv4 clients, so its prefix counts from bit 96. */
+const IPV4_MAPPED = new BlockList();
+IPV4_MAPPED.addSubnet('::ffff:0:0', 96, 'ipv6');
+
 function isProxyAddress(entry: string): boolean {
   const [address = '', prefix, ...rest] = entry.split('/');
   const version = isIP(address);
   if (version === 0 || rest.length > 0) return false;
   if (prefix === undefined) return true;
+  const minimum =
+    version === 6 && IPV4_MAPPED.check(address, 'ipv6') ? 96 + MIN_PROXY_PREFIX : MIN_PROXY_PREFIX;
   return (
     /^\d{1,3}$/.test(prefix) &&
-    Number(prefix) >= MIN_PROXY_PREFIX &&
+    Number(prefix) >= minimum &&
     Number(prefix) <= (version === 4 ? 32 : 128)
   );
 }
