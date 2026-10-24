@@ -3,6 +3,7 @@ import * as r from '@canopy/db';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createTestDatabase, type TestDatabase } from '../entities/testing/postgres.js';
 import { copyMasterLibrary } from './db-library-copy.js';
+import { MASTER_LIBRARY } from './master.js';
 import { SAMPLE_MASTER } from './testing/sample-master.js';
 
 // The master library copy on account.created (ADR M15-0001 decision 8, ADR M6-0001) against Postgres under RLS (CI
@@ -54,6 +55,24 @@ describe.skipIf(!url)('copying the master library into a new account', () => {
   afterAll(async () => {
     await op?.close();
     await t?.drop();
+  });
+
+  it('copies the shipped master library by default (ADR M6-0002)', async () => {
+    const account = await create('Osprey Textiles Group', 'asha.rao@osprey-textiles.example');
+    expect(await copyMasterLibrary(t.db, account.accountId, 'evt-master')).toEqual({
+      copied: true,
+      categories: 10,
+      acts: 33,
+      obligations: 119,
+    });
+    const copy = await libraryOf(account.accountId);
+    expect(copy.obligations).toHaveLength(119);
+    expect(copy.obligations.every((o) => o.libraryVersion === MASTER_LIBRARY.version)).toBe(true);
+    expect(copy.obligations.filter((o) => o.ruleStatus === 'TO_REVIEW')).toHaveLength(6);
+    const audit = await inAccount(account.accountId, (tx) =>
+      r.auditEvents.query(tx, { limit: 200 }),
+    );
+    expect(audit.items.filter((e) => e.action === 'CREATE')).toHaveLength(162);
   });
 
   it('copies every row with its references, audits each, and records the copy', async () => {

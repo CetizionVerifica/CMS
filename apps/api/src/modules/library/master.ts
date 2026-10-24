@@ -1,4 +1,5 @@
 import type { Act, Category, Obligation } from '@canopy/contracts';
+import { MASTER_CONTENT, MASTER_VERSION } from './master-data.js';
 
 /**
  * The master obligation library a new account starts with (ADR M15-0001 decision 8, ADR M6-0001). Rows refer to
@@ -28,16 +29,11 @@ export interface MasterLibrary {
 }
 
 /**
- * Version 1 is empty: the content is the consultancy's to supply, and a library wrong on a due-date rule sends
- * wrong alerts (PLAN.md §8). Until it lands, a new account starts with an empty library and adds its own Acts and
- * obligations, or imports its register, as accounts do today.
+ * Version 1 was empty. Version 2 is the statutory content of the sample register (ADR M6-0002): its Acts,
+ * categories and obligations as an import into an empty account plans them, with no unit, person or instance.
+ * `master-data.ts` is generated; `from-register.test.ts` fails when it drifts from the register.
  */
-export const MASTER_LIBRARY: MasterLibrary = {
-  version: 1,
-  categories: [],
-  acts: [],
-  obligations: [],
-};
+export const MASTER_LIBRARY: MasterLibrary = { version: MASTER_VERSION, ...MASTER_CONTENT };
 
 /** Throws on a repeated key or a reference to a missing one, so a broken library never half-copies. */
 export function checkMasterLibrary(library: MasterLibrary): void {
