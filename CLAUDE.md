@@ -92,6 +92,7 @@ audit events written for state changes; isolation test for new tables; docs or C
 | Unit tests + coverage | `test` | a failing test, or coverage under 80% (engine: 95%, and 100% on files named `*status*` / `*score*`). Thresholds live in each package's `vitest.config.mjs` via `@canopy/vitest-config`; never lower one to get green |
 | Database tests | `db` | a package's `test:db` script against Postgres 16 (`DATABASE_URL` is set). M3 puts tenant-isolation and migration tests here |
 | End to end + accessibility | `e2e` | a Playwright journey, or an axe WCAG 2.2 AA violation (`e2e/support/a11y.ts`; call it on every page a journey visits) |
+| Integrated journeys + security | `e2e-integrated` | a journey or security check in `e2e/integrated` against the built web app, the real API, Postgres and S3 (`docs/security/review.md`) |
 | Module paths | `module-paths` | a PR titled `M<n>: ...` changing files outside that module's paths in `tooling/modules.json` |
 | Dependencies | `audit` | a known high or critical vulnerability (`pnpm audit`) |
 | Static security | `codeql` | a CodeQL security-extended finding |

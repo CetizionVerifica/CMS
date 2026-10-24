@@ -95,6 +95,64 @@ jobs:
           path: e2e/playwright-report
           retention-days: 7
 
+  # The integrated journeys and security checks (M14, e2e/integrated): the built web app on the real API, with
+  # Postgres and S3-compatible storage. The run recreates its own database (canopy_e2e) on this server.
+  e2e-integrated:
+    name: e2e-integrated
+    runs-on: ubuntu-24.04
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: canopy
+          POSTGRES_PASSWORD: canopy
+          POSTGRES_DB: canopy
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U canopy -d canopy"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 30
+    env:
+      DATABASE_URL: postgres://canopy:canopy@localhost:5432/canopy
+      S3_ENDPOINT: http://127.0.0.1:9000
+      S3_REGION: us-east-1
+      S3_BUCKET: canopy-evidence
+      S3_ACCESS_KEY_ID: canopy
+      S3_SECRET_ACCESS_KEY: canopy-secret
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # SeaweedFS as in docker/compose.yaml. A service container can't take its `server` command, so it runs here.
+      - name: Start S3-compatible storage
+        run: |
+          docker run -d --name s3 -p 9000:9000 \
+            -v "$GITHUB_WORKSPACE/docker/seaweedfs-s3.json:/etc/seaweedfs/s3.json:ro" \
+            chrislusf/seaweedfs:4.48 server -dir=/data -s3 -s3.port=9000 \
+            -s3.config=/etc/seaweedfs/s3.json -volume.max=0
+          for i in $(seq 60); do curl -sf http://127.0.0.1:9000/status >/dev/null && break; sleep 2; done
+          for i in $(seq 30); do
+            docker exec s3 sh -c "echo 's3.bucket.create -name canopy-evidence' | weed shell -master=localhost:9333" \
+              && docker exec s3 sh -c "echo 's3.bucket.list' | weed shell -master=localhost:9333" | grep -q canopy-evidence \
+              && break
+            sleep 2
+          done
+      - run: pnpm --filter @canopy/e2e exec playwright install --with-deps chromium
+      - run: pnpm build
+      - run: pnpm --filter @canopy/e2e test:integrated
+      - if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-report-integrated
+          path: e2e/playwright-report-integrated
+          retention-days: 7
+
   # Tooling tests (path guard, wave planner, no overlapping module paths, audit verdict gate). Also runs in the merge queue, so two
   # queued PRs that each edit tooling/modules.json are checked together.
   tooling:
@@ -198,7 +256,7 @@ jobs:
   ci-ok:
     name: ci-ok
     if: always()
-    needs: [checks, tooling, db, e2e, module-paths, audit, codeql, module-audit]
+    needs: [checks, tooling, db, e2e, e2e-integrated, module-paths, audit, codeql, module-audit]
     runs-on: ubuntu-24.04
     steps:
       - if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
