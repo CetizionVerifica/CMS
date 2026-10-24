@@ -40,7 +40,7 @@ test.describe('shell navigation at 1280px', () => {
     }
     // A record path keeps its list's page (behind the record's drawer once M12 ships it, so attached, not visible).
     await page.goto(`/c/${DEMO_METALS}/register/00000000-0000-5000-8000-00000000abcd`);
-    await expect(page.locator('h1', { hasText: 'Register' })).toBeAttached();
+    await expect(page.locator('h1', { hasText: /^Register$/ })).toBeAttached();
   });
 
   test('sidebar links navigate and mark the current page', async ({ page }) => {
@@ -128,7 +128,7 @@ test.describe('shell navigation at 1280px', () => {
     await page.keyboard.press('Tab'); // brand
     await page.keyboard.press('Tab'); // Overview
     await page.keyboard.press('Tab'); // Register
-    await page.keyboard.press('Tab'); // Calendar, still a placeholder page, so the Tab after its h1 is predictable
+    await page.keyboard.press('Tab'); // Calendar: the Tab after its h1 reaches its first control
     await expect(page.getByRole('link', { name: 'Calendar', exact: true })).toBeFocused();
     await page.keyboard.press('Enter');
     await expect(page).toHaveURL(`/c/${DEMO_METALS}/calendar`);
@@ -137,6 +137,11 @@ test.describe('shell navigation at 1280px', () => {
       timeout: 15_000,
     });
     await page.keyboard.press('Tab');
-    await expect(page.getByRole('link', { name: 'Go to home' })).toBeFocused();
+    // The placeholder's "Go to home" until M12's calendar ships, then the calendar's "Previous month".
+    await expect(
+      page
+        .getByRole('link', { name: 'Go to home' })
+        .or(page.getByRole('button', { name: 'Previous month' })),
+    ).toBeFocused();
   });
 });
