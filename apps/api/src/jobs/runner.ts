@@ -58,8 +58,12 @@ export const JOBS: readonly JobDefinition[] = [
 const RETRIES = { retryLimit: 3, retryDelay: 60, retryBackoff: true, expireInSeconds: 30 * 60 };
 
 export interface JobRunnerOptions {
+  /**
+   * pg-boss's own login (`JOBS_DATABASE_URL` in a deploy): a member of `canopy_jobs` only, defaulting to that role
+   * (`ALTER ROLE … SET role = canopy_jobs`), so the tables it creates are owned by `canopy_jobs`. Never the tenant login.
+   */
   connectionString: string;
-  /** Postgres schema pg-boss owns (default "pgboss"). */
+  /** Postgres schema pg-boss uses (default "pgboss"). A migration creates it; the runner never does. */
   schema?: string;
   /** Logs counts per run. Never pass names, addresses or message bodies. */
   log?: (line: { job: string; requestId: string; report?: JobReport; error?: string }) => void;
@@ -91,15 +95,31 @@ export interface JobRunner {
  */
 export async function startJobRunner(deps: JobDeps, options: JobRunnerOptions): Promise<JobRunner> {
   const schema = options.schema ?? 'pgboss';
+  // CREATE SCHEMA IF NOT EXISTS needs CREATE on the database, which no app login has: a migration creates the schema
+  // (owned by canopy_jobs) and pg-boss only creates its tables inside it.
+  if (!(await schemaExists(options.connectionString, schema))) {
+    throw new Error(`The job schema "${schema}" does not exist: run the database migrations first`);
+  }
   const boss = new PgBoss({
     connectionString: options.connectionString,
     schema,
-    // A deploy pre-creates the schema (owned by canopy_app), so the app's login needs no CREATE on the database.
-    createSchema: !(await schemaExists(options.connectionString, schema)),
+    createSchema: false,
   });
   const log = options.log ?? (() => {});
   boss.on('error', (error) => log({ job: 'pg-boss', requestId: '-', error: error.message }));
-  await boss.start();
+  try {
+    await boss.start();
+  } catch (error) {
+    // 42501: the login may not use the schema, typically the tenant login when JOBS_DATABASE_URL is unset. Fail the
+    // boot with what to fix rather than pg-boss's bare "permission denied".
+    if ((error as { code?: string } | null)?.code === '42501') {
+      throw new Error(
+        `The jobs' database login may not use the job schema "${schema}": set JOBS_DATABASE_URL to a login that is a member of canopy_jobs (ADR M9-0001 decision 16)`,
+        { cause: error },
+      );
+    }
+    throw error;
+  }
 
   const mail = options.mail ?? true;
   const scan = deps.scanner !== undefined && deps.evidenceObjects !== undefined;
@@ -169,7 +189,7 @@ export async function startJobRunner(deps: JobDeps, options: JobRunnerOptions): 
   };
 }
 
-/** Whether the pg-boss schema is already there, so pg-boss is not asked to create it. */
+/** Whether the pg-boss schema is there, so a missing migration fails with a clear message. */
 async function schemaExists(connectionString: string, schema: string): Promise<boolean> {
   const client = new pg.Client({ connectionString });
   await client.connect();

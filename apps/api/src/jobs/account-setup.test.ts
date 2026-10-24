@@ -89,10 +89,10 @@ describe('activeConsumers', () => {
     expect(types(activeConsumers(full, true))).toContain('account.created');
   });
 
-  it('leaves the library copy off without the copier, and only it', () => {
-    const active = types(activeConsumers({ ...full, copyLibrary: undefined }, true));
-    expect(active).not.toContain('account.created');
-    expect(active).toHaveLength(CONSUMERS.length - 1);
+  it('keeps the library copy registered without the copier, so its events are retried, not dropped', () => {
+    expect(types(activeConsumers({ ...full, copyLibrary: undefined }, true))).toContain(
+      'account.created',
+    );
   });
 
   it('leaves the sign-in emails off without the issuer, and the senders off without mail', () => {

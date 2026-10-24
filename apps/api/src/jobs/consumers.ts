@@ -31,8 +31,6 @@ export interface Consumer {
   sendsMail?: boolean;
   /** Issues sign-in tokens, so it is registered only when the API passes M5's `issueLoginToken`. */
   needsLoginTokens?: boolean;
-  /** Copies the master library, so it is registered only when the API passes M6's `copyMasterLibrary`. */
-  needsLibraryCopy?: boolean;
   /** Idempotent: an event can arrive more than once (events.md §1). */
   handle(deps: JobDeps, event: OutboxEvent, requestId: string): Promise<JobReport>;
 }
@@ -101,15 +99,15 @@ export const CONSUMERS: readonly Consumer[] = [
 ];
 
 /**
- * The consumers this process registers. Without a mail transport the ones that send are left off; without M5's
- * issuer or M6's copier, the ones that need them. Their events are marked relayed, and nothing is claimed that
- * could never be done.
+ * The consumers this process registers. Without a mail transport the ones that send are left off, and without M5's
+ * issuer the sign-in emails: their events are marked relayed, and nothing is claimed that could never be done. The
+ * library copy is never left off, since a new account must get its library: without M6's copier it throws and is
+ * retried.
  */
 export function activeConsumers(deps: JobDeps, mail: boolean): Consumer[] {
   return CONSUMERS.filter(
     (consumer) =>
       (mail || !consumer.sendsMail) &&
-      (deps.issueLoginToken !== undefined || !consumer.needsLoginTokens) &&
-      (deps.copyLibrary !== undefined || !consumer.needsLibraryCopy),
+      (deps.issueLoginToken !== undefined || !consumer.needsLoginTokens),
   );
 }
