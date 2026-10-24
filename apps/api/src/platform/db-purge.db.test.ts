@@ -53,6 +53,8 @@ describe.skipIf(!url)(ACCOUNT_PURGE, () => {
     expect(await runAccountPurge(deps(), 'job:purge:empty')).toEqual({
       due: 0,
       purged: 0,
+      notDue: 0,
+      swept: 0,
       objects: 0,
       rows: 0,
     });
@@ -75,6 +77,8 @@ describe.skipIf(!url)(ACCOUNT_PURGE, () => {
     expect(await purge.run({} as never, 'job:purge:1')).toEqual({
       due: 1,
       purged: 1,
+      notDue: 0,
+      swept: 0,
       objects: 6,
       rows: 1,
     });
@@ -92,7 +96,13 @@ describe.skipIf(!url)(ACCOUNT_PURGE, () => {
       [],
     );
 
-    expect(await runAccountPurge(deps(), 'job:purge:2')).toMatchObject({ due: 0, purged: 0 });
+    // The next night sweeps it again, files and rows, and finds nothing left.
+    expect(await runAccountPurge(deps(), 'job:purge:2')).toMatchObject({
+      due: 0,
+      purged: 0,
+      swept: 1,
+      rows: 0,
+    });
   });
 
   it('keeps the rows when the files fail, and finishes on the next run', async () => {
@@ -110,21 +120,57 @@ describe.skipIf(!url)(ACCOUNT_PURGE, () => {
     expect(await status(id)).toBe('DELETED');
   });
 
-  it('counts no rows for an account another instance purged first', async () => {
+  it('purges an account once when two runs overlap: the second waits for the lock, then skips it', async () => {
     const id = await account('Kestrelganj Mills', 35);
-    const racing: AccountObjects = {
-      deletePrefix: async (prefix) => {
-        if (prefix.startsWith('exports/'))
-          await t.operatorDb.withOperator('other', (tx) => platformAccounts.purge(tx, id));
+    let first = true;
+    const slow: AccountObjects = {
+      deletePrefix: async () => {
+        if (first) {
+          first = false;
+          await new Promise((resolve) => setTimeout(resolve, 300));
+        }
         return 0;
       },
     };
-    expect(await runAccountPurge({ db: t.operatorDb, objects: racing }, 'job:purge:5')).toEqual({
-      due: 1,
-      purged: 1,
-      objects: 0,
-      rows: 0,
-    });
+    const [a, b] = await Promise.all([
+      runAccountPurge({ db: t.operatorDb, objects: slow }, 'job:purge:5a'),
+      runAccountPurge({ db: t.operatorDb, objects: slow }, 'job:purge:5b'),
+    ]);
+    expect([a!.purged! + b!.purged!, a!.notDue! + b!.notDue!]).toEqual([1, 1]);
     expect(await status(id)).toBe('DELETED');
+  });
+
+  it('sweeps an account purged this past week again, and leaves older ones alone', async () => {
+    const recent = await account('Highmoor Mills', 31);
+    await runAccountPurge(deps(), 'job:purge:6');
+    expect(await status(recent)).toBe('DELETED');
+    const old = await account('Osprey Mills', 31);
+    await runAccountPurge(deps(), 'job:purge:7');
+    await t.ownerQuery(
+      old,
+      `ALTER TABLE firm DISABLE TRIGGER firm_deletion_clock;
+       UPDATE firm SET deletion_requested_at = now() - interval '38 days' WHERE id = '${old}';
+       ALTER TABLE firm ENABLE TRIGGER firm_deletion_clock;`,
+    );
+    // A write that committed after the purge's snapshot.
+    await t.ownerQuery(
+      recent,
+      `INSERT INTO audit_event (firm_id, actor_kind, action, entity_type, entity_id, request_id)
+       VALUES ('${recent}', 'SYSTEM', 'UPDATE', 'client', '${recent}', 'late-write')`,
+    );
+    steps = [];
+    const report = await runAccountPurge(deps(), 'job:purge:8');
+    expect(report).toMatchObject({ due: 0, rows: 1 });
+    expect(steps).toEqual(
+      expect.arrayContaining([
+        `files evidence/${recent}/`,
+        `files imports/${recent}/`,
+        `files exports/${recent}/`,
+      ]),
+    );
+    expect(steps.some((s) => s.includes(old))).toBe(false);
+    expect(
+      await t.ownerQuery(recent, `SELECT 1 FROM audit_event WHERE firm_id = '${recent}'`),
+    ).toEqual([]);
   });
 });

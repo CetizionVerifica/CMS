@@ -19,6 +19,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createDbAccountStore, SecretBox } from '../auth/index.js';
 import { buildServer } from '../server.js';
 import { operatorToday } from './accounts.js';
+import { lockDeletion } from './db-deletion.js';
 import { addOperator } from './db-operators.js';
 import { createPlatformTestDatabase, totpAt, type PlatformTestDatabase } from './db-testing.js';
 
@@ -588,6 +589,59 @@ describe.skipIf(!url)('the operator account routes', () => {
       expect(actions).toEqual(
         expect.arrayContaining(['ACCOUNT_DELETE_REQUEST', 'ACCOUNT_DELETE_CANCEL']),
       );
+    });
+
+    it('refuses to cancel once the 30 days are over, and a cancel waits for a purge in progress', async () => {
+      const account = await create({ name: 'Stonebridge Works', activeNow: true });
+      await ownerAccepts(account.id);
+      const active = z(Account, await get(`/accounts/${account.id}`));
+      const pending = z(
+        Account,
+        await send('POST', `/accounts/${account.id}/deletion`, {
+          version: active.version,
+          reason: 'Contract ended',
+          confirmName: 'Stonebridge Works',
+        }),
+      );
+      // Day 31 by the database's clock, which alone stamps deletion_requested_at.
+      await t.ownerQuery(
+        account.id,
+        `ALTER TABLE firm DISABLE TRIGGER firm_deletion_clock;
+         UPDATE firm SET deletion_requested_at = now() - interval '31 days' WHERE id = '${account.id}';
+         ALTER TABLE firm ENABLE TRIGGER firm_deletion_clock;`,
+      );
+      const late = await send('POST', `/accounts/${account.id}/deletion/cancel`, {
+        version: pending.version,
+        reason: 'Renewed after all',
+      });
+      expect(error(late).code).toBe('INVALID_TRANSITION');
+      expect(z(Account, await get(`/accounts/${account.id}`)).status).toBe('PENDING_DELETION');
+
+      // The purge job holds the account's lock from its files to its rows; a cancel sent meanwhile waits for it.
+      let settled = false;
+      // The promise goes out in an object: returning it bare would hold the transaction open until the cancel answers.
+      const { waiting } = await t.operatorDb.withOperator('purge-test', async (tx) => {
+        expect(await lockDeletion(tx, account.id.toUpperCase())).toEqual({
+          status: 'PENDING_DELETION',
+          graceOver: true,
+        });
+        const waiting = send('POST', `/accounts/${account.id}/deletion/cancel`, {
+          version: pending.version,
+          reason: 'Renewed after all',
+        }).then((res) => {
+          settled = true;
+          return res;
+        });
+        await new Promise((resolve) => setTimeout(resolve, 300));
+        expect(settled).toBe(false);
+        await r.platformAccounts.purge(tx, account.id);
+        return { waiting };
+      });
+      expect(error(await waiting).code).toBe('INVALID_TRANSITION');
+      expect(z(Account, await get(`/accounts/${account.id}`)).status).toBe('DELETED');
+      expect(
+        await t.operatorDb.withOperator('test', (tx) => lockDeletion(tx, 'not-a-uuid')),
+      ).toBeNull();
     });
 
     it('refuses to delete a trial', async () => {
