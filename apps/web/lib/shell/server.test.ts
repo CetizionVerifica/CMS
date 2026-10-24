@@ -61,6 +61,24 @@ describe('shell server data', () => {
     expect((await loadShell()).approvalsWaiting).toBe(MOCK_APPROVALS_WAITING);
   });
 
+  it('reuses a session’s overdue counts for 30 seconds', async () => {
+    vi.useFakeTimers({ now: Date.parse('2026-10-24T08:00:00Z'), toFake: ['Date'] });
+    await signIn('consultant@demo.test', true);
+    const api = await serverApi();
+    const portfolio = vi.spyOn(api, 'portfolio');
+    const serverModule = await import('../api/server');
+    vi.spyOn(serverModule, 'serverApi').mockResolvedValue(api);
+    await loadShell();
+    vi.setSystemTime(Date.parse('2026-10-24T08:00:29Z'));
+    expect((await loadShell()).clients.map((c) => c.overdueCount)).toEqual([5, 0]);
+    expect(portfolio).toHaveBeenCalledTimes(1);
+    vi.setSystemTime(Date.parse('2026-10-24T08:00:30Z'));
+    await loadShell();
+    expect(portfolio).toHaveBeenCalledTimes(2);
+    vi.restoreAllMocks();
+    vi.useRealTimers();
+  });
+
   it('hides counts it could not load', async () => {
     await signIn('consultant@demo.test', true);
     const api = await serverApi();
