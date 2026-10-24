@@ -55,7 +55,8 @@ const clients: Client[] = [
     ...base,
     id: MOCK_CLIENTS.northwind,
     name: 'Northwind Textiles',
-    settings: DEFAULT_CLIENT_SETTINGS,
+    // Firm B's Harbour Retail Group (mock-delegate.ts) keeps a January financial year.
+    settings: { ...DEFAULT_CLIENT_SETTINGS, fyStartMonth: 1 },
   },
   { ...base, id: MOCK_CLIENTS.sunrise, name: 'Sunrise Foods', settings: DEFAULT_CLIENT_SETTINGS },
 ];
@@ -77,7 +78,12 @@ const shellInfo: Record<string, { unitCount: number; period: ClientPeriods }> = 
   },
   [MOCK_CLIENTS.northwind]: {
     unitCount: 1,
-    period: DEMO_PERIOD,
+    // A January FY: FIRM_B_AS_OF falls in its Q4, and Harbour's data runs through calendar 2024, as M0 reports it.
+    period: {
+      current: { fy: '2024-25', quarter: 4 },
+      availableFys: ['2024-25'],
+      availableUntil: '2024-12',
+    },
   },
   [MOCK_CLIENTS.sunrise]: {
     unitCount: 5,
