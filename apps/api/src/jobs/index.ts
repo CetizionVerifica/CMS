@@ -1,5 +1,6 @@
 // Background jobs (MODULES.md M9): instance generation, reminders and escalations, the consultant digest, the
-// evidence virus scan.
+// evidence virus scan, and the nightly account job (trial end, usage snapshot).
+export { ACCOUNT_DAILY, runAccountDaily, servedFirmIds } from './accounts.js';
 export { clamAvConfigFromEnv, clamAvScanner, type ClamAvConfig } from './clamav-scanner.js';
 export { clientDay, currentAndNextFy, reminderWindow, sendTimeReached } from './client-day.js';
 export { activeConsumers, CONSUMERS, OutboxEventSchema, type Consumer } from './consumers.js';

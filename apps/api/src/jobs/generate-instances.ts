@@ -16,6 +16,7 @@ import type {
   JobReport,
   NewInstance,
 } from './ports.js';
+import { servedFirmIds } from './accounts.js';
 
 export const GENERATE_INSTANCES = 'generate-instances';
 
@@ -219,7 +220,7 @@ export async function runGenerateInstances(deps: JobDeps, requestId: string): Pr
   const report: JobReport = { firms: 0, clients: 0, created: 0, existing: 0 };
   const generate = memoisedGenerator();
   const failures: unknown[] = [];
-  for (const firmId of await deps.store.listFirmIds()) {
+  for (const firmId of await servedFirmIds(deps, requestId)) {
     report.firms! += 1;
     const clients = await deps.store.withFirm(firmId, requestId, (tx) => tx.listClients());
     for (const client of clients) {

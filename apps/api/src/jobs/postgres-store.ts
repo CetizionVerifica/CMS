@@ -1,5 +1,6 @@
 import { LocalDate } from '@canopy/contracts';
 import {
+  accountJobs,
   acts,
   assignments,
   auditEvents,
@@ -43,6 +44,9 @@ export function postgresJobStore(db: Database): JobStore {
 function firmTx(tx: TenantTx): FirmTx {
   return {
     firmSettings: async () => (await firms.current(tx)).settings,
+    accountStatus: async () => (await firms.current(tx)).status,
+    endTrial: (now, job) => accountJobs.endTrial(tx, now, job),
+    takeUsageSnapshot: (on) => accountJobs.takeUsageSnapshot(tx, on),
     listClients: () => jobs.listClients(tx),
     listGenerationTargets: (clientId) => jobs.listGenerationTargets(tx, clientId),
     listInstanceKeys: (assignmentIds, range) => jobs.listInstanceKeys(tx, assignmentIds, range),

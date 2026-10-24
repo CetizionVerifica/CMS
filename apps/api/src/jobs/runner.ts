@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import pg from 'pg';
 import { PgBoss } from 'pg-boss';
+import { ACCOUNT_DAILY, runAccountDaily } from './accounts.js';
 import { activeConsumers, OutboxEventSchema } from './consumers.js';
 import { runConsultantDigest, CONSULTANT_DIGEST } from './digest.js';
 import { GENERATE_INSTANCES, runGenerateInstances } from './generate-instances.js';
@@ -18,22 +19,36 @@ export interface JobDefinition {
   sendsMail: boolean;
   /** Scans evidence, so it runs only with a virus scanner and evidence storage. */
   scansEvidence?: boolean;
+  /** Runs once after downtime that missed its slot; other jobs skip missed slots. */
+  catchUp?: boolean;
   run(deps: JobDeps, requestId: string): Promise<JobReport>;
 }
 
 /**
- * The schedule. Generation runs nightly at 01:00 India time and catches up once after downtime. Reminders and the
- * digest run every 15 minutes in UTC and decide per client whether its local send time has passed, so each client
- * is served in its own time zone; missed slots are skipped because the next run covers them. The outbox relay runs
- * every minute, and so does the evidence scan. Without a mailer only generation, the relay and the scan run
- * (`sendsMail: false`); without a scanner the scan does not.
+ * The schedule. The account job runs nightly at 00:30 India time, ending lapsed trials and recording usage, so the
+ * generation that follows skips an account it suspended. Generation runs nightly at 01:00 India time. Both catch up
+ * once after downtime. Reminders and the digest run every 15 minutes in UTC and decide per client whether its local
+ * send time has passed, so each client is served in its own time zone; missed slots are skipped because the next run
+ * covers them. The outbox relay runs every minute, and so does the evidence scan. Without a mailer only the account
+ * job, generation, the relay and the scan run (`sendsMail: false`); without a scanner the scan does not.
+ * Generation, reminders and the digest serve TRIAL and ACTIVE accounts only; the relay and the scan serve every
+ * account, so a new account's owner invite still goes out.
  */
 export const JOBS: readonly JobDefinition[] = [
+  {
+    name: ACCOUNT_DAILY,
+    cron: '30 0 * * *',
+    tz: 'Asia/Kolkata',
+    sendsMail: false,
+    catchUp: true,
+    run: runAccountDaily,
+  },
   {
     name: GENERATE_INSTANCES,
     cron: '0 1 * * *',
     tz: 'Asia/Kolkata',
     sendsMail: false,
+    catchUp: true,
     run: runGenerateInstances,
   },
   { name: REMINDERS, cron: '*/15 * * * *', tz: 'UTC', sendsMail: true, run: runReminders },
@@ -150,7 +165,7 @@ export async function startJobRunner(deps: JobDeps, options: JobRunnerOptions): 
     await boss.createQueue(job.name, { policy: 'stately', ...RETRIES });
     await boss.schedule(job.name, job.cron, null, {
       tz: job.tz,
-      missed: job.name === GENERATE_INSTANCES ? 'once' : 'skip',
+      missed: job.catchUp ? 'once' : 'skip',
     });
     await boss.work(job.name, async ([pgJob]) => {
       const requestId = `job:${job.name}:${pgJob?.id ?? randomUUID()}`;
