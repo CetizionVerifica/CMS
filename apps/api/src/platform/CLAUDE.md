@@ -1,7 +1,8 @@
 # apps/api/src/platform: the operator API (M15)
 
 `apps/api/CLAUDE.md` and the root `CLAUDE.md` apply. Decisions: `docs/adr/M15-0001-operator-controlled-accounts.md`
-(decisions 8, 9, 11, 12), `docs/adr/M15-0003-operator-api.md` (this API's own choices) and
+(decisions 8, 9, 11, 12), `docs/adr/M15-0003-operator-api.md` (this API's own choices), `docs/adr/M15-0004-customer-account-routes.md` (the
+customer's `/account` routes) and
 `docs/adr/M3-0003-operator-storage-and-account-jobs.md`.
 
 ## Rules here
@@ -12,8 +13,12 @@
 - To M5 every operator route is `public`: the customer `sid` is never read here. The operator session hook checks
   `op_sid` (path `/api/platform`, SameSite Strict), the 30-minute idle limit, the 8-hour expiry and the session's CSRF
   token on every state-changing request.
-- Every query runs in `OperatorDatabase.withOperator`, as `canopy_operator`. Never open a tenant context here: the
-  operator reaches an account only through M3's `platform*` repositories and the `platform_*` functions.
+- Every operator query runs in `OperatorDatabase.withOperator`, as `canopy_operator`. Never open a tenant context in an
+  operator route: the operator reaches an account only through M3's `platform*` repositories and the `platform_*`
+  functions.
+- The customer's own routes (`db-customer.ts`, `/api/v1/account*`) are the exception: they run on the customer
+  session, in the request's tenant context, and never touch the operator login. A support session never manages
+  support access (ADR M15-0004 decision 2).
 - Import from M5 only through `../auth/index.ts`.
 - Operators are created only by `pnpm --filter @canopy/api platform:add-operator` (`db-operators.ts`). No route
   creates one.
