@@ -261,13 +261,15 @@ describe('PeopleView', () => {
   });
 
   it('shows a refused add', async () => {
-    people.addPersonAction.mockResolvedValue(no('Someone in your firm already has this email.'));
+    people.addPersonAction.mockResolvedValue(
+      no("This email can't be used. Check it, or use a different one."),
+    );
     render(<PeopleView clientId={CLIENT} rows={rows} />);
     await userEvent.type(screen.getByLabelText('Name'), 'Asha');
     await userEvent.type(screen.getByLabelText('Email (optional)'), 'asha@kestrel.example');
     await userEvent.click(screen.getByRole('button', { name: 'Add person' }));
     expect((await screen.findByRole('alert')).textContent).toBe(
-      'Someone in your firm already has this email.',
+      "This email can't be used. Check it, or use a different one.",
     );
   });
 

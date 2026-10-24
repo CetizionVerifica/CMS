@@ -140,7 +140,60 @@ test.describe('setup', () => {
       await expect(
         page.getByRole('button', { name: /^(Save reminders|Add company|Add person)$/ }),
       ).toHaveCount(0);
+      await checkSettled(page);
     }
+  });
+
+  test('keyboard only: a company is added and archived, a unit and a person opened', async ({
+    page,
+  }) => {
+    const company = `Kestrel Fibres ${unique()}`;
+    await signIn(page, 'consultant@demo.test', ENTITIES);
+    await expect(page.getByRole('heading', { level: 1, name: 'Entities' })).toBeVisible();
+    const field = page.getByLabel('New company name');
+    await field.focus();
+    await page.keyboard.type(company);
+    await page.keyboard.press('Enter');
+    await expect(
+      page.getByRole('status').filter({ hasText: `${company} was added.` }),
+    ).toBeVisible();
+
+    // Archive with a reason: the dialog opens on its reason field; Cancel, then Archive, follow it.
+    const archive = page.getByRole('button', { name: `Archive ${company}` });
+    await archive.focus();
+    await page.keyboard.press('Enter');
+    const confirm = page.getByRole('alertdialog', { name: `Archive ${company}?` });
+    await expect(confirm.getByLabel(/Reason/)).toBeFocused();
+    await page.keyboard.type('Created by mistake');
+    const archiveButton = confirm.getByRole('button', { name: 'Archive' });
+    await page.keyboard.press('Tab'); // Cancel
+    await page.keyboard.press('Tab');
+    await expect(archiveButton).toBeFocused();
+    await page.keyboard.press('Enter');
+    await expect(
+      page.getByRole('table', { name: 'Companies' }).getByRole('row').filter({ hasText: company }),
+    ).toHaveCount(0);
+    await checkSettled(page);
+
+    // A unit's drawer opens from its Edit button and Escape returns focus there.
+    const editUnit = page.getByRole('button', { name: /^Edit Pune Plant, / });
+    await editUnit.focus();
+    await page.keyboard.press('Enter');
+    const unitDrawer = page.getByRole('dialog', { name: 'Pune Plant' });
+    await expect(unitDrawer).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(unitDrawer).toBeHidden();
+    await expect(editUnit).toBeFocused();
+
+    await page.goto(PEOPLE);
+    const editPerson = page.getByRole('button', { name: 'Edit Divya Hegde' });
+    await editPerson.focus();
+    await page.keyboard.press('Enter');
+    const personDrawer = page.getByRole('dialog', { name: 'Divya Hegde' });
+    await expect(personDrawer.getByLabel('Name')).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(personDrawer).toBeHidden();
+    await expect(editPerson).toBeFocused();
   });
 
   test('a consultant adds a company and a unit, moves the unit and archives it', async ({
