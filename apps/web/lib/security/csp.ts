@@ -7,13 +7,40 @@ export type CspOptions = {
   dev?: boolean;
   /**
    * Extra `connect-src` sources, space-separated (`CANOPY_CSP_CONNECT_SRC`): the object storage origin that presigned
-   * upload URLs point at, so the browser may PUT evidence and import workbooks there.
+   * upload URLs point at, so the browser may PUT evidence and import workbooks there. Only bare https origins are
+   * kept (http too under `next dev`); see `connectOrigins`.
    */
   connectSrc?: string;
 };
 
+/**
+ * The origins in `connectSrc` that are safe to put in the header: `https://host[:port]` and nothing else, so a
+ * mistyped value can neither open uploads to plain http nor add a directive (`https://x; script-src *`). Others are
+ * returned as `rejected` for the caller to report; uploads to them then fail, which is the safe way round.
+ */
+export function connectOrigins(
+  connectSrc: string | undefined,
+  dev = false,
+): { origins: string[]; rejected: string[] } {
+  const origins: string[] = [];
+  const rejected: string[] = [];
+  for (const source of connectSrc?.split(/\s+/).filter(Boolean) ?? []) {
+    (isOrigin(source, dev) ? origins : rejected).push(source);
+  }
+  return { origins, rejected };
+}
+
+// Scheme, host name and optional port, with at most a trailing slash. Stricter than the URL parser, which takes
+// `;` and other characters in a host.
+const HTTPS_ORIGIN = /^https:\/\/[a-z0-9-]+(\.[a-z0-9-]+)*(:\d{1,5})?\/?$/i;
+const HTTP_ORIGIN = /^http:\/\/[a-z0-9-]+(\.[a-z0-9-]+)*(:\d{1,5})?\/?$/i;
+
+function isOrigin(source: string, dev: boolean): boolean {
+  return HTTPS_ORIGIN.test(source) || (dev && HTTP_ORIGIN.test(source));
+}
+
 export function contentSecurityPolicy({ nonce, dev = false, connectSrc }: CspOptions): string {
-  const connect = ["'self'", ...(connectSrc?.split(/\s+/).filter(Boolean) ?? [])];
+  const connect = ["'self'", ...connectOrigins(connectSrc, dev).origins];
   const directives: Record<string, string[]> = {
     'default-src': ["'self'"],
     'script-src': [

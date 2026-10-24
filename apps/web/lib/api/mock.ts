@@ -138,6 +138,7 @@ export const MOCK_USERS: MockUser[] = [
   user(4, 'Approver 01', 'approver@demo.test', [['APPROVER', MOCK_CLIENTS.demoMetals]]),
   user(5, 'Consultant 02', MOCK_TWO_FIRM_EMAIL, [['CONSULTANT', null]]),
   user(6, 'Consultant 03', MOCK_UNENROLLED_EMAIL, [['CONSULTANT', null]]),
+  user(7, 'Viewer 01', 'viewer@demo.test', [['VIEWER', MOCK_CLIENTS.demoMetals]]),
 ];
 
 function visibleClientIds(u: MockUser): string[] {
