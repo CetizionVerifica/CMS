@@ -10,7 +10,16 @@ import { ActsTable } from '../ActsTable';
 import { LibraryFilterBar } from '../LibraryFilterBar';
 import { LibraryNav } from '../LibraryNav';
 import { toSearchParams } from '../library-data';
-import { actItems, countText, cursorParam, nextPageHref, searchText } from '../library-model';
+import {
+  actItems,
+  countText,
+  cursorParam,
+  isFiltered,
+  libraryCopy,
+  nextPageHref,
+  searchHint,
+  searchText,
+} from '../library-model';
 
 export const metadata: Metadata = { title: 'Acts' };
 
@@ -43,32 +52,26 @@ export default async function ActsPage({ searchParams }: Props) {
   const items = actItems(page.items);
   const count = countText(items.length, page.total, 'Act', 'Acts');
   const next = nextPageHref('/library/acts', params, page.nextCursor);
-  const filtered = Boolean(q);
+  const filtered = isFiltered(q);
+  const hint = searchHint(params);
+  const copy = libraryCopy((await loadShell()).isFirmUser);
 
   return (
     <>
-      <PageHeader
-        title="Acts"
-        description="The Acts in the firm library, shared by every client."
-      />
+      <PageHeader title="Acts" description={copy.acts.description} />
       <LibraryNav current="acts" />
       <LibraryFilterBar
         filters={[]}
         value={{}}
         placeholder="Search Acts"
-        resultText={`${count} match`}
+        resultText={hint ?? count}
         resultCount={items.length}
       />
       {items.length === 0 && !filtered && !cursor ? (
-        <PageEmpty
-          title="No Acts yet"
-          body="Acts are added when a client's register is imported, or by a consultant."
-        />
+        <PageEmpty title="No Acts yet" body={copy.acts.emptyBody} />
       ) : (
         <>
-          <p className="mb-2 text-meta text-muted" aria-live="polite">
-            {count}
-          </p>
+          <p className="mb-2 text-meta text-muted">{hint ?? count}</p>
           <ActsTable
             items={items}
             empty={<p className="p-4 text-body text-muted">No Acts match “{q}”.</p>}

@@ -15,10 +15,13 @@ import { loadAllActs, toSearchParams } from '../library-data';
 import {
   countText,
   cursorParam,
+  isFiltered,
+  libraryCopy,
   nextPageHref,
   obligationFilters,
   obligationItems,
   obligationQuery,
+  searchHint,
   searchText,
 } from '../library-model';
 
@@ -58,7 +61,9 @@ export default async function ObligationsPage({ searchParams }: Props) {
   const items = obligationItems(page.items, actNames);
   const count = countText(items.length, page.total, 'obligation', 'obligations');
   const next = nextPageHref('/library/obligations', params, page.nextCursor);
-  const filtered = Boolean(q) || Object.keys(filters).length > 0;
+  const filtered = isFiltered(q, filters);
+  const hint = searchHint(params);
+  const copy = libraryCopy((await loadShell()).isFirmUser);
 
   const defs: FilterDef[] = [
     {
@@ -97,28 +102,20 @@ export default async function ObligationsPage({ searchParams }: Props) {
 
   return (
     <>
-      <PageHeader
-        title="Obligations"
-        description="The obligations under each Act in the firm library, shared by every client."
-      />
+      <PageHeader title="Obligations" description={copy.obligations.description} />
       <LibraryNav current="obligations" />
       <LibraryFilterBar
         filters={defs}
         value={filters}
         placeholder="Search obligations"
-        resultText={`${count} match`}
+        resultText={hint ?? count}
         resultCount={items.length}
       />
       {items.length === 0 && !filtered && !cursor ? (
-        <PageEmpty
-          title="No obligations yet"
-          body="Obligations are added when a client's register is imported, or by a consultant."
-        />
+        <PageEmpty title="No obligations yet" body={copy.obligations.emptyBody} />
       ) : (
         <>
-          <p className="mb-2 text-meta text-muted" aria-live="polite">
-            {count}
-          </p>
+          <p className="mb-2 text-meta text-muted">{hint ?? count}</p>
           <ObligationsTable
             items={items}
             empty={<p className="p-4 text-body text-muted">No obligations match these filters.</p>}

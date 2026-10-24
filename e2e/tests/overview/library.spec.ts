@@ -48,12 +48,44 @@ test.describe('library', () => {
 
     await page.getByRole('searchbox', { name: 'Search obligations' }).fill('zzzz-no-match');
     await expect(page).toHaveURL(/\/library\/obligations\?q=zzzz-no-match$/);
-    await expect(page.getByText('0 obligations', { exact: true })).toBeVisible();
+    await expect(page.getByText('0 obligations', { exact: true }).first()).toBeVisible();
+    await expect(page.getByRole('status').filter({ hasText: /^0 obligations$/ })).toHaveCount(1);
     await checkPage(page);
 
+    // One character is too short to search with; the page says so instead of ignoring it.
+    await page.getByRole('searchbox', { name: 'Search obligations' }).fill('z');
+    await expect(page).toHaveURL(/\/library\/obligations\?q=z$/);
+    await expect(page.getByText('Type at least 2 characters to search.').first()).toBeVisible();
+    await expect(obligations.getByRole('row')).toHaveCount(before);
+
+    await page.goBack();
     await page.goBack();
     await expect(page).toHaveURL('/library/obligations');
     await expect(obligations.getByRole('row')).toHaveCount(before);
+  });
+
+  test('a client owner sees their own Acts, worded for a client', async ({ page, browser }) => {
+    // The firm library as a consultant sees it, to compare with the owner's (the API scopes client roles).
+    const firm = await browser.newPage();
+    await signIn(firm, 'consultant@demo.test', '/library/acts');
+    const firmRows = await firm.getByRole('table', { name: 'Acts' }).getByRole('row').count();
+    await firm.close();
+
+    await signIn(page, 'owner@demo.test', '/library/acts');
+    await expect(page.getByRole('heading', { level: 1, name: 'Acts' })).toBeVisible();
+    const ownRows = await page.getByRole('table', { name: 'Acts' }).getByRole('row').count();
+    expect(ownRows).toBeGreaterThan(1);
+    expect(ownRows).toBeLessThanOrEqual(firmRows);
+    await expect(page.getByText('The Acts that apply to your organisation.')).toBeVisible();
+    await expect(page.getByText(/firm library|every client/)).toHaveCount(0);
+    await checkPage(page);
+
+    await page.goto('/library/obligations');
+    await expect(page.getByRole('heading', { level: 1, name: 'Obligations' })).toBeVisible();
+    await expect(
+      page.getByText('The obligations under the Acts that apply to your organisation.'),
+    ).toBeVisible();
+    await checkPage(page);
   });
 
   test('keyboard only: the library tabs and the first Act are reachable', async ({ page }) => {

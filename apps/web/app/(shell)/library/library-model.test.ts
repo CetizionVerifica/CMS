@@ -5,11 +5,14 @@ import {
   actItems,
   countText,
   cursorParam,
+  isFiltered,
   jurisdictionLabel,
+  libraryCopy,
   nextPageHref,
   obligationFilters,
   obligationItems,
   obligationQuery,
+  searchHint,
   searchText,
   withParams,
 } from './library-model';
@@ -22,6 +25,25 @@ describe('test data', () => {
     expect(Act.safeParse(act(1)).success).toBe(true);
     expect(Act.safeParse(act(2, { jurisdiction: 'STATE', stateCode: 'WB' })).success).toBe(true);
     expect(Obligation.safeParse(obligation(1)).success).toBe(true);
+  });
+});
+
+describe('searchHint', () => {
+  it('asks for more text when the search is one character', () => {
+    expect(searchHint(params('q=a'))).toBe('Type at least 2 characters to search.');
+    expect(searchHint(params('q=%20a%20'))).toBe('Type at least 2 characters to search.');
+    expect(searchHint(params('q=pf'))).toBeUndefined();
+    expect(searchHint(params('q=%20%20'))).toBeUndefined();
+    expect(searchHint(params(''))).toBeUndefined();
+  });
+});
+
+describe('isFiltered', () => {
+  it('is true for a search or any filter', () => {
+    expect(isFiltered(undefined)).toBe(false);
+    expect(isFiltered(undefined, {})).toBe(false);
+    expect(isFiltered('pf')).toBe(true);
+    expect(isFiltered(undefined, { domain: ['HRS'] })).toBe(true);
   });
 });
 
@@ -85,10 +107,15 @@ describe('obligationFilters', () => {
     });
   });
 
-  it('treats both jurisdictions or both rule statuses as no filter', () => {
-    expect(
-      obligationFilters(params('jurisdiction=CENTRAL,STATE&ruleStatus=CONFIRMED,TO_REVIEW')),
-    ).toEqual({});
+  it('keeps both jurisdictions or both rule statuses ticked, and sends neither to the API', () => {
+    const filters = obligationFilters(
+      params('jurisdiction=CENTRAL,STATE&ruleStatus=CONFIRMED,TO_REVIEW'),
+    );
+    expect(filters).toEqual({
+      jurisdiction: ['CENTRAL', 'STATE'],
+      ruleStatus: ['CONFIRMED', 'TO_REVIEW'],
+    });
+    expect(obligationQuery(filters)).toEqual({ limit: '50', count: 'true' });
   });
 
   it('returns nothing for an empty or junk URL', () => {
@@ -181,5 +208,29 @@ describe('countText', () => {
     expect(countText(3, undefined, 'Act', 'Acts')).toBe('3 Acts');
     expect(countText(50, 119, 'obligation', 'obligations')).toBe('Showing 50 of 119 obligations');
     expect(countText(0, 0, 'Act', 'Acts')).toBe('0 Acts');
+  });
+});
+
+describe('libraryCopy', () => {
+  it('describes the firm library to firm users', () => {
+    const copy = libraryCopy(true);
+    expect(copy.acts.description).toBe('The Acts in the firm library, shared by every client.');
+    expect(copy.obligations.description).toBe(
+      'The obligations under each Act in the firm library, shared by every client.',
+    );
+    expect(copy.acts.emptyBody).toMatch(/imported, or by a consultant/);
+  });
+
+  it('describes only their own Acts and obligations to client users', () => {
+    const copy = libraryCopy(false);
+    expect(copy.acts.description).toBe('The Acts that apply to your organisation.');
+    expect(copy.obligations.description).toBe(
+      'The obligations under the Acts that apply to your organisation.',
+    );
+    expect(copy.acts.emptyBody).toBe('Your consultant adds the Acts that apply to you.');
+    expect(copy.obligations.emptyBody).toBe(
+      'Your consultant adds the obligations that apply to you.',
+    );
+    expect(JSON.stringify(copy)).not.toMatch(/firm library|every client/);
   });
 });

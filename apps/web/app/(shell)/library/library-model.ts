@@ -17,6 +17,12 @@ export function searchText(params: Params): string | undefined {
   return q && q.length >= 2 ? q.slice(0, 200) : undefined;
 }
 
+/** What to say when the search box holds text too short to search with, so it isn't silently ignored. */
+export function searchHint(params: Params): string | undefined {
+  const q = params.get('q')?.trim();
+  return q && q.length < 2 ? 'Type at least 2 characters to search.' : undefined;
+}
+
 export function cursorParam(params: Params): string | undefined {
   return params.get('cursor') || undefined;
 }
@@ -75,14 +81,20 @@ export function obligationFilters(params: Params): ObligationFilters {
       .filter((v) => v && allowed[key](v));
     if (values.length > 0) out[key] = [...new Set(values)];
   }
-  // The API takes one jurisdiction and one rule status, and each has two values: both ticked means no filter.
-  if (out.jurisdiction && out.jurisdiction.length > 1) delete out.jurisdiction;
-  if (out.ruleStatus && out.ruleStatus.length > 1) delete out.ruleStatus;
   return out;
 }
 
+/**
+ * The one value the API takes for jurisdiction or rule status. Each has two values, so both ticked means no filter;
+ * the bar keeps showing both ticks.
+ */
+const single = <T extends string>(values: string[] | undefined): T | undefined =>
+  values?.length === 1 ? (values[0] as T) : undefined;
+
 /** The API query for the obligation list: comma lists as the contract expects. */
 export function obligationQuery(filters: ObligationFilters, q?: string, cursor?: string) {
+  const jurisdiction = single<Jurisdiction>(filters.jurisdiction);
+  const ruleStatus = single<RuleStatus>(filters.ruleStatus);
   return {
     limit: '50',
     count: 'true' as const,
@@ -91,8 +103,8 @@ export function obligationQuery(filters: ObligationFilters, q?: string, cursor?:
     ...(filters.actId ? { actId: filters.actId.join(',') } : {}),
     ...(filters.domain ? { domain: filters.domain.join(',') } : {}),
     ...(filters.criticality ? { criticality: filters.criticality.join(',') } : {}),
-    ...(filters.jurisdiction ? { jurisdiction: filters.jurisdiction[0] as Jurisdiction } : {}),
-    ...(filters.ruleStatus ? { ruleStatus: filters.ruleStatus[0] as RuleStatus } : {}),
+    ...(jurisdiction ? { jurisdiction } : {}),
+    ...(ruleStatus ? { ruleStatus } : {}),
   };
 }
 
@@ -153,9 +165,49 @@ export function obligationItems(
   }));
 }
 
+/** Whether the list is narrowed: a search the API applies, or any filter in the URL. */
+export function isFiltered(q: string | undefined, filters: ObligationFilters = {}): boolean {
+  return Boolean(q) || Object.keys(filters).length > 0;
+}
+
 /** "Showing 50 of 119 obligations". */
 export function countText(shown: number, total: number | undefined, one: string, other: string) {
   const noun = (n: number) => (n === 1 ? one : other);
   if (total === undefined || total === shown) return `${shown} ${noun(shown)}`;
   return `Showing ${shown} of ${total} ${noun(total)}`;
+}
+
+export type LibraryCopy = Record<
+  'acts' | 'obligations',
+  { description: string; emptyBody: string }
+>;
+
+/**
+ * Page wording by who is reading. Firm users see the whole firm library; client users see only what is assigned in
+ * their client (the API scopes the lists), so they are not told about a library shared by every client.
+ */
+export function libraryCopy(isFirmUser: boolean): LibraryCopy {
+  if (isFirmUser) {
+    return {
+      acts: {
+        description: 'The Acts in the firm library, shared by every client.',
+        emptyBody: "Acts are added when a client's register is imported, or by a consultant.",
+      },
+      obligations: {
+        description: 'The obligations under each Act in the firm library, shared by every client.',
+        emptyBody:
+          "Obligations are added when a client's register is imported, or by a consultant.",
+      },
+    };
+  }
+  return {
+    acts: {
+      description: 'The Acts that apply to your organisation.',
+      emptyBody: 'Your consultant adds the Acts that apply to you.',
+    },
+    obligations: {
+      description: 'The obligations under the Acts that apply to your organisation.',
+      emptyBody: 'Your consultant adds the obligations that apply to you.',
+    },
+  };
 }
