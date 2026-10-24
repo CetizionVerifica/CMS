@@ -45,6 +45,12 @@ ADR M15-0001 decides what the PlanetPulse operator can do to an account; M0 1.5.
    all and filters by status, kind, plan and search text, newest first, with an opaque cursor. A database-side page
    follows when that stops being true.
 
+10. **The allowlist is required in production.** Ten failed sign-ins lock an operator for 15 minutes, so anyone who
+    can reach the sign-in route can keep the operator locked out. With `NODE_ENV=production`, `PLATFORM_ENABLED=true`
+    without `PLATFORM_IP_ALLOWLIST` fails the boot (the API wiring), so only the operator's own addresses reach it.
+11. **Lockouts are not yet in the operator audit.** A lockout shows in the API log only; an `OPERATOR_LOCKED` action
+    needs a contracts and database enum change, and follows with the next operator-audit change.
+
 ## Consequences
 
 - Contracts 1.5.1 (M0) adds `AuditActorKind` `OPERATOR`, `EntityType` `account` and `Account.libraryCopiedAt`, so a

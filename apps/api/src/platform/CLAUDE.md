@@ -1,7 +1,8 @@
 # apps/api/src/platform: the operator API (M15)
 
 `apps/api/CLAUDE.md` and the root `CLAUDE.md` apply. Decisions: `docs/adr/M15-0001-operator-controlled-accounts.md`
-(decisions 8, 9, 11, 12) and `docs/adr/M3-0003-operator-storage-and-account-jobs.md`.
+(decisions 8, 9, 11, 12), `docs/adr/M15-0003-operator-api.md` (this API's own choices) and
+`docs/adr/M3-0003-operator-storage-and-account-jobs.md`.
 
 ## Rules here
 
@@ -19,5 +20,7 @@
 - Every operator action that changes an account writes the operator audit and the account's own audit trail in the
   same transaction. Operator audit never carries a person's name or email.
 - Never log a token, a password, a TOTP secret or the otpauth URI.
+- Production needs `PLATFORM_IP_ALLOWLIST`: the sign-in lockout would otherwise let anyone lock the operator out (ADR
+  M15-0003 decision 10). Support-session links go to `APP_URL` with the token in the fragment, never the query.
 - Files that need the database are `db-*.ts` and are tested in `*.db.test.ts` against Postgres; the rest are pure and
   unit tested.

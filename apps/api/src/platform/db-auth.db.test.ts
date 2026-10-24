@@ -206,6 +206,12 @@ describe.skipIf(!url)('operator sign-in', () => {
     expect(error(replay).code).toBe('UNAUTHENTICATED');
   });
 
+  it('refuses an earlier step once a later one was accepted, though both are inside the window', async () => {
+    await signIn(1);
+    expect(error(await login(good(0))).code).toBe('UNAUTHENTICATED');
+    expect(error(await login(good(-1))).code).toBe('UNAUTHENTICATED');
+  });
+
   it('refuses a malformed body as VALIDATION', async () => {
     const res = await login({ email: 'shyam.ops@planetpulse.example', password: PASSWORD });
     expect(error(res).code).toBe('VALIDATION');
