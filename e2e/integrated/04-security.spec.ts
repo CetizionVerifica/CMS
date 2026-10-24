@@ -42,7 +42,6 @@ const UNMOUNTED: Record<string, string> = {
   listSupportGrants: 'M15 account routes: contracts 1.5.0 (#127), API not built yet',
   createSupportGrant: 'M15 account routes: contracts 1.5.0 (#127), API not built yet',
   revokeSupportGrant: 'M15 account routes: contracts 1.5.0 (#127), API not built yet',
-  verifySupportSession: 'M15 account routes: contracts 1.5.0 (#127), API not built yet',
 };
 
 /**
@@ -55,6 +54,7 @@ const NOT_SWEPT: Record<string, string> = {
   verifyMagicLink: 'public, takes a secret token, not an id',
   getInvite: 'public, takes a secret token, not an id',
   acceptInvite: 'public, takes a secret token, not an id',
+  verifySupportSession: 'public, takes a secret token, not an id',
   logout: 'acts on the caller’s own session',
   enrollMfa: 'acts on the caller’s own session',
   verifyMfa: 'acts on the caller’s own session',
