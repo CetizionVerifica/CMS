@@ -1,4 +1,10 @@
 {
   "extends": "@canopy/tsconfig/base.json",
-  "include": ["playwright.config.ts", "tests", "support"]
+  "include": [
+    "playwright.config.ts",
+    "playwright.integrated.config.ts",
+    "tests",
+    "support",
+    "integrated"
+  ]
 }

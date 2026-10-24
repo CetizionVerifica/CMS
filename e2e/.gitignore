@@ -1,0 +1,3 @@
+# The integrated run writes its seeded ids and signed-in browser states here (playwright.integrated.config.ts).
+.integrated/
+playwright-report-integrated/
