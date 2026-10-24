@@ -132,6 +132,16 @@ describe('import actions', () => {
       message: 'This import moved on in another tab. The page now shows where it is.',
     });
 
+    // A group that is gone (an earlier decision re-ran the analysis) is refused in words.
+    expect(
+      await actions.decideAction(CLIENT, batchId, 'ALIAS_ACT:no-such-group', {
+        decision: 'REJECTED',
+      }),
+    ).toEqual({
+      ok: false,
+      message: 'This import changed after an earlier step. The page now shows where it is.',
+    });
+
     const groups = (await session().call('listImportIssues', { params: { id: batchId } })).data
       .items;
     const proposed = groups
