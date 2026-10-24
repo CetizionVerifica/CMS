@@ -42,3 +42,14 @@ export const SAMPLE_ACT_NAMES: Readonly<Record<string, string>> = {
   'Kestrel Aluminium Limited, Riverbend , Renewal of Consent to Operate under Water (Prevention and Control of Pollution) Act and Air (Prevention and Control of Pollution) Act':
     'Water (Prevention and Control of Pollution) Act, 1974 and Air (Prevention and Control of Pollution) Act, 1981',
 };
+
+/**
+ * Four register titles are the sample site's own petroleum and fire licence numbers, which a public registry ties
+ * to the plant. The master library gives them what each licence is for; description, rule and forms stay.
+ */
+export const SAMPLE_TITLES: Readonly<Record<string, string>> = {
+  'INT-H-047-0016': 'Petroleum licence (Form LS-1A)',
+  'INT-H-048-0002': 'Licence to store petroleum (Form XV)',
+  'INT-H-050-0002': 'Licence to import and store petroleum (Form XIV)',
+  'INT-H-056-0001': 'Fire licence for storing or processing hazardous substances',
+};

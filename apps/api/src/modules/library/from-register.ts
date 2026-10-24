@@ -13,6 +13,8 @@ export function masterFromPlan(
   options: {
     /** Act names to replace, for an "Act" cell that names one site's licence rather than the law. */
     actNames?: Readonly<Record<string, string>>;
+    /** Obligation titles to replace, by external ID, for a title that is one site's licence number. */
+    titles?: Readonly<Record<string, string>>;
   } = {},
 ): MasterLibrary {
   const rename = (name: string) => options.actNames?.[name] ?? name;
@@ -30,7 +32,7 @@ export function masterFromPlan(
       domain: o.domain,
       jurisdiction: o.jurisdiction,
       stateCode: o.stateCode,
-      title: o.title,
+      title: (o.externalRef !== null ? options.titles?.[o.externalRef] : undefined) ?? o.title,
       description: o.description,
       applicabilityText: o.applicabilityText,
       criticality: o.criticality,

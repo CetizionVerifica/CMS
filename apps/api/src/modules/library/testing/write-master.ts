@@ -1,7 +1,7 @@
 import { writeFile } from 'node:fs/promises';
 import { masterFromPlan } from '../from-register.js';
 import { MASTER_VERSION } from '../master-data.js';
-import { SAMPLE_ACT_NAMES, sampleRegisterPlan } from './register.js';
+import { SAMPLE_ACT_NAMES, SAMPLE_TITLES, sampleRegisterPlan } from './register.js';
 
 /**
  * Rewrites `master-data.ts` from the anonymised sample register (ADR M6-0002). Run from apps/api, then format:
@@ -10,6 +10,7 @@ import { SAMPLE_ACT_NAMES, sampleRegisterPlan } from './register.js';
  */
 const library = masterFromPlan(await sampleRegisterPlan(), MASTER_VERSION, {
   actNames: SAMPLE_ACT_NAMES,
+  titles: SAMPLE_TITLES,
 });
 const content = {
   categories: library.categories,

@@ -20,8 +20,10 @@ already the `pnpm db:seed` demo data (M8).
    (ADR M9-0001). No rule is invented or edited here.
 4. **No company, site or person is copied.** One register "Act" names the plant whose consent it renews. The bundle
    files that obligation under "Water (Prevention and Control of Pollution) Act, 1974 and Air (Prevention and
-   Control of Pollution) Act, 1981", the laws the consent is granted under. A test checks that no fictional company,
-   site or pseudonymised person name reaches the bundle. Forms and log sheets that the register names by file
+   Control of Pollution) Act, 1981", the laws the consent is granted under. Four register titles are the plant's own
+   petroleum and fire licence numbers; the bundle titles them by what each licence is for ("Licence to store
+   petroleum (Form XV)"). Tests check that no fictional company, site or pseudonymised person name, and nothing
+   shaped like a licence or registration number, reaches the bundle. Forms and log sheets that the register names by file
    name keep the name with no file attached; the consultant uploads the templates.
 5. **State law is kept.** 40 obligations are West Bengal law. They copy into every account like the rest; the
    applicability step decides per unit whether they apply.

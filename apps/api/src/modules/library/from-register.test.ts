@@ -8,7 +8,7 @@ import {
 import { beforeAll, describe, expect, it } from 'vitest';
 import { keyed, masterFromPlan } from './from-register.js';
 import { checkMasterLibrary, MASTER_LIBRARY, type MasterLibrary } from './master.js';
-import { SAMPLE_ACT_NAMES, sampleRegisterPlan } from './testing/register.js';
+import { SAMPLE_ACT_NAMES, SAMPLE_TITLES, sampleRegisterPlan } from './testing/register.js';
 
 // Master library v2 (ADR M6-0002): the statutory part of the anonymised sample register.
 const SERVER = {
@@ -29,6 +29,7 @@ describe('master library v2', () => {
     people = plan.people.map((p) => p.nameNormalized);
     built = masterFromPlan(plan, MASTER_LIBRARY.version, {
       actNames: SAMPLE_ACT_NAMES,
+      titles: SAMPLE_TITLES,
     });
   }, 30_000);
 
@@ -74,9 +75,40 @@ describe('master library v2', () => {
   it('names no unit, company or person: only Acts, categories and obligations', () => {
     const text = JSON.stringify(MASTER_LIBRARY).toLowerCase();
     expect(people).toHaveLength(21);
-    for (const name of ['kestrel', 'riverbend', ...people]) expect(text).not.toContain(name);
+    for (const name of [
+      'kestrel',
+      'riverbend',
+      'kestrelganj',
+      'osprey',
+      'stonebridge',
+      'highmoor',
+      ...people,
+    ])
+      expect(text).not.toContain(name);
     expect(MASTER_LIBRARY.acts.map((a) => a.name)).toContain(
       'Water (Prevention and Control of Pollution) Act, 1974 and Air (Prevention and Control of Pollution) Act, 1981',
+    );
+  });
+
+  it('carries no licence, consent or registration number', () => {
+    // Numbers of published standards the statutory text cites (EN 13458, EN 13530, IEC 60079).
+    const standards = new Set(['13458', '13530', '60079']);
+    const texts = [
+      ...MASTER_LIBRARY.acts.map((a) => a.name),
+      ...MASTER_LIBRARY.obligations.flatMap((o) => [
+        o.title,
+        o.description,
+        o.applicabilityText ?? '',
+        ...[...o.forms, ...o.logSheets].map((t) => `${t.label} ${t.fileName ?? ''}`),
+      ]),
+    ];
+    const found = texts.flatMap((t) => [
+      ...(t.match(/[A-Z]+\/[A-Z]+\/[A-Z]{0,4}\/?[0-9]/g) ?? []),
+      ...(t.match(/[0-9]{5,}/g) ?? []).filter((n) => !standards.has(n)),
+    ]);
+    expect(found).toEqual([]);
+    expect(MASTER_LIBRARY.obligations.find((o) => o.externalRef === 'INT-H-056-0001')?.title).toBe(
+      'Fire licence for storing or processing hazardous substances',
     );
   });
 

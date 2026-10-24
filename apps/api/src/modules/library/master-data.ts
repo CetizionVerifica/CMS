@@ -3040,7 +3040,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
       domain: 'INT',
       jurisdiction: 'CENTRAL',
       stateCode: null,
-      title: 'S/EC/WB/03/1(S92768)',
+      title: 'Petroleum licence (Form LS-1A)',
       description:
         'Section 3 Import, transport and storage of petroleum.\n(1) No one shall import, transport, store or distribute any petroleum save in accordance with the rules made under section 4. (2) Save in accordance with the conditions of any liecnce for the purpose which he may be required to obtain by rules made under section 4, no one shall import any Class I petroleum, and no one shall transport store or distribute any petroleum.',
       applicabilityText: 'Every owner of the licence',
@@ -3069,7 +3069,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
       domain: 'INT',
       jurisdiction: 'CENTRAL',
       stateCode: null,
-      title: 'P/HQ/WB/15/2400(P932)',
+      title: 'Licence to store petroleum (Form XV)',
       description:
         'Section 3 Import, transport and storage of petroleum.\n(1) No one shall import, transport, store or distribute any petroleum save in accordance with the rules made under section 4. (2) Save in accordance with the conditions of any liecnce for the purpose which he may be required to obtain by rules made under section 4, no one shall import any Class I petroleum, and no one shall transport store or distribute any petroleum.',
       applicabilityText: 'Every owner of the licence',
@@ -3098,7 +3098,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
       domain: 'INT',
       jurisdiction: 'CENTRAL',
       stateCode: null,
-      title: 'P/EC/WB/141685(P27401)',
+      title: 'Licence to import and store petroleum (Form XIV)',
       description:
         'Section 3 Import, transport and storage of petroleum.\n(1) No one shall import, transport, store or distribute any petroleum save in accordance with the rules made under section 4. (2) Save in accordance with the conditions of any liecnce for the purpose which he may be required to obtain by rules made under section 4, no one shall import any Class I petroleum, and no one shall transport store or distribute any petroleum.',
       applicabilityText: 'Every owner of the licence',
@@ -3127,7 +3127,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
       domain: 'INT',
       jurisdiction: 'STATE',
       stateCode: 'WB',
-      title: 'IND/WB/FSL/20192020/156589',
+      title: 'Fire licence for storing or processing hazardous substances',
       description:
         'Section 12 of West Bengal Fire Services Act 1950: Bar to use of premises for storing or processing hazardous substances without license',
       applicabilityText: 'Every owner of the licence',
