@@ -623,6 +623,37 @@ describe('invites', () => {
     }
   });
 
+  it('ignores an invite elsewhere once its link has expired', async () => {
+    const { firmId, manager, headers } = await setup();
+    const offered = await seed({ firmId, email: null, status: 'UNCLAIMED', password: null });
+    await store.createInvite({
+      firmId,
+      personId: offered.personId,
+      displayName: null,
+      email: 'offered@example.com',
+      grant: {
+        role: 'APPROVER',
+        clientId: randomUUID(),
+        consultantClientIds: null,
+        unitIds: null,
+        expiresAt: null,
+      },
+      invitedById: manager.personId,
+      linkExpiresAt: new Date(now.getTime() + 60_000).toISOString(),
+      requestId: 'seed',
+      now,
+    });
+    const body = {
+      personId: offered.personId,
+      email: 'offered@example.com',
+      role: 'OWNER',
+      clientId: CLIENT,
+    };
+    expect(errorCode(await invite(headers, body))).toBe('NOT_FOUND');
+    now = new Date(now.getTime() + 2 * 60_000);
+    expect((await invite(headers, body)).statusCode).toBe(201);
+  });
+
   it("invites an imported person whose roles are all in the inviter's scope", async () => {
     const { firmId, headers } = await setup();
     const local = await seed({

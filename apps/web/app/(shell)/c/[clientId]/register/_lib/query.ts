@@ -1,7 +1,8 @@
 // The register's state lives in the URL (apps/web/CLAUDE.md): filters, search and sort use the API's own query names
 // (api-conventions.md §3), so a saved view, a dashboard link and an export share one filter language. Two exceptions,
 // because the shell's period picker already owns `q` and `m` (lib/period.ts): free-text search is `search` in the URL
-// and `q` in the API query, and the period's quarter or month does not narrow the API query (ADR M12-0001).
+// and `q` in the API query. The period reaches the API through lib/period.ts's `periodApiQuery`: a whole FY as `fy`,
+// a quarter or month as `dueFrom`/`dueTo` (ADR M12-0001).
 import {
   Criticality,
   DerivedStatus,
@@ -10,6 +11,13 @@ import {
   registerFilterShape,
 } from '@canopy/contracts';
 import type { DateRange, FilterValue } from '@canopy/ui';
+
+import {
+  periodApiQuery,
+  periodFromParams,
+  type Period,
+  type PeriodApiQuery,
+} from '../../../../../../lib/period';
 
 type Params = { get(name: string): string | null; getAll?(name: string): string[] };
 type SortingState = { id: string; desc: boolean }[];
@@ -77,22 +85,34 @@ export function sortingFromParams(params: Params): SortingState {
   return keys.length > 0 ? keys : [{ id: DEFAULT_SORT, desc: false }];
 }
 
-/** The API query for the register: validated filters, search, sort and the URL's FY. */
-export function apiQueryFromParams(params: Params): URLSearchParams {
+/**
+ * The period the register shows: the URL's, or the client's current one, which is what the period picker displays
+ * when the URL has none (lib/shell/ShellFrame.tsx). As API values via lib/period.ts.
+ */
+export function registerPeriod(
+  params: Params,
+  client: { fyStartMonth: number; thisPeriod: Period },
+): PeriodApiQuery {
+  return periodApiQuery(periodFromParams(params) ?? client.thisPeriod, client.fyStartMonth);
+}
+
+/**
+ * The API query for the register: validated filters, search, sort and the selected period. An explicit due-date
+ * filter wins over the period, because the contract takes one or the other (checkPeriod) and the person chose it.
+ */
+export function apiQueryFromParams(params: Params, period?: PeriodApiQuery): URLSearchParams {
   const query = new URLSearchParams();
   for (const key of PASS_THROUGH) {
     const value = validValue(key, params.get(key));
     if (value !== undefined) query.set(key, value);
   }
-  // A due range and an FY cannot both be sent (contracts checkPeriod); the explicit range is the narrower choice.
-  const fy = params.get('fy');
-  if (
-    fy &&
-    !query.has('dueFrom') &&
-    !query.has('dueTo') &&
-    registerFilterShape.fy.safeParse(fy).success
-  ) {
-    query.set('fy', fy);
+  if (period && !query.has('dueFrom') && !query.has('dueTo')) {
+    if ('fy' in period) {
+      if (registerFilterShape.fy.safeParse(period.fy).success) query.set('fy', period.fy);
+    } else {
+      query.set('dueFrom', period.from);
+      query.set('dueTo', period.to);
+    }
   }
   // Ranges must run forwards; drop the end of a reversed one rather than the whole filter.
   if (query.has('dueFrom') && query.has('dueTo') && query.get('dueTo')! < query.get('dueFrom')!) {

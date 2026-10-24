@@ -1,9 +1,10 @@
-import { RegisterQuery } from '@canopy/contracts';
+import { LocalDate, RegisterQuery } from '@canopy/contracts';
 import { describe, expect, it } from 'vitest';
 
 import {
   apiQueryFromParams,
   filterValueFromParams,
+  registerPeriod,
   sortingFromParams,
   viewQuery,
   withFilters,
@@ -15,6 +16,10 @@ import {
 const DEPT = '00000000-0000-5000-8000-000000000501';
 const DEPT2 = '00000000-0000-5000-8000-000000000502';
 const p = (s: string) => new URLSearchParams(s);
+const range = (from: string, to: string) => ({
+  from: LocalDate.parse(from),
+  to: LocalDate.parse(to),
+});
 
 describe('apiQueryFromParams', () => {
   it('passes valid filters through under their API names and sorts by due date by default', () => {
@@ -43,18 +48,28 @@ describe('apiQueryFromParams', () => {
   it('maps the URL search to the API q, leaving the period picker’s q alone', () => {
     const q = apiQueryFromParams(p('fy=2022-23&q=Q3&search=%20gratuity%20'));
     expect(q.get('q')).toBe('gratuity');
-    expect(q.get('fy')).toBe('2022-23');
+    expect(q.has('fy')).toBe(false);
   });
 
   it('ignores a one-letter search (the API needs at least 2 characters)', () => {
     expect(apiQueryFromParams(p('search=a')).has('q')).toBe(false);
   });
 
-  it('sends the FY only when no due range is set, since the contract forbids both', () => {
-    const q = apiQueryFromParams(p('fy=2022-23&dueFrom=2023-01-01'));
-    expect(q.has('fy')).toBe(false);
-    expect(q.get('dueFrom')).toBe('2023-01-01');
-    expect(apiQueryFromParams(p('fy=2022-2')).has('fy')).toBe(false);
+  it('sends a whole FY as fy and a quarter or month as its due-date range', () => {
+    expect(apiQueryFromParams(p(''), { fy: '2022-23' }).get('fy')).toBe('2022-23');
+    const q3 = apiQueryFromParams(p(''), range('2022-10-01', '2022-12-31'));
+    expect(q3.has('fy')).toBe(false);
+    expect([q3.get('dueFrom'), q3.get('dueTo')]).toEqual(['2022-10-01', '2022-12-31']);
+    expect(apiQueryFromParams(p(''), { fy: '2022-2' }).has('fy')).toBe(false);
+  });
+
+  it('lets an explicit due-date filter win over the period, since the contract takes one or the other', () => {
+    const fy = apiQueryFromParams(p('dueFrom=2023-01-01'), { fy: '2022-23' });
+    expect(fy.has('fy')).toBe(false);
+    expect(fy.get('dueFrom')).toBe('2023-01-01');
+    const quarter = apiQueryFromParams(p('dueTo=2022-11-15'), range('2022-10-01', '2022-12-31'));
+    expect(quarter.has('dueFrom')).toBe(false);
+    expect(quarter.get('dueTo')).toBe('2022-11-15');
   });
 
   it('drops the end of a reversed range', () => {
@@ -81,11 +96,42 @@ describe('apiQueryFromParams', () => {
       'domain=LABOUR&completedFrom=2023-01-01&hasEvidence=true&approverId=me',
       'dueTo=2023-03-31',
     ];
+    const periods = [undefined, { fy: '2022-23' }, range('2023-01-01', '2023-03-31')];
     for (const url of urls) {
-      expect(RegisterQuery.safeParse(Object.fromEntries(apiQueryFromParams(p(url)))).success).toBe(
-        true,
-      );
+      for (const period of periods) {
+        expect(
+          RegisterQuery.safeParse(Object.fromEntries(apiQueryFromParams(p(url), period))).success,
+        ).toBe(true);
+      }
     }
+  });
+});
+
+describe('registerPeriod', () => {
+  const client = { fyStartMonth: 4, thisPeriod: { fy: '2023-24', quarter: 2 as const } };
+
+  it('uses the URL’s period: a whole FY, a quarter or a month', () => {
+    expect(registerPeriod(p('fy=2022-23'), client)).toEqual({ fy: '2022-23' });
+    expect(registerPeriod(p('fy=2022-23&q=Q3'), client)).toEqual({
+      from: '2022-10-01',
+      to: '2022-12-31',
+    });
+    expect(registerPeriod(p('fy=2022-23&m=2023-02'), client)).toEqual({
+      from: '2023-02-01',
+      to: '2023-02-28',
+    });
+  });
+
+  it('falls back to the client’s current quarter, as the period picker shows it', () => {
+    expect(registerPeriod(p(''), client)).toEqual({ from: '2023-07-01', to: '2023-09-30' });
+    expect(registerPeriod(p('fy=bad'), client)).toEqual({ from: '2023-07-01', to: '2023-09-30' });
+  });
+
+  it('follows a January FY start', () => {
+    expect(registerPeriod(p('fy=2023-24&q=Q1'), { ...client, fyStartMonth: 1 })).toEqual({
+      from: '2023-01-01',
+      to: '2023-03-31',
+    });
   });
 });
 

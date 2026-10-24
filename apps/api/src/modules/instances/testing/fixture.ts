@@ -145,7 +145,7 @@ export async function seedFixture(db: Database, firmId: string, label: string): 
       countryCode: 'IN',
       state: 'West Bengal',
       stateCode: 'WB',
-      city: 'Belur',
+      city: 'Riverbend',
     });
     const client = await clients.create(tx, {
       name: `${label} group`,

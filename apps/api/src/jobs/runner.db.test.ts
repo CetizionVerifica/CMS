@@ -128,6 +128,62 @@ describe.skipIf(!url)('job runner on pg-boss', () => {
   });
 });
 
+describe.skipIf(!url)('job runner without a mail transport', () => {
+  it('registers generation and the relay only, and relays an event only an email consumer reads as done', async () => {
+    const schema = `pgboss_nomail_${randomUUID().replaceAll('-', '').slice(0, 12)}`;
+    const firm = memoryFirm();
+    const client = memoryClient('Kestrel Metals Group');
+    firm.clients.push(client);
+    const h = harness([firm]);
+    const logs: { job: string; report?: Record<string, number> }[] = [];
+    const runner = await startJobRunner(h.deps, {
+      connectionString: url!,
+      schema,
+      mail: false,
+      log: (line) => logs.push(line),
+    });
+    try {
+      expect(runner.mail).toBe(false);
+      expect((await runner.schedules()).map((s) => s.name).sort()).toEqual(
+        JOBS.filter((j) => !j.sendsMail)
+          .map((j) => j.name)
+          .sort(),
+      );
+      expect(() => runner.trigger('reminders')).toThrow(
+        'Job not running without a mail transport: reminders',
+      );
+      const row = outboxRow({
+        type: 'instance.submitted',
+        clientId: client.id,
+        actor: { kind: 'SYSTEM', job: 'test' },
+        requestId: 'req:submitted',
+        aggregate: { type: 'instance', id: randomUUID() },
+        aggregateVersion: 2,
+        data: { instanceId: randomUUID() },
+      });
+      firm.events.push(row);
+      await runner.trigger('relay-outbox');
+      const deadline = Date.now() + 20_000;
+      while (!logs.some((l) => l.job === 'relay-outbox')) {
+        if (Date.now() > deadline) throw new Error('Timed out waiting for the relay');
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      }
+      expect(logs.find((l) => l.job === 'relay-outbox')!.report).toMatchObject({
+        published: 0,
+        skipped: 1,
+      });
+      expect(h.store.firms[0]!.events[0]!.publishedAt).not.toBeNull();
+      expect(h.mailer.sent).toHaveLength(0);
+    } finally {
+      await runner.stop();
+      const pgClient = new pg.Client({ connectionString: url });
+      await pgClient.connect();
+      await pgClient.query(`DROP SCHEMA IF EXISTS ${schema} CASCADE`);
+      await pgClient.end();
+    }
+  });
+});
+
 describe.skipIf(!url)('jobs booted from the environment', () => {
   it('starts on the Postgres store with the SMTP mailer, registers the schedule, and stops', async () => {
     const { createJobTestDatabase } = await import('./testing/postgres.js');
@@ -146,11 +202,11 @@ describe.skipIf(!url)('jobs booted from the environment', () => {
         },
         { db: t.db, connectionString: url!, schema },
       );
-      expect(runner).not.toBeNull();
-      expect((await runner!.schedules()).map((s) => s.name).sort()).toEqual(
+      expect(runner.mail).toBe(true);
+      expect((await runner.schedules()).map((s) => s.name).sort()).toEqual(
         JOBS.map((j) => j.name).sort(),
       );
-      await runner!.stop();
+      await runner.stop();
     } finally {
       await smtp.close();
       const client = new pg.Client({ connectionString: url });

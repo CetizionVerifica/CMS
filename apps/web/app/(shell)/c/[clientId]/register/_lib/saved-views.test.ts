@@ -82,6 +82,40 @@ describe('storage', () => {
   });
 });
 
+describe('layouts', () => {
+  const layout = { columns: ['title', 'dueDate'], density: 'compact' as const };
+
+  it('keeps a well-formed layout and drops a malformed one, keeping the view', () => {
+    localStorage.setItem(
+      KEY,
+      JSON.stringify({
+        views: [
+          { id: 'a', name: 'A', query: '', layout },
+          { id: 'b', name: 'B', query: '', layout: { columns: 'title', density: 'compact' } },
+        ],
+      }),
+    );
+    expect(loadViews(KEY).views).toEqual([
+      { id: 'a', name: 'A', query: '', layout },
+      { id: 'b', name: 'B', query: '' },
+    ]);
+  });
+
+  it('saves and updates the layout with the query', () => {
+    const { store, id } = addView({ views: [] }, 'Mine', 'ownerId=me', layout);
+    expect(store.views[0]).toEqual({ id, name: 'Mine', query: 'ownerId=me', layout });
+    const wider = { columns: ['title', 'dueDate', 'status'], density: 'comfortable' as const };
+    expect(updateView(store, id, 'ownerId=me&status=OVERDUE', wider).views[0]).toEqual({
+      id,
+      name: 'Mine',
+      query: 'ownerId=me&status=OVERDUE',
+      layout: wider,
+    });
+    // An update without a layout leaves the stored one alone.
+    expect(updateView(store, id, '').views[0]!.layout).toEqual(layout);
+  });
+});
+
 describe('editing views', () => {
   it('adds a view with a trimmed, capped name and a fresh id', () => {
     const { store, id } = addView({ views: [] }, `  ${'x'.repeat(80)}  `, 'status=OVERDUE');

@@ -82,10 +82,19 @@ several fail, and in which states the non-transition actions (reassign, due date
 14. **Bulk approve in one transaction.** Each item runs in its own savepoint (`withSavepoint`), so a refused
     item rolls back alone and `instance.bulk_approved` commits with the approvals it lists.
 15. **Not yet built.** Only `sort=dueDate` is accepted (`VALIDATION` otherwise). Lists return no total
-    count. The evidence vault and both audit-trail routes come next, on M3's `evidence.vault` and
-    `auditEvents.query`. `main.ts` does not yet pass a database to `buildServer`, so the instance routes
-    are registered only where one is given (tests, and M1's wiring later).
-
+    count; `count=true` is accepted and ignored.
+16. **Evidence vault and audit trail reads.** `GET /clients/{clientId}/evidence` lists live files (metadata
+    only, never the storage key) on M3's `evidence.vault`, newest first. APPROVER and OWNER see only their
+    units: an asked `unitId` is limited to the person's units, so asking for another unit returns nothing.
+    `uploadedFrom`/`uploadedTo` are inclusive calendar dates in the client's time zone, turned into the
+    half-open instants M3 takes by finding local midnight with the engine's `localDateIn` (root rule 4; the
+    engine has no "start of day in a zone" helper yet, so `audit/bounds.ts` searches for it).
+    `GET /clients/{clientId}/audit` is the client's trail on `auditEvents.query`; it authorizes `audit.read`
+    on a client resource, so APPROVER and OWNER (whose grant covers instance resources only) get 403. Its
+    inclusive `to` becomes the repository's exclusive bound one millisecond later, the precision instants are
+    compared at. `GET /instances/{id}/audit` is one instance's history, evidence events included (they are
+    recorded on the instance, §12), for anyone who may read that instance's audit. A cursor these lists did
+    not hand out is `400 VALIDATION` on `cursor`. Reads write nothing (rows in `audit-gate.db.test.ts`).
 ## Consequences
 - The service and the bulk-approve endpoint call the same planner, so per-item results match single approvals.
 - Dependencies added for all of M7 in this PR: `@canopy/engine`, `@canopy/db`, and `@aws-sdk/client-s3` with

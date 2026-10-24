@@ -3,6 +3,8 @@ import Fastify, { type FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createTestAuth } from '../../auth/testing.js';
 import { buildServer } from '../../server.js';
+import { registerAuditRoutes } from '../audit/routes.js';
+import type { AuditService } from '../audit/service.js';
 import { storageKey } from '../evidence/files.js';
 import { registerEvidenceRoutes } from '../evidence/routes.js';
 import type { EvidenceService } from '../evidence/service.js';
@@ -201,6 +203,30 @@ const GATE: Record<string, GateCase> = {
     audit: [],
     outbox: [],
     refused: (i) => ({ ...read('otherOwner', at(i, 'evidence')), status: 403 }),
+  },
+  'GET /clients/:clientId/evidence': {
+    from: 'SUBMITTED',
+    change: () => read('owner', `/clients/${f.clientId}/evidence`),
+    audit: [],
+    outbox: [],
+    refused: () => ({
+      ...read('owner', `/clients/${f.clientId}/evidence?cursor=nope`),
+      status: 400,
+    }),
+  },
+  'GET /clients/:clientId/audit': {
+    from: 'OPEN',
+    change: () => read('viewer', `/clients/${f.clientId}/audit`),
+    audit: [],
+    outbox: [],
+    refused: () => ({ ...read('approver', `/clients/${f.clientId}/audit`), status: 403 }),
+  },
+  'GET /instances/:id/audit': {
+    from: 'APPROVED',
+    change: (i) => read('owner', at(i, 'audit')),
+    audit: [],
+    outbox: [],
+    refused: (i) => ({ ...read('otherOwner', at(i, 'audit')), status: 403 }),
   },
   'GET /evidence/:id/download-url': {
     from: 'SUBMITTED',
@@ -426,6 +452,7 @@ describe('every M7 route writes exactly its AuditEvents and outbox events', () =
     // Registration only: no handler runs, so no service is needed.
     registerInstanceRoutes(probe, {} as InstanceService);
     registerEvidenceRoutes(probe, {} as EvidenceService);
+    registerAuditRoutes(probe, {} as AuditService);
     await probe.ready();
     expect(seen.sort()).toEqual(Object.keys(GATE).sort());
     await probe.close();

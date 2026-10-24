@@ -6,7 +6,6 @@ import type {
   ImportAnalysis,
   KnownName,
   PlanAssignment,
-  PlanInstance,
   PlanNamed,
   PlanObligation,
 } from './types.js';
@@ -36,19 +35,6 @@ export function fingerprintObligation(o: PlanObligation): string {
 
 export function fingerprintAssignment(a: PlanAssignment): string {
   return JSON.stringify([a.department, a.defaultOwner, a.defaultApprover]);
-}
-
-/** @deprecated Fingerprint of a planned instance; instances are compared with `instanceChange`. */
-export function fingerprintInstance(i: PlanInstance): string {
-  return JSON.stringify([
-    i.dueDate,
-    i.workflowState,
-    i.completedOn,
-    i.naReason,
-    i.owner,
-    i.approver,
-    i.comments,
-  ]);
 }
 
 export interface DryRun {
@@ -85,13 +71,6 @@ export function dryRun(analysis: ImportAnalysis, existing: ExistingState): DryRu
   const instanceChanges = new Map<string, InstanceChange>();
   for (const planned of plan.instances) {
     const stored = existing.instances[planned.key];
-    if (typeof stored === 'string') {
-      instanceOutcomes.set(
-        planned.key,
-        stored === fingerprintInstance(planned) ? 'UNCHANGED' : 'UPDATE',
-      );
-      continue;
-    }
     const change = stored ? instanceChange(planned, stored) : null;
     if (change) instanceChanges.set(planned.key, change);
     instanceOutcomes.set(planned.key, !stored ? 'CREATE' : change ? 'UPDATE' : 'UNCHANGED');
@@ -181,8 +160,7 @@ export function stateAfterCommit(analysis: ImportAnalysis, before: ExistingState
       ...before.instances,
       ...Object.fromEntries(
         plan.instances.map((i) => {
-          const stored = before.instances[i.key];
-          return [i.key, instanceAfterCommit(i, typeof stored === 'string' ? undefined : stored)];
+          return [i.key, instanceAfterCommit(i, before.instances[i.key])];
         }),
       ),
     },

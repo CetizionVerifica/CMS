@@ -3,6 +3,7 @@
 // DataTable; bulk approve and export when the page offers them. It renders what it is given; the page loads the rows.
 import type { InstanceRow } from '@canopy/contracts';
 import {
+  Button,
   DataTable,
   EmptyState,
   FilterBar,
@@ -14,9 +15,10 @@ import {
 import { CheckCheck } from 'lucide-react';
 import NextLink from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState, useTransition } from 'react';
 
-import { DEFAULT_VISIBILITY, registerColumns, rowLabel } from '../_lib/columns';
+import { registerColumns, rowLabel } from '../_lib/columns';
+import { DEFAULT_LAYOUT, type GridLayout } from '../_lib/layout';
 import {
   CRITICALITY_OPTIONS,
   DUE_FILTER,
@@ -58,6 +60,8 @@ export type RegisterGridProps = {
   onBulkApprove?: (ids: string[] | 'all') => void;
   /** Export the current view. */
   onExport?: () => void;
+  /** The server has more matching rows than `rows`: a button loads the next page. */
+  more?: { loading: boolean; onLoad: () => void };
 };
 
 const COUNT_NOUN = { one: 'instance', other: 'instances' };
@@ -73,17 +77,20 @@ export function RegisterGrid({
   error,
   onBulkApprove,
   onExport,
+  more,
 }: RegisterGridProps) {
   const router = useRouter();
   const pathname = usePathname();
   const params = useSearchParams();
   const search = useMemo(() => new URLSearchParams(params.toString()), [params]);
 
-  // `replace`, not `push`: typing in search or ticking a filter shouldn't add a history entry per keystroke.
+  // `replace`, not `push`: typing in search or ticking a filter shouldn't add a history entry per keystroke. In a
+  // transition, so the current rows stay up with the refetch bar while the server renders the new ones.
+  const [navigating, startNavigation] = useTransition();
   const navigate = useCallback(
     (next: URLSearchParams) => {
       const qs = next.toString();
-      router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+      startNavigation(() => router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false }));
     },
     [router, pathname],
   );
@@ -115,9 +122,8 @@ export function RegisterGrid({
     [facets],
   );
 
-  const views = useSavedViews(storageKey(personId, clientId), search, navigate);
-  const [visibility, setVisibility] = useState(DEFAULT_VISIBILITY);
-  const [order, setOrder] = useState<string[]>(() => registerColumns.map((c) => c.id!));
+  const [layout, setLayout] = useState<GridLayout>(DEFAULT_LAYOUT);
+  const views = useSavedViews(storageKey(personId, clientId), search, navigate, layout, setLayout);
 
   const bulkActions = useMemo<BulkAction[]>(
     () => (onBulkApprove ? [{ label: 'Approve', icon: CheckCheck, onClick: onBulkApprove }] : []),
@@ -161,14 +167,13 @@ export function RegisterGrid({
         onSortingChange={(sorting) => navigate(withSorting(search, sorting))}
         manualSorting
         selection={bulkActions.length > 0 ? { bulkActions } : undefined}
-        columnVisibility={visibility}
-        columnOrder={order}
-        onColumnsChange={(next) => {
-          setVisibility(next.visibility);
-          setOrder(next.order);
-        }}
+        columnVisibility={layout.visibility}
+        columnOrder={layout.order}
+        onColumnsChange={(next) => setLayout((prev) => ({ ...prev, ...next }))}
+        density={layout.density}
+        onDensityChange={(density) => setLayout((prev) => ({ ...prev, density }))}
         loading={loading}
-        refetching={refetching}
+        refetching={refetching || navigating}
         error={error}
         totalCount={count}
         countNoun={COUNT_NOUN}
@@ -194,6 +199,16 @@ export function RegisterGrid({
           )
         }
       />
+      {more && rows.length > 0 ? (
+        <div className="flex flex-wrap items-center justify-center gap-3">
+          <span className="text-meta text-muted" role="status">
+            Showing {rows.length} of {count}
+          </span>
+          <Button variant="secondary" size="sm" loading={more.loading} onClick={more.onLoad}>
+            Show more
+          </Button>
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -1,38 +1,52 @@
 import type { Database } from '@canopy/db';
-import type { Clock } from './ports.js';
+import type { Clock, Mailer } from './ports.js';
 import { postgresJobStore } from './postgres-store.js';
 import { startJobRunner, type JobRunner, type JobRunnerOptions } from './runner.js';
 import { mailConfigFromEnv, smtpMailer } from './smtp-mailer.js';
 
-export interface JobsFromEnvOptions extends JobRunnerOptions {
+export interface JobsFromEnvOptions extends Omit<JobRunnerOptions, 'mail'> {
   db: Database;
   /** Defaults to the system clock; tests pass a fixed one. */
   clock?: Clock;
 }
 
+/** Stands in when no SMTP server is set. The runner registers no job that sends, so it is never called. */
+const NO_MAILER: Mailer = {
+  send: () => Promise.reject(new Error('No mail transport is configured')),
+};
+
 /**
  * Boots the jobs for an API process: pg-boss on `connectionString`, the Postgres store and an SMTP mailer, all from
  * the environment (`SMTP_URL`, or `SMTP_HOST` with `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS` and `SMTP_SECURE`, plus
- * `MAIL_FROM` and `APP_URL`). Returns null and starts nothing when no SMTP server is configured, so sends are
- * never recorded as done without a transport. Throws on half-set mail settings.
+ * `MAIL_FROM` and `APP_URL`). Without an SMTP server, instance generation and the outbox relay still run and every
+ * email job is left off (the runner's `mail` is false, so the caller can warn), so no send is ever recorded as done
+ * without a transport. Throws on half-set mail settings.
  */
 export async function startJobsFromEnv(
   env: Record<string, string | undefined>,
   options: JobsFromEnvOptions,
-): Promise<JobRunner | null> {
-  const mail = mailConfigFromEnv(env);
-  if (!mail) return null;
-  const mailer = smtpMailer(mail);
+): Promise<JobRunner> {
   const { db, clock, ...runnerOptions } = options;
-  const runner = await startJobRunner(
-    {
-      store: postgresJobStore(db),
-      mailer,
-      clock: clock ?? (() => new Date().toISOString()),
-      appUrl: mail.appUrl,
-    },
-    runnerOptions,
-  );
+  const store = postgresJobStore(db);
+  const now = clock ?? (() => new Date().toISOString());
+  const mail = mailConfigFromEnv(env);
+  if (!mail) {
+    return startJobRunner(
+      { store, mailer: NO_MAILER, clock: now, appUrl: '' },
+      { ...runnerOptions, mail: false },
+    );
+  }
+  const mailer = smtpMailer(mail);
+  let runner: JobRunner;
+  try {
+    runner = await startJobRunner(
+      { store, mailer, clock: now, appUrl: mail.appUrl },
+      { ...runnerOptions, mail: true },
+    );
+  } catch (error) {
+    mailer.close();
+    throw error;
+  }
   return {
     ...runner,
     stop: async () => {
