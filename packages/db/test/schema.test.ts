@@ -107,9 +107,9 @@ describe('schema', () => {
     const text = chk!.value.queryChunks
       .map((c) => (c as { value?: string[] }).value?.join('') ?? '')
       .join('');
-    for (const kind of contracts.ACCOUNT_NOTIFICATION_KINDS)
-      expect(text).toContain(`kind::text = '${kind}'`);
-    expect(contracts.ACCOUNT_NOTIFICATION_KINDS).toHaveLength(1);
+    // RENEWAL_DUE is named ahead of the contracts bump that lists it as an account kind.
+    const named = [...text.matchAll(/'([A-Z_]+)'/g)].map((m) => m[1]);
+    expect(named).toEqual([...new Set([...contracts.ACCOUNT_NOTIFICATION_KINDS, 'RENEWAL_DUE'])]);
   });
 
   it('does not store the derived status', () => {

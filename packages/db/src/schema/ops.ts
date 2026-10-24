@@ -155,7 +155,7 @@ export const notificationSend = pgTable(
     // kind is compared as text so a fresh database can apply 0027's new enum value and this check in one transaction.
     check(
       'notification_send_client_check',
-      sql`client_id is not null or (instance_id is null and (event_id is not null or kind::text = 'TRIAL_ENDING'))`,
+      sql`client_id is not null or (instance_id is null and (event_id is not null or kind::text in ('TRIAL_ENDING', 'RENEWAL_DUE')))`,
     ),
     // A null client is visible to firm-wide contexts only (app_can_see_client), so client roles never
     // read or write these rows.

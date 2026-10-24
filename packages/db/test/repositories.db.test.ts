@@ -994,11 +994,13 @@ describe('audit and outbox', () => {
       await code(inA((tx) => r.notificationSends.claim(tx, { ...trial, kind: 'OWNER_REMINDER' }))),
     ).toBe('VALIDATION');
     // The database holds the same rule: an account kind may go without a client and an event, no other kind may.
-    await t.ownerQuery(
-      `INSERT INTO notification_send (firm_id, recipient_id, kind, send_date)
-       VALUES ($1, $2, 'TRIAL_ENDING', '2022-08-20')`,
-      [firmA, world.ownerId],
-    );
+    for (const kind of ['TRIAL_ENDING', 'RENEWAL_DUE']) {
+      await t.ownerQuery(
+        `INSERT INTO notification_send (firm_id, recipient_id, kind, send_date)
+         VALUES ($1, $2, $3, '2022-08-20')`,
+        [firmA, world.ownerId, kind],
+      );
+    }
     await expect(
       t.ownerQuery(
         `INSERT INTO notification_send (firm_id, recipient_id, kind, send_date)
