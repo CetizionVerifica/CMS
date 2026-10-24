@@ -10,6 +10,7 @@ const { options, database, auth, operatorDatabase } = wiringFromEnv(process.env,
 const app = buildServer(options);
 const jobs = await jobsFromEnv(process.env, database, {
   auth,
+  ...(operatorDatabase && { operatorDatabase }),
   warn: (message) => app.log.warn(message),
   log: (line) => (line.error ? app.log.error(line, 'job failed') : app.log.info(line, 'job ran')),
 });

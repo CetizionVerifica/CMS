@@ -13,7 +13,7 @@ import { PostgresStore } from './modules/entities/service.js';
 import { copyMasterLibrary } from './modules/library/db-library-copy.js';
 import { repositoryStore, s3ImportFilesFromEnv } from './modules/imports/index.js';
 import { S3ExportFiles } from './modules/reports/files.js';
-import { ipAllowlistFromEnv, type PlatformOptions } from './platform/index.js';
+import { ipAllowlistFromEnv, operatorDigestJob, type PlatformOptions } from './platform/index.js';
 import { s3SettingsFromEnv } from './s3-env.js';
 import type { ServerOptions } from './server.js';
 
@@ -163,13 +163,19 @@ export interface JobsWiring {
   readonly log?: JobRunnerOptions['log'];
   /** M5's sign-in service (`Wiring.auth`): issues the one-time tokens in sign-in link and invite emails. */
   readonly auth?: Pick<AuthService, 'issueLoginToken'>;
+  /**
+   * The console's login (`Wiring.operatorDatabase`), set when the operator API is enabled: the jobs then also send
+   * the operators' daily renewals email (ADR M15-0005).
+   */
+  readonly operatorDatabase?: OperatorDatabase;
   /** Tests replace the M9 boot. */
   readonly start?: typeof startJobsFromEnv;
 }
 
 /**
  * Starts the M9 jobs on the API's database: instance generation, the outbox relay and M6's master library copy for
- * new accounts (`account.created`, ADR M6-0001) always, reminders, digests
+ * new accounts (`account.created`, ADR M6-0001) always, reminders, digests (the operators' renewals digest too when the
+ * operator API is enabled)
  * and workflow emails when the environment configures mail, and the evidence virus scan when it configures a scanner. Without a database nothing starts and nothing is said,
  * as for the modules above; with one but no SMTP server it warns, because reminders and approval emails would
  * silently never go out, and without a scanner, because uploaded evidence would never become downloadable. Half-set mail settings throw, so a deploy fails at boot rather than running without mail.
@@ -177,7 +183,7 @@ export interface JobsWiring {
 export async function jobsFromEnv(
   env: NodeJS.ProcessEnv,
   database: Database | undefined,
-  { warn, log, auth, start = startJobsFromEnv }: JobsWiring,
+  { warn, log, auth, operatorDatabase, start = startJobsFromEnv }: JobsWiring,
 ): Promise<JobRunner | null> {
   const connectionString = env.DATABASE_URL;
   if (!database || !connectionString) return null;
@@ -187,6 +193,7 @@ export async function jobsFromEnv(
     ...(log && { log }),
     ...(auth && { issueLoginToken: (input) => auth.issueLoginToken(input) }),
     copyLibrary: (accountId, requestId) => copyMasterLibrary(database, accountId, requestId),
+    ...(operatorDatabase && { extraJobs: [operatorDigestJob(operatorDatabase)] }),
   });
   if (!jobs.mail)
     warn(
