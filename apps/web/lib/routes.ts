@@ -58,6 +58,8 @@ export const ROUTES: readonly RouteDef[] = [
   { path: 'portfolio', label: 'Portfolio', scope: 'firm', module: 'M13', roles: FIRM },
   { path: 'library/acts', label: 'Acts', scope: 'firm', module: 'M13' },
   { path: 'library/obligations', label: 'Obligations', scope: 'firm', module: 'M13' },
+  // The customer's own account: plan, usage and PlanetPulse support access (ADR M15-0001 decisions 5 and 11).
+  { path: 'account', label: 'Account', scope: 'firm', module: 'M13', roles: ['FIRM_ADMIN'] },
 ];
 
 export function clientHref(clientId: string, path = 'overview'): string {

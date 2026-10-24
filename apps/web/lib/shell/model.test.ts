@@ -1,9 +1,9 @@
-import type { Me } from '@canopy/contracts';
+import { AccountSummary, type Me } from '@canopy/contracts';
 import { describe, expect, it } from 'vitest';
 
 import { createApiClient } from '../api/client';
 import { MOCK_CLIENTS, MOCK_PASSWORD, mockFetch } from '../api/mock';
-import { buildShellModel, homeHref, navSections, rolesFor } from './model';
+import { accountNotice, buildShellModel, homeHref, navSections, rolesFor } from './model';
 
 async function meFor(email: string): Promise<Me> {
   const anon = createApiClient({ baseUrl: 'http://api.test', fetch: mockFetch });
@@ -95,11 +95,55 @@ describe('shell model', () => {
       ['Reporting', ['Reports']],
       ['Firm', ['Library']],
     ]);
-    expect(labels(navSections(['FIRM_ADMIN']))).toEqual([['Firm', ['Portfolio', 'Library']]]);
+    expect(labels(navSections(['FIRM_ADMIN']))).toEqual([
+      ['Firm', ['Portfolio', 'Library', 'Account']],
+    ]);
+    // The account page is for account admins only.
+    expect(labels(navSections(['CONSULTANT']))).toEqual([['Firm', ['Portfolio', 'Library']]]);
     expect(navSections(['OWNER'], 'c1')[0]!.items[1]).toEqual({
       path: 'register',
       label: 'Register',
       href: '/c/c1/register',
     });
+  });
+
+  it('words nothing for an active account, and puts a support visit before a closing account or a trial', async () => {
+    const me = await meFor('consultant@demo.test');
+    const person = (support: boolean) => ({ ...me.person, support });
+    const account = (
+      status: 'ACTIVE' | 'TRIAL' | 'PENDING_DELETION',
+      trialEndsOn: string | null = null,
+    ) => AccountSummary.parse({ kind: 'ENTERPRISE', status, trialEndsOn });
+    expect(accountNotice({ person: person(false), account: account('ACTIVE') })).toBeUndefined();
+    expect(accountNotice({ person: person(false) })).toBeUndefined();
+    expect(
+      accountNotice({ person: person(false), account: account('TRIAL', '2026-11-23') }),
+    ).toEqual({
+      kind: 'trial',
+      endsOn: '2026-11-23',
+    });
+    expect(accountNotice({ person: person(false), account: account('TRIAL') })).toBeUndefined();
+    expect(accountNotice({ person: person(false), account: account('PENDING_DELETION') })).toEqual({
+      kind: 'closing',
+    });
+    expect(
+      accountNotice({ person: person(true), account: account('TRIAL', '2026-11-23') }),
+    ).toEqual({
+      kind: 'support',
+    });
+  });
+
+  it('hides the client switcher for a company account with one client only', async () => {
+    const me = await meFor('consultant@demo.test');
+    const one = { ...me, clients: me.clients.slice(0, 1) };
+    const company = AccountSummary.parse({
+      kind: 'ENTERPRISE',
+      status: 'ACTIVE',
+      trialEndsOn: null,
+    });
+    expect(buildShellModel(me).showClientSwitcher).toBe(true);
+    expect(buildShellModel({ ...one }).showClientSwitcher).toBe(true);
+    expect(buildShellModel({ ...one, account: company }).showClientSwitcher).toBe(false);
+    expect(buildShellModel({ ...me, account: company }).showClientSwitcher).toBe(true);
   });
 });

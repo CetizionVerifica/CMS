@@ -1,7 +1,13 @@
 // What the shell shows for the signed-in user: their roles, the clients in the switcher and the sidebar sections.
 // Plain data, built on the server and passed to the client frame (icons are attached there, since components can't
 // cross the server/client boundary).
-import { FIRM_ROLES, type ClientPeriods, type Me, type Role } from '@canopy/contracts';
+import {
+  DEFAULT_ACCOUNT,
+  FIRM_ROLES,
+  type ClientPeriods,
+  type Me,
+  type Role,
+} from '@canopy/contracts';
 
 import { hrefFor, routeByPath, visibleTo } from '../routes';
 
@@ -27,7 +33,30 @@ export type ShellModel = {
   roles: { firm: Role[]; byClient: Record<string, Role[]> };
   /** Instances waiting on the user's approval (GET /me/approvals), shown on the Approvals item. */
   approvalsWaiting: number;
+  /** A line above every page about the account itself: a support visit, a closing account or a trial. */
+  notice?: ShellNotice;
+  /** False for a company account with one client: there is nothing to switch to (ADR M15-0001). */
+  showClientSwitcher?: boolean;
 };
+
+/** The account's state, for the line above every page; ShellFrame words it. */
+export type ShellNotice =
+  { kind: 'support' } | { kind: 'closing' } | { kind: 'trial'; endsOn: string };
+
+/**
+ * What the account's state means for everyone signed in to it. A PlanetPulse support visit comes first, so support
+ * never forgets whose account it is in; then a closing account; then a trial with its end date. A paused account
+ * signs nobody in, so it never reaches the shell.
+ */
+export function accountNotice(me: Pick<Me, 'person' | 'account'>): ShellNotice | undefined {
+  const account = me.account ?? DEFAULT_ACCOUNT;
+  if (me.person.support) return { kind: 'support' };
+  if (account.status === 'PENDING_DELETION') return { kind: 'closing' };
+  if (account.status === 'TRIAL' && account.trialEndsOn) {
+    return { kind: 'trial', endsOn: account.trialEndsOn };
+  }
+  return undefined;
+}
 
 export type NavSection = { label?: string; items: { path: string; label: string; href: string }[] };
 
@@ -97,6 +126,10 @@ export function buildShellModel(
       byClient: Object.fromEntries(clients.map((c) => [c.id, rolesFor(me, c.id)])),
     },
     approvalsWaiting,
+    notice: accountNotice(me),
+    showClientSwitcher: !(
+      (me.account ?? DEFAULT_ACCOUNT).kind === 'ENTERPRISE' && clients.length <= 1
+    ),
   };
 }
 
@@ -106,7 +139,7 @@ const CLIENT_SECTIONS: { label?: string; paths: string[] }[] = [
   { label: 'Setup', paths: ['setup/entities', 'setup/people', 'import'] },
 ];
 
-const FIRM_SECTION = { label: 'Firm', paths: ['portfolio', 'library/acts'] };
+const FIRM_SECTION = { label: 'Firm', paths: ['portfolio', 'library/acts', 'account'] };
 
 /**
  * Sidebar sections (spec 01 "Default nav"). With no client selected only the firm items show. Items a role can't
