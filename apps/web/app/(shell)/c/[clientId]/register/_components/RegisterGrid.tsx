@@ -39,6 +39,27 @@ const renderLink: LinkRenderer = ({ href, children, ...rest }) => (
   </NextLink>
 );
 
+/**
+ * A row's title link. A plain click (or Enter on the row) opens the drawer in place through `onOpen`, keeping the
+ * loaded rows and the scroll position; a modified click (new tab, new window) follows the href as any link does.
+ */
+const openingLink =
+  (onOpen: (href: string) => void): LinkRenderer =>
+  ({ href, children, onClick, ...rest }) => (
+    <a
+      href={href}
+      {...rest}
+      onClick={(e) => {
+        onClick?.(e);
+        if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+        e.preventDefault();
+        onOpen(href);
+      }}
+    >
+      {children}
+    </a>
+  );
+
 export type RegisterFacets = {
   departments: FilterOption[];
   acts: FilterOption[];
@@ -62,6 +83,8 @@ export type RegisterGridProps = {
   onExport?: () => void;
   /** The server has more matching rows than `rows`: a button loads the next page. */
   more?: { loading: boolean; onLoad: () => void };
+  /** Opens a row's drawer in place (its href is `/register/<id>?<this view>`); without it, the link navigates. */
+  onOpenRow?: (href: string) => void;
 };
 
 const COUNT_NOUN = { one: 'instance', other: 'instances' };
@@ -78,6 +101,7 @@ export function RegisterGrid({
   onBulkApprove,
   onExport,
   more,
+  onOpenRow,
 }: RegisterGridProps) {
   const router = useRouter();
   const pathname = usePathname();
@@ -130,6 +154,8 @@ export function RegisterGrid({
     [onBulkApprove],
   );
 
+  const rowLink = useMemo(() => (onOpenRow ? openingLink(onOpenRow) : renderLink), [onOpenRow]);
+
   const count = totalCount ?? rows.length;
   const qs = search.toString();
   const filtered =
@@ -162,7 +188,7 @@ export function RegisterGrid({
         rowHref={(row) =>
           `/c/${encodeURIComponent(clientId)}/register/${row.id}${qs ? `?${qs}` : ''}`
         }
-        renderLink={renderLink}
+        renderLink={rowLink}
         sorting={sortingFromParams(search)}
         onSortingChange={(sorting) => navigate(withSorting(search, sorting))}
         manualSorting

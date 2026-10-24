@@ -39,7 +39,7 @@ type TaskListProps = {
 | -------------------------------------------------------------------------------------------------------- | --------------------------------------------------------- |
 | J / K                                                                                                    | Move focus down / up                                      |
 | Enter                                                                                                    | Open the instance drawer                                  |
-| A                                                                                                        | Approve focused item (no confirm; Toast with Undo for 5s) |
+| A                                                                                                        | Approve focused item (no confirm; a Toast says it was approved. No Undo: an approver can't reopen, see docs/adr/M12-0003) |
 | S                                                                                                        | Send back: opens ConfirmDialog with required reason       |
 | Shortcuts are listed in a "Keyboard shortcuts" popover (`?` key) and never fire while typing in a field. |
 
