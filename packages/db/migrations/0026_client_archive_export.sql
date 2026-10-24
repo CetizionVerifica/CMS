@@ -1,0 +1,1 @@
+ALTER TYPE "public"."export_kind" ADD VALUE 'CLIENT_ARCHIVE_ZIP';

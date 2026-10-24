@@ -78,10 +78,12 @@ describe('schema', () => {
     expect(pgEnum.enumValues).toEqual(zodEnum.options);
   });
 
-  // Values the database stores ahead of the contracts bump that lists them (contracts 1.5.1).
+  // Values the database stores ahead of the contracts bump that lists them (contracts 1.5.1, then the account
+  // export's bump).
   it.each([
     [schema.entityTypeEnum, contracts.EntityType, ['account']],
     [schema.auditActorKindEnum, contracts.AuditActorKind, ['OPERATOR']],
+    [schema.exportKindEnum, contracts.ExportKind, ['CLIENT_ARCHIVE_ZIP']],
   ] as const)('enum %# matches the contract plus its staged values', (pgEnum, zodEnum, ahead) => {
     expect(pgEnum.enumValues).toEqual([...new Set([...zodEnum.options, ...ahead])]);
   });

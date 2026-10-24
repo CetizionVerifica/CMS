@@ -79,7 +79,12 @@ export const notificationKindEnum = pgEnum(
   'notification_kind',
   values([...new Set([...NotificationKind.options, 'APPROVAL_REQUESTED', 'SENT_BACK'] as const)]),
 );
-export const exportKindEnum = pgEnum('export_kind', values(ExportKind.options));
+// CLIENT_ARCHIVE_ZIP (a client's register and evidence, downloadable while an account is PENDING_DELETION, ADR
+// M15-0001 decision 4) arrives in the database before the contracts list it, as OPERATOR did above.
+export const exportKindEnum = pgEnum(
+  'export_kind',
+  values([...new Set([...ExportKind.options, 'CLIENT_ARCHIVE_ZIP'] as const)]),
+);
 export const jobStatusEnum = pgEnum('job_status', values(JobStatus.options));
 
 // Customer accounts and the platform operator (ADR M15-0001).

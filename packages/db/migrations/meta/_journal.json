@@ -183,6 +183,13 @@
       "when": 1792840508545,
       "tag": "0025_pgboss_jobs_role",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1792843084471,
+      "tag": "0026_client_archive_export",
+      "breakpoints": true
     }
   ]
 }
