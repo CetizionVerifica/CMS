@@ -1,9 +1,16 @@
 'use client';
-// Wires the stored views (saved-views.ts) to the URL: choosing a view writes its query into the URL, and the view is
-// "edited" while the URL's register state differs from what the view stored.
+// Wires the stored views (saved-views.ts) to the URL and the grid layout: choosing a view writes its query into the URL
+// and its columns and density into the grid, and the view is "edited" while either differs from what it stored.
 import { toast, type SavedViewsProps } from '@canopy/ui';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
+import {
+  DEFAULT_LAYOUT,
+  fromViewLayout,
+  sameLayout,
+  toViewLayout,
+  type GridLayout,
+} from '../_lib/layout';
 import { VIEW_PARAM, viewQuery, withView } from '../_lib/query';
 import {
   addView,
@@ -14,6 +21,7 @@ import {
   saveViews,
   setDefaultView,
   updateView,
+  type StoredView,
   type ViewStore,
 } from '../_lib/saved-views';
 
@@ -33,10 +41,15 @@ function refused(change: () => void): void {
   }
 }
 
+const layoutOf = (view: StoredView | undefined): GridLayout =>
+  view ? fromViewLayout(view.layout) : DEFAULT_LAYOUT;
+
 export function useSavedViews(
   key: string,
   search: URLSearchParams,
   navigate: Navigate,
+  layout: GridLayout,
+  setLayout: (layout: GridLayout) => void,
 ): SavedViewsProps {
   // Storage is read after mount: the server render has none, and the first client render must match it.
   const [store, setStore] = useState<ViewStore>({ views: [] });
@@ -50,11 +63,20 @@ export function useSavedViews(
   const current = findView(store, currentId);
   const state = viewQuery(search);
 
-  // Opening the register with no view and no filters applies the person's default view once.
+  // On load: a link naming a view gets that view's layout; with no view and no filters, the person's default view
+  // applies once.
   useEffect(() => {
-    if (!loaded || currentId || state !== '' || !store.defaultId) return;
+    if (!loaded) return;
+    if (current) {
+      setLayout(layoutOf(current));
+      return;
+    }
+    if (currentId || state !== '' || !store.defaultId) return;
     const view = findView(store, store.defaultId);
-    if (view) navigate(withView(search, view.query, view.id));
+    if (view) {
+      setLayout(layoutOf(view));
+      navigate(withView(search, view.query, view.id));
+    }
     // Only on load: choosing Default later must stay on Default.
   }, [loaded]);
 
@@ -77,16 +99,25 @@ export function useSavedViews(
       list: store.views.map(({ id, name }) => ({ id, name })),
       current: current?.id,
       defaultId: store.defaultId,
-      edited: current ? current.query !== state : state !== '',
-      onSelect: (id) => navigate(withView(search, findView(store, id)?.query ?? '', id)),
+      edited:
+        (current ? current.query !== state : state !== '') ||
+        !sameLayout(layout, layoutOf(current)),
+      onSelect: (id) => {
+        const view = findView(store, id);
+        setLayout(layoutOf(view));
+        navigate(withView(search, view?.query ?? '', id));
+      },
       onSave: (name) =>
         refused(() => {
-          const { store: next, id } = addView(store, name, state);
+          const { store: next, id } = addView(store, name, state, toViewLayout(layout));
           commit(next);
           navigate(withView(search, state, id));
         }),
-      onUpdate: (id) => commit(updateView(store, id, state)),
-      onDiscard: () => navigate(withView(search, current?.query ?? '', current?.id)),
+      onUpdate: (id) => commit(updateView(store, id, state, toViewLayout(layout))),
+      onDiscard: () => {
+        setLayout(layoutOf(current));
+        navigate(withView(search, current?.query ?? '', current?.id));
+      },
       onRename: (id, name) => refused(() => commit(renameView(store, id, name))),
       onDelete: (id) => {
         commit(deleteView(store, id));
@@ -94,6 +125,6 @@ export function useSavedViews(
       },
       onSetDefault: (id) => commit(setDefaultView(store, id)),
     }),
-    [store, current, state, search, navigate, commit],
+    [store, current, state, search, navigate, commit, layout, setLayout],
   );
 }
