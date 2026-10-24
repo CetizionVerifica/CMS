@@ -25,5 +25,6 @@ async function copyNewAccountLibrary(deps: JobDeps, event: OutboxEvent, requestI
 }
 
 export const ACCOUNT_CONSUMERS: readonly Consumer[] = [
-  { type: 'account.created', needsLibraryCopy: true, handle: copyNewAccountLibrary },
+  // Always registered: without the copier the delivery throws and pg-boss retries it, so no event is dropped.
+  { type: 'account.created', handle: copyNewAccountLibrary },
 ];
