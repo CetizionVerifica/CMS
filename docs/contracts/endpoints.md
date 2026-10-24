@@ -1,6 +1,6 @@
 # Endpoints and role permissions (contracts v1)
 
-Owner: M0. Each provider module (M5, M6, M7, M8, M10) implements its section exactly; M11-M13 build against the mock of it.
+Owner: M0. Each provider module (M5, M6, M7, M8, M10, M15) implements its section exactly; M11-M13 build against the mock of it.
 The endpoint table in code (`packages/contracts/src/api/endpoints.ts`) is the source of truth, with request and response
 schemas per endpoint; `openapi.json` is generated from it. A test checks that this file and the code list the same paths.
 Conventions, filters and error codes: `api-conventions.md`. Types: `domain-model.md`. All paths are under `/api/v1`.
@@ -32,6 +32,7 @@ The `Action` column is the `can()` action name; the M5 policy table has one row 
 | POST | `/invites` | `person.invite` | ✓ | ✓ | ✓ | | | | CO/CA may invite only client roles in their clients; only FA invites FA/CO |
 | GET | `/invites/{token}` · POST `/invites/{token}/accept` | public | | | | | | | claims an UNCLAIMED person (sets email, password) |
 | POST | `/invites/{id}/revoke` | `person.invite` | ✓ | ✓ | ✓ | | | | |
+| POST | `/auth/support/verify` | public | | | | | | | one-time token from the operator console → a support session for the grant's support person (ADR M15-0001 decision 11); MFA counts as satisfied |
 
 ## 3. M6 · Library and entities (`apps/api/src/modules/{clients,entities,people,library,assignments}`)
 
@@ -157,3 +158,49 @@ AP and OW dashboards are limited to their units (and owners see the same numbers
 
 ## 7. Not exposed in v1
 Notification send log, job admin and library change history have no public endpoints; M9 writes audit/send-log rows only.
+
+## 8. M15 · The account, for its own people (`apps/api/src/platform`)
+
+An account is the firm (ADR M15-0001). In `SUSPENDED` nobody can sign in. In `PENDING_DELETION` only account admins (FA) can sign in, and
+every route except `GET /me`, `POST /auth/logout` and the account export answers `403 ACCOUNT_SUSPENDED`. Creating a
+company, unit or invite past the plan's limit answers `403 PLAN_LIMIT_REACHED` (M6, M5).
+
+| Method | Path | Action | FA | CO | CA | AP | OW | VI | Notes |
+|---|---|---|---|---|---|---|---|---|---|
+| GET | `/account` → `AccountView` | `account.read` | ✓ | | | | | | kind, status, trial end, entitlements and usage; read-only |
+| GET | `/account/support-grants` → `{ items: SupportGrant[] }` | `supportGrant.read` | ✓ | | | | | | newest first; ended grants read `EXPIRED` or `REVOKED` |
+| POST | `/account/support-grants` `{ level, days }` → `SupportGrant` | `supportGrant.manage` | ✓ | | | | | | `days` 1-30 (default 7); ends any live grant; Idempotency-Key |
+| POST | `/account/support-grants/{id}/revoke` → `SupportGrant` | `supportGrant.manage` | ✓ | | | | | | ends its memberships and support sessions now |
+
+## 9. M15 · Operator API (`/api/platform/v1`, `apps/api/src/platform`)
+
+Not part of the customer API: its own OpenAPI document (`openapi.platform.json`, from `PLATFORM_ENDPOINTS`), its own
+session cookie `op_sid` and CSRF token, and no roles: every signed-in operator may call every route, and a customer
+session is never accepted. Mounted only when `PLATFORM_ENABLED=true`. Paths below are relative to `/api/platform/v1`.
+Every write records an `OperatorAuditEvent`; writes that change an account also write that account's `AuditEvent`
+(actor kind `OPERATOR`).
+
+| Method | Path | Notes |
+|---|---|---|
+| POST | `/auth/login` `{ email, password, code }` → `OperatorMe` | public; MFA on every sign-in; rate limited |
+| POST | `/auth/logout` | |
+| GET | `/me` → `OperatorMe` | operator, CSRF token, session end and idle end |
+| GET | `/plans` → `{ items: Plan[] }` | |
+| PUT | `/plans/{code}` `PlanUpsertBody` → `Plan` | limits apply to accounts on the plan at once; nothing is removed |
+| GET | `/accounts` (`status`, `kind`, `q`, paging) → `{ items: Account[], nextCursor }` | |
+| POST | `/accounts` `AccountCreateBody` → `Account` | `201`; the only route that creates a firm; owner invite valid 72 hours; Idempotency-Key |
+| GET | `/accounts/{id}` → `Account` · PATCH `{ version, name?, profile? }` | no client data, only counts |
+| POST | `/accounts/{id}/status` `{ version, to: ACTIVE \| SUSPENDED, reason }` → `Account` | convert, suspend, resume; must pass `canMoveAccount`, else `409 INVALID_TRANSITION` `{ from, to }` |
+| POST | `/accounts/{id}/trial` `{ version, trialEndsOn, reason? }` → `Account` | moves a TRIAL account's trial end; the status stays TRIAL; any other status `409 INVALID_TRANSITION` |
+| POST | `/accounts/{id}/plan` `{ version, planCode, reason }` → `Account` | |
+| PUT | `/accounts/{id}/override` `{ version, override, reason }` → `Account` | |
+| POST | `/accounts/{id}/owner-invite` | `202`; PROVISIONING only; earlier links stop working |
+| POST | `/accounts/{id}/onboarded` `{ version }` → `Account` | |
+| POST | `/accounts/{id}/deletion` `{ version, reason, confirmName }` → `Account` | `PENDING_DELETION` for 30 days (ADR M15-0002) |
+| POST | `/accounts/{id}/deletion/cancel` `{ version, reason }` → `Account` | back to the status it left |
+| GET | `/accounts/{id}/subscriptions` → `{ items: Subscription[] }` · POST `SubscriptionCreateBody` → `Subscription` | POST is `201` with Idempotency-Key |
+| GET | `/accounts/{id}/usage` (`from`, `to`) → `{ items: UsageSnapshot[] }` | `to` not before `from` |
+| GET | `/accounts/{id}/support-grants` → `{ items: OperatorSupportGrant[] }` | non-personal columns only: no person ids (ADR M15-0001 decision 8) |
+| POST | `/support-grants/{id}/sessions` → `SupportSession` | `201`; live grants only, else `403 ACCESS_EXPIRED` |
+| GET | `/renewals` (`withinDays`, default 30) → `{ items: Renewal[] }` | |
+| GET | `/audit` (`accountId`, `action`, `from`, `to`, paging) → `{ items: OperatorAuditEvent[], nextCursor }` | the console exports to Excel; `to` not before `from` |

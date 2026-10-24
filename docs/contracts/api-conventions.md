@@ -47,9 +47,11 @@ Saved views store exactly this query string, so a view, a dashboard link and an 
 | `MFA_REQUIRED` | 401 | Firm role without MFA in this session | `{ enrolled: boolean }` |
 | `FORBIDDEN` | 403 | Authenticated, in tenant, but `can()` says no | `{ action }` |
 | `ACCESS_EXPIRED` | 403 | VIEWER membership past `expiresAt` | `{ expiredAt }` |
+| `ACCOUNT_SUSPENDED` | 403 | The account is not TRIAL or ACTIVE: any sign-in or request while SUSPENDED; while PENDING_DELETION, sign-in by anyone but an account admin, or any route but `/me`, logout and the account export (domain-model.md §9) | `{ status }` |
+| `PLAN_LIMIT_REACHED` | 403 | Creating a company, unit or invite past the plan's limit | `{ limit, max, used }` |
 | `NOT_FOUND` | 404 | Missing, archived, **or in another tenant/client the actor cannot see** (never reveal existence) | — |
 | `STALE_VERSION` | 409 | `version` mismatch | `{ currentVersion }` |
-| `INVALID_TRANSITION` | 409 | Action not allowed from current workflow state | `{ from, action }` |
+| `INVALID_TRANSITION` | 409 | Action not allowed from current workflow state, or (operator API) account status move not allowed | `{ from, action }` or `{ from, to }` |
 | `DUPLICATE` | 409 | Unique rule broken (e.g. same obligation/unit/department assignment) | `{ field, existingId }` |
 | `IMPORT_STATE` | 409 | Import step called out of order | `{ status, expected }` |
 | `FIRM_CHOICE_REQUIRED` | 409 | Login without `firmId` for an email that signs in to more than one firm; sent only after the password matched in each | `{ firms: [{ id, name }] }` |

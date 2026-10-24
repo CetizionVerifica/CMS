@@ -17,7 +17,7 @@ API server that serves every endpoint from those fixtures (`@canopy/contracts/mo
 | [CHANGELOG.md](CHANGELOG.md) | Contract versions | everyone |
 
 ## Status
-Version `1.3.0` (`CONTRACTS_VERSION` in `packages/contracts/src/version.ts`). The domain model in §1-8 of
+Version `1.5.0` (`CONTRACTS_VERSION` in `packages/contracts/src/version.ts`). The domain model in §1-8 of
 [domain-model.md](domain-model.md) is published as v1 so wave 1 (M3, M4, M8, M11) can build against it. Each consumer
 module owner still reviews its part (MODULES.md M0 acceptance); review findings ship as additive changes or, if breaking,
 with sign-off per "How to change a contract".
@@ -109,3 +109,17 @@ with sign-off per "How to change a contract".
 38. Login answers `Me` on success whatever the firm count. An email that signs in to several firms gets 409
     `FIRM_CHOICE_REQUIRED` listing them (only after the password matched in each), and the client retries with
     `firmId`. Login does not apply the password policy, so an old password that predates a stricter policy still works.
+39. Accounts (contracts 1.5.0, ADR M15-0001). `Firm.kind`, `status`, `planCode` and `trialEndsOn` default to an active
+    consultancy, so firm rows stored before M3 adds the columns still parse; `Me.account` is optional for the same
+    reason, and a client reads a missing one as `DEFAULT_ACCOUNT`. The operator API is a second table,
+    `PLATFORM_ENDPOINTS`, with its own OpenAPI document (`openapi.platform.json`) and no roles. `AuditActorKind`
+    `OPERATOR` and `EntityType` `account` are left for a later bump: they are Postgres enums, so they land with M3's
+    migration (as `NotificationKind` did in 1.4.0). The mock serves `/account` and support grants for firm A and B (both
+    active consultancies, unlimited) and `POST /__mock/support-sessions/{grantId}` stands in for the console.
+    The operator never sees personal data (ADR M15-0001 decision 8): `Account` has no owner name or email, and the
+    operator's grant list is `OperatorSupportGrant`, without person ids. A trial extension is its own route
+    (`POST /accounts/{id}/trial`), not a status move, so every move the status body allows passes `canMoveAccount`.
+    The support person is marked `Person.support` (optional, absent = false), never matched by name; the mock refuses
+    it password sign-in, magic links and invites, expires console tokens after `SUPPORT_TOKEN_SECONDS`, ends support
+    sessions at the earlier of 2 hours and the grant end, and audits each support membership granted or ended as
+    `MEMBERSHIP_CHANGE`. Like every mock handler, it keeps no domain-event outbox.

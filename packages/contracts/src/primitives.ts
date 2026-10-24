@@ -100,6 +100,19 @@ export const TimeZone = z.string().refine(
 /** Wall-clock time "HH:mm" (24 hour). */
 export const LocalTime = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Expected HH:mm');
 
+/** An email address. */
+export const Email = z.email().max(320);
+
+/** A plan's code, e.g. "STARTER". Plans are data (ADR M15-0001 decision 5). */
+export const PlanCode = z
+  .string()
+  .regex(/^[A-Z][A-Z0-9_]{1,39}$/, 'Expected an upper-case plan code, e.g. STARTER');
+
+/** Indian GSTIN: 15 characters, upper case (shape only; the check digit is not verified). */
+export const Gstin = z
+  .string()
+  .regex(/^\d{2}[A-Z]{5}\d{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/, 'Expected a 15-character GSTIN');
+
 /** Fields every persisted entity carries. `firmId` is the tenant and is never accepted from request bodies. */
 export const baseShape = {
   id: Id,

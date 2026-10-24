@@ -11,6 +11,7 @@ export * from './schemas/work.js';
 export * from './schemas/import.js';
 export * from './schemas/scores.js';
 export * from './schemas/context.js';
+export * from './schemas/accounts.js';
 export type * from './engine-api.js';
 export * from './api/index.js';
 export * from './fixtures/schema.js';

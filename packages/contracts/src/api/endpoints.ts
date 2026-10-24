@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { type Role } from '../enums.js';
-import { Id } from '../primitives.js';
+import { Id, PlanCode } from '../primitives.js';
 import { DryRunReport, ImportBatch, ImportRow, MappingTemplate } from '../schemas/import.js';
 import { Act, Category, GeneratedPeriod, Obligation } from '../schemas/library.js';
 import { Breakdown, ExportJob, PortfolioRow, ScoreResult } from '../schemas/scores.js';
@@ -21,6 +21,16 @@ import {
   InstanceDetail,
   InstanceRow,
 } from '../schemas/work.js';
+import {
+  Account,
+  OperatorAuditEvent,
+  OperatorSupportGrant,
+  Plan,
+  Subscription,
+  SupportGrant,
+  UsageSnapshot,
+} from '../schemas/accounts.js';
+import * as acct from './accounts.js';
 import * as auth from './auth.js';
 import {
   ArchiveBody,
@@ -45,7 +55,7 @@ import * as work from './workflow.js';
  */
 
 export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH';
-export type ProviderModule = 'M5' | 'M6' | 'M7' | 'M8' | 'M10';
+export type ProviderModule = 'M5' | 'M6' | 'M7' | 'M8' | 'M10' | 'M15';
 
 /**
  * How a role may call an endpoint: `all` within its scope (endpoints.md §1), `own` only on instances where it is the
@@ -156,6 +166,7 @@ const M6 = 'M6';
 const M7 = 'M7';
 const M8 = 'M8';
 const M10 = 'M10';
+const M15 = 'M15';
 
 const token = { token: auth.InviteTokenParams.shape.token };
 
@@ -1199,6 +1210,58 @@ export const ENDPOINTS = {
     response: MappingTemplate,
   }),
 
+  // ---------- M15 · the customer's own account (ADR M15-0001) ----------
+  getAccount: endpoint({
+    module: M15,
+    method: 'GET',
+    path: '/account',
+    summary: "The account's kind, status, plan limits and usage. Read-only.",
+    action: 'account.read',
+    roles: 'FA',
+    response: acct.AccountView,
+  }),
+  listSupportGrants: endpoint({
+    module: M15,
+    method: 'GET',
+    path: '/account/support-grants',
+    summary: 'PlanetPulse support access grants, newest first.',
+    action: 'supportGrant.read',
+    roles: 'FA',
+    response: list(SupportGrant),
+  }),
+  createSupportGrant: endpoint({
+    module: M15,
+    method: 'POST',
+    path: '/account/support-grants',
+    summary:
+      'Let PlanetPulse support into the account for a number of days. Ends any live grant first.',
+    action: 'supportGrant.manage',
+    roles: 'FA',
+    body: acct.SupportGrantCreateBody,
+    status: 201,
+    response: SupportGrant,
+    idempotent: true,
+  }),
+  revokeSupportGrant: endpoint({
+    module: M15,
+    method: 'POST',
+    path: '/account/support-grants/{id}/revoke',
+    summary: 'End a support grant now; its memberships expire and its support sessions end.',
+    action: 'supportGrant.manage',
+    roles: 'FA',
+    response: SupportGrant,
+  }),
+  verifySupportSession: endpoint({
+    module: M5,
+    method: 'POST',
+    path: '/auth/support/verify',
+    summary:
+      'Exchange the one-time token the operator console opened the app with for a support session.',
+    auth: 'public',
+    body: acct.SupportSessionVerifyBody,
+    response: auth.Me,
+  }),
+
   // ---------- M10 · dashboards and reports ----------
   portfolio: endpoint({
     module: M10,
@@ -1304,3 +1367,215 @@ export const ENDPOINTS = {
 } satisfies Record<string, Endpoint>;
 
 export type EndpointId = keyof typeof ENDPOINTS;
+
+/** Lists and pages of the operator API. */
+export const AccountPage = page(Account);
+export const OperatorAuditEventPage = page(OperatorAuditEvent);
+
+/**
+ * The operator API under /api/platform/v1 (ADR M15-0001 decisions 7-12, endpoints.md §9). `auth: 'session'` here means
+ * the operator session (`op_sid` cookie, MFA on every sign-in); a customer session is never accepted, and these routes
+ * have no roles or `can()` actions: every signed-in operator may call every one. Not part of the customer OpenAPI
+ * document; `buildPlatformOpenApi()` writes `docs/contracts/openapi.platform.json`.
+ */
+export const PLATFORM_ENDPOINTS = {
+  operatorLogin: endpoint({
+    module: M15,
+    method: 'POST',
+    path: '/auth/login',
+    summary: 'Operator sign-in: email, password and TOTP code together. Rate limited.',
+    auth: 'public',
+    body: acct.OperatorLoginBody,
+    response: acct.OperatorMe,
+  }),
+  operatorLogout: endpoint({
+    module: M15,
+    method: 'POST',
+    path: '/auth/logout',
+    summary: 'End the operator session.',
+    status: 204,
+    response: NoContent,
+  }),
+  operatorMe: endpoint({
+    module: M15,
+    method: 'GET',
+    path: '/me',
+    summary: 'The signed-in operator, CSRF token and session ends.',
+    response: acct.OperatorMe,
+  }),
+  listPlans: endpoint({
+    module: M15,
+    method: 'GET',
+    path: '/plans',
+    summary: 'Every plan, retired ones included.',
+    response: list(Plan),
+  }),
+  upsertPlan: endpoint({
+    module: M15,
+    method: 'PUT',
+    path: '/plans/{code}',
+    summary:
+      'Create or change a plan. Accounts on it get the new limits at once; nothing is removed.',
+    paramOverrides: { code: PlanCode },
+    body: acct.PlanUpsertBody,
+    response: Plan,
+  }),
+  listAccounts: endpoint({
+    module: M15,
+    method: 'GET',
+    path: '/accounts',
+    summary: 'Accounts, newest first.',
+    query: acct.AccountListQuery,
+    response: AccountPage,
+  }),
+  createAccount: endpoint({
+    module: M15,
+    method: 'POST',
+    path: '/accounts',
+    summary:
+      'Provision an account in PROVISIONING and email its owner an invite valid 72 hours. The only way a firm is created.',
+    body: acct.AccountCreateBody,
+    status: 201,
+    response: Account,
+    idempotent: true,
+  }),
+  getAccount: endpoint({
+    module: M15,
+    method: 'GET',
+    path: '/accounts/{id}',
+    summary: 'One account: profile, plan, entitlements, usage and owner. No client data.',
+    response: Account,
+  }),
+  updateAccount: endpoint({
+    module: M15,
+    method: 'PATCH',
+    path: '/accounts/{id}',
+    summary: 'Change the display name or profile.',
+    body: acct.AccountUpdateBody,
+    response: Account,
+  }),
+  setAccountStatus: endpoint({
+    module: M15,
+    method: 'POST',
+    path: '/accounts/{id}/status',
+    summary: 'Convert a trial, suspend or resume, with a reason. 409 INVALID_TRANSITION otherwise.',
+    body: acct.AccountStatusBody,
+    response: Account,
+  }),
+  extendTrial: endpoint({
+    module: M15,
+    method: 'POST',
+    path: '/accounts/{id}/trial',
+    summary:
+      "Move a TRIAL account's trial end. The status stays TRIAL; 409 INVALID_TRANSITION otherwise.",
+    body: acct.AccountTrialBody,
+    response: Account,
+  }),
+  setAccountPlan: endpoint({
+    module: M15,
+    method: 'POST',
+    path: '/accounts/{id}/plan',
+    summary: 'Move the account to another plan, with a reason.',
+    body: acct.AccountPlanBody,
+    response: Account,
+  }),
+  setAccountOverride: endpoint({
+    module: M15,
+    method: 'PUT',
+    path: '/accounts/{id}/override',
+    summary: "Replace the account's limit and feature overrides, with a reason.",
+    body: acct.AccountOverrideBody,
+    response: Account,
+  }),
+  resendOwnerInvite: endpoint({
+    module: M15,
+    method: 'POST',
+    path: '/accounts/{id}/owner-invite',
+    summary: 'Send the owner a fresh invite (PROVISIONING only); earlier links stop working.',
+    status: 202,
+    response: NoContent,
+  }),
+  markOnboarded: endpoint({
+    module: M15,
+    method: 'POST',
+    path: '/accounts/{id}/onboarded',
+    summary: 'Record that onboarding is complete; reminders start the next morning.',
+    body: acct.AccountReasonBody.pick({ version: true }),
+    response: Account,
+  }),
+  requestAccountDeletion: endpoint({
+    module: M15,
+    method: 'POST',
+    path: '/accounts/{id}/deletion',
+    summary: 'Start the 30-day deletion grace period (ADR M15-0002). Needs the typed account name.',
+    body: acct.AccountDeletionBody,
+    response: Account,
+  }),
+  cancelAccountDeletion: endpoint({
+    module: M15,
+    method: 'POST',
+    path: '/accounts/{id}/deletion/cancel',
+    summary: 'Cancel a pending deletion; the account returns to the status it left.',
+    body: acct.AccountReasonBody,
+    response: Account,
+  }),
+  listSubscriptions: endpoint({
+    module: M15,
+    method: 'GET',
+    path: '/accounts/{id}/subscriptions',
+    summary: 'Recorded billing periods, newest first.',
+    response: list(Subscription),
+  }),
+  recordSubscription: endpoint({
+    module: M15,
+    method: 'POST',
+    path: '/accounts/{id}/subscriptions',
+    summary: 'Record a billing period (offline billing).',
+    body: acct.SubscriptionCreateBody,
+    status: 201,
+    response: Subscription,
+    idempotent: true,
+  }),
+  listUsage: endpoint({
+    module: M15,
+    method: 'GET',
+    path: '/accounts/{id}/usage',
+    summary: 'Nightly usage snapshots between two dates.',
+    query: acct.UsageQuery,
+    response: list(UsageSnapshot),
+  }),
+  listAccountSupportGrants: endpoint({
+    module: M15,
+    method: 'GET',
+    path: '/accounts/{id}/support-grants',
+    summary: 'Support grants the account has given, newest first, without person ids.',
+    response: list(OperatorSupportGrant),
+  }),
+  openSupportSession: endpoint({
+    module: M15,
+    method: 'POST',
+    path: '/support-grants/{id}/sessions',
+    summary:
+      'Open the customer app as the support person of a live grant; 403 ACCESS_EXPIRED once it ended.',
+    status: 201,
+    response: acct.SupportSession,
+  }),
+  listRenewals: endpoint({
+    module: M15,
+    method: 'GET',
+    path: '/renewals',
+    summary: 'Subscriptions and trials ending within the window, soonest first.',
+    query: acct.RenewalQuery,
+    response: list(acct.Renewal),
+  }),
+  listOperatorAudit: endpoint({
+    module: M15,
+    method: 'GET',
+    path: '/audit',
+    summary: 'Operator audit events, newest first. The console exports them to Excel.',
+    query: acct.OperatorAuditQuery,
+    response: OperatorAuditEventPage,
+  }),
+} satisfies Record<string, Endpoint>;
+
+export type PlatformEndpointId = keyof typeof PLATFORM_ENDPOINTS;

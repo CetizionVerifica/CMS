@@ -1,6 +1,13 @@
 import { z } from 'zod';
 import { type ErrorCode, ErrorCode as ErrorCodeSchema } from '../errors.js';
-import { InstanceAction, ImportBatchStatus, ScanStatus, WorkflowState } from '../enums.js';
+import {
+  AccountStatus,
+  InstanceAction,
+  ImportBatchStatus,
+  PlanLimitKey,
+  ScanStatus,
+  WorkflowState,
+} from '../enums.js';
 import { Id, Instant, LocalDate, Name } from '../primitives.js';
 import { Action } from '../schemas/context.js';
 
@@ -18,9 +25,21 @@ export const ERROR_DETAILS = {
   MFA_REQUIRED: z.strictObject({ enrolled: z.boolean() }),
   FORBIDDEN: z.strictObject({ action: Action }),
   ACCESS_EXPIRED: z.strictObject({ expiredAt: Instant }),
+  /** The account is not TRIAL or ACTIVE (ADR M15-0001 decision 4). */
+  ACCOUNT_SUSPENDED: z.strictObject({ status: AccountStatus }),
+  /** Creating one more would pass the plan's limit; `max` is the limit, `used` the current count. */
+  PLAN_LIMIT_REACHED: z.strictObject({
+    limit: PlanLimitKey,
+    max: z.int().min(0),
+    used: z.int().min(0),
+  }),
   NOT_FOUND: null,
   STALE_VERSION: z.strictObject({ currentVersion: z.int().min(1) }),
-  INVALID_TRANSITION: z.strictObject({ from: WorkflowState, action: InstanceAction }),
+  /** An instance action, or (operator routes) an account status move. */
+  INVALID_TRANSITION: z.union([
+    z.strictObject({ from: WorkflowState, action: InstanceAction }),
+    z.strictObject({ from: AccountStatus, to: AccountStatus }),
+  ]),
   DUPLICATE: z.strictObject({ field: z.string().min(1), existingId: Id }),
   IMPORT_STATE: z.strictObject({
     status: ImportBatchStatus,

@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Canopy API",
-    "version": "1.4.3",
+    "version": "1.5.0",
     "description": "Generated from @canopy/contracts; do not edit. Conventions: docs/contracts/api-conventions.md. Role permissions per operation are in x-canopy-roles (all, own, limited); a missing role is 403."
   },
   "servers": [
@@ -25,6 +25,9 @@
     },
     {
       "name": "M10"
+    },
+    {
+      "name": "M15"
     }
   ],
   "paths": {
@@ -7704,6 +7707,270 @@
         "x-canopy-idempotent": false
       }
     },
+    "/account": {
+      "get": {
+        "operationId": "getAccount",
+        "summary": "The account's kind, status, plan limits and usage. Read-only.",
+        "tags": ["M15"],
+        "responses": {
+          "200": {
+            "description": "The account's kind, status, plan limits and usage. Read-only.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountView"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error envelope (api-conventions.md §4-5); clients branch on error.code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-canopy-module": "M15",
+        "x-canopy-auth": "action",
+        "x-canopy-actions": ["account.read"],
+        "x-canopy-roles": {
+          "FIRM_ADMIN": "all"
+        },
+        "x-canopy-idempotent": false
+      }
+    },
+    "/account/support-grants": {
+      "get": {
+        "operationId": "listSupportGrants",
+        "summary": "PlanetPulse support access grants, newest first.",
+        "tags": ["M15"],
+        "responses": {
+          "200": {
+            "description": "PlanetPulse support access grants, newest first.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListSupportGrantsResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error envelope (api-conventions.md §4-5); clients branch on error.code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-canopy-module": "M15",
+        "x-canopy-auth": "action",
+        "x-canopy-actions": ["supportGrant.read"],
+        "x-canopy-roles": {
+          "FIRM_ADMIN": "all"
+        },
+        "x-canopy-idempotent": false
+      },
+      "post": {
+        "operationId": "createSupportGrant",
+        "summary": "Let PlanetPulse support into the account for a number of days. Ends any live grant first.",
+        "tags": ["M15"],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          },
+          {
+            "$ref": "#/components/parameters/CsrfToken"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateSupportGrantBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Let PlanetPulse support into the account for a number of days. Ends any live grant first.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SupportGrant"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error envelope (api-conventions.md §4-5); clients branch on error.code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-canopy-module": "M15",
+        "x-canopy-auth": "action",
+        "x-canopy-actions": ["supportGrant.manage"],
+        "x-canopy-roles": {
+          "FIRM_ADMIN": "all"
+        },
+        "x-canopy-idempotent": true
+      }
+    },
+    "/account/support-grants/{id}/revoke": {
+      "post": {
+        "operationId": "revokeSupportGrant",
+        "summary": "End a support grant now; its memberships expire and its support sessions end.",
+        "tags": ["M15"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/CsrfToken"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "End a support grant now; its memberships expire and its support sessions end.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SupportGrant"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error envelope (api-conventions.md §4-5); clients branch on error.code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-canopy-module": "M15",
+        "x-canopy-auth": "action",
+        "x-canopy-actions": ["supportGrant.manage"],
+        "x-canopy-roles": {
+          "FIRM_ADMIN": "all"
+        },
+        "x-canopy-idempotent": false
+      }
+    },
+    "/auth/support/verify": {
+      "post": {
+        "operationId": "verifySupportSession",
+        "summary": "Exchange the one-time token the operator console opened the app with for a support session.",
+        "tags": ["M5"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VerifySupportSessionBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Exchange the one-time token the operator console opened the app with for a support session.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Me"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error envelope (api-conventions.md §4-5); clients branch on error.code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [],
+        "x-canopy-module": "M5",
+        "x-canopy-auth": "public",
+        "x-canopy-actions": [],
+        "x-canopy-roles": {},
+        "x-canopy-idempotent": false
+      }
+    },
     "/portfolio": {
       "get": {
         "operationId": "portfolio",
@@ -8684,6 +8951,139 @@
         "required": ["password"],
         "additionalProperties": false
       },
+      "AccountView": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 300
+          },
+          "kind": {
+            "type": "string",
+            "enum": ["ENTERPRISE", "CONSULTANCY"]
+          },
+          "status": {
+            "type": "string",
+            "enum": ["PROVISIONING", "TRIAL", "ACTIVE", "SUSPENDED", "PENDING_DELETION", "DELETED"]
+          },
+          "trialEndsOn": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LocalDate"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "entitlements": {
+            "type": "object",
+            "properties": {
+              "planCode": {
+                "type": "string",
+                "pattern": "^[A-Z][A-Z0-9_]{1,39}$"
+              },
+              "limits": {
+                "type": "object",
+                "properties": {
+                  "companies": {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "units": {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "users": {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "storageBytes": {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": ["companies", "units", "users", "storageBytes"],
+                "additionalProperties": false
+              },
+              "features": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[a-z][a-zA-Z0-9]{1,39}$"
+                }
+              }
+            },
+            "required": ["planCode", "limits", "features"],
+            "additionalProperties": false
+          },
+          "usage": {
+            "type": "object",
+            "properties": {
+              "companies": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "units": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "users": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "storageBytes": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              }
+            },
+            "required": ["companies", "units", "users", "storageBytes"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["id", "name", "kind", "status", "trialEndsOn", "entitlements", "usage"],
+        "additionalProperties": false
+      },
       "Act": {
         "type": "object",
         "properties": {
@@ -9156,6 +9556,8 @@
                         "MFA_REQUIRED",
                         "FORBIDDEN",
                         "ACCESS_EXPIRED",
+                        "ACCOUNT_SUSPENDED",
+                        "PLAN_LIMIT_REACHED",
                         "NOT_FOUND",
                         "STALE_VERSION",
                         "INVALID_TRANSITION",
@@ -9236,6 +9638,8 @@
                         "MFA_REQUIRED",
                         "FORBIDDEN",
                         "ACCESS_EXPIRED",
+                        "ACCOUNT_SUSPENDED",
+                        "PLAN_LIMIT_REACHED",
                         "NOT_FOUND",
                         "STALE_VERSION",
                         "INVALID_TRANSITION",
@@ -10200,6 +10604,23 @@
         ],
         "additionalProperties": false
       },
+      "CreateSupportGrantBody": {
+        "type": "object",
+        "properties": {
+          "level": {
+            "type": "string",
+            "enum": ["READ_ONLY", "ADMIN"]
+          },
+          "days": {
+            "default": 7,
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 30
+          }
+        },
+        "required": ["level"],
+        "additionalProperties": false
+      },
       "CreateUnitBody": {
         "type": "object",
         "properties": {
@@ -10573,6 +10994,75 @@
                 "properties": {
                   "code": {
                     "type": "string",
+                    "const": "ACCOUNT_SUSPENDED"
+                  },
+                  "message": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "details": {
+                    "type": "object",
+                    "properties": {
+                      "status": {
+                        "type": "string",
+                        "enum": [
+                          "PROVISIONING",
+                          "TRIAL",
+                          "ACTIVE",
+                          "SUSPENDED",
+                          "PENDING_DELETION",
+                          "DELETED"
+                        ]
+                      }
+                    },
+                    "required": ["status"],
+                    "additionalProperties": false
+                  }
+                },
+                "required": ["code", "message"],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "code": {
+                    "type": "string",
+                    "const": "PLAN_LIMIT_REACHED"
+                  },
+                  "message": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "details": {
+                    "type": "object",
+                    "properties": {
+                      "limit": {
+                        "type": "string",
+                        "enum": ["companies", "units", "users", "storageBytes"]
+                      },
+                      "max": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      "used": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      }
+                    },
+                    "required": ["limit", "max", "used"],
+                    "additionalProperties": false
+                  }
+                },
+                "required": ["code", "message"],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "code": {
+                    "type": "string",
                     "const": "NOT_FOUND"
                   },
                   "message": {
@@ -10622,29 +11112,62 @@
                     "minLength": 1
                   },
                   "details": {
-                    "type": "object",
-                    "properties": {
-                      "from": {
-                        "type": "string",
-                        "enum": ["OPEN", "SUBMITTED", "SENT_BACK", "APPROVED", "NOT_APPLICABLE"]
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "from": {
+                            "type": "string",
+                            "enum": ["OPEN", "SUBMITTED", "SENT_BACK", "APPROVED", "NOT_APPLICABLE"]
+                          },
+                          "action": {
+                            "type": "string",
+                            "enum": [
+                              "SUBMIT",
+                              "REQUEST_NA",
+                              "APPROVE",
+                              "SEND_BACK",
+                              "REOPEN",
+                              "REASSIGN",
+                              "CHANGE_DUE_DATE",
+                              "COMMENT",
+                              "UPLOAD_EVIDENCE"
+                            ]
+                          }
+                        },
+                        "required": ["from", "action"],
+                        "additionalProperties": false
                       },
-                      "action": {
-                        "type": "string",
-                        "enum": [
-                          "SUBMIT",
-                          "REQUEST_NA",
-                          "APPROVE",
-                          "SEND_BACK",
-                          "REOPEN",
-                          "REASSIGN",
-                          "CHANGE_DUE_DATE",
-                          "COMMENT",
-                          "UPLOAD_EVIDENCE"
-                        ]
+                      {
+                        "type": "object",
+                        "properties": {
+                          "from": {
+                            "type": "string",
+                            "enum": [
+                              "PROVISIONING",
+                              "TRIAL",
+                              "ACTIVE",
+                              "SUSPENDED",
+                              "PENDING_DELETION",
+                              "DELETED"
+                            ]
+                          },
+                          "to": {
+                            "type": "string",
+                            "enum": [
+                              "PROVISIONING",
+                              "TRIAL",
+                              "ACTIVE",
+                              "SUSPENDED",
+                              "PENDING_DELETION",
+                              "DELETED"
+                            ]
+                          }
+                        },
+                        "required": ["from", "to"],
+                        "additionalProperties": false
                       }
-                    },
-                    "required": ["from", "action"],
-                    "additionalProperties": false
+                    ]
                   }
                 },
                 "required": ["code", "message"],
@@ -12664,6 +13187,19 @@
         "required": ["items", "nextCursor"],
         "additionalProperties": false
       },
+      "ListSupportGrantsResponse": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SupportGrant"
+            }
+          }
+        },
+        "required": ["items"],
+        "additionalProperties": false
+      },
       "ListUnitsResponse": {
         "type": "object",
         "properties": {
@@ -12970,6 +13506,38 @@
               }
             },
             "required": ["expiresAt"],
+            "additionalProperties": false
+          },
+          "account": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": ["ENTERPRISE", "CONSULTANCY"]
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "PROVISIONING",
+                  "TRIAL",
+                  "ACTIVE",
+                  "SUSPENDED",
+                  "PENDING_DELETION",
+                  "DELETED"
+                ]
+              },
+              "trialEndsOn": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/LocalDate"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["kind", "status", "trialEndsOn"],
             "additionalProperties": false
           }
         },
@@ -13400,6 +13968,9 @@
           "status": {
             "type": "string",
             "enum": ["UNCLAIMED", "INVITED", "ACTIVE", "DISABLED"]
+          },
+          "support": {
+            "type": "boolean"
           }
         },
         "required": [
@@ -14088,6 +14659,70 @@
         "required": ["version", "completedOn", "comment"],
         "additionalProperties": false
       },
+      "SupportGrant": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "accountId": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "level": {
+            "type": "string",
+            "enum": ["READ_ONLY", "ADMIN"]
+          },
+          "status": {
+            "type": "string",
+            "enum": ["ACTIVE", "EXPIRED", "REVOKED"]
+          },
+          "startsAt": {
+            "$ref": "#/components/schemas/Instant"
+          },
+          "endsAt": {
+            "$ref": "#/components/schemas/Instant"
+          },
+          "grantedById": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "revokedAt": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Instant"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "revokedById": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Id"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "supportPersonId": {
+            "$ref": "#/components/schemas/Id"
+          }
+        },
+        "required": [
+          "id",
+          "accountId",
+          "level",
+          "status",
+          "startsAt",
+          "endsAt",
+          "grantedById",
+          "revokedAt",
+          "revokedById",
+          "supportPersonId"
+        ],
+        "additionalProperties": false
+      },
       "TemplateRef": {
         "type": "object",
         "properties": {
@@ -14647,6 +15282,18 @@
           }
         },
         "required": ["code"],
+        "additionalProperties": false
+      },
+      "VerifySupportSessionBody": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string",
+            "minLength": 16,
+            "maxLength": 500
+          }
+        },
+        "required": ["token"],
         "additionalProperties": false
       }
     },

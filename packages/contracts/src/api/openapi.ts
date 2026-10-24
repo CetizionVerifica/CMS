@@ -36,6 +36,15 @@ import {
   InstanceDetail,
   InstanceRow,
 } from '../schemas/work.js';
+import {
+  Account,
+  OperatorAuditEvent,
+  Plan,
+  Subscription,
+  SupportGrant,
+  UsageSnapshot,
+} from '../schemas/accounts.js';
+import { AccountView, OperatorMe } from './accounts.js';
 import { Invite, InvitePreview, Me, MembershipGrant } from './auth.js';
 import { SignedUrl, UploadTicket } from './common.js';
 import { ClientOverview, CalendarDay } from './dashboards.js';
@@ -46,8 +55,11 @@ import {
   CategoryPage,
   ClientPage,
   type Endpoint,
+  AccountPage,
   ENDPOINTS,
   InstanceRowPage,
+  OperatorAuditEventPage,
+  PLATFORM_ENDPOINTS,
   PersonPage,
 } from './endpoints.js';
 import { ImportIssueGroup, ImportUploaded, ImportUploadTicket, SheetPreview } from './imports.js';
@@ -96,6 +108,8 @@ const NAMED_SCHEMAS: Record<string, z.ZodType> = {
   PortfolioRow,
   ExportJob,
   Me,
+  AccountView,
+  SupportGrant,
   Invite,
   InvitePreview,
   MembershipGrant,
@@ -162,7 +176,66 @@ function parameters(schema: z.ZodType, location: 'query' | 'path'): JsonObject[]
   }));
 }
 
-export function buildOpenApi(endpoints: Record<string, Endpoint> = ENDPOINTS): OpenApiDocument {
+/** What differs between the customer and the operator document. */
+interface DocumentOptions {
+  title: string;
+  server: string;
+  cookie: string;
+  tags: readonly string[];
+  namedSchemas: Record<string, z.ZodType>;
+  description: string;
+}
+
+const CUSTOMER_DOCUMENT: DocumentOptions = {
+  title: 'Canopy API',
+  server: '/api/v1',
+  cookie: SESSION_COOKIE,
+  tags: ['M5', 'M6', 'M7', 'M8', 'M10', 'M15'],
+  namedSchemas: NAMED_SCHEMAS,
+  description:
+    'Generated from @canopy/contracts; do not edit. Conventions: docs/contracts/api-conventions.md. ' +
+    'Role permissions per operation are in x-canopy-roles (all, own, limited); a missing role is 403.',
+};
+
+/** Operator session cookie (ADR M15-0001 decision 9); never valid on the customer API. */
+export const OPERATOR_SESSION_COOKIE = 'op_sid';
+
+const PLATFORM_DOCUMENT: DocumentOptions = {
+  title: 'Canopy platform operator API',
+  server: '/api/platform/v1',
+  cookie: OPERATOR_SESSION_COOKIE,
+  tags: ['M15'],
+  namedSchemas: {
+    Id,
+    LocalDate,
+    Instant,
+    Account,
+    Plan,
+    Subscription,
+    UsageSnapshot,
+    OperatorAuditEvent,
+    SupportGrant,
+    OperatorMe,
+    AccountPage,
+    OperatorAuditEventPage,
+    Error: ApiErrorResponse,
+  },
+  description:
+    'Generated from @canopy/contracts; do not edit. The operator console API (ADR M15-0001). Every route except ' +
+    'sign-in needs the operator session; there are no roles. Conventions as in docs/contracts/api-conventions.md.',
+};
+
+/** The operator API document; `docs/contracts/openapi.platform.json` is its output. */
+export function buildPlatformOpenApi(
+  endpoints: Record<string, Endpoint> = PLATFORM_ENDPOINTS,
+): OpenApiDocument {
+  return buildOpenApi(endpoints, PLATFORM_DOCUMENT);
+}
+
+export function buildOpenApi(
+  endpoints: Record<string, Endpoint> = ENDPOINTS,
+  options: DocumentOptions = CUSTOMER_DOCUMENT,
+): OpenApiDocument {
   const registry = z.registry<{ id: string }>();
   const names = new Map<z.ZodType, string>();
   const name = (schema: z.ZodType, fallback: string): string => {
@@ -172,7 +245,7 @@ export function buildOpenApi(endpoints: Record<string, Endpoint> = ENDPOINTS): O
     registry.add(schema, { id: fallback });
     return fallback;
   };
-  for (const [key, schema] of Object.entries(NAMED_SCHEMAS)) name(schema, key);
+  for (const [key, schema] of Object.entries(options.namedSchemas)) name(schema, key);
 
   const operations: [Endpoint, string, JsonObject][] = [];
   for (const [id, ep] of Object.entries(endpoints)) {
@@ -252,14 +325,12 @@ export function buildOpenApi(endpoints: Record<string, Endpoint> = ENDPOINTS): O
   return {
     openapi: '3.1.0',
     info: {
-      title: 'Canopy API',
+      title: options.title,
       version: CONTRACTS_VERSION,
-      description:
-        'Generated from @canopy/contracts; do not edit. Conventions: docs/contracts/api-conventions.md. ' +
-        'Role permissions per operation are in x-canopy-roles (all, own, limited); a missing role is 403.',
+      description: options.description,
     },
-    servers: [{ url: '/api/v1' }],
-    tags: ['M5', 'M6', 'M7', 'M8', 'M10'].map((module) => ({ name: module })),
+    servers: [{ url: options.server }],
+    tags: options.tags.map((module) => ({ name: module })),
     paths,
     components: {
       schemas,
@@ -287,7 +358,7 @@ export function buildOpenApi(endpoints: Record<string, Endpoint> = ENDPOINTS): O
         },
       },
       securitySchemes: {
-        session: { type: 'apiKey', in: 'cookie', name: SESSION_COOKIE },
+        session: { type: 'apiKey', in: 'cookie', name: options.cookie },
       },
     },
   };

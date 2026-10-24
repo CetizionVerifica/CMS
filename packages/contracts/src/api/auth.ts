@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { Role } from '../enums.js';
+import { AccountSummary } from '../schemas/accounts.js';
 import { baseShape, FyLabel, Id, Instant, Month, Name, TimeZone } from '../primitives.js';
 import { checkMembershipShape, Membership, Person } from '../schemas/tenancy.js';
 
@@ -90,6 +91,11 @@ export const Me = z.strictObject({
   }),
   /** When this session ends unless renewed. Optional: a provider may leave it out. */
   session: z.strictObject({ expiresAt: Instant }).optional(),
+  /**
+   * The person's account (ADR M15-0001). M5 sends it from contracts 1.5.0; clients read a missing one as
+   * `DEFAULT_ACCOUNT` (an active consultancy).
+   */
+  account: AccountSummary.optional(),
 });
 export type Me = z.infer<typeof Me>;
 

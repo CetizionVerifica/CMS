@@ -22,7 +22,11 @@ import type {
   TimelineType,
   WorkflowState,
 } from './types.js';
-import { DEFAULT_CLIENT_SETTINGS, DEFAULT_FIRM_SETTINGS } from '../../src/index.js';
+import {
+  DEFAULT_ACCOUNT,
+  DEFAULT_CLIENT_SETTINGS,
+  DEFAULT_FIRM_SETTINGS,
+} from '../../src/index.js';
 import { fixtureId } from '../../src/fixtures/index.js';
 import { score, statusIds, type ScoredInstance } from '../../src/mock/derive.js';
 import { type Cell, serialToDate } from './xlsx.js';
@@ -589,6 +593,7 @@ export function buildFirmA(sheet: Cell[][], sourceName: string): FirmA {
       ...versioned('firm-a', firmId),
       name: 'Demo Advisory',
       settings: DEFAULT_FIRM_SETTINGS,
+      ...DEFAULT_ACCOUNT,
     },
     clients: [client],
     companies: [company],

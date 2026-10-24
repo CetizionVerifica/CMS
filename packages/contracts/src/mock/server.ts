@@ -6,6 +6,7 @@ import { ENDPOINTS, type Endpoint } from '../api/endpoints.js';
 import { ApiErrorResponse } from '../api/error-details.js';
 import { EVIDENCE_EXTENSIONS } from '../api/workflow.js';
 import { SESSION_COOKIE } from '../api/openapi.js';
+import { SUPPORT_TOKEN_SECONDS } from '../defaults.js';
 import { ERROR_HTTP_STATUS } from '../errors.js';
 import {
   actorFor,
@@ -17,6 +18,7 @@ import {
   type Scope,
 } from './core.js';
 import type { EndpointId, HandlerContext, Handlers } from './handler.js';
+import { accountHandlers } from './handlers/accounts.js';
 import { authHandlers } from './handlers/auth.js';
 import { dashboardHandlers } from './handlers/dashboards.js';
 import { entityHandlers } from './handlers/entities.js';
@@ -33,6 +35,7 @@ export const HANDLERS: Handlers = {
   ...workHandlers,
   ...importHandlers,
   ...dashboardHandlers,
+  ...accountHandlers,
 };
 
 export interface MockServerOptions {
@@ -112,6 +115,10 @@ function resolveActor(store: MockStore, request: FastifyRequest, clock: Clock): 
     session = id === undefined ? undefined : store.sessions.get(id);
   }
   if (session === undefined) return null;
+  if (session.capped === true && session.expiresAt <= now) {
+    store.sessions.delete(session.id);
+    return null;
+  }
   const firm = store.firm(session.firmId);
   const person = firm.data.people.find((p) => p.id === session.personId && p.archivedAt === null);
   if (person === undefined || person.status === 'DISABLED') return null;
@@ -258,6 +265,25 @@ export function createMockServer(
 
   // Mock-only helpers, outside the contract.
   app.get('/__mock/outbox', async () => ({ items: store.outbox }));
+  /** Stands in for the operator console's "open support session": a token for `POST /auth/support/verify`. */
+  app.post<{ Params: { grantId: string } }>(
+    '/__mock/support-sessions/:grantId',
+    async (request, reply) => {
+      const firm = store.firms.find((f) =>
+        f.supportGrants.some((g) => g.id === request.params.grantId),
+      );
+      if (firm === undefined) return reply.code(404).send();
+      const token = store.token('support');
+      store.supportTokens.set(token, {
+        firmId: firm.data.firm.id,
+        grantId: request.params.grantId,
+        expiresAt: new Date(Date.parse(clock.now()) + SUPPORT_TOKEN_SECONDS * 1000)
+          .toISOString()
+          .replace(/\.\d{3}Z$/, 'Z'),
+      });
+      return reply.code(201).send({ token });
+    },
+  );
   app.post('/__mock/reset', async (_request, reply) => {
     store.reset();
     return reply.code(204).send();
@@ -266,7 +292,7 @@ export function createMockServer(
   app.get('/__mock/people', async () => ({
     items: store.firms.flatMap((firm) =>
       firm.data.people
-        .filter((p) => p.status === 'ACTIVE')
+        .filter((p) => p.status === 'ACTIVE' && p.support !== true)
         .map((p) => ({
           id: p.id,
           firm: firm.data.firm.name,

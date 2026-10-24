@@ -18,6 +18,7 @@ interface DomainEvent<T extends string, D> {
   firmId: Id
   clientId: Id | null
   actor: { kind: "PERSON"; personId: Id } | { kind: "SYSTEM"; job: string } | { kind: "IMPORT"; batchId: Id }
+       | { kind: "OPERATOR"; operatorId: Id }   // operator console (domain-model.md §9)
   requestId: string
   aggregate: { type: string; id: Id }
   aggregateVersion: number     // the entity version after the change
@@ -68,6 +69,18 @@ interface DomainEvent<T extends string, D> {
 | `person.claimed` | `{ personId }` | — |
 | `membership.changed` | `{ membershipId, personId, role, clientId, change: "GRANTED" \| "UPDATED" \| "REVOKED" \| "EXPIRED" }` | M9 (stop reminders to revoked) |
 | `auth.magic_link_requested` | `{ personId }` | M9 send email |
+
+### Accounts (producer M15, M9 for the trial end)
+| Type | `data` | Consumers |
+|---|---|---|
+| `account.created` | `{ accountId, kind: AccountKind, planCode, status }` | M9 (owner invite comes from `person.invited`) |
+| `account.status_changed` | `{ accountId, from: AccountStatus, to: AccountStatus }` | M9 (stop or resume jobs and reminders) |
+| `account.plan_changed` | `{ accountId, from: planCode, to: planCode }` | — |
+| `support_access.granted` | `{ grantId, level: SupportAccessLevel, endsAt }` | — |
+| `support_access.revoked` | `{ grantId }` | — |
+
+`firmId` is the account, `clientId` is null. Operator actions carry `actor: { kind: "OPERATOR"; operatorId: Id }`
+(added in contracts 1.5.0); trial-end suspension by M9 carries `{ kind: "SYSTEM", job }`.
 
 ### Import and export (producers M8, M10)
 | Type | `data` | Consumers |
