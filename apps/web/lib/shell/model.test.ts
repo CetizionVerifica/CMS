@@ -59,7 +59,7 @@ describe('shell model', () => {
     expect(model.clients[2]).toMatchObject({
       meta: '5 units',
       thisPeriod: { fy: '2024-25', quarter: 3 },
-      availableFys: ['2022-23', '2023-24', '2024-25'],
+      availableFys: ['2024-25'],
       availableUntil: null,
     });
   });
