@@ -403,6 +403,40 @@ describe.skipIf(!url)('import API on Postgres', { timeout: 180_000 }, () => {
     );
   });
 
+  it("refuses a commit past the plan's unit limit and reads the limit under the usage lock", async () => {
+    const firm = await seedFirm('c');
+    const owner = new pg.Client({ connectionString: databaseUrl() });
+    await owner.connect();
+    await owner.query(
+      'INSERT INTO platform.account_override (account_id, limits) VALUES ($1, $2)',
+      [firm.firmId, { units: 0 }],
+    );
+    await owner.end();
+    const store = repositoryStore(db);
+    const ctx = systemContext(firm.firmId, 'limit-check');
+    // seedFirm made one unit.
+    expect(await store.transaction(ctx, (tx) => tx.planAllowance('units'))).toEqual({
+      max: 0,
+      used: 1,
+    });
+    expect(await store.transaction(ctx, (tx) => tx.planAllowance('companies'))).toMatchObject({
+      max: null,
+    });
+
+    const id = await importAgain(firm);
+    const call = (path: string) =>
+      app.inject({ method: 'POST', url: `/api/v1${path}`, headers: headers(firm) });
+    const report = DryRunReport.parse((await call(`/imports/${id}/dry-run`)).json());
+    expect(report.create.units).toBeGreaterThan(0);
+    const res = await call(`/imports/${id}/commit`);
+    expect(res.statusCode).toBe(403);
+    expect(res.json().error).toMatchObject({
+      code: 'PLAN_LIMIT_REACHED',
+      details: { limit: 'units', max: 0, used: 1 },
+    });
+    expect(running).toHaveLength(0);
+  });
+
   it('commits a plan into existing data: aliases, updates and instance changes, all audited', async () => {
     const firm = firms[1]!;
     const store = repositoryStore(db);
