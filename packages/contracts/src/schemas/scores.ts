@@ -120,7 +120,7 @@ export const EVENT_NOTIFICATION_KINDS = [
 
 /**
  * Scheduled kinds about the whole account rather than a client or an instance, so their send-log row has neither:
- * the trial-ending email to the account admins (ADR M15-0001 decision 4). They dedupe on recipient, kind and send
+ * the trial-ending email to the account admins (ADR M15-0001, order of work step 6). They dedupe on recipient, kind and send
  * date, as digests do (events.md §4 rule 4).
  */
 export const ACCOUNT_NOTIFICATION_KINDS = [

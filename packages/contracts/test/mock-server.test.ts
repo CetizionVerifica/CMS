@@ -238,6 +238,45 @@ describe('mock server', () => {
     await shared.close();
   });
 
+  it('sets up MFA in the same step as accepting a firm-role invite', async () => {
+    await ok(app, 'createInvite', {
+      body: {
+        displayName: 'Dev Consultant',
+        email: 'dev.consultant@advisory.example',
+        role: 'CONSULTANT',
+        clientId: null,
+        consultantClientIds: [NORTHWIND],
+        unitIds: null,
+        expiresAt: null,
+      },
+    });
+    const token = firstToken(app, 'INVITE', 'dev.consultant@advisory.example');
+    const preview = await ok<{ mfaRequired: boolean }>(app, 'getInvite', {
+      as: null,
+      params: { token },
+    });
+    expect(preview.mfaRequired).toBe(true);
+    const setup = await ok<{ otpauthUrl: string }>(app, 'enrollInviteMfa', {
+      as: null,
+      params: { token },
+    });
+    expect(setup.otpauthUrl).toMatch(/^otpauth:\/\/totp\//);
+    // Without the authenticator's code nothing is accepted, and the invite stays usable.
+    await fails(
+      app,
+      'acceptInvite',
+      { as: null, params: { token }, body: { password: 'a long enough password' } },
+      'MFA_REQUIRED',
+      401,
+    );
+    const me = await ok<{ mfa: { required: boolean; satisfied: boolean } }>(app, 'acceptInvite', {
+      as: null,
+      params: { token },
+      body: { password: 'a long enough password', mfaCode: '123456' },
+    });
+    expect(me.mfa).toMatchObject({ required: true, satisfied: true });
+  });
+
   it('invites a new person and lets them sign up', async () => {
     const invite = await ok<{ id: string; personId: string }>(app, 'createInvite', {
       body: {
@@ -255,7 +294,9 @@ describe('mock server', () => {
       as: null,
       params: { token },
     });
-    expect(preview.clientName).toBe('Northwind Foods Group');
+    expect(preview).toMatchObject({ clientName: 'Northwind Foods Group', mfaRequired: false });
+    // A client role needs no MFA, so there is nothing to set up.
+    await fails(app, 'enrollInviteMfa', { as: null, params: { token } }, 'NOT_FOUND', 404);
     const me = await ok<{ person: { id: string; status: string } }>(app, 'acceptInvite', {
       as: null,
       params: { token },

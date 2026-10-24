@@ -30,7 +30,8 @@ The `Action` column is the `can()` action name; the M5 policy table has one row 
 | POST | `/auth/mfa/enroll` · `/auth/mfa/verify` | session | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | required for FA, CO |
 | GET | `/me` | session | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | person, memberships, clients (`ClientSummary`: FY start, time zone, unit count and the periods the picker offers, computed by the engine), csrf token, MFA state |
 | POST | `/invites` | `person.invite` | ✓ | ✓ | ✓ | | | | CO/CA may invite only client roles in their clients; only FA invites FA/CO |
-| GET | `/invites/{token}` · POST `/invites/{token}/accept` | public | | | | | | | claims an UNCLAIMED person (sets email, password) |
+| GET | `/invites/{token}` · POST `/invites/{token}/accept` | public | | | | | | | claims an UNCLAIMED person (sets email, password); when the preview says `mfaRequired` (a firm role in a firm requiring MFA), the body carries the authenticator's first code and the session starts MFA-satisfied, else `401 MFA_REQUIRED` |
+| POST | `/invites/{token}/mfa/enroll` | public | | | | | | | TOTP setup for an `mfaRequired` invite before the account exists (F14); restarts until the invite is accepted; rate limited |
 | POST | `/invites/{id}/revoke` | `person.invite` | ✓ | ✓ | ✓ | | | | |
 | POST | `/auth/support/verify` | public | | | | | | | one-time token from the operator console → a support session for the grant's support person (ADR M15-0001 decision 11); MFA counts as satisfied |
 

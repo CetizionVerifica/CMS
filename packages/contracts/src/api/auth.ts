@@ -162,6 +162,13 @@ export const InvitePreview = z.strictObject({
   clientName: Name.nullable(),
   role: Role,
   linkExpiresAt: Instant,
+  /**
+   * The invite grants a firm role in a firm that requires MFA: the accept page sets up the authenticator
+   * (`POST /invites/{token}/mfa/enroll`) and sends its first code with the password, so no session ever exists with a
+   * password and no MFA (docs/security/review.md F14). Optional until M5's provider sends it; a reader treats a
+   * missing value as false. M5's accept checks the code whatever the flag says, so a missing flag can't skip MFA.
+   */
+  mfaRequired: z.boolean().optional(),
 });
 export type InvitePreview = z.infer<typeof InvitePreview>;
 
@@ -169,5 +176,10 @@ export const InviteAcceptBody = z.strictObject({
   password: Password,
   /** Lets the person correct the name an import gave them. */
   displayName: Name.optional(),
+  /** The authenticator's first code, from `POST /invites/{token}/mfa/enroll`. Required when `mfaRequired`. */
+  mfaCode: z
+    .string()
+    .regex(/^\d{6}$/, 'Expected 6 digits')
+    .optional(),
 });
 export type InviteAcceptBody = z.infer<typeof InviteAcceptBody>;
