@@ -22,6 +22,7 @@ describe('wiringFromEnv', () => {
     expect(options.reports?.store).toBeInstanceOf(PostgresReportsStore);
     expect(options.reports?.files).toBeUndefined();
     expect(options.imports).toBeUndefined();
+    expect(options.evidenceStorage).toBeUndefined();
     await database?.close();
   });
 
@@ -44,8 +45,9 @@ describe('wiringFromEnv', () => {
     ).toThrow(/32 bytes/);
   });
 
-  it('mounts M8 and M10 export files when S3 object storage is configured', async () => {
+  it('mounts M7 evidence, M8 and M10 export files when S3 object storage is configured', async () => {
     const { options, database } = wiringFromEnv({ ...DB, ...S3 }, vi.fn());
+    expect(options.evidenceStorage).toBeDefined();
     expect(options.reports?.files).toBeInstanceOf(S3ExportFiles);
     expect(options.imports?.files).toBeDefined();
     expect(options.imports?.store).toBeDefined();
