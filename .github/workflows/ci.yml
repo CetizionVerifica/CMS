@@ -136,11 +136,16 @@ jobs:
             -v "$GITHUB_WORKSPACE/docker/seaweedfs-s3.json:/etc/seaweedfs/s3.json:ro" \
             chrislusf/seaweedfs:4.48 server -dir=/data -s3 -s3.port=9000 \
             -s3.config=/etc/seaweedfs/s3.json -volume.max=0
-          for i in $(seq 60); do curl -sf http://127.0.0.1:9000/status >/dev/null && break; sleep 2; done
+          for i in $(seq 60); do
+            curl -sf http://127.0.0.1:9000/status >/dev/null && break
+            [ "$i" -eq 60 ] && { echo "::error::SeaweedFS S3 did not start"; docker logs s3; exit 1; }
+            sleep 2
+          done
           for i in $(seq 30); do
             docker exec s3 sh -c "echo 's3.bucket.create -name canopy-evidence' | weed shell -master=localhost:9333" \
               && docker exec s3 sh -c "echo 's3.bucket.list' | weed shell -master=localhost:9333" | grep -q canopy-evidence \
               && break
+            [ "$i" -eq 30 ] && { echo "::error::bucket canopy-evidence was not created"; docker logs s3; exit 1; }
             sleep 2
           done
       - run: pnpm --filter @canopy/e2e exec playwright install --with-deps chromium
