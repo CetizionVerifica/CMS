@@ -339,7 +339,7 @@ describe.skipIf(!url)('jobs booted from the environment', () => {
 
 describe.skipIf(!url)('job runner as its own login, without CREATE on the database', () => {
   const suffix = randomUUID().replaceAll('-', '').slice(0, 12);
-  // As in a deploy (migration 0023): a NOLOGIN jobs role owns the schema, pg-boss's login is a member that defaults
+  // As in a deploy (M3 migrations): a NOLOGIN jobs role owns the schema, pg-boss's login is a member that defaults
   // to it, and the tenant login is no member at all.
   const jobsRole = `canopy_jobs_${suffix}`;
   const login = `canopy_jobs_login_${suffix}`;

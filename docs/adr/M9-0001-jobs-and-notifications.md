@@ -140,9 +140,9 @@ remind for complied or not-applicable items, and reach the database only through
       and sorts them in memory, which is quadratic for a large backlog. A repository call with `ORDER BY created_at,
       id LIMIT n` would replace it.
     - **Not yet:** telling the uploader about an INFECTED file (`evidence.scanned`'s consumer, events.md).
-16. **Job schema and login.** pg-boss keeps its tables in the `pgboss` schema, owned by the NOLOGIN role
-    `canopy_jobs` (M3 migrations 0022 and 0023). No app login (`canopy_app`, lookup, platform, operator) has `USAGE`
-    or `CREATE` on it, so tenant code cannot read or change job rows.
+16. **Job schema and login.** pg-boss keeps its tables in the `pgboss` schema, which M3 migration 0022 creates and a
+    later M3 migration hands to the NOLOGIN role `canopy_jobs`. From then on no app login (`canopy_app`, lookup,
+    platform, operator) has `USAGE` or `CREATE` on it, so tenant code cannot read or change job rows.
     - **Own login:** pg-boss connects with `JOBS_DATABASE_URL`, a login that is a member of `canopy_jobs` only and
       defaults to it, so the tables and queue partitions it creates belong to `canopy_jobs`. The tenant login must
       never default to `canopy_jobs`. Without `JOBS_DATABASE_URL` (local development) the runner uses the API's
@@ -151,7 +151,7 @@ remind for complied or not-applicable items, and reach the database only through
       `CREATE` on the database. It refuses to start when the schema is missing ("run the database migrations
       first").
     - **Deploy, once, as an admin:**
-      1. `CREATE ROLE canopy_jobs NOLOGIN;` (if migration 0023 has not), then `GRANT canopy_jobs TO <migrating
+      1. `CREATE ROLE canopy_jobs NOLOGIN;` (if the migrations have not), then `GRANT canopy_jobs TO <migrating
          owner>;` so the migrations can hand it the schema.
       2. `CREATE ROLE canopy_jobs_login LOGIN PASSWORD '…' IN ROLE canopy_jobs;` and
          `ALTER ROLE canopy_jobs_login SET role = canopy_jobs;`.
