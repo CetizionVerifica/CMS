@@ -38,7 +38,7 @@ export async function serverApi(csrfToken?: string): Promise<ApiClient> {
 
 // A few seconds: enough for a page and the prefetches its links start, short enough that a change of role shows soon.
 // Sign-in, MFA and sign-out forget it at once (relayCookies). The API still checks the session on every other call.
-const meCache = sessionCache<Me>(5_000);
+const meCache = sessionCache<Me>('me', 5_000);
 
 /** The signed-in user, once per request and briefly per session. Null when there is no valid session. */
 export const getMe = cache(async (): Promise<Me | null> => {

@@ -18,7 +18,7 @@ export async function requestPath(): Promise<string> {
 
 // The switcher's overdue counts come from the whole portfolio, the API's heaviest read. They are a hint, so a session
 // reuses them for 30 seconds instead of asking on every render and prefetch (security review F7).
-const overdueCache = sessionCache<Record<string, number>>(30_000);
+const overdueCache = sessionCache<Record<string, number>>('overdue', 30_000);
 
 async function overdueCounts(
   api: Awaited<ReturnType<typeof serverApi>>,

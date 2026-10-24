@@ -15,52 +15,61 @@ export type SessionCache<T> = {
   clear(): void;
 };
 
-const caches: SessionCache<unknown>[] = [];
+type Entries = Map<string, { value: unknown; expires: number }>;
+
+// Next bundles this module once for page renders and again for Server Actions, so module-level maps would be two
+// different caches and a sign-in action couldn't clear what the next render reads. The maps live on globalThis
+// instead, by name, like the mock server (mock-delegate.ts).
+const shared = globalThis as typeof globalThis & { __ppSessionCaches?: Map<string, Entries> };
+const registry = (shared.__ppSessionCaches ??= new Map());
 
 function keyOf(cookie: string): string {
   return createHash('sha256').update(cookie).digest('base64url');
 }
 
+/** The cache called `name`: every copy of this module that asks for the same name shares its entries. */
 export function sessionCache<T>(
+  name: string,
   ttlMs: number,
   now: () => number = () => Date.now(),
 ): SessionCache<T> {
-  const entries = new Map<string, { value: T; expires: number }>();
-  const cache: SessionCache<T> = {
+  let entries = registry.get(name);
+  if (!entries) registry.set(name, (entries = new Map()));
+  const map = entries;
+  return {
     get(cookie) {
       const key = keyOf(cookie);
-      const entry = entries.get(key);
+      const entry = map.get(key);
       if (!entry) return undefined;
-      if (entry.expires > now()) return entry.value;
-      entries.delete(key);
+      if (entry.expires > now()) return entry.value as T;
+      map.delete(key);
       return undefined;
     },
     set(cookie, value) {
       const time = now();
-      if (entries.size >= MAX_ENTRIES) {
-        for (const [key, entry] of entries) if (entry.expires <= time) entries.delete(key);
+      if (map.size >= MAX_ENTRIES) {
+        for (const [key, entry] of map) if (entry.expires <= time) map.delete(key);
         // Still full of live entries: drop the oldest, which a Map keeps first.
-        if (entries.size >= MAX_ENTRIES) entries.delete(entries.keys().next().value!);
+        if (map.size >= MAX_ENTRIES) map.delete(map.keys().next().value!);
       }
-      entries.set(keyOf(cookie), { value, expires: time + ttlMs });
+      map.set(keyOf(cookie), { value, expires: time + ttlMs });
     },
     forget(cookie) {
-      entries.delete(keyOf(cookie));
+      map.delete(keyOf(cookie));
     },
     clear() {
-      entries.clear();
+      map.clear();
     },
   };
-  caches.push(cache as SessionCache<unknown>);
-  return cache;
 }
 
 /** Drops this session's answers from every cache: its sign-in state just changed (sign-in, MFA, sign-out). */
 export function forgetSession(cookie: string): void {
-  for (const cache of caches) cache.forget(cookie);
+  const key = keyOf(cookie);
+  for (const map of registry.values()) map.delete(key);
 }
 
 /** Empties every cache. Tests only. */
 export function clearSessionCaches(): void {
-  for (const cache of caches) cache.clear();
+  for (const map of registry.values()) map.clear();
 }
