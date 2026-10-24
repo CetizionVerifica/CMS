@@ -126,3 +126,5 @@ For M9 (ADR M15-0001 decision 4, the plan's trial-ending reminder); additive. `N
 scheduled kind with no instance, so it dedupes on `(recipientId, kind, sendDate)` like `CONSULTANT_DIGEST` (events.md
 §4 rule 4). `ACCOUNT_NOTIFICATION_KINDS` lists the kinds about the whole account, whose sends name no client. The
 database stored the value first (M3). No route or schema shape changes.
+Also, from the 1.5.2 audit: `ExportCreateBody` now refuses `filters`, `unitId` or `fy` on a `CLIENT_ARCHIVE_ZIP`
+export (400 VALIDATION), as endpoints.md §6 already said; no valid request changes.
