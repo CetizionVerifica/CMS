@@ -176,6 +176,13 @@
       "when": 1792837530122,
       "tag": "0024_support_access_operator_audit",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1792840508545,
+      "tag": "0025_pgboss_jobs_role",
+      "breakpoints": true
     }
   ]
 }
