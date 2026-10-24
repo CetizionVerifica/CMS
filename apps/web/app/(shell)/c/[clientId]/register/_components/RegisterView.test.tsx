@@ -109,6 +109,10 @@ describe('RegisterView', () => {
     renderView({ page: { rows, nextCursor: null, total: 3 }, canApprove: true });
     await user.click(screen.getByRole('checkbox', { name: 'Select TAX-CL-0002, Obligation 2' }));
     await user.click(screen.getByRole('button', { name: 'Approve' }));
+    const dialog = await screen.findByRole('alertdialog', { name: 'Approve 1 instance?' });
+    expect(dialog.textContent).toContain('Approves the selected instance as you see it.');
+    expect(actions.bulkApproveRows).not.toHaveBeenCalled();
+    await user.click(within(dialog).getByRole('button', { name: 'Approve' }));
     expect(actions.bulkApproveRows).toHaveBeenCalledWith(CLIENT_ID, [
       { id: rows[2]!.id, version: 6 },
     ]);
@@ -130,7 +134,9 @@ describe('RegisterView', () => {
     await user.click(screen.getByRole('button', { name: 'Approve' }));
     expect(actions.waitingRows).toHaveBeenCalledWith(CLIENT_ID, QUERY);
     const dialog = await screen.findByRole('alertdialog', { name: 'Approve 2 instances?' });
-    expect(dialog.textContent).toContain('These are all 2 instances in this view waiting');
+    expect(dialog.textContent).toContain(
+      'These are all 2 instances in this view waiting for approval.',
+    );
     expect(actions.bulkApproveRows).not.toHaveBeenCalled();
     await user.click(within(dialog).getByRole('button', { name: 'Approve' }));
     expect(actions.bulkApproveRows).toHaveBeenCalledWith(CLIENT_ID, [
@@ -168,6 +174,18 @@ describe('RegisterView', () => {
     actions.waitingRows.mockRejectedValue(new Error('down'));
     await approveAll();
     expect(await screen.findByText('The rows to approve didn’t load. Try again.')).toBeTruthy();
+
+    // More than one approval takes: say so and ask nothing.
+    actions.waitingRows.mockResolvedValue(
+      Array.from({ length: 2001 }, (_, i) => ({ id: `id-${i}`, version: 1 })),
+    );
+    await approveAll();
+    expect(
+      await screen.findByText(
+        'More than 2,000 instances are selected. Narrow the filters to approve up to 2,000 at a time.',
+      ),
+    ).toBeTruthy();
+    expect(screen.queryByRole('alertdialog')).toBeNull();
     expect(actions.bulkApproveRows).not.toHaveBeenCalled();
   });
 
@@ -176,7 +194,11 @@ describe('RegisterView', () => {
     actions.bulkApproveRows.mockRejectedValue(new Error('down'));
     const { rerender } = renderView({ canApprove: true });
     await user.click(screen.getByRole('checkbox', { name: 'Select TAX-CL-0001, Obligation 1' }));
+    await user.click(screen.getByRole('checkbox', { name: 'Select TAX-CL-0002, Obligation 2' }));
     await user.click(screen.getByRole('button', { name: 'Approve' }));
+    const dialog = await screen.findByRole('alertdialog', { name: 'Approve 2 instances?' });
+    expect(dialog.textContent).toContain('Approves the 2 instances you selected as you see them.');
+    await user.click(within(dialog).getByRole('button', { name: 'Approve' }));
     expect(await screen.findByText('The approvals didn’t go through. Try again.')).toBeTruthy();
     rerender({ canApprove: false });
     expect(screen.queryAllByRole('checkbox', { name: /TAX-CL-0001/ })).toHaveLength(0);

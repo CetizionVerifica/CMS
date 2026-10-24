@@ -142,14 +142,19 @@ export async function approveItems(
   return outcome;
 }
 
+/** The most rows one bulk approve takes, however they were selected; more is a job, not a click. */
+export const MAX_APPROVE_AT_ONCE = 2000;
+
 /**
  * "Select all N" in the grid: every matching row that is waiting for approval, with its current version, page by page.
- * A view filtered to other workflow states has nothing to approve.
+ * A view filtered to other workflow states has nothing to approve. It stops after `limit + 1` rows, so a caller can
+ * tell "too many" without listing them all.
  */
 export async function approvableItems(
   api: Pick<ApiClient, 'call'>,
   clientId: string,
   query: string,
+  limit = MAX_APPROVE_AT_ONCE,
 ): Promise<ApproveItem[]> {
   const params = new URLSearchParams(query);
   const states = params.get('workflowState')?.split(',');
@@ -161,8 +166,8 @@ export async function approvableItems(
     const page = await loadPage(api, clientId, params.toString(), cursor);
     items.push(...page.rows.map(({ id, version }) => ({ id, version })));
     cursor = page.nextCursor ?? undefined;
-  } while (cursor);
-  return items;
+  } while (cursor && items.length <= limit);
+  return items.slice(0, limit + 1);
 }
 
 /**

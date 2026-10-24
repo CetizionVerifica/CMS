@@ -42,7 +42,11 @@ Two things get in the way: the shell's period picker already writes `q` (quarter
     sends exactly that list: a row the page has loaded keeps the version the person saw, any other row the version
     just listed, so nothing that changes after the person looked or after they were asked is approved unseen. One
     toast says how many were approved and why any were not. (Revised after #88's audit: the first version approved
-    whatever was waiting when the request ran, with no confirmation.)
+    whatever was waiting when the request ran, with no confirmation.) Selected rows are confirmed the same way, with
+    "Approve N instances?" naming exactly the selection. One bulk approve takes at most 2,000 rows
+    (`MAX_APPROVE_AT_ONCE`); with more the page says so and asks the person to narrow the filters, because listing
+    and approving 10,000 rows in one Server Action can outrun a request timeout. Larger approvals, if ever needed,
+    belong in a job.
 11. **Export** starts a `REGISTER_XLSX` export with the register's API query as its filters, so the file matches the
     view, polls it, and opens the 5-minute download link when it is ready. The link is never logged.
 

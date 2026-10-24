@@ -1,5 +1,6 @@
 import { devices, expect, test, type Page } from '@playwright/test';
 
+import { expectNoA11yViolations } from '../../support/a11y.js';
 import { checkPage, DEMO_METALS, signIn } from '../shell/helpers.js';
 
 // The register (M12) against the web app's demo API, which hands instance routes to M0's mock server. Its Demo
@@ -48,7 +49,7 @@ test.describe('register', () => {
     await expect.poll(() => count(page)).toBe(all);
   });
 
-  test('an approver selects the waiting rows and approves them', async ({ page }) => {
+  test('an approver selects the waiting rows, confirms, and approves them', async ({ page }) => {
     // Every due date from April 2023, so all of the approver's waiting rows are in the view.
     await signIn(
       page,
@@ -59,7 +60,17 @@ test.describe('register', () => {
     await expect(table.getByRole('row').nth(1)).toBeVisible();
     await table.getByRole('checkbox', { name: 'Select all rows' }).check();
     await page.getByRole('button', { name: 'Approve', exact: true }).click();
+    const dialog = page.getByRole('alertdialog', { name: /^Approve \d+ instances?\?$/ });
+    await expect(dialog).toBeVisible();
+    // The dialog hides the page behind it, so axe checks it on its own rather than through checkPage.
+    await expectNoA11yViolations(page);
+    // Cancel approves nothing; asking again and confirming does.
+    await dialog.getByRole('button', { name: 'Cancel' }).click();
+    await expect(dialog).toBeHidden();
+    await page.getByRole('button', { name: 'Approve', exact: true }).click();
+    await dialog.getByRole('button', { name: 'Approve' }).click();
     await expect(page.getByText(/^Approved \d+ instances?\.$/)).toBeVisible();
+    await expect(dialog).toBeHidden();
     await checkPage(page);
   });
 
@@ -69,6 +80,7 @@ test.describe('register', () => {
     await expect(table.getByRole('row').nth(1)).toBeVisible();
     await expect(table.getByRole('checkbox')).toHaveCount(0);
     await expect(page.getByRole('button', { name: 'Export' })).toHaveCount(0);
+    await checkPage(page);
   });
 
   test('the period picker narrows the register to a quarter', async ({ page }) => {
@@ -86,6 +98,7 @@ test.describe('register', () => {
       .allInnerTexts();
     // Q1 of FY 2023-24 is April to June 2023.
     for (const date of dates) expect(date).toMatch(/ (Apr|May|Jun) 2023$/);
+    await checkPage(page);
   });
 
   test('a saved view brings back its filters and density', async ({ page }) => {
@@ -102,6 +115,7 @@ test.describe('register', () => {
     await page.getByRole('menuitemradio', { name: 'Complied, compact' }).click();
     await expect(page).toHaveURL(/status=COMPLIED/);
     await expect(page.getByRole('button', { name: 'Comfortable rows' })).toBeVisible();
+    await checkPage(page);
   });
 });
 

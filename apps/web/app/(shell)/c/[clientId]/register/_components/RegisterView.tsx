@@ -12,7 +12,12 @@ import {
   startRegisterExport,
   waitingRows,
 } from '../actions';
-import { pinToLoaded, type ApproveItem, type RegisterPage } from '../_lib/register-api';
+import {
+  MAX_APPROVE_AT_ONCE,
+  pinToLoaded,
+  type ApproveItem,
+  type RegisterPage,
+} from '../_lib/register-api';
 import { RegisterGrid, type RegisterFacets } from './RegisterGrid';
 
 export type RegisterViewProps = {
@@ -70,8 +75,9 @@ export function RegisterView({
     }
   }, [clientId, loaded]);
 
-  // "Select all N" asks first: the dialog names how many rows are waiting now, and Approve sends exactly those.
-  const [confirmAll, setConfirmAll] = useState<ApproveItem[] | null>(null);
+  // Every bulk approve asks first, naming how many rows it will approve; Approve then sends exactly those, each at the
+  // version the person saw. "Select all N" lists the waiting rows on the server before asking.
+  const [confirm, setConfirm] = useState<{ items: ApproveItem[]; all: boolean } | null>(null);
 
   const send = useCallback(
     async (items: ApproveItem[]) => {
@@ -90,32 +96,37 @@ export function RegisterView({
       setBusy(true);
       try {
         const versions = new Map(loaded.rows.map((r) => [r.id, r.version]));
-        if (ids !== 'all') {
-          await send(
-            ids.flatMap((id) => {
-              const version = versions.get(id);
-              return version === undefined ? [] : [{ id, version }];
-            }),
-          );
-          return;
+        let items: ApproveItem[];
+        if (ids === 'all') {
+          try {
+            items = pinToLoaded(await waitingRows(clientId, loaded.query), versions);
+          } catch {
+            toast({ tone: 'error', message: 'The rows to approve didn’t load. Try again.' });
+            return;
+          }
+        } else {
+          items = ids.flatMap((id) => {
+            const version = versions.get(id);
+            return version === undefined ? [] : [{ id, version }];
+          });
         }
-        let waiting: ApproveItem[];
-        try {
-          waiting = pinToLoaded(await waitingRows(clientId, loaded.query), versions);
-        } catch {
-          toast({ tone: 'error', message: 'The rows to approve didn’t load. Try again.' });
-          return;
-        }
-        if (waiting.length === 0) {
+        if (items.length === 0) {
           toast({ tone: 'warn', message: 'Nothing in this view is waiting for approval.' });
           return;
         }
-        setConfirmAll(waiting);
+        if (items.length > MAX_APPROVE_AT_ONCE) {
+          toast({
+            tone: 'warn',
+            message: `More than ${formatNumber(MAX_APPROVE_AT_ONCE)} instances are selected. Narrow the filters to approve up to ${formatNumber(MAX_APPROVE_AT_ONCE)} at a time.`,
+          });
+          return;
+        }
+        setConfirm({ items, all: ids === 'all' });
       } finally {
         setBusy(false);
       }
     },
-    [busy, clientId, loaded, send],
+    [busy, clientId, loaded],
   );
 
   const exportView = useCallback(async () => {
@@ -141,7 +152,8 @@ export function RegisterView({
     }
   }, [busy, clientId, loaded.query]);
 
-  const count = confirmAll?.length ?? 0;
+  const count = confirm?.items.length ?? 0;
+  const instances = `${formatNumber(count)} ${count === 1 ? 'instance' : 'instances'}`;
   return (
     <>
       <RegisterGrid
@@ -158,14 +170,18 @@ export function RegisterView({
         }
       />
       <ConfirmDialog
-        open={confirmAll !== null}
+        open={confirm !== null}
         onOpenChange={(open) => {
-          if (!open) setConfirmAll(null);
+          if (!open) setConfirm(null);
         }}
-        title={`Approve ${formatNumber(count)} ${count === 1 ? 'instance' : 'instances'}?`}
-        body={`${count === 1 ? 'This is the one instance' : `These are all ${formatNumber(count)} instances`} in this view waiting for your approval. Any that change before you confirm are left as they are.`}
+        title={`Approve ${instances}?`}
+        body={
+          confirm?.all
+            ? `${count === 1 ? 'This is the one instance' : `These are all ${instances}`} in this view waiting for approval. Any that change before you confirm are left as they are.`
+            : `Approves the ${count === 1 ? 'selected instance' : `${instances} you selected`} as you see ${count === 1 ? 'it' : 'them'}. Any that changed since are left as they are.`
+        }
         confirmLabel="Approve"
-        onConfirm={() => send(confirmAll ?? [])}
+        onConfirm={() => send(confirm?.items ?? [])}
       />
     </>
   );

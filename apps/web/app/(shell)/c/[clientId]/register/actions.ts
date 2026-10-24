@@ -11,6 +11,7 @@ import {
   approveItems,
   bulkMessage,
   exportState,
+  MAX_APPROVE_AT_ONCE,
   loadPage,
   startExport,
   type ExportState,
@@ -28,11 +29,11 @@ const QueryString = z
     },
   );
 
-/** Items the person selected, each with the version they saw. Any number: approveItems sends 200 per request. */
+/** Items the person confirmed, each with the version they saw. approveItems sends them 200 per request. */
 const Items = z
   .array(z.strictObject({ id: Id, version: z.int().min(1) }))
   .min(1)
-  .max(10_000);
+  .max(MAX_APPROVE_AT_ONCE);
 
 export async function loadMoreRows(
   clientId: string,
@@ -51,6 +52,7 @@ export type ApproveResult = { tone: 'success' | 'warn'; message: string };
 
 /**
  * Every row in the view that is waiting for approval now, with its current version: what "Select all N" would approve.
+ * At most MAX_APPROVE_AT_ONCE + 1 rows, so the page can say "too many" before asking.
  * The page shows the count in a confirmation and then sends exactly these items, so a row that changes before the
  * person confirms comes back STALE_VERSION instead of being approved unseen.
  */
