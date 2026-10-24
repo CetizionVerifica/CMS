@@ -40,6 +40,20 @@ describe('uploadWindow', () => {
   });
 });
 
+describe('uploadWindow at the ends of the calendar', () => {
+  it('leaves out a bound at the first or last date, which excludes nothing', () => {
+    expect(
+      uploadWindow({ uploadedFrom: d('0001-01-01'), uploadedTo: d('9999-12-31') }, 'Asia/Kolkata'),
+    ).toEqual({});
+    expect(uploadWindow({ uploadedFrom: d('0001-01-02') }, 'UTC')).toEqual({
+      uploadedFrom: '0001-01-02T00:00:00.000Z',
+    });
+    expect(
+      uploadWindow({ uploadedFrom: d('9999-12-31'), uploadedTo: d('9999-12-30') }, 'UTC'),
+    ).toEqual({ uploadedFrom: '9999-12-31T00:00:00.000Z', uploadedTo: '9999-12-31T00:00:00.000Z' });
+  });
+});
+
 describe('exclusiveTo', () => {
   it('is the millisecond after the inclusive bound', () => {
     expect(exclusiveTo('2023-01-20T06:00:00Z')).toBe('2023-01-20T06:00:00.001Z');

@@ -88,7 +88,9 @@ several fail, and in which states the non-transition actions (reassign, due date
     units: an asked `unitId` is limited to the person's units, so asking for another unit returns nothing.
     `uploadedFrom`/`uploadedTo` are inclusive calendar dates in the client's time zone, turned into the
     half-open instants M3 takes by finding local midnight with the engine's `localDateIn` (root rule 4; the
-    engine has no "start of day in a zone" helper yet, so `audit/bounds.ts` searches for it).
+    engine has no "start of day in a zone" helper yet, so `audit/bounds.ts` searches for it). A bound on
+    the first or last calendar date (`0001-01-01`, `9999-12-31`) excludes nothing and is left out, since its
+    local midnight can fall outside the years an instant names.
     `GET /clients/{clientId}/audit` is the client's trail on `auditEvents.query`; it authorizes `audit.read`
     on a client resource, so APPROVER and OWNER (whose grant covers instance resources only) get 403. Its
     inclusive `to` becomes the repository's exclusive bound one millisecond later, the precision instants are
