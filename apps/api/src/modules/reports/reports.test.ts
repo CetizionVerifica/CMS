@@ -1,12 +1,13 @@
 import { randomUUID } from 'node:crypto';
 import { inflateSync } from 'node:zlib';
-import { ENDPOINTS, ExportJob, Role } from '@canopy/contracts';
+import { ENDPOINTS, ExportJob, LocalDate, Role, type RequestContext } from '@canopy/contracts';
 import ExcelJS from 'exceljs';
 import { afterAll, describe, expect, it } from 'vitest';
 import { buildServer } from '../../server.js';
 import { createTestAuth } from '../../auth/testing.js';
 import { createWorld, NOW } from '../dashboard/testing/world.js';
 import { REGISTER_HEADERS } from './register-xlsx.js';
+import { IdempotencyCache, runExport } from './service.js';
 
 const w = createWorld();
 afterAll(() => w.app.close());
@@ -417,6 +418,42 @@ describe('exports', () => {
     expect(job.status).toBe('FAILED');
     const link = await w.app.inject({ url: `/api/v1/exports/${job.id}/download-url`, headers });
     expect(link.statusCode).toBe(404);
+  });
+
+  it('marks a job FAILED when its kind is not built yet', async () => {
+    const headers = w.as('FIRM_ADMIN').headers;
+    const res = await startExport(headers, { kind: 'REGISTER_XLSX' });
+    await w.runner.idle();
+    const done = ExportJob.parse(
+      (await w.app.inject({ url: `/api/v1/exports/${res.json().id}`, headers })).json(),
+    );
+    const errors: { kind: string; error: string }[] = [];
+    const ctx: RequestContext = {
+      requestId: 'req-unbuilt-kind',
+      firmId: w.firmId,
+      personId: randomUUID(),
+      memberships: [],
+      clientIds: [w.clientId],
+      mfaSatisfied: true,
+      asOf: LocalDate.parse('2026-10-12'),
+    };
+    // A kind a later contracts release lists before this module builds it.
+    const unbuilt = { ...done, kind: 'CLIENT_ARCHIVE_ZIP' } as unknown as ExportJob;
+    await runExport(
+      {
+        store: w.store,
+        clock: () => NOW,
+        files: w.files,
+        runner: w.runner,
+        idempotency: new IdempotencyCache(),
+        onExportError: (info) => errors.push(info),
+      },
+      ctx,
+      unbuilt,
+    );
+    const job = (await w.app.inject({ url: `/api/v1/exports/${done.id}`, headers })).json();
+    expect(job.status).toBe('FAILED');
+    expect(errors).toEqual([{ jobId: done.id, kind: 'CLIENT_ARCHIVE_ZIP', error: 'Error' }]);
   });
 
   it('rate limits export requests', async () => {

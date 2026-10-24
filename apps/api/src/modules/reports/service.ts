@@ -479,6 +479,10 @@ async function buildFile(
         contentType: 'application/pdf',
       };
     }
+    default:
+      // A kind the contracts list before this module builds it (the account export arrives in contracts 1.5.2):
+      // the job fails rather than the build. `runExport` marks it FAILED.
+      throw new Error(`Export kind ${String(job.kind)} is not built yet`);
   }
 }
 
