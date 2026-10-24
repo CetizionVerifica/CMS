@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 // Real client names (tooling/client-names.json) must not appear in tracked files: test data, fixtures, demos and docs
 // use fictional names. The match is case-insensitive; `names` are also found inside a longer word, `words` only as a
-// whole word (a name that is a common substring, such as the one inside "metadata"). For `words`, only a letter
-// joins a word: `_`, digits and punctuation separate, so snake_case and numbered names are caught. Binary files are
+// whole word (a name that is a common substring, such as the one inside "metadata"). For `words`, `_`, digits,
+// punctuation and a camelCase hump separate, so snake_case, numbered and camelCase names are caught. Binary files are
 // skipped (a NUL byte in the first 8 KB, as git does). Lists every file that still has one, with line numbers.
 //
 // Usage: node tooling/scripts/check-client-names.mjs [repo-root]   (default: the current directory)
@@ -19,14 +19,25 @@ export function loadDenylist(root) {
 }
 
 const escape = (name) => name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+/** Any case, spelled out per letter, because the word boundaries below have to see case. */
+const anyCase = (name) =>
+  [...escape(name)]
+    .map((c) =>
+      c.toLowerCase() === c.toUpperCase() ? c : `[${c.toLowerCase()}${c.toUpperCase()}]`,
+    )
+    .join('');
 
-/** `names` match anywhere; `words` only where no letter touches them. */
+/**
+ * `names` match anywhere, in any case. `words` match as a whole word: not after a letter unless the word starts a
+ * camelCase hump (`myWord`), and not before a lower-case letter (`WordGroup` and `word_group` match, `words` does
+ * not).
+ */
 export function namePattern(names, words = []) {
   const parts = [
-    ...names.map(escape),
-    ...words.map((word) => `(?<![a-z])${escape(word)}(?![a-z])`),
+    ...names.map(anyCase),
+    ...words.map((word) => `(?:(?<![A-Za-z])|(?=[A-Z]))${anyCase(word)}(?![a-z])`),
   ];
-  return new RegExp(parts.join('|'), 'gi');
+  return new RegExp(parts.join('|'), 'g');
 }
 
 /** The 1-based line numbers of `text` with a denied name and the distinct names found (lower case). */

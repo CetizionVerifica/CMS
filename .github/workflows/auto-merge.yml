@@ -52,7 +52,9 @@ jobs:
     steps:
       # A draft or a PR that never had auto-merge on has nothing to disable; GitHub refuses the call then.
       - run: |
-          if [ "$(gh pr view "$PR" --repo "$REPO" --json autoMergeRequest --jq '.autoMergeRequest != null')" = true ]; then
+          # Assigned on its own line so a failed lookup fails the step (bash -e) instead of reading as "off".
+          on=$(gh pr view "$PR" --repo "$REPO" --json autoMergeRequest --jq '.autoMergeRequest != null')
+          if [ "$on" = true ]; then
             gh pr merge "$PR" --disable-auto --repo "$REPO"
           else
             echo "Auto-merge is not on for #$PR; nothing to disable."
