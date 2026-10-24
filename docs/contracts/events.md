@@ -107,5 +107,7 @@ interface DomainEvent<T extends string, D> {
    `APPROVAL_REQUESTED` to the approver on `instance.submitted`, `SENT_BACK` to the owner on `instance.sent_back`)
    dedupe on `(sourceEventId, recipientId)` (`EVENT_NOTIFICATION_DEDUPE_KEY`), the id of the event that caused them,
    so a redelivered event sends nothing and each new submission or send-back notifies once. `sourceEventId` is null
-   for scheduled kinds.
+   for scheduled kinds. Scheduled kinds about no instance (`CONSULTANT_DIGEST`, `TRIAL_ENDING`) have `instanceId`
+   null and dedupe on `(recipientId, kind, sendDate)`; `ACCOUNT_NOTIFICATION_KINDS` (`TRIAL_ENDING`) are about the
+   whole account, so they name no client either.
 5. Importer commit emits domain events with `actor.kind = "IMPORT"`, but M9 must **not** send reminders for instances created as already APPROVED or NOT_APPLICABLE (engine already returns none for them).

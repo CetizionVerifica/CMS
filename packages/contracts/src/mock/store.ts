@@ -27,7 +27,8 @@ export interface ImportState {
 
 export interface FirmState {
   data: FirmData;
-  invites: (Plain<typeof Invite> & { token: string })[];
+  /** `mfaSetUp`: the invitee asked `POST /invites/{token}/mfa/enroll` for an authenticator (F14). */
+  invites: (Plain<typeof Invite> & { token: string; mfaSetUp?: boolean })[];
   imports: ImportState[];
   /** Upload tickets issued by `POST /clients/{clientId}/imports`, keyed by batch id. */
   pendingImports: Map<string, { clientId: string; fileName: string; createdById: string }>;

@@ -168,6 +168,31 @@ test.describe('auth pages', () => {
     await expect(page).toHaveURL(`/c/${DEMO_METALS}/overview`);
   });
 
+  test('a firm-role invite sets up the authenticator before the account exists', async ({
+    page,
+  }) => {
+    // F14 (ADR M5-0003): the code goes with the password, so no session ever exists without MFA.
+    await page.goto('/invite/demo-invite-0002');
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Welcome, Consultant 02');
+    await checkPage(page);
+    await page.getByRole('button', { name: 'Get a setup key' }).click();
+    await expect(page.locator('code').first()).toHaveText('JBSW Y3DP EHPK 3PXP');
+    await checkPage(page);
+    // The mock refuses 000000, as the API refuses a wrong code.
+    await page.getByLabel('Choose a password').fill('a-long-password');
+    await page.getByLabel('Repeat the password').fill('a-long-password');
+    await page.getByLabel('6-digit code').fill('000000');
+    await page.getByRole('button', { name: 'Create account' }).click();
+    await expect(
+      page.getByText('That code isn’t right. Check your authenticator app.'),
+    ).toBeVisible();
+    await page.getByLabel('Choose a password').fill('a-long-password');
+    await page.getByLabel('Repeat the password').fill('a-long-password');
+    await page.getByLabel('6-digit code').fill('123456');
+    await page.getByRole('button', { name: 'Create account' }).click();
+    await expect(page).not.toHaveURL(/\/(invite|login)/);
+  });
+
   test('sign out ends the session', async ({ page }) => {
     await signIn(page, 'owner@demo.test');
     await page.getByRole('button', { name: 'Account menu, Owner 01' }).click();

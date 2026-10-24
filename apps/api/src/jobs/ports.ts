@@ -219,6 +219,18 @@ export interface FirmTx {
   endTrial(now: string, job: string): Promise<boolean>;
   /** Records the account's usage for `on`, replacing a snapshot already taken that day. */
   takeUsageSnapshot(on: LocalDate): Promise<void>;
+  /**
+   * Closes the support grants that ran out by `now`: the support person's membership and sessions end, and M3's
+   * `app_record_support_expiry` writes SUPPORT_ACCESS_END to the operator trail. Returns how many it closed.
+   */
+  closeExpiredSupport(now: string): Promise<number>;
+  /** The account's name and its trial's last day (null outside a trial), for the trial-ending email. */
+  accountTrial(): Promise<{ name: string; trialEndsOn: LocalDate | null }>;
+  /**
+   * The account's admins (FIRM_ADMIN), non-archived people only; `canReceive` when the person is ACTIVE and holds a
+   * FIRM_ADMIN membership that is unarchived and not expired at `now` (the job's clock).
+   */
+  listAccountAdmins(now: string): Promise<Recipient[]>;
   /** Clients of the firm that are not archived. */
   listClients(): Promise<ClientRef[]>;
   /** Assignments of one client that are not archived. */

@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Canopy API",
-    "version": "1.5.2",
+    "version": "1.6.0",
     "description": "Generated from @canopy/contracts; do not edit. Conventions: docs/contracts/api-conventions.md. Role permissions per operation are in x-canopy-roles (all, own, limited); a missing role is 403."
   },
   "servers": [
@@ -512,10 +512,62 @@
         "x-canopy-idempotent": false
       }
     },
+    "/invites/{token}/mfa/enroll": {
+      "post": {
+        "operationId": "enrollInviteMfa",
+        "summary": "Start (or restart) TOTP setup for an invite whose role needs MFA, before the account exists. Rate limited.",
+        "tags": ["M5"],
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 16,
+              "maxLength": 500
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Start (or restart) TOTP setup for an invite whose role needs MFA, before the account exists. Rate limited.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EnrollMfaResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error envelope (api-conventions.md §4-5); clients branch on error.code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [],
+        "x-canopy-module": "M5",
+        "x-canopy-auth": "public",
+        "x-canopy-actions": [],
+        "x-canopy-roles": {},
+        "x-canopy-idempotent": false
+      }
+    },
     "/invites/{token}/accept": {
       "post": {
         "operationId": "acceptInvite",
-        "summary": "Claim the invited person: set the password and start a session.",
+        "summary": "Claim the invited person: set the password (and, when the invite needs MFA, complete its setup) and start a session.",
         "tags": ["M5"],
         "parameters": [
           {
@@ -541,7 +593,7 @@
         },
         "responses": {
           "200": {
-            "description": "Claim the invited person: set the password and start a session.",
+            "description": "Claim the invited person: set the password (and, when the invite needs MFA, complete its setup) and start a session.",
             "headers": {
               "X-Request-Id": {
                 "$ref": "#/components/headers/RequestId"
@@ -8947,6 +8999,10 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 300
+          },
+          "mfaCode": {
+            "type": "string",
+            "pattern": "^\\d{6}$"
           }
         },
         "required": ["password"],
@@ -12937,6 +12993,9 @@
           },
           "linkExpiresAt": {
             "$ref": "#/components/schemas/Instant"
+          },
+          "mfaRequired": {
+            "type": "boolean"
           }
         },
         "required": ["email", "displayName", "firmName", "clientName", "role", "linkExpiresAt"],

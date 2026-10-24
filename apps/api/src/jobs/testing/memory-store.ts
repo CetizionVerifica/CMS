@@ -70,6 +70,8 @@ export interface MemoryPerson {
   /** Clients the person holds a live membership in. */
   clientIds: Id[];
   consultantFor?: Id[];
+  /** An account admin (FIRM_ADMIN); `'expired'` when that membership has lapsed. */
+  firmAdmin?: true | 'expired';
 }
 
 export interface MemoryInvite {
@@ -119,6 +121,8 @@ export interface MemoryFirm {
   trialEndsOn: LocalDate | null;
   /** Days a usage snapshot was taken for. */
   snapshots: LocalDate[];
+  /** Support grants not yet closed, by the moment they end. */
+  supportGrants: { id: Id; endsAt: string }[];
   clients: ClientRef[];
   assignments: MemoryAssignment[];
   instances: MemoryInstance[];
@@ -138,6 +142,7 @@ export function memoryFirm(id: Id = randomUUID()): MemoryFirm {
     status: 'ACTIVE',
     trialEndsOn: null,
     snapshots: [],
+    supportGrants: [],
     clients: [],
     assignments: [],
     instances: [],
@@ -205,6 +210,21 @@ function firmTx(firm: MemoryFirm, hooks: MemoryStoreHooks): FirmTx {
     takeUsageSnapshot: async (on) => {
       if (!firm.snapshots.includes(on)) firm.snapshots.push(on);
     },
+    closeExpiredSupport: async (now) => {
+      const before = firm.supportGrants.length;
+      firm.supportGrants = firm.supportGrants.filter((g) => Date.parse(g.endsAt) > Date.parse(now));
+      return before - firm.supportGrants.length;
+    },
+    accountTrial: async () => ({ name: firm.name, trialEndsOn: firm.trialEndsOn }),
+    listAccountAdmins: async () =>
+      firm.people
+        .filter((p) => p.firmAdmin)
+        .map((p): Recipient => ({
+          personId: p.id,
+          displayName: p.displayName,
+          email: p.email,
+          canReceive: p.status === 'ACTIVE' && p.firmAdmin === true,
+        })),
     listClients: async () => firm.clients,
     listGenerationTargets: async (clientId) =>
       firm.assignments.filter((a) => a.clientId === clientId),

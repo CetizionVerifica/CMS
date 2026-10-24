@@ -4,6 +4,7 @@ import { ApiError, createApiClient, isApiError, queryString } from './client';
 import {
   MOCK_APPROVALS_WAITING,
   MOCK_CLIENTS,
+  MOCK_FIRM_INVITE_TOKEN,
   MOCK_INVITE_TOKEN,
   MOCK_MFA_CODE,
   MOCK_PASSWORD,
@@ -154,6 +155,27 @@ describe('API client against the mock', () => {
     const ok = await api().acceptInvite(MOCK_INVITE_TOKEN, { password: 'a-long-enough-password' });
     expect(ok.setCookies[0]).toContain('pp_session=');
     expect(ok.data.person.displayName).toBe('Owner 01');
+  });
+
+  it('has a firm-role invitee set up MFA before choosing a password (F14)', async () => {
+    expect((await api().invite(MOCK_INVITE_TOKEN)).data.mfaRequired).toBe(false);
+    await expect(api().enrollInviteMfa(MOCK_INVITE_TOKEN)).rejects.toMatchObject({
+      code: 'NOT_FOUND',
+    });
+    expect((await api().invite(MOCK_FIRM_INVITE_TOKEN)).data).toMatchObject({
+      role: 'CONSULTANT',
+      mfaRequired: true,
+    });
+    const setup = (await api().enrollInviteMfa(MOCK_FIRM_INVITE_TOKEN)).data;
+    expect(setup.otpauthUrl).toMatch(/^otpauth:\/\/totp\//);
+    await expect(
+      api().acceptInvite(MOCK_FIRM_INVITE_TOKEN, { password: 'a-long-enough-password' }),
+    ).rejects.toMatchObject({ code: 'MFA_REQUIRED' });
+    const ok = await api().acceptInvite(MOCK_FIRM_INVITE_TOKEN, {
+      password: 'a-long-enough-password',
+      mfaCode: '123456',
+    });
+    expect(ok.data.mfa).toMatchObject({ required: true, satisfied: true });
   });
 });
 

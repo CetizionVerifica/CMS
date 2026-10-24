@@ -15,6 +15,8 @@ import {
   AUTH_SECRET_KEY,
   CLAMD_PORT,
   E2E_DATABASE,
+  MAIL_FROM,
+  SMTP_PORT,
   WEB_PORT,
   WEB_URL,
   databaseUrl,
@@ -85,7 +87,15 @@ export default defineConfig({
         ]),
         PLATFORM_IP_ALLOWLIST: '127.0.0.1,::1',
         APP_URL,
+        // The email jobs (invites, sign-in links, reminders) send through the stand-in mail server below.
+        SMTP_URL: `smtp://127.0.0.1:${SMTP_PORT}`,
+        MAIL_FROM,
       },
+    },
+    {
+      command: 'pnpm exec tsx integrated/fake-smtp.ts',
+      port: SMTP_PORT,
+      reuseExistingServer: false,
     },
     {
       command: 'pnpm exec tsx integrated/fake-clamd.ts',

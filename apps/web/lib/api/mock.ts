@@ -26,6 +26,10 @@ export const MOCK_PASSWORD = 'demo-password';
 export const MOCK_MFA_CODE = '123456';
 /** Tokens are at least 16 characters (contracts `InviteTokenParams`). */
 export const MOCK_INVITE_TOKEN = 'demo-invite-0001';
+/** A consultant's invite: a firm role, so the page sets up MFA before the account exists (F14). */
+export const MOCK_FIRM_INVITE_TOKEN = 'demo-invite-0002';
+/** The setup key the mock hands out; any 6 digits but 000000 pass as its code. */
+export const MOCK_MFA_SECRET = 'JBSWY3DPEHPK3PXP';
 export const SESSION_COOKIE = 'pp_session';
 /** What GET /me/approvals counts for an approver, so the Approvals badge shows in the demo. */
 export const MOCK_APPROVALS_WAITING = 3;
@@ -290,26 +294,58 @@ export const mockFetch: typeof fetch = async (input, init) => {
   if (method === 'POST' && path === '/auth/magic-link/verify') {
     return fail(401, 'UNAUTHENTICATED', 'This sign-in link has expired.');
   }
-  const invite = /^\/invites\/([^/]+)(\/accept)?$/.exec(path);
+  const invite = /^\/invites\/([^/]+)(\/accept|\/mfa\/enroll)?$/.exec(path);
   if (invite) {
-    if (decodeURIComponent(invite[1]!) !== MOCK_INVITE_TOKEN)
+    const token = decodeURIComponent(invite[1]!);
+    const firmRole = token === MOCK_FIRM_INVITE_TOKEN;
+    if (token !== MOCK_INVITE_TOKEN && !firmRole)
       return fail(404, 'NOT_FOUND', 'Invite not found.');
     if (method === 'GET' && !invite[2]) {
-      const preview: InvitePreview = {
-        email: 'owner02@demo.test',
-        displayName: 'Owner 02',
-        firmName: MOCK_FIRMS[0].name,
-        clientName: 'Demo Metals',
-        role: 'OWNER',
-        linkExpiresAt: '2099-01-01T00:00:00.000Z',
-      };
+      const preview: InvitePreview = firmRole
+        ? {
+            email: 'consultant02@demo.test',
+            displayName: 'Consultant 02',
+            firmName: MOCK_FIRMS[0].name,
+            clientName: null,
+            role: 'CONSULTANT',
+            linkExpiresAt: '2099-01-01T00:00:00.000Z',
+            mfaRequired: true,
+          }
+        : {
+            email: 'owner02@demo.test',
+            displayName: 'Owner 02',
+            firmName: MOCK_FIRMS[0].name,
+            clientName: 'Demo Metals',
+            role: 'OWNER',
+            linkExpiresAt: '2099-01-01T00:00:00.000Z',
+            mfaRequired: false,
+          };
       return json(200, preview);
     }
-    if (method === 'POST' && invite[2]) {
+    if (method === 'POST' && invite[2] === '/mfa/enroll') {
+      if (!firmRole) return fail(404, 'NOT_FOUND', 'Invite not found.');
+      return json(200, {
+        otpauthUrl: `otpauth://totp/PlanetPulse%20Compliance%3Aconsultant02%40demo.test?secret=${MOCK_MFA_SECRET}&issuer=PlanetPulse%20Compliance`,
+      });
+    }
+    if (method === 'POST' && invite[2] === '/accept') {
       if (typeof body.password !== 'string' || body.password.length < 12) {
         return fail(400, 'VALIDATION', 'Password too short.', {
           issues: [{ path: ['password'], message: 'Use at least 12 characters' }],
         });
+      }
+      if (firmRole) {
+        if (typeof body.mfaCode !== 'string') {
+          return fail(401, 'MFA_REQUIRED', 'Set up MFA first.', { enrolled: false });
+        }
+        if (body.mfaCode === '000000') {
+          return fail(400, 'VALIDATION', 'Code is not correct.', {
+            issues: [{ path: ['mfaCode'], message: 'Code is not correct.' }],
+          });
+        }
+        // Signs in as the consultant account, MFA passed in this step.
+        const consultant = MOCK_USERS[0]!;
+        return json(200, meBody(consultant, true), sessionCookie(`${consultant.person.id}.1`));
       }
       // Signs in as the owner account so the journey can continue into the shell.
       const owner = MOCK_USERS[2]!;

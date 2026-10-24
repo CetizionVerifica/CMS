@@ -98,8 +98,10 @@ function signIn(
   ctx: HandlerContext<'login' | 'verifyMagicLink' | 'acceptInvite'>,
   firm: FirmState,
   person: PersonRecord,
+  mfaPassed = false,
 ): z.input<typeof Me> {
   const session = ctx.store.openSession(firm.data.firm.id, person.id, false, ctx.clock.now());
+  if (mfaPassed) session.mfaSatisfied = true;
   ctx.setSession(session);
   return me(firm, person, session, ctx.clock);
 }
@@ -117,6 +119,17 @@ const addDays = (instant: string, days: number) =>
 
 const MFA_ISSUER = 'PlanetPulse Compliance';
 
+/** The authenticator code the mock's invite acceptance takes; any other 6 digits are wrong. */
+export const MOCK_INVITE_MFA_CODE = '123456';
+
+/** A TOTP setup link for `account`. The client-facing product name, as the real provider uses. */
+function enrolment(account: string) {
+  const label = `${encodeURIComponent(MFA_ISSUER)}:${encodeURIComponent(account)}`;
+  return {
+    otpauthUrl: `otpauth://totp/${label}?secret=JBSWY3DPEHPK3PXP&issuer=${encodeURIComponent(MFA_ISSUER)}`,
+  };
+}
+
 export const authHandlers: PartialHandlers<
   | 'login'
   | 'requestMagicLink'
@@ -127,6 +140,7 @@ export const authHandlers: PartialHandlers<
   | 'getMe'
   | 'createInvite'
   | 'getInvite'
+  | 'enrollInviteMfa'
   | 'acceptInvite'
   | 'revokeInvite'
 > = {
@@ -177,11 +191,7 @@ export const authHandlers: PartialHandlers<
 
   enrollMfa(ctx) {
     const actor = actorOf(ctx);
-    // The client-facing product name, as the real provider uses (never the internal working name).
-    const label = `${encodeURIComponent(MFA_ISSUER)}:${encodeURIComponent(actor.person.email ?? actor.person.displayName)}`;
-    return {
-      otpauthUrl: `otpauth://totp/${label}?secret=JBSWY3DPEHPK3PXP&issuer=${encodeURIComponent(MFA_ISSUER)}`,
-    };
+    return enrolment(actor.person.email ?? actor.person.displayName);
   },
 
   verifyMfa(ctx) {
@@ -286,12 +296,34 @@ export const authHandlers: PartialHandlers<
       clientName: firm.data.clients.find((c) => c.id === invite.clientId)?.name ?? null,
       role: invite.role,
       linkExpiresAt: invite.linkExpiresAt,
+      // The mock's firms all require MFA for firm roles, as the default settings do.
+      mfaRequired: isFirmRole(invite.role),
     };
+  },
+
+  enrollInviteMfa(ctx) {
+    const { invite } = findInvite(ctx.store, ctx.params.token!, ctx.clock.now());
+    if (!isFirmRole(invite.role)) throw notFound();
+    // Setup restarts until the invite is accepted (endpoints.md §2).
+    invite.mfaSetUp = true;
+    return enrolment(invite.email);
   },
 
   acceptInvite(ctx) {
     const { firm, invite } = findInvite(ctx.store, ctx.params.token!, ctx.clock.now());
     const person = firm.data.people.find((p) => p.id === invite.personId)!;
+    // A firm role sets up MFA in the same step (F14): setup first, then its first code. A refusal changes nothing.
+    const mfa = isFirmRole(invite.role);
+    if (mfa && (invite.mfaSetUp !== true || ctx.body.mfaCode === undefined)) {
+      throw new MockError('MFA_REQUIRED', 'Set up MFA first', {
+        enrolled: invite.mfaSetUp === true,
+      });
+    }
+    if (mfa && ctx.body.mfaCode !== MOCK_INVITE_MFA_CODE) {
+      throw new MockError('VALIDATION', 'The code is wrong', {
+        issues: [{ path: ['mfaCode'], message: 'The code is wrong' }],
+      });
+    }
     const now = ctx.clock.now();
     Object.assign(person, {
       status: 'ACTIVE',
@@ -309,7 +341,7 @@ export const authHandlers: PartialHandlers<
       expiresAt: invite.expiresAt,
     });
     Object.assign(invite, { status: 'ACCEPTED', updatedAt: now });
-    return signIn(ctx, firm, person);
+    return signIn(ctx, firm, person, mfa);
   },
 
   revokeInvite(ctx) {

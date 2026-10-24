@@ -260,6 +260,37 @@ const invite = (overrides: Partial<Extract<EmailMessage, { kind: 'INVITE' }>> = 
     ...overrides,
   });
 
+const trialEnding = (daysLeft = 7, recipientName = 'Kiran Kestrel') =>
+  renderEmail({
+    kind: 'TRIAL_ENDING',
+    recipientName,
+    accountName: 'Kestrel Metals Group',
+    trialEndsOn: '2026-11-23' as LocalDate,
+    daysLeft,
+    url: 'https://app.planetpulse.example/account',
+  });
+
+describe('trial ending', () => {
+  it('says when the trial ends, what happens then and whom to contact', () => {
+    const email = trialEnding(7);
+    expect(email.subject).toBe('Your PlanetPulse Compliance trial ends in 7 days');
+    expect(email.text).toContain(
+      'The PlanetPulse Compliance trial of Kestrel Metals Group ends in 7 days, on 23 Nov 2026. After that day nobody in the account can sign in until it moves to a paid plan. Your registers and evidence stay as they are.',
+    );
+    expect(email.text).toContain('contact PlanetPulse before the trial ends');
+    expect(email.text).toContain('Open your account: https://app.planetpulse.example/account');
+    expect(email.html).toContain('href="https://app.planetpulse.example/account"');
+    expect(email.text).toContain('because you are an account admin of Kestrel Metals Group');
+  });
+
+  it('says "tomorrow" the day before, and greets an admin with no name', () => {
+    const email = trialEnding(1, '');
+    expect(email.subject).toBe('Your PlanetPulse Compliance trial ends tomorrow');
+    expect(email.text).toContain('ends tomorrow, on 23 Nov 2026');
+    expect(email.text.startsWith('Hello,\n')).toBe(true);
+  });
+});
+
 describe('sign-in link', () => {
   it('carries the link, says it works once and when it expires', () => {
     const email = magicLink();
@@ -333,6 +364,7 @@ describe('every email', () => {
     sentBack(),
     magicLink(),
     invite(),
+    trialEnding(),
   ];
 
   it('escapes names and titles so imported text cannot inject markup', () => {

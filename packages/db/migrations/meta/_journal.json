@@ -190,6 +190,41 @@
       "when": 1792843084471,
       "tag": "0026_client_archive_export",
       "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1792850883436,
+      "tag": "0027_trial_ending_notification",
+      "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1792851316820,
+      "tag": "0028_send_log_account_kinds",
+      "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1792852502765,
+      "tag": "0029_support_expiry_audit",
+      "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1792856964445,
+      "tag": "0030_send_check_kind_and_expiry_fixes",
+      "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1792859047457,
+      "tag": "0031_support_end_key_sources",
+      "breakpoints": true
     }
   ]
 }

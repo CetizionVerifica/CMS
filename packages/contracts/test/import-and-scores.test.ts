@@ -13,6 +13,7 @@ import {
   EVENT_NOTIFICATION_DEDUPE_KEY,
   EVENT_NOTIFICATION_KINDS,
   NOTIFICATION_DEDUPE_KEY,
+  ACCOUNT_NOTIFICATION_KINDS,
   NotificationKind,
   PortfolioRow,
   RequestContext,
@@ -269,6 +270,11 @@ describe('notification dedupe keys', () => {
     expect(NOTIFICATION_DEDUPE_KEY).toEqual(['instanceId', 'kind', 'sendDate', 'recipientId']);
     expect(EVENT_NOTIFICATION_DEDUPE_KEY).toEqual(['sourceEventId', 'recipientId']);
     expect(EVENT_NOTIFICATION_KINDS.every((k) => NotificationKind.options.includes(k))).toBe(true);
+    expect(ACCOUNT_NOTIFICATION_KINDS.every((k) => NotificationKind.options.includes(k))).toBe(
+      true,
+    );
+    for (const kind of ACCOUNT_NOTIFICATION_KINDS)
+      expect(EVENT_NOTIFICATION_KINDS).not.toContain(kind);
     expect(NotificationKind.options).toEqual(
       expect.arrayContaining(['APPROVAL_REQUESTED', 'SENT_BACK', 'OWNER_REMINDER']),
     );

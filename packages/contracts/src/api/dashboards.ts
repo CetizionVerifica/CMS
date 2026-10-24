@@ -59,21 +59,38 @@ export const REPORT_KINDS = ['act-wise', 'department-wise', 'overdue'] as const;
  * `POST /clients/{clientId}/exports`. `filters` is a register query string (api-conventions.md §3) without the
  * leading "?", so an export matches the view it was started from.
  */
-export const ExportCreateBody = z.strictObject({
-  kind: ExportKind,
-  filters: z
-    .string()
-    .max(4000)
-    .default('')
-    .superRefine((filters, ctx) => {
-      const parsed = RegisterFilterQuery.safeParse(
-        Object.fromEntries(new URLSearchParams(filters)),
-      );
-      for (const issue of parsed.error?.issues ?? []) {
-        ctx.addIssue({ code: 'custom', path: issue.path, message: issue.message });
+export const ExportCreateBody = z
+  .strictObject({
+    kind: ExportKind,
+    filters: z
+      .string()
+      .max(4000)
+      .default('')
+      .superRefine((filters, ctx) => {
+        const parsed = RegisterFilterQuery.safeParse(
+          Object.fromEntries(new URLSearchParams(filters)),
+        );
+        for (const issue of parsed.error?.issues ?? []) {
+          ctx.addIssue({ code: 'custom', path: issue.path, message: issue.message });
+        }
+      }),
+    unitId: Id.optional(),
+    fy: FyLabel.optional(),
+  })
+  .superRefine((body, ctx) => {
+    // The account export is the client's whole register, so it takes no scope (endpoints.md §6).
+    if (body.kind !== 'CLIENT_ARCHIVE_ZIP') return;
+    if (body.filters !== '') {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['filters'],
+        message: 'A client archive takes no filters',
+      });
+    }
+    for (const key of ['unitId', 'fy'] as const) {
+      if (body[key] !== undefined) {
+        ctx.addIssue({ code: 'custom', path: [key], message: `A client archive takes no ${key}` });
       }
-    }),
-  unitId: Id.optional(),
-  fy: FyLabel.optional(),
-});
+    }
+  });
 export type ExportCreateBody = z.input<typeof ExportCreateBody>;

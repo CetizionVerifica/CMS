@@ -119,6 +119,15 @@ export const EVENT_NOTIFICATION_KINDS = [
 ] as const satisfies readonly NotificationKind[];
 
 /**
+ * Scheduled kinds about the whole account rather than a client or an instance, so their send-log row has neither:
+ * the trial-ending email to the account admins (ADR M15-0001, order of work step 6). They dedupe on recipient, kind and send
+ * date, as digests do (events.md §4 rule 4).
+ */
+export const ACCOUNT_NOTIFICATION_KINDS = [
+  'TRIAL_ENDING',
+] as const satisfies readonly NotificationKind[];
+
+/**
  * An event-driven notification is sent at most once per source event and recipient (events.md §4 rule 4), so a
  * redelivered event sends nothing new, while a second submission (a new event) notifies again.
  */

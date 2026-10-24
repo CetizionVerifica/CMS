@@ -19,6 +19,7 @@ import {
   type InviteRecord,
   type LoginCandidate,
   type LoginTokenKind,
+  type MfaRecord,
   type NewSession,
 } from './accounts.js';
 import {
@@ -30,7 +31,7 @@ import {
 } from './context.js';
 import { ApiError } from './errors.js';
 import { hashPassword, verifyAgainstDummy, verifyPassword } from './passwords.js';
-import { can, canGrantRole } from './policy.js';
+import { can, canGrantRole, isFirmRole } from './policy.js';
 import type { SecretBox } from './secretbox.js';
 import { hashToken, newToken } from './tokens.js';
 import { newTotpSecret, otpauthUri, verifyTotp } from './totp.js';
@@ -354,12 +355,37 @@ export class AuthService {
       clientName: invite.clientName,
       role: invite.role,
       linkExpiresAt: invite.linkExpiresAt,
+      mfaRequired: await this.inviteNeedsMfa(invite),
     };
+  }
+
+  /**
+   * TOTP setup for an invite whose role needs MFA, before the account exists (docs/security/review.md F14). The invite
+   * token is the only credential, so setup restarts until the invite is accepted; NOT_FOUND for an invite with no MFA.
+   */
+  async enrollInviteMfa(token: string): Promise<MfaEnrollment> {
+    const { invite } = await this.pendingInvite(token);
+    if (!(await this.inviteNeedsMfa(invite))) throw new ApiError('NOT_FOUND');
+    const existing = await this.store.getMfa(invite.firmId, invite.personId);
+    if (existing?.enrolledAt) {
+      throw new ApiError(
+        'DUPLICATE',
+        { field: 'mfa', existingId: invite.personId },
+        'MFA is already set up.',
+      );
+    }
+    const secret = newTotpSecret();
+    await this.store.saveMfa(invite.firmId, invite.personId, {
+      sealedSecret: this.secrets.seal(secret),
+      enrolledAt: null,
+      lastStep: null,
+    });
+    return { otpauthUrl: otpauthUri(secret, invite.email) };
   }
 
   async acceptInvite(
     token: string,
-    input: { password: string; displayName?: string | undefined },
+    input: { password: string; displayName?: string | undefined; mfaCode?: string | undefined },
     requestId: string,
   ): Promise<IssuedSession> {
     const now = this.clock();
@@ -379,6 +405,10 @@ export class AuthService {
     if (opening && !(await this.store.libraryCopied(invite.firmId))) {
       throw new ApiError('ACCOUNT_SUSPENDED', { status: 'PROVISIONING' });
     }
+    // A firm role completes MFA setup here, before the password is set, so no session ever exists with a password
+    // and no MFA (F14). A missing or wrong code changes nothing and leaves the invite usable.
+    const mfa = await this.inviteNeedsMfa(invite);
+    const enrolment = mfa ? await this.checkInviteMfa(invite, input.mfaCode, now) : null;
     const passwordHash = await hashPassword(input.password);
     const accepted = await this.store.acceptInvite({
       firmId: invite.firmId,
@@ -386,11 +416,43 @@ export class AuthService {
       tokenId: found.id,
       passwordHash,
       displayName: input.displayName ?? null,
+      mfa: enrolment,
       requestId,
       now,
     });
     if (!accepted) throw new ApiError('NOT_FOUND');
-    return this.startSession(invite.firmId, invite.personId, 'INVITE', requestId);
+    return this.startSession(invite.firmId, invite.personId, 'INVITE', requestId, undefined, mfa);
+  }
+
+  /** A firm role in a firm that requires MFA: the accept page sets up the authenticator first. */
+  private async inviteNeedsMfa(invite: InviteRecord): Promise<boolean> {
+    if (!isFirmRole(invite.role)) return false;
+    const principal = await this.store.loadPrincipal(invite.firmId, invite.personId);
+    return principal?.mfaRequiredForFirmRoles ?? true;
+  }
+
+  /**
+   * Checks the authenticator's first code against the invite's setup and returns the completed enrolment, which the
+   * store saves with the accept so a failed accept leaves the setup open to restart.
+   */
+  private async checkInviteMfa(
+    invite: InviteRecord,
+    code: string | undefined,
+    now: Date,
+  ): Promise<MfaRecord | null> {
+    const record = await this.store.getMfa(invite.firmId, invite.personId);
+    if (record === null || code === undefined) {
+      throw new ApiError('MFA_REQUIRED', { enrolled: false }, 'Set up MFA first.');
+    }
+    const step = verifyTotp(this.secrets.open(record.sealedSecret), code, now);
+    if (step === null || !(await this.store.acceptMfaStep(invite.firmId, invite.personId, step))) {
+      throw new ApiError('VALIDATION', {
+        issues: [{ path: ['mfaCode'], message: 'Code is not correct.' }],
+      });
+    }
+    return record.enrolledAt === null
+      ? { ...record, enrolledAt: now.toISOString(), lastStep: step }
+      : null;
   }
 
   async revokeInvite(ctx: RequestContext, inviteId: string, requestId: string): Promise<Invite> {
@@ -536,6 +598,8 @@ export class AuthService {
     method: NewSession['method'],
     requestId: string,
     support?: { supportGrantId: string; expiresAt: string },
+    /** MFA was passed in this step: an invite that completed MFA setup. */
+    mfaPassed = false,
   ): Promise<IssuedSession> {
     const now = this.clock();
     const { ctx: pendingCtx, principal } = await this.sessionContext(
@@ -546,7 +610,7 @@ export class AuthService {
     );
     const token = newToken();
     // The operator passed MFA in the console to open a support session.
-    const mfaSatisfied = support !== undefined;
+    const mfaSatisfied = support !== undefined || mfaPassed;
     const pending = {
       firmId,
       personId,

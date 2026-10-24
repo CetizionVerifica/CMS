@@ -50,6 +50,7 @@ const NOT_SWEPT: Record<string, string> = {
   verifyMagicLink: 'public, takes a secret token, not an id',
   getInvite: 'public, takes a secret token, not an id',
   acceptInvite: 'public, takes a secret token, not an id',
+  enrollInviteMfa: 'public, takes a secret token, not an id',
   verifySupportSession: 'public, takes a secret token, not an id',
   logout: 'acts on the caller’s own session',
   enrollMfa: 'acts on the caller’s own session',

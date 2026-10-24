@@ -403,6 +403,36 @@ describe('auth actions', () => {
     ).toEqual({ redirect: '/' });
   });
 
+  it('sets up MFA on a firm-role invite and sends its first code with the password (F14)', async () => {
+    expect(
+      await actions.startInviteMfaEnrolment(IDLE, form({ token: 'demo-invite-0002' })),
+    ).toMatchObject({ status: 'enrolment', secret: 'JBSWY3DPEHPK3PXP' });
+    expect(
+      await actions.startInviteMfaEnrolment(IDLE, form({ token: 'demo-invite-0001' })),
+    ).toEqual({ status: 'error', message: 'This invite is no longer valid. Ask for a new one.' });
+    const values = {
+      token: 'demo-invite-0002',
+      invitedName: 'Consultant 02',
+      displayName: 'Consultant 02',
+      password: 'long-enough-pw',
+      confirm: 'long-enough-pw',
+      mfaRequired: 'true',
+    };
+    expect(await actions.acceptInvite(IDLE, form(values))).toEqual({
+      status: 'invalid',
+      fieldErrors: { mfaCode: 'Enter the 6-digit code' },
+      values: { displayName: 'Consultant 02' },
+    });
+    expect(await actions.acceptInvite(IDLE, form({ ...values, mfaCode: '000 000' }))).toEqual({
+      status: 'invalid',
+      fieldErrors: { mfaCode: 'That code isn’t right. Check your authenticator app.' },
+      values: { displayName: 'Consultant 02' },
+    });
+    expect(await run(actions.acceptInvite(IDLE, form({ ...values, mfaCode: '123 456' })))).toEqual({
+      redirect: '/',
+    });
+  });
+
   it('signs out', async () => {
     await run(actions.signIn(IDLE, form({ email: 'owner@demo.test', password: 'demo-password' })));
     expect(await run(actions.signOut())).toEqual({ redirect: '/login' });

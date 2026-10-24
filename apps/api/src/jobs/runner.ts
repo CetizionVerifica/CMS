@@ -2,13 +2,14 @@ import { randomUUID } from 'node:crypto';
 import pg from 'pg';
 import { PgBoss } from 'pg-boss';
 import { ACCOUNT_DAILY, runAccountDaily } from './accounts.js';
-import { activeConsumers, OutboxEventSchema } from './consumers.js';
+import { activeConsumers, CONSUMERS, OutboxEventSchema } from './consumers.js';
 import { runConsultantDigest, CONSULTANT_DIGEST } from './digest.js';
 import { GENERATE_INSTANCES, runGenerateInstances } from './generate-instances.js';
 import { RELAY_OUTBOX, runRelayOutbox } from './outbox-relay.js';
 import type { EventBus, JobDeps, JobReport } from './ports.js';
 import { REMINDERS, runReminders } from './reminders.js';
 import { runScanEvidence, SCAN_EVIDENCE } from './scan-evidence.js';
+import { runTrialReminders, TRIAL_REMINDERS } from './trial-reminders.js';
 
 export interface JobDefinition {
   name: string;
@@ -29,10 +30,11 @@ export interface JobDefinition {
  * generation that follows skips an account it suspended. Generation runs nightly at 01:00 India time. Both catch up
  * once after downtime. Reminders and the digest run every 15 minutes in UTC and decide per client whether its local
  * send time has passed, so each client is served in its own time zone; missed slots are skipped because the next run
- * covers them. The outbox relay runs every minute, and so does the evidence scan. Without a mailer only the account
- * job, generation, the relay and the scan run (`sendsMail: false`); without a scanner the scan does not.
- * Generation, reminders and the digest serve TRIAL and ACTIVE accounts only; the relay and the scan serve every
- * account, so a new account's owner invite still goes out.
+ * covers them. The trial reminder runs daily at 10:00 India time and catches up once. The outbox relay runs every
+ * minute, and so does the evidence scan. Without a mailer only the account job, generation, the relay and the scan
+ * run (`sendsMail: false`); without a scanner the scan does not. Generation, reminders and the digest serve TRIAL
+ * and ACTIVE accounts only; the relay and the scan serve every account, so a new account's owner invite still goes
+ * out.
  */
 export const JOBS: readonly JobDefinition[] = [
   {
@@ -52,6 +54,14 @@ export const JOBS: readonly JobDefinition[] = [
     run: runGenerateInstances,
   },
   { name: REMINDERS, cron: '*/15 * * * *', tz: 'UTC', sendsMail: true, run: runReminders },
+  {
+    name: TRIAL_REMINDERS,
+    cron: '0 10 * * *',
+    tz: 'Asia/Kolkata',
+    sendsMail: true,
+    catchUp: true,
+    run: runTrialReminders,
+  },
   {
     name: CONSULTANT_DIGEST,
     cron: '*/15 * * * *',
@@ -87,6 +97,11 @@ export interface JobRunnerOptions {
    * send is ever claimed, and events only they consume are marked relayed without a queue. Defaults to true.
    */
   mail?: boolean;
+  /**
+   * Scheduled jobs of other modules, run beside `JOBS` under the same rules (M15's operator digest, ADR M15-0005).
+   * A name already taken by a job or an event consumer's queue fails the start.
+   */
+  extraJobs?: readonly JobDefinition[];
 }
 
 export interface JobRunner {
@@ -109,6 +124,13 @@ export interface JobRunner {
  * that correlates its audit rows, events and logs.
  */
 export async function startJobRunner(deps: JobDeps, options: JobRunnerOptions): Promise<JobRunner> {
+  const all = [...JOBS, ...(options.extraJobs ?? [])];
+  // Event consumers' queues are named after their event types, so a job may not take one of those names either.
+  const names = new Set<string>(CONSUMERS.map((consumer) => consumer.type));
+  for (const job of all) {
+    if (names.has(job.name)) throw new Error(`A job or event queue is already named ${job.name}`);
+    names.add(job.name);
+  }
   const schema = options.schema ?? 'pgboss';
   // CREATE SCHEMA IF NOT EXISTS needs CREATE on the database, which no app login has: a migration creates the schema
   // (owned by canopy_jobs) and pg-boss only creates its tables inside it.
@@ -138,7 +160,7 @@ export async function startJobRunner(deps: JobDeps, options: JobRunnerOptions): 
 
   const mail = options.mail ?? true;
   const scan = deps.scanner !== undefined && deps.evidenceObjects !== undefined;
-  const jobs = JOBS.filter((job) => (mail || !job.sendsMail) && (scan || !job.scansEvidence));
+  const jobs = all.filter((job) => (mail || !job.sendsMail) && (scan || !job.scansEvidence));
   const consumers = activeConsumers(deps, mail);
   const consumed = new Set(consumers.map((c) => c.type));
   const bus: EventBus = {
@@ -187,7 +209,7 @@ export async function startJobRunner(deps: JobDeps, options: JobRunnerOptions): 
     scan,
     trigger: (name) => {
       if (!jobs.some((job) => job.name === name)) {
-        const known = JOBS.find((job) => job.name === name);
+        const known = all.find((job) => job.name === name);
         throw new RangeError(
           !known
             ? `Unknown job: ${name}`

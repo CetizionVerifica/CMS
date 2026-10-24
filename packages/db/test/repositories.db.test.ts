@@ -948,22 +948,73 @@ describe('audit and outbox', () => {
         ),
       ),
     ).not.toBe('resolved');
-    // Without a client the send must answer an event and name no instance; the database agrees.
+    // Without a client the send must name no instance, and answer an event or be about the account; the database
+    // holds the first rule.
     const [first] = await inA((tx) => r.instances.forAssignment(tx, world.assignmentId));
     for (const bad of [
       { ...send, eventId: null },
       { ...send, eventId: undefined },
       { ...send, instanceId: first!.id },
+      { ...send, kind: 'TRIAL_ENDING' as const, eventId: null, instanceId: first!.id },
     ]) {
       expect(await code(inA((tx) => r.notificationSends.claim(tx, bad)))).toBe('VALIDATION');
     }
     await expect(
       t.ownerQuery(
+        `INSERT INTO notification_send (firm_id, instance_id, recipient_id, kind, send_date)
+         VALUES ($1, $2, $3, 'TRIAL_ENDING', '2022-08-01')`,
+        [firmA, first!.id, world.ownerId],
+      ),
+    ).rejects.toThrow(/notification_send_client_check/);
+  });
+
+  it('a send about the whole account has no client, and is sent once per recipient and day', async () => {
+    const trial = {
+      clientId: null,
+      instanceId: null,
+      recipientId: world.ownerId,
+      kind: 'TRIAL_ENDING' as const,
+      sendDate: '2022-08-02' as never,
+    };
+    expect(await inA((tx) => r.notificationSends.claim(tx, trial))).toBe('NEW');
+    expect(await inA((tx) => r.notificationSends.claim(tx, trial))).toBe('PENDING');
+    await inA((tx) => r.notificationSends.markSent(tx, trial, '2022-08-02T04:30:00.000Z'));
+    expect(await inA((tx) => r.notificationSends.claim(tx, trial))).toBe('DONE');
+    // Another day, or another admin, is its own send.
+    expect(
+      await inA((tx) =>
+        r.notificationSends.claim(tx, { ...trial, sendDate: '2022-08-08' as never }),
+      ),
+    ).toBe('NEW');
+    expect(
+      await inA((tx) => r.notificationSends.claim(tx, { ...trial, recipientId: world.approverId })),
+    ).toBe('NEW');
+    // Only an account kind may go without a client and without an event.
+    expect(
+      await code(inA((tx) => r.notificationSends.claim(tx, { ...trial, kind: 'OWNER_REMINDER' }))),
+    ).toBe('VALIDATION');
+    // The database holds the same rule: an account kind may go without a client and an event, no other kind may.
+    await t.ownerQuery(
+      `INSERT INTO notification_send (firm_id, recipient_id, kind, send_date)
+       VALUES ($1, $2, 'TRIAL_ENDING', '2022-08-20')`,
+      [firmA, world.ownerId],
+    );
+    await expect(
+      t.ownerQuery(
         `INSERT INTO notification_send (firm_id, recipient_id, kind, send_date)
-         VALUES ($1, $2, 'APPROVAL_REQUESTED', '2022-08-01')`,
+         VALUES ($1, $2, 'OWNER_REMINDER', '2022-08-20')`,
         [firmA, world.ownerId],
       ),
     ).rejects.toThrow(/notification_send_client_check/);
+    // Another firm's context finds no such row of firm A's.
+    expect(
+      await inB(async (tx) => {
+        const { rows } = await tx.execute(
+          sql`SELECT id FROM notification_send WHERE kind = 'TRIAL_ENDING'`,
+        );
+        return rows.length;
+      }),
+    ).toBe(0);
   });
 
   it('export jobs keep the storage key out of the contract shape', async () => {
