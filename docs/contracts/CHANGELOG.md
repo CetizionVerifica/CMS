@@ -121,10 +121,24 @@ first (M3). No route or schema shape changes; M10's export switch has a default 
 typecheck green.
 
 ## 1.5.3 · 2026-10-24
-For M9 (ADR M15-0001 decision 4, the plan's trial-ending reminder); additive. `NotificationKind` gains
+For M9 (ADR M15-0001 order of work step 6, M9's trial-ending reminder); additive. `NotificationKind` gains
 `TRIAL_ENDING`: an email to each account admin of a TRIAL account 7 days and 1 day before its trial ends. It is a
 scheduled kind with no instance, so it dedupes on `(recipientId, kind, sendDate)` like `CONSULTANT_DIGEST` (events.md
 §4 rule 4). `ACCOUNT_NOTIFICATION_KINDS` lists the kinds about the whole account, whose sends name no client. The
 database stored the value first (M3). No route or schema shape changes.
 Also, from the 1.5.2 audit: `ExportCreateBody` now refuses `filters`, `unitId` or `fy` on a `CLIENT_ARCHIVE_ZIP`
 export (400 VALIDATION), as endpoints.md §6 already said; no valid request changes.
+
+## 1.6.0 · 2026-10-24
+For M5 and M11, closing docs/security/review.md F14 (a firm user's first MFA enrolment was trust-on-first-use).
+Additive: `InvitePreview` gains an optional `mfaRequired` (the invite grants FIRM_ADMIN or CONSULTANT in a firm that
+requires MFA; a reader treats a missing value as false). It is optional so this bump merges green before M5's provider
+sends it, and a later patch can make it required once it does; M5's accept checks the code whatever the flag says. New
+public `POST /invites/{token}/mfa/enroll` answers an `MfaEnrollment` for such an invite before the account exists, and
+`InviteAcceptBody` gains an optional `mfaCode`, the authenticator's first code. When the preview says `mfaRequired`, accept without a correct code is refused
+(`MFA_REQUIRED`, or `VALIDATION` on `mfaCode`) and changes nothing; with one, it sets the password, completes MFA setup
+and starts an MFA-satisfied session, so no session ever exists with a password and no MFA.
+The mock follows the provider: accept refuses a code before setup (`MFA_REQUIRED`, `enrolled: false`) and takes only
+`123456` as the first code (`MOCK_INVITE_MFA_CODE`; any other is `VALIDATION` on `mfaCode`); setup restarts freely.
+Also, from the 1.5.3 audit: the `TRIAL_ENDING` and `ACCOUNT_NOTIFICATION_KINDS` comments and the 1.5.3 entry now cite
+the ADR's order of work (step 6, M9's reminders), not decision 4, which is about what each status allows.

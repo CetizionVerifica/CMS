@@ -263,11 +263,22 @@ export const ENDPOINTS = {
     paramOverrides: token,
     response: auth.InvitePreview,
   }),
+  enrollInviteMfa: endpoint({
+    module: M5,
+    method: 'POST',
+    path: '/invites/{token}/mfa/enroll',
+    summary:
+      'Start (or restart) TOTP setup for an invite whose role needs MFA, before the account exists. Rate limited.',
+    auth: 'public',
+    paramOverrides: token,
+    response: auth.MfaEnrollment,
+  }),
   acceptInvite: endpoint({
     module: M5,
     method: 'POST',
     path: '/invites/{token}/accept',
-    summary: 'Claim the invited person: set the password and start a session.',
+    summary:
+      'Claim the invited person: set the password (and, when the invite needs MFA, complete its setup) and start a session.',
     auth: 'public',
     paramOverrides: token,
     body: auth.InviteAcceptBody,
