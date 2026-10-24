@@ -363,6 +363,8 @@ export function createDbAccountStore(db: Database, options: DbAccountStoreOption
 
     async createInvite(invite: NewInvite): Promise<InviteRecord> {
       return asFirm(invite.firmId, invite.requestId, async (tx) => {
+        // Held to commit, so a concurrent invite reads the count only after this one is written.
+        await accounts.lockUsage(tx);
         const before = await accounts.get(tx);
         let personId = invite.personId;
         if (personId === null) {

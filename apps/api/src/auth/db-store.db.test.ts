@@ -752,6 +752,41 @@ describe.skipIf(!url)('database AccountStore', () => {
     ).toEqual([{ n: 2 }]);
   });
 
+  it('lets only one of two simultaneous invites take the last seat', async () => {
+    const seeded = await firmWithClient();
+    const fa = await person(seeded, { role: 'FIRM_ADMIN' });
+    await rows(`INSERT INTO platform.account_override (account_id, limits) VALUES ($1, $2)`, [
+      seeded.firmId,
+      { users: 2 },
+    ]);
+    const invite = (email: string) =>
+      store.createInvite({
+        firmId: seeded.firmId,
+        personId: null,
+        displayName: 'Dev Iyer',
+        email,
+        grant: {
+          role: 'OWNER',
+          clientId: seeded.clientId,
+          consultantClientIds: null,
+          unitIds: null,
+          expiresAt: null,
+        },
+        invitedById: fa.personId,
+        linkExpiresAt: new Date(now.getTime() + 86_400_000).toISOString(),
+        requestId: 'seat-race',
+        now,
+      });
+    const results = await Promise.allSettled([
+      invite('dev.iyer@kestrel-metals.example'),
+      invite('meera.nair@kestrel-metals.example'),
+    ]);
+    expect(results.map((r) => r.status).sort()).toEqual(['fulfilled', 'rejected']);
+    const refused = results.find((r) => r.status === 'rejected')!;
+    expect(refused.reason).toMatchObject({ code: 'PLAN_LIMIT_REACHED' });
+    expect((await store.account(seeded.firmId))!.usage.users).toBe(2);
+  });
+
   it('opens a support session from a console token, and ends it with the grant', async () => {
     const seeded = await firmWithClient();
     const fa = await person(seeded, { role: 'FIRM_ADMIN' });

@@ -78,8 +78,9 @@ export interface AccountStore extends AuthStore {
    * one. Outbox: `person.invited { personId, inviteId, role, clientId }`.
    * An invite holds a seat: when it adds one to the account's user count past the plan's limit, it throws
    * PLAN_LIMIT_REACHED `{ limit: 'users', max, used }` and changes nothing. The count is read in the same
-   * transaction as the insert, so someone not yet counted (new, imported, or with only an expired invite) is
-   * always checked and someone already counted never is.
+   * transaction as the insert, under the account's usage lock, so someone not yet counted (new, imported, or with
+   * only an expired invite) is always checked, someone already counted never is, and two concurrent invites cannot
+   * both take the last seat.
    */
   createInvite(invite: NewInvite): Promise<InviteRecord>;
   findInvite(firmId: string, inviteId: string): Promise<InviteRecord | null>;
