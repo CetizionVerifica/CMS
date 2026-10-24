@@ -108,6 +108,19 @@ describe('s3ImportFiles', () => {
     expect(s3ImportFilesFromEnv(env)).not.toBeNull();
     expect(s3ImportFilesFromEnv({ ...env, S3_ENDPOINT: 'http://localhost:9000' })).not.toBeNull();
   });
+
+  it('signs no checksum of an empty body into the upload URL, which S3 would hold the workbook to', async () => {
+    const env = { S3_BUCKET: 'b', S3_ACCESS_KEY_ID: 'k', S3_SECRET_ACCESS_KEY: 's' };
+    const put = await s3ImportFilesFromEnv(env)!.presignPut({
+      key: uploadKey('f1', 'b1'),
+      sizeBytes: 1234,
+      meta,
+      expiresInSeconds: 300,
+    });
+    expect([...new URL(put.url).searchParams.keys()].filter((k) => /checksum/i.test(k))).toEqual(
+      [],
+    );
+  });
 });
 
 describe('MemoryImportFiles', () => {

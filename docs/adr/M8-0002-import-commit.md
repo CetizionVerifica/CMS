@@ -55,5 +55,7 @@ who may write firm-wide mapping templates.
 - ExcelJS holds the whole workbook in memory while parsing (up to the 250 MB inflated limit in M8-0001); parse runs
   off-request but in the API process, so a large file costs API memory until the run ends.
 - The `inferRule` cache (M8-0001) lives in the process and is per instance of the API; it is a speed-up only.
-- `pnpm db:seed` loading through the importer is M3's (packages/db) to wire; `repositoryStore` and the importer's
-  pure functions are what it calls.
+- `pnpm db:seed` loads the sample register through these same steps: M8's seed hook
+  (`apps/api/src/modules/imports/seed.ts`, registered as `canopy.seed` in apps/api/package.json) imports
+  `sample-register-anonymised.xlsx` into seed firm A as its consultant with the recommended profile, and skips when a
+  COMMITTED batch of that file exists. packages/db runs the hooks but cannot import apps/api, so the hook is M8's.

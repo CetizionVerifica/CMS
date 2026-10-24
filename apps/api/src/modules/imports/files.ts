@@ -134,6 +134,9 @@ export function s3ImportFilesFromEnv(env: NodeJS.ProcessEnv): ImportFiles | null
     region: settings.region,
     ...(settings.endpoint ? { endpoint: settings.endpoint, forcePathStyle: true } : {}),
     credentials: { accessKeyId: settings.accessKeyId, secretAccessKey: settings.secretAccessKey },
+    // By default the SDK signs a CRC32 of the (empty) body it presigns into the PUT URL, so S3 rejects the
+    // browser's upload of the real workbook as a checksum mismatch. Checksums only where an operation requires one.
+    requestChecksumCalculation: 'WHEN_REQUIRED',
   });
   return s3ImportFiles({ client, bucket: settings.bucket });
 }

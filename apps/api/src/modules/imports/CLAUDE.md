@@ -11,5 +11,8 @@
 - Firm-wide mapping templates (`clientId: null`) need FIRM_ADMIN; commit needs only `import.commit`.
 - `files.ts`: upload storage. `s3ImportFiles` for S3-compatible storage, `MemoryImportFiles` for tests.
 - `routes.ts`: thin routes, parsed with the contract schemas.
+- `seed.ts`: the `pnpm db:seed` hook (`canopy.seed` in apps/api/package.json). It runs these steps over the anonymised
+  sample register for seed firm A's consultant with the recommended profile; `seed.db.test.ts` checks the golden counts
+  and that a second seed changes nothing. Logs counts only.
 - Tests: `imports.test.ts` walks every step and role on `testing/memory-store.ts`.
 - Rows, issues and workbooks hold employee names: never log them, never put them in error details.
