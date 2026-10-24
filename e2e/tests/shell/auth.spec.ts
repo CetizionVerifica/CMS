@@ -180,6 +180,7 @@ test.describe('auth pages', () => {
   test('a support link without its token, or with a used one, never opens the account', async ({
     page,
   }) => {
+    await page.setViewportSize({ width: 375, height: 800 });
     await page.goto('/support/start');
     await expect(page).toHaveTitle('PlanetPulse support · PlanetPulse Compliance');
     await expect(page.getByRole('alert').filter({ hasText: 'incomplete' })).toHaveText(
@@ -187,6 +188,7 @@ test.describe('auth pages', () => {
     );
     await checkPage(page);
 
+    await page.setViewportSize({ width: 1280, height: 800 });
     // A fresh document: a hash-only change on the same page would not re-read the fragment.
     await page.goto('/login');
     await page.goto('/support/start#token=an-unknown-support-token');
