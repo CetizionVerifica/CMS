@@ -31,16 +31,42 @@ function first(value: string | string[] | undefined): string | null {
   return (Array.isArray(value) ? value[0] : value) ?? null;
 }
 
-/** Display names by person id: the client's people, and the firm's staff for firm users. A failed list names no one. */
+const MAX_PAGES = 10;
+
+/** Every page of a people list, up to 2,000, as the setup pages read it. */
+async function allPeople(
+  read: (cursor: string | null) => Promise<{ items: Person[]; nextCursor: string | null }>,
+): Promise<Person[]> {
+  const people: Person[] = [];
+  let cursor: string | null = null;
+  for (let i = 0; i < MAX_PAGES; i++) {
+    const page = await read(cursor);
+    people.push(...page.items);
+    cursor = page.nextCursor;
+    if (!cursor) break;
+  }
+  return people;
+}
+
+/**
+ * Display names by person id: the client's people, and the firm's staff for firm users. Client users may not list
+ * the firm's staff, so a consultant who is not a member of this client shows as "Someone" to them. A failed list
+ * names no one rather than failing the page.
+ */
 async function namesFor(api: ApiClient, clientId: string, firmUser: boolean) {
+  const page = (cursor: string | null) => ({
+    limit: '200',
+    ...(cursor ? { cursor } : {}),
+  });
   const lists: Promise<Person[]>[] = [
-    api
-      .call('listClientPeople', { params: { clientId }, query: { limit: '200' } })
-      .then(({ data }) => data.items),
+    allPeople(
+      async (cursor) =>
+        (await api.call('listClientPeople', { params: { clientId }, query: page(cursor) })).data,
+    ),
   ];
   if (firmUser) {
     lists.push(
-      api.call('listFirmPeople', { query: { limit: '200' } }).then(({ data }) => data.items),
+      allPeople(async (cursor) => (await api.call('listFirmPeople', { query: page(cursor) })).data),
     );
   }
   const people = (await Promise.all(lists.map((list) => list.catch(() => [])))).flat();
