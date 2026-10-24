@@ -31,6 +31,7 @@ import type { EventBus, OutboxEvent } from './ports.js';
 import { postgresJobStore } from './postgres-store.js';
 import { runReminders } from './reminders.js';
 import { runScanEvidence } from './scan-evidence.js';
+import { runTrialReminders, TRIAL_REMINDERS } from './trial-reminders.js';
 import { APP_URL } from './testing/builders.js';
 import { captureMailer, type CaptureMailer } from './testing/memory-store.js';
 import { createJobTestDatabase, type JobTestDatabase } from './testing/postgres.js';
@@ -963,6 +964,83 @@ describe.skipIf(!url)('jobs on the Postgres store', () => {
       expect(
         await t.count(trial.firmId, 'audit_event', `request_id = 'job:generate:suspended'`),
       ).toBe(0);
+    });
+  });
+
+  describe(TRIAL_REMINDERS, () => {
+    it('emails a trial account’s live admins once, with a send-log row that names no client', async () => {
+      const trial = await seedFirm('Highmoor Advisory', 'Highmoor Fabrics', 'highmoor');
+      const admins = await inFirm(trial.firmId, async (tx) => {
+        const make = async (n: string, email: string | null, expiresAt: string | null) => {
+          const person = await people.create(tx, {
+            displayName: `Admin ${n}`,
+            nameNormalized: `admin ${n}`,
+            email,
+            status: email ? 'ACTIVE' : 'UNCLAIMED',
+          });
+          await memberships.create(tx, {
+            personId: person.id,
+            role: 'FIRM_ADMIN',
+            clientId: null,
+            consultantClientIds: null,
+            unitIds: null,
+            expiresAt,
+          });
+          return person.id;
+        };
+        return {
+          live: await make('live', 'admin.live@example.com', null),
+          lapsed: await make('lapsed', 'admin.lapsed@example.com', '2026-01-01T00:00:00Z'),
+          unclaimed: await make('unclaimed', null, null),
+        };
+      });
+      const client = new pg.Client({ connectionString: t.url });
+      await client.connect();
+      try {
+        await client.query('BEGIN');
+        await client.query(`SELECT set_config('app.firm_id', $1, true)`, [trial.firmId]);
+        await client.query(
+          `UPDATE firm SET status = 'TRIAL', trial_ends_on = '2026-11-23' WHERE id = $1`,
+          [trial.firmId],
+        );
+        await client.query('COMMIT');
+      } finally {
+        await client.end();
+      }
+      mailer.sent.length = 0;
+      now = '2026-11-16T04:30:00.000Z'; // 10:00 IST, 7 days before the last day
+      expect(await runTrialReminders(deps, 'job:trial-reminders:1')).toMatchObject({
+        firms: 1,
+        admins: 3,
+        sent: 1,
+        failedNOT_ACTIVE: 1,
+        failedNO_EMAIL: 1,
+      });
+      expect(mailer.sent.map((m) => m.to.email)).toEqual(['admin.live@example.com']);
+      expect(mailer.sent[0]!.subject).toBe('Your PlanetPulse Compliance trial ends in 7 days');
+      expect(
+        await t.count(
+          trial.firmId,
+          'notification_send',
+          `kind = 'TRIAL_ENDING' and client_id is null and instance_id is null and sent_at is not null and recipient_id = $1`,
+          [admins.live],
+        ),
+      ).toBe(1);
+      expect(
+        await t.count(
+          trial.firmId,
+          'domain_event',
+          `type = 'notification.sent' and data->>'kind' = 'TRIAL_ENDING'`,
+        ),
+      ).toBe(1);
+      // A second run that day sends nothing new; the other firms are not in a trial and hear nothing.
+      expect(await runTrialReminders(deps, 'job:trial-reminders:2')).toMatchObject({
+        alreadySent: 3,
+      });
+      expect(mailer.sent).toHaveLength(1);
+      for (const other of [a, b]) {
+        expect(await t.count(other.firmId, 'notification_send', `kind = 'TRIAL_ENDING'`)).toBe(0);
+      }
     });
   });
 });

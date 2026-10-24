@@ -70,6 +70,8 @@ export interface MemoryPerson {
   /** Clients the person holds a live membership in. */
   clientIds: Id[];
   consultantFor?: Id[];
+  /** An account admin (FIRM_ADMIN); `'expired'` when that membership has lapsed. */
+  firmAdmin?: true | 'expired';
 }
 
 export interface MemoryInvite {
@@ -205,6 +207,16 @@ function firmTx(firm: MemoryFirm, hooks: MemoryStoreHooks): FirmTx {
     takeUsageSnapshot: async (on) => {
       if (!firm.snapshots.includes(on)) firm.snapshots.push(on);
     },
+    accountTrial: async () => ({ name: firm.name, trialEndsOn: firm.trialEndsOn }),
+    listAccountAdmins: async () =>
+      firm.people
+        .filter((p) => p.firmAdmin)
+        .map((p): Recipient => ({
+          personId: p.id,
+          displayName: p.displayName,
+          email: p.email,
+          canReceive: p.status === 'ACTIVE' && p.firmAdmin === true,
+        })),
     listClients: async () => firm.clients,
     listGenerationTargets: async (clientId) =>
       firm.assignments.filter((a) => a.clientId === clientId),

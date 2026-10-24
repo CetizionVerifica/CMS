@@ -1,5 +1,5 @@
 // Background jobs (MODULES.md M9): instance generation, reminders and escalations, the consultant digest, the
-// evidence virus scan, and the nightly account job (trial end, usage snapshot).
+// evidence virus scan, the nightly account job (trial end, usage snapshot) and the trial-ending email.
 export { ACCOUNT_DAILY, runAccountDaily, servedFirmIds } from './accounts.js';
 export { clamAvConfigFromEnv, clamAvScanner, type ClamAvConfig } from './clamav-scanner.js';
 export { clientDay, currentAndNextFy, reminderWindow, sendTimeReached } from './client-day.js';
@@ -19,6 +19,7 @@ export { ScanInterruptedError, ScanServiceError, ScanTimeoutError } from './port
 export { postgresJobStore } from './postgres-store.js';
 export { REMINDERS, runReminders } from './reminders.js';
 export { runScanEvidence, SCAN_EVIDENCE } from './scan-evidence.js';
+export { runTrialReminders, TRIAL_REMINDER_DAYS, TRIAL_REMINDERS } from './trial-reminders.js';
 export { s3EvidenceObjects } from './s3-objects.js';
 export {
   JOBS,

@@ -9,6 +9,7 @@ import { RELAY_OUTBOX, runRelayOutbox } from './outbox-relay.js';
 import type { EventBus, JobDeps, JobReport } from './ports.js';
 import { REMINDERS, runReminders } from './reminders.js';
 import { runScanEvidence, SCAN_EVIDENCE } from './scan-evidence.js';
+import { runTrialReminders, TRIAL_REMINDERS } from './trial-reminders.js';
 
 export interface JobDefinition {
   name: string;
@@ -29,10 +30,11 @@ export interface JobDefinition {
  * generation that follows skips an account it suspended. Generation runs nightly at 01:00 India time. Both catch up
  * once after downtime. Reminders and the digest run every 15 minutes in UTC and decide per client whether its local
  * send time has passed, so each client is served in its own time zone; missed slots are skipped because the next run
- * covers them. The outbox relay runs every minute, and so does the evidence scan. Without a mailer only the account
- * job, generation, the relay and the scan run (`sendsMail: false`); without a scanner the scan does not.
- * Generation, reminders and the digest serve TRIAL and ACTIVE accounts only; the relay and the scan serve every
- * account, so a new account's owner invite still goes out.
+ * covers them. The trial reminder runs daily at 10:00 India time and catches up once. The outbox relay runs every
+ * minute, and so does the evidence scan. Without a mailer only the account job, generation, the relay and the scan
+ * run (`sendsMail: false`); without a scanner the scan does not. Generation, reminders and the digest serve TRIAL
+ * and ACTIVE accounts only; the relay and the scan serve every account, so a new account's owner invite still goes
+ * out.
  */
 export const JOBS: readonly JobDefinition[] = [
   {
@@ -52,6 +54,14 @@ export const JOBS: readonly JobDefinition[] = [
     run: runGenerateInstances,
   },
   { name: REMINDERS, cron: '*/15 * * * *', tz: 'UTC', sendsMail: true, run: runReminders },
+  {
+    name: TRIAL_REMINDERS,
+    cron: '0 10 * * *',
+    tz: 'Asia/Kolkata',
+    sendsMail: true,
+    catchUp: true,
+    run: runTrialReminders,
+  },
   {
     name: CONSULTANT_DIGEST,
     cron: '*/15 * * * *',

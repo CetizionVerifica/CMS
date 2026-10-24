@@ -26,7 +26,6 @@ M3-0003), each run in the account's own system context. M15's operator console r
    pg-boss retries it, and a retry changes nothing already done.
 
 ## Not yet
-- Trial-ending and renewal reminder emails need a notification kind and templates (M0, `packages/notifications`) and,
-  for the operator's copy, an address setting. A later M9 change.
+- Trial-ending emails to the account admins: ADR M9-0003. The operator's copy (trials ending, renewals due) is M15's.
 - The purge job (ADR M15-0002 decision 5) waits for M3's `platform_purge_account` and runs on the operator's
   database login, which alone may execute it.

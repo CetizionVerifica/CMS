@@ -219,6 +219,13 @@ export interface FirmTx {
   endTrial(now: string, job: string): Promise<boolean>;
   /** Records the account's usage for `on`, replacing a snapshot already taken that day. */
   takeUsageSnapshot(on: LocalDate): Promise<void>;
+  /** The account's name and its trial's last day (null outside a trial), for the trial-ending email. */
+  accountTrial(): Promise<{ name: string; trialEndsOn: LocalDate | null }>;
+  /**
+   * The account's admins (FIRM_ADMIN), non-archived people only; `canReceive` when the person is ACTIVE and holds an
+   * unexpired, unarchived FIRM_ADMIN membership.
+   */
+  listAccountAdmins(): Promise<Recipient[]>;
   /** Clients of the firm that are not archived. */
   listClients(): Promise<ClientRef[]>;
   /** Assignments of one client that are not archived. */
