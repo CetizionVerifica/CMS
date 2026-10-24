@@ -314,6 +314,43 @@ describe.skipIf(!url)('the customer account routes', () => {
     ).toBe(live.id);
   });
 
+  it('refuses every role but the account admin', async () => {
+    const [clientId] = await inAccount(accountId, async (tx) =>
+      (await r.clients.list(tx)).items.map((c) => c.id),
+    );
+    for (const role of ['CLIENT_ADMIN', 'APPROVER', 'OWNER', 'VIEWER'] as const) {
+      const personId = await inAccount(accountId, async (tx) => {
+        const person = await r.people.create(tx, {
+          displayName: `Kestrel ${role.toLowerCase()}`,
+          nameNormalized: `kestrel ${role.toLowerCase()}`,
+          email: `${role.toLowerCase()}@kestrel.example`,
+          status: 'ACTIVE',
+        });
+        await r.memberships.create(tx, {
+          personId: person.id,
+          role,
+          clientId: clientId!,
+          consultantClientIds: null,
+          unitIds: null,
+          // A viewer's access always ends.
+          expiresAt: role === 'VIEWER' ? '2099-01-01T00:00:00.000Z' : null,
+        });
+        return person.id;
+      });
+      const caller = await sessionFor(accountId, personId);
+      expect(error(await get(caller, '/account')).code, role).toBe('FORBIDDEN');
+      expect(error(await get(caller, '/account/support-grants')).code, role).toBe('FORBIDDEN');
+      expect(
+        error(await post(caller, '/account/support-grants', { level: 'ADMIN' })).code,
+        role,
+      ).toBe('FORBIDDEN');
+      expect(
+        error(await post(caller, `/account/support-grants/${randomUUID()}/revoke`)).code,
+        role,
+      ).toBe('FORBIDDEN');
+    }
+  });
+
   it('revokes a live grant now, ending its sessions; an ended one is 409 and an unknown one 404', async () => {
     const live = (await inAccount(accountId, (tx) =>
       r.supportGrants.live(tx, new Date().toISOString()),
@@ -385,5 +422,50 @@ describe.skipIf(!url)('the customer account routes', () => {
         ),
       ).code,
     ).toBe('VALIDATION');
+  });
+  it('keeps one live grant when grants arrive at once, with or without different keys', async () => {
+    const send = (key?: string) =>
+      post(
+        owner,
+        '/account/support-grants',
+        { level: 'READ_ONLY', days: 1 },
+        key ? { 'idempotency-key': key } : {},
+      );
+    const made = await Promise.all([send(randomUUID()), send(randomUUID()), send(), send()]);
+    expect(made.map((res) => res.statusCode)).toEqual([201, 201, 201, 201]);
+    const ids = made.map((res) => SupportGrant.parse(res.json()).id);
+    const listed = (
+      (await get(owner, '/account/support-grants')).json() as { items: unknown[] }
+    ).items.map((g) => SupportGrant.parse(g));
+    const active = listed.filter((g) => g.status === 'ACTIVE');
+    expect(active).toHaveLength(1);
+    expect(ids).toContain(active[0]!.id);
+    // Each grant the next one replaced is ended, in the database as in the list.
+    expect(listed.filter((g) => ids.includes(g.id) && g.status === 'REVOKED')).toHaveLength(3);
+    // The operator trail shows each start and end, from M3's trigger.
+    const trail = await t.operatorDb.withOperator(
+      'customer-test',
+      async (tx) => (await r.operatorAudit.query(tx, { accountId })).items,
+    );
+    for (const id of ids) {
+      expect(
+        trail.filter((e) => e.action === 'SUPPORT_ACCESS_START' && e.after?.grantId === id),
+        id,
+      ).toHaveLength(1);
+    }
+    expect(
+      trail.filter(
+        (e) => e.action === 'SUPPORT_ACCESS_END' && ids.includes(String(e.after?.grantId)),
+      ),
+    ).toHaveLength(3);
+    expect(
+      trail.find((e) => e.action === 'SUPPORT_ACCESS_START' && e.after?.grantId === ids[0])?.after,
+    ).toEqual({
+      grantId: ids[0],
+      level: 'READ_ONLY',
+      startsAt: expect.any(String),
+      endsAt: expect.any(String),
+      source: 'grant',
+    });
   });
 });

@@ -24,7 +24,7 @@ records what `apps/api/src/platform/db-customer.ts` decides on top.
    `support_access.granted { grantId, level, endsAt }` or `support_access.revoked { grantId }` (events.md), actor
    `PERSON`, on the account aggregate at the account's version.
 4. **The operator trail gets its entry from the database.** canopy_app cannot write `platform.operator_audit_event`,
-   so an M3 trigger on `support_grant`, owned by canopy_platform, writes `SUPPORT_ACCESS_START` on insert and
+   so M3's trigger on `support_grant` (migration 0024, #184), owned by canopy_platform, writes `SUPPORT_ACCESS_START` on insert and
    `SUPPORT_ACCESS_END` when `revoked_at` is set, in the same transaction, with ids, level and times only. Opening a
    support session from the console writes its own `SUPPORT_ACCESS_START` (ADR M15-0003 decision 7), so a grant shows
    as granted, visited and ended.
@@ -34,10 +34,17 @@ records what `apps/api/src/platform/db-customer.ts` decides on top.
    another account `404 NOT_FOUND`.
 6. **Days default to 7 and run 1 to 30** (`SUPPORT_GRANT_DEFAULT_DAYS`, `SUPPORT_GRANT_MAX_DAYS`), checked by the
    contract body at the edge.
+7. **One live grant at a time, under the account's lock.** Two grants at once (two admins, or a double click with no
+   key or two keys) would each read no live grant and each insert one, leaving two ACTIVE grants, one of which a
+   revoke would leave usable. Grant and revoke therefore take the account's transaction-scoped lock first
+   (`account.lockUsage`, the per-account advisory lock the plan-limit checks use), so the second request waits, then
+   replaces the first's grant or replays its key. Grants are rare, so sharing the lock with plan-limit checks costs
+   nothing; a dedicated M3 lock would add a migration for no gain.
 
 ## Consequences
 
 - `server.ts` mounts `registerCustomerAccountRoutes` when a database is configured (a Tooling patch: the file is
   shared). Until then the Postgres test mounts it the same way.
-- The M3 trigger is its own migration patch; the API does not depend on it to work, only the operator trail does.
+- The operator trail rows come from M3's trigger (0024); the API does not depend on it to work, and the Postgres test
+  asserts the rows.
 - M13's support-access screen and M11's banners read these routes.
