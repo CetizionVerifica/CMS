@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 
 import { isApiError } from '../../../lib/api/client';
+import { redirectIfSignedOut } from '../c/[clientId]/overview/signed-out';
 import { serverApi } from '../../../lib/api/server';
 import { NoPermission, PageEmpty, PageHeader } from '../../../lib/patterns';
 import { routeByPath, visibleTo } from '../../../lib/routes';
@@ -24,6 +25,7 @@ export default async function PortfolioPage() {
   try {
     rows = (await (await serverApi()).portfolio()).data.items;
   } catch (error) {
+    await redirectIfSignedOut(error);
     if (isApiError(error, 'FORBIDDEN', 'ACCESS_EXPIRED')) return noAccess;
     throw error;
   }

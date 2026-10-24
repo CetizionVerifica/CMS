@@ -4,6 +4,7 @@ import NextLink from 'next/link';
 import { notFound } from 'next/navigation';
 
 import { isApiError } from '../../../../../lib/api/client';
+import { redirectIfSignedOut } from '../overview/signed-out';
 import { serverApi } from '../../../../../lib/api/server';
 import { NoPermission, PageHeader } from '../../../../../lib/patterns';
 import { homeHref } from '../../../../../lib/shell/model';
@@ -154,6 +155,7 @@ export default async function ImportPage({ params, searchParams }: Props) {
       </>
     );
   } catch (error) {
+    await redirectIfSignedOut(error);
     if (isApiError(error, 'FORBIDDEN', 'ACCESS_EXPIRED')) {
       return <NoPermission what="imports" backHref={homeHref(model)} backLabel="Go to home" />;
     }

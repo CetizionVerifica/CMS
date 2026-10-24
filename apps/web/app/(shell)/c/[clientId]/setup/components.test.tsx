@@ -218,6 +218,23 @@ describe('RemindersForm', () => {
     expect((await screen.findByRole('alert')).textContent).toBe('Someone else changed this.');
   });
 
+  it('keeps what was typed after a refused save', async () => {
+    actions.saveRemindersAction.mockResolvedValue(
+      no('You can no longer change this client’s setup.'),
+    );
+    const { rerender } = render(
+      <RemindersForm clientId={CLIENT} version={4} reminders={reminders} />,
+    );
+    const before = screen.getByLabelText('Remind owners this many days before the due date');
+    await userEvent.clear(before);
+    await userEvent.type(before, '14');
+    await userEvent.click(screen.getByRole('button', { name: 'Save reminders' }));
+    await screen.findByRole('alert');
+    // The refresh after the refusal brings the same version as a new object.
+    rerender(<RemindersForm clientId={CLIENT} version={4} reminders={{ ...reminders }} />);
+    expect((before as HTMLInputElement).value).toBe('14');
+  });
+
   it('takes a new version from the server', () => {
     const { rerender } = render(
       <RemindersForm clientId={CLIENT} version={4} reminders={reminders} />,

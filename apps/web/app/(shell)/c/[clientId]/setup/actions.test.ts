@@ -172,6 +172,14 @@ describe('reminder actions', () => {
     ).toMatchObject({ ok: false });
   });
 
+  it('tells an approver they cannot change reminders', async () => {
+    await signIn('approver@demo.test');
+    expect(await actions.saveRemindersAction(CLIENT, { version: 1, reminders })).toEqual({
+      ok: false,
+      message: "You can no longer change this client's setup.",
+    });
+  });
+
   it('lets a firm admin save reminders', async () => {
     await signIn('admin@demo.test', true);
     const view = (await session().call('getClientSettings', { params: { clientId: CLIENT } })).data;
