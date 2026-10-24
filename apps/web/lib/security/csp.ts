@@ -15,7 +15,7 @@ export type CspOptions = {
 
 /**
  * The origins in `connectSrc` that are safe to put in the header: `https://host[:port]` or `http://localhost[:port]`
- * (127.0.0.1, [::1]) and nothing else, so a
+ * (or 127.0.0.1) and nothing else, so a
  * mistyped value can neither open uploads to plain http nor add a directive (`https://x; script-src *`). Others are
  * returned as `rejected` for the caller to report; uploads to them then fail, which is the safe way round.
  */
@@ -38,7 +38,8 @@ const HTTP_ORIGIN = /^http:\/\/[a-z0-9-]+(\.[a-z0-9-]+)*(:\d{1,5})?\/?$/i;
 
 // Plain http to this machine's own loopback address, as the local and CI storage (SeaweedFS on localhost) needs. It
 // can't reach another host, so it is allowed outside `next dev` too.
-const HTTP_LOOPBACK = /^http:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d{1,5})?\/?$/i;
+// Not [::1]: Chromium rejects an IPv6 literal as a CSP source and logs an error on every page.
+const HTTP_LOOPBACK = /^http:\/\/(localhost|127\.0\.0\.1)(:\d{1,5})?\/?$/i;
 
 function isOrigin(source: string, dev: boolean): boolean {
   return (
