@@ -25,7 +25,7 @@ export type TaskListProps = {
   items: TaskItem[];
   /** `approver` adds Approve and Send back on each row and the A/S shortcuts. */
   mode?: 'owner' | 'approver';
-  /** Approve without a confirm; the app shows a Toast with Undo. */
+  /** Approve without a confirm; the app says so in a Toast (no Undo: an approver can't reopen, docs/adr/M12-0003). */
   onApprove?: (id: string) => void;
   /** The app opens a ConfirmDialog with a required reason. */
   onSendBack?: (id: string) => void;
