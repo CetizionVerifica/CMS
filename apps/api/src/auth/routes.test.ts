@@ -812,11 +812,62 @@ describe('server wiring', () => {
     process.env.AUTH_SECRET_KEY = previous;
   });
 
-  it('reads TRUST_PROXY', () => {
+  it('reads TRUST_PROXY as proxy addresses or CIDRs only', () => {
     expect(trustProxyFromEnv(undefined)).toBe(false);
+    expect(trustProxyFromEnv('')).toBe(false);
     expect(trustProxyFromEnv('false')).toBe(false);
-    expect(trustProxyFromEnv('true')).toBe(true);
-    expect(trustProxyFromEnv('10.0.0.0/8')).toBe('10.0.0.0/8');
+    expect(trustProxyFromEnv('10.0.0.0/8')).toEqual(['10.0.0.0/8']);
+    expect(trustProxyFromEnv('10.0.0.5, 172.16.0.0/12,fd00::/8,::1')).toEqual([
+      '10.0.0.5',
+      '172.16.0.0/12',
+      'fd00::/8',
+      '::1',
+    ]);
+    // "true" trusts the leftmost X-Forwarded-For entry, which the client writes.
+    for (const bad of [
+      'true',
+      'TRUE',
+      '1',
+      'loopback',
+      '10.0.0.0/33',
+      'fd00::/129',
+      '10.0.0.0/8/1',
+      '10.0.0.0/',
+      '10.0.0.0/8,',
+      // Over-broad ranges trust everyone just like "true".
+      '0.0.0.0/0',
+      '0.0.0.0/1,128.0.0.0/1',
+      '10.0.0.0/7',
+      '::/0',
+      'fc00::/7',
+    ]) {
+      expect(() => trustProxyFromEnv(bad), bad).toThrow(/TRUST_PROXY/);
+    }
+  });
+
+  it('refuses TRUST_PROXY=true at startup', () => {
+    const previous = process.env.TRUST_PROXY;
+    process.env.TRUST_PROXY = 'true';
+    try {
+      expect(() => buildServer()).toThrow(/TRUST_PROXY/);
+    } finally {
+      if (previous === undefined) delete process.env.TRUST_PROXY;
+      else process.env.TRUST_PROXY = previous;
+    }
+  });
+
+  it('counts the client address a trusted proxy forwards, never one a client sends itself', async () => {
+    const app = buildServer({ trustProxy: trustProxyFromEnv('10.0.0.0/8') });
+    app.get('/ip', { config: { auth: 'public' } }, async (request) => ({ ip: request.ip }));
+    const via = (remoteAddress: string) =>
+      app.inject({
+        url: '/ip',
+        remoteAddress,
+        headers: { 'x-forwarded-for': '203.0.113.9, 198.51.100.7' },
+      });
+    expect((await via('10.1.2.3')).json()).toEqual({ ip: '198.51.100.7' });
+    expect((await via('192.0.2.44')).json()).toEqual({ ip: '192.0.2.44' });
+    await app.close();
   });
 
   it('redacts tokens from logged URLs', () => {

@@ -134,6 +134,20 @@
       "when": 1791781750033,
       "tag": "0018_send_log_null_client",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1792825121201,
+      "tag": "0019_accounts_and_platform",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1792825199184,
+      "tag": "0020_platform_roles_and_functions",
+      "breakpoints": true
     }
   ]
 }

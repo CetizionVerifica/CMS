@@ -31,6 +31,17 @@ Sign-in (M5)
 - `auth_credential` (password hash, sealed MFA secret, failed attempts, lock), `auth_session` (token hash, CSRF token, MFA flag),
   `auth_invite` (the membership to grant), `auth_token` (magic-link and invite links by token hash). ADR M3-0001.
 
+Accounts and the operator (M15)
+
+- `firm` is also the customer account: `kind`, `status`, `plan_code`, `trial_ends_on`, `onboarded_at`,
+  `deletion_requested_at`, `status_before_deletion`, and `profile jsonb` (legal name, GSTIN, time zone, FY start
+  month; `AccountProfile` in contracts). The app role may update only `name`, `settings` and `version`.
+- `support_grant` (PlanetPulse support access an account admin grants; tenant table). `person.support` marks the
+  support person, who is never a sign-in candidate; `auth_session` and `auth_token` carry `support_grant_id`.
+- Schema `platform` (no `firm_id`, no RLS, no access for `canopy_app`): `plan`, `account_override`, `operator`,
+  `operator_credential`, `operator_session`, `subscription`, `usage_snapshot`, `operator_audit_event` (append-only for
+  every role). ADR M15-0001, M3-0002.
+
 Field-level definitions are in `docs/contracts/domain-model.md` (M0); that file wins if it and this list differ.
 
 ## Rules
@@ -67,7 +78,13 @@ Decisions and their reasons: `docs/adr/0003-m3-tenant-isolation-in-postgres.md`.
   in the API and `systemContext(firmId, requestId)` in jobs and imports. `createAdminDatabase` (migrate, createFirm) is for deploy, seed and tests only.
 - Deploy: migrations run as the owner, which need not be a superuser; the one-time grants it needs are in the ADR's
   Consequences. Pre-tenant lookups are `SECURITY DEFINER` functions owned by `canopy_lookup`, never by the owner.
-- Production login: a non-owner member of `canopy_app`. With `NODE_ENV=production`, `createDatabase` refuses a login that is, or can `SET ROLE` to, a superuser, BYPASSRLS, table-owning or `canopy_lookup` role.
+- Production login: a non-owner member of `canopy_app`. With `NODE_ENV=production`, `createDatabase` refuses a login that is, or can `SET ROLE` to, a superuser, BYPASSRLS, table-owning, `canopy_lookup`, `canopy_platform` or `canopy_operator` role.
+- Operator console (M15, ADR M3-0002): `createOperatorDatabase({ connectionString })` with its own login, a member of
+  `canopy_operator` and `canopy_app`. `withOperator(requestId, (tx) => ...)` runs as `canopy_operator` with no tenant;
+  repositories `platformAccounts` and `platformSupport` take that `OperatorTx`. Every write inside a tenant is a
+  `platform_*` function owned by `canopy_platform`; `withNewAccount` (PROVISIONING accounts only) is the one
+  exception, for the library copy. The app side reads its own account with `account.get` / `account.usage` and
+  manages `supportGrants`.
 - Repositories (`src/repositories`, exported from `@canopy/db`): one object per aggregate (`clients`, `units`, `people`,
   `memberships`, `obligations`, `assignments`, `instances`, `evidence`, `comments`, `auditEvents`, `importBatches`,
   `domainEvents`, ...). Every function takes the `TenantTx` from `withTenant` first:

@@ -27,9 +27,11 @@ function parseUuidArray(text: string): string[] {
 }
 
 // The firm row is its own tenant: the contract's firmId is its id.
+// The account columns the contract `Firm` does not carry stay in the database (operator view, M15).
 const firmEntity = entity<Firm>({
   table: s.firm,
   schema: Firm,
+  omit: ['onboardedAt', 'deletionRequestedAt', 'statusBeforeDeletion', 'profile'],
   fromRow: (row) => ({ ...row, firmId: row.id }),
 });
 
@@ -225,7 +227,13 @@ export const departments = {
   restore: departmentEntity.restore,
 };
 
-const personEntity = entity<Person>({ table: s.person, schema: Person });
+// `support` marks the account's PlanetPulse support person; the contract Person does not carry it.
+// `support` is set only on the PlanetPulse support person (contracts 1.5.0); other people leave it out.
+const personEntity = entity<Person>({
+  table: s.person,
+  schema: Person,
+  fromRow: ({ support, ...row }) => (support ? { ...row, support } : row),
+});
 export const people = {
   get: personEntity.get,
   require: personEntity.require,

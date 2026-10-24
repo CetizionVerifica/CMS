@@ -2,7 +2,7 @@ import * as contracts from '@canopy/contracts';
 import { getTableConfig } from 'drizzle-orm/pg-core';
 import { describe, expect, it } from 'vitest';
 import * as schema from '../src/schema/index.js';
-import { TABLES } from './support/tables.js';
+import { PLATFORM_TABLES, TABLES } from './support/tables.js';
 
 describe('schema', () => {
   it('declares the v1 tables from packages/db/CLAUDE.md', () => {
@@ -35,6 +35,7 @@ describe('schema', () => {
         'notification_send',
         'obligation',
         'person',
+        'support_grant',
         'unit',
       ].sort(),
     );
@@ -48,6 +49,22 @@ describe('schema', () => {
     }
   });
 
+  it('keeps the operator tables in schema platform (ADR M15-0001)', () => {
+    expect(PLATFORM_TABLES.map((t) => t.name)).toEqual(
+      [
+        'account_override',
+        'operator',
+        'operator_audit_event',
+        'operator_credential',
+        'operator_session',
+        'plan',
+        'subscription',
+        'usage_snapshot',
+      ].sort(),
+    );
+    for (const { name, columns } of PLATFORM_TABLES) expect(columns, name).not.toContain('firm_id');
+  });
+
   it.each([
     [schema.roleEnum, contracts.Role],
     [schema.personStatusEnum, contracts.PersonStatus],
@@ -55,10 +72,26 @@ describe('schema', () => {
     [schema.workflowStateEnum, contracts.WorkflowState],
     [schema.submissionKindEnum, contracts.SubmissionKind],
     [schema.auditActionEnum, contracts.AuditAction],
-    [schema.entityTypeEnum, contracts.EntityType],
     [schema.importIssueTypeEnum, contracts.ImportIssueType],
     [schema.canopyFieldEnum, contracts.CanopyField],
   ])('enum %# matches the contract', (pgEnum, zodEnum) => {
+    expect(pgEnum.enumValues).toEqual(zodEnum.options);
+  });
+
+  // Values the database stores ahead of the contracts bump that lists them (contracts 1.5.1).
+  it.each([
+    [schema.entityTypeEnum, contracts.EntityType, ['account']],
+    [schema.auditActorKindEnum, contracts.AuditActorKind, ['OPERATOR']],
+  ] as const)('enum %# matches the contract plus its staged values', (pgEnum, zodEnum, ahead) => {
+    expect(pgEnum.enumValues).toEqual([...new Set([...zodEnum.options, ...ahead])]);
+  });
+
+  it.each([
+    [schema.accountKindEnum, contracts.AccountKind],
+    [schema.accountStatusEnum, contracts.AccountStatus],
+    [schema.supportAccessLevelEnum, contracts.SupportAccessLevel],
+    [schema.operatorAuditActionEnum, contracts.OperatorAuditAction],
+  ])('account enum %# matches the contract', (pgEnum, zodEnum) => {
     expect(pgEnum.enumValues).toEqual(zodEnum.options);
   });
 

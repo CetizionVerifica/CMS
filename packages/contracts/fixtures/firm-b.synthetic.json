@@ -18,7 +18,11 @@
       },
       "dueSoonDays": 7,
       "mfaRequiredForFirmRoles": true
-    }
+    },
+    "kind": "CONSULTANCY",
+    "status": "ACTIVE",
+    "planCode": "CONSULTANCY",
+    "trialEndsOn": null
   },
   "clients": [
     {

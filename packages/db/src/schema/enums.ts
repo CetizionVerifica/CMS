@@ -1,4 +1,6 @@
 import {
+  AccountKind,
+  AccountStatus,
   Applicability,
   AuditAction,
   AuditActorKind,
@@ -16,11 +18,13 @@ import {
   Jurisdiction,
   NotificationKind,
   ObligationDomain,
+  OperatorAuditAction,
   PersonStatus,
   Role,
   RuleStatus,
   ScanStatus,
   SubmissionKind,
+  SupportAccessLevel,
   TimelineType,
   WorkflowState,
 } from '@canopy/contracts';
@@ -50,8 +54,16 @@ export const ruleStatusEnum = pgEnum('rule_status', values(RuleStatus.options));
 export const scanStatusEnum = pgEnum('scan_status', values(ScanStatus.options));
 export const commentKindEnum = pgEnum('comment_kind', values(CommentKind.options));
 export const auditActionEnum = pgEnum('audit_action', values(AuditAction.options));
-export const auditActorKindEnum = pgEnum('audit_actor_kind', values(AuditActorKind.options));
-export const entityTypeEnum = pgEnum('entity_type', values(EntityType.options));
+// OPERATOR and account (operator actions in a customer's audit trail, ADR M15-0001 decision 12) arrive in the
+// database before the contracts list them; the Set keeps the order stable once they do (migration 0019).
+export const auditActorKindEnum = pgEnum(
+  'audit_actor_kind',
+  values([...new Set([...AuditActorKind.options, 'OPERATOR'] as const)]),
+);
+export const entityTypeEnum = pgEnum(
+  'entity_type',
+  values([...new Set([...EntityType.options, 'account'] as const)]),
+);
 export const importBatchStatusEnum = pgEnum(
   'import_batch_status',
   values(ImportBatchStatus.options),
@@ -69,3 +81,15 @@ export const notificationKindEnum = pgEnum(
 );
 export const exportKindEnum = pgEnum('export_kind', values(ExportKind.options));
 export const jobStatusEnum = pgEnum('job_status', values(JobStatus.options));
+
+// Customer accounts and the platform operator (ADR M15-0001).
+export const accountKindEnum = pgEnum('account_kind', values(AccountKind.options));
+export const accountStatusEnum = pgEnum('account_status', values(AccountStatus.options));
+export const supportAccessLevelEnum = pgEnum(
+  'support_access_level',
+  values(SupportAccessLevel.options),
+);
+export const operatorAuditActionEnum = pgEnum(
+  'operator_audit_action',
+  values(OperatorAuditAction.options),
+);

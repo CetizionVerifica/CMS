@@ -10,6 +10,7 @@ import {
   populateAuth,
   populateFirm,
   populateIdempotency,
+  populateSupport,
   type PopulatedFirm,
 } from './support/populate.js';
 import { TABLES, tenantColumn } from './support/tables.js';
@@ -44,6 +45,9 @@ const POPULATE: Record<string, (t: TestDatabase) => Promise<void>> = {
   '0015_idempotency_key_grants': async (t) => {
     for (const label of ['a', 'b'] as const)
       await populateIdempotency(t.db, populated[label]!, label);
+  },
+  '0020_platform_roles_and_functions': async (t) => {
+    for (const label of ['a', 'b'] as const) await populateSupport(t.db, populated[label]!, label);
   },
 };
 const populated: Record<string, PopulatedFirm> = {};
@@ -131,8 +135,14 @@ describe('migrations', () => {
     await server.query(
       `DO $$ BEGIN CREATE ROLE canopy_lookup NOLOGIN; EXCEPTION WHEN OTHERS THEN NULL; END $$`,
     );
+    for (const role of ['canopy_operator', 'canopy_platform']) {
+      await server.query(
+        `DO $$ BEGIN CREATE ROLE ${role} NOLOGIN; EXCEPTION WHEN OTHERS THEN NULL; END $$`,
+      );
+    }
+    // canopy_platform owns the account functions (migration 0020), so the owner must be able to SET ROLE to it.
     await server.query(
-      `CREATE ROLE ${owner} LOGIN NOSUPERUSER NOBYPASSRLS PASSWORD '${password}' IN ROLE canopy_app, canopy_lookup`,
+      `CREATE ROLE ${owner} LOGIN NOSUPERUSER NOBYPASSRLS PASSWORD '${password}' IN ROLE canopy_app, canopy_lookup, canopy_platform`,
     );
     // Functions with `SET app.all_clients` (migrations 0003, 0005) need this grant on a non-superuser.
     await server.query(`GRANT SET ON PARAMETER app.all_clients TO ${owner}`);

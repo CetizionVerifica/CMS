@@ -3,6 +3,7 @@
 import { randomUUID } from 'node:crypto';
 import type { z } from 'zod';
 import type { Invite } from '../api/auth.js';
+import type { SupportGrant } from '../schemas/accounts.js';
 import { CLIENT_ROLES, FIRM_ROLES, type Role } from '../enums.js';
 import { type FixtureSet as FixtureSetSchema } from '../fixtures/schema.js';
 import { loadFixtureSet } from '../fixtures/index.js';
@@ -39,6 +40,8 @@ export interface FirmState {
   exports: Plain<typeof ExportJob>[];
   /** Evidence confirmed through the mock whose scan finishes on the next read. */
   scanning: Set<string>;
+  /** PlanetPulse support access grants (M15). */
+  supportGrants: Plain<typeof SupportGrant>[];
 }
 
 /** How long a mock session reports it lasts. */
@@ -52,8 +55,10 @@ export interface Session {
   mfaSatisfied: boolean;
   /** Header sessions (`X-Mock-Person`) skip CSRF, for tests and scripts. */
   viaHeader: boolean;
-  /** Reported in `Me.session`; the mock does not end sessions. */
+  /** Reported in `Me.session`. The mock ends a session at this time only when `capped` (support sessions). */
   expiresAt: string;
+  /** Support sessions end at `expiresAt`: the earlier of 2 hours and the grant end. */
+  capped?: boolean;
 }
 
 /** An email the real API would send; the mock keeps it for `GET /__mock/outbox` instead. */
@@ -70,6 +75,8 @@ export class MockStore {
   magicLinks = new Map<string, { firmId: string; personId: string }>();
   idempotency = new Map<string, { status: number; body: unknown }>();
   outbox: OutboxMessage[] = [];
+  /** One-time support-session tokens from `POST /__mock/support-sessions/{grantId}`, each valid until `expiresAt`. */
+  supportTokens = new Map<string, { firmId: string; grantId: string; expiresAt: string }>();
   private sequence = 0;
 
   constructor(
@@ -91,11 +98,13 @@ export class MockStore {
       mappingTemplates: [],
       exports: [],
       scanning: new Set(),
+      supportGrants: [],
     }));
     this.sessions.clear();
     this.magicLinks.clear();
     this.idempotency.clear();
     this.outbox = [];
+    this.supportTokens.clear();
     this.sequence = 0;
   }
 
@@ -116,12 +125,17 @@ export class MockStore {
     return firm;
   }
 
-  /** Every person with this email, across firms (emails are unique per firm). */
+  /**
+   * Every person with this email, across firms (emails are unique per firm). Support people never match, so they get
+   * no password sign-in, magic link or firm choice (ADR M15-0001 decision 11).
+   */
   findByEmail(email: string): { firm: FirmState; person: PersonRecord }[] {
     const wanted = email.toLowerCase();
     return this.firms.flatMap((firm) =>
       firm.data.people
-        .filter((p) => p.archivedAt === null && p.email?.toLowerCase() === wanted)
+        .filter(
+          (p) => p.archivedAt === null && p.support !== true && p.email?.toLowerCase() === wanted,
+        )
         .map((person) => ({ firm, person })),
     );
   }

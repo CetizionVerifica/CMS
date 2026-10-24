@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
-import Fastify, { type FastifyInstance, type FastifyServerOptions } from 'fastify';
+import { isIP } from 'node:net';
+import Fastify, { type FastifyInstance } from 'fastify';
 import type { Database } from '@canopy/db';
 import {
   redactUrl,
@@ -35,8 +36,8 @@ export interface ServerOptions {
   readonly authSecretKey?: string;
   readonly clock?: () => Date;
   readonly rateLimit?: AuthOptions['rateLimit'];
-  /** Fastify `trustProxy`: set behind a load balancer so rate limits see the client IP. Default `TRUST_PROXY`. */
-  readonly trustProxy?: FastifyServerOptions['trustProxy'];
+  /** Proxy addresses or CIDRs whose `X-Forwarded-For` rate limits trust (`false`: none). Default `TRUST_PROXY`. */
+  readonly trustProxy?: string[] | false;
   /**
    * M10 dashboards and reports. main.ts wires the Postgres store (and S3 export files when configured); without
    * them the default store is empty and exports stay in memory.
@@ -63,11 +64,38 @@ const NO_SESSIONS: AuthStore = {
   clientTimeZone: async () => null,
 };
 
-/** `TRUST_PROXY`: "true", or a comma-separated list of proxy addresses or CIDRs. Unset: false. */
-export function trustProxyFromEnv(value: string | undefined): FastifyServerOptions['trustProxy'] {
-  if (value === undefined || value === '' || value === 'false') return false;
-  if (value === 'true') return true;
-  return value;
+/**
+ * `TRUST_PROXY`: a comma-separated list of the load balancers' addresses or CIDRs. Unset or "false": no proxy is
+ * trusted. "true" is refused: Fastify would then take the leftmost `X-Forwarded-For` entry, which the browser
+ * writes, so anyone could pick the address that per-IP sign-in limits count. So is a CIDR wider than /8, which
+ * would trust most of the internet the same way (0.0.0.0/1 and 128.0.0.0/1 together are everyone).
+ */
+export function trustProxyFromEnv(value: string | undefined): string[] | false {
+  if (value === undefined || value.trim() === '' || value.trim() === 'false') return false;
+  const entries = value.split(',').map((entry) => entry.trim());
+  for (const entry of entries) {
+    if (!isProxyAddress(entry)) {
+      throw new Error(
+        `TRUST_PROXY must list proxy addresses or CIDRs no wider than /8 (for example 10.0.0.0/8), not ${JSON.stringify(entry)}`,
+      );
+    }
+  }
+  return entries;
+}
+
+/** The widest proxy range accepted: 10.0.0.0/8 or fd00::/8. */
+const MIN_PROXY_PREFIX = 8;
+
+function isProxyAddress(entry: string): boolean {
+  const [address = '', prefix, ...rest] = entry.split('/');
+  const version = isIP(address);
+  if (version === 0 || rest.length > 0) return false;
+  if (prefix === undefined) return true;
+  return (
+    /^\d{1,3}$/.test(prefix) &&
+    Number(prefix) >= MIN_PROXY_PREFIX &&
+    Number(prefix) <= (version === 4 ? 32 : 128)
+  );
 }
 
 // Builds the app without listening, so tests can use `app.inject`.

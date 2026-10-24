@@ -249,8 +249,8 @@ export const mockFetch: typeof fetch = async (input, init) => {
         return fail(401, 'UNAUTHENTICATED', 'Email or password is incorrect.');
       }
     }
-    const mfa = !isFirmUser(found);
-    return json(200, meBody(found, mfa), sessionCookie(`${found.person.id}.${mfa ? 1 : 0}`));
+    // As the API: signing in never passes MFA; only firm users then owe the verify step.
+    return json(200, meBody(found, false), sessionCookie(`${found.person.id}.0`));
   }
   if (method === 'POST' && path === '/auth/magic-link') return json(202, null);
   if (method === 'POST' && path === '/auth/magic-link/verify') {
@@ -279,7 +279,7 @@ export const mockFetch: typeof fetch = async (input, init) => {
       }
       // Signs in as the owner account so the journey can continue into the shell.
       const owner = MOCK_USERS[2]!;
-      return json(200, meBody(owner, true), sessionCookie(`${owner.person.id}.1`));
+      return json(200, meBody(owner, false), sessionCookie(`${owner.person.id}.0`));
     }
   }
 

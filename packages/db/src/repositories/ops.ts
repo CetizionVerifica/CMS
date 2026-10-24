@@ -23,6 +23,8 @@ export const NewDomainEvent = z.strictObject({
     z.strictObject({ kind: z.literal('PERSON'), personId: Id }),
     z.strictObject({ kind: z.literal('SYSTEM'), job: z.string().min(1) }),
     z.strictObject({ kind: z.literal('IMPORT'), batchId: Id }),
+    // The operator console (ADR M15-0001 decision 12; events.md, contracts 1.5.0).
+    z.strictObject({ kind: z.literal('OPERATOR'), operatorId: Id }),
   ]),
   requestId: z.string().min(1).max(200),
   aggregate: z.strictObject({ type: z.string().min(1), id: Id }),

@@ -117,7 +117,7 @@ describe('API client against the mock', () => {
 });
 
 describe('API client transport', () => {
-  it('sends cookie, request id and CSRF headers, and the /api/v1 prefix', async () => {
+  it('sends cookie, request id, forwarded-for and CSRF headers, and the /api/v1 prefix', async () => {
     const fetchSpy = vi.fn(async () => new Response(null, { status: 204 }));
     const client = createApiClient({
       baseUrl: 'http://api.test',
@@ -125,6 +125,7 @@ describe('API client transport', () => {
       cookie: 'pp_session=x',
       csrfToken: 'csrf-token-0123456789',
       requestId: 'req-1',
+      forwardedFor: '203.0.113.7, 10.0.0.2',
     });
     await client.logout();
     const [url, init] = fetchSpy.mock.calls[0] as unknown as [string, RequestInit];
@@ -132,6 +133,7 @@ describe('API client transport', () => {
     expect(init.headers).toMatchObject({
       cookie: 'pp_session=x',
       'x-request-id': 'req-1',
+      'x-forwarded-for': '203.0.113.7, 10.0.0.2',
       'x-csrf-token': 'csrf-token-0123456789',
     });
     await client.requestMagicLink('a@b.test');

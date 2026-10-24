@@ -358,6 +358,7 @@ test.describe('register at 375px on a phone', () => {
   test('shows the approvals inbox', async ({ page }) => {
     await signIn(page, 'approver@demo.test', APPROVALS);
     await expect(page.getByRole('heading', { level: 1, name: 'Approvals' })).toBeVisible();
+    await settled(page);
     await checkPage(page);
   });
 });

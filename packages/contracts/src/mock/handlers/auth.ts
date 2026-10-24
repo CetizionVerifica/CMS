@@ -67,7 +67,7 @@ function clientSummary(actor: Actor, client: FirmState['data']['clients'][number
   };
 }
 
-function me(
+export function me(
   firm: FirmState,
   person: PersonRecord,
   session: Session,
@@ -86,6 +86,11 @@ function me(
     // Firm-role people in the fixtures count as enrolled, so sign-in goes straight to the code step.
     mfa: { required: firmRole, enrolled: firmRole, satisfied: session.mfaSatisfied },
     session: { expiresAt: session.expiresAt },
+    account: {
+      kind: firm.data.firm.kind ?? 'CONSULTANCY',
+      status: firm.data.firm.status ?? 'ACTIVE',
+      trialEndsOn: firm.data.firm.trialEndsOn ?? null,
+    },
   };
 }
 
@@ -200,6 +205,14 @@ export const authHandlers: PartialHandlers<
       });
     }
     const people = actor.firm.data.people;
+    // The support person cannot be invited, by id or by its email (ADR M15-0001 decision 11).
+    const support = people.find((p) => p.support === true);
+    if (
+      support !== undefined &&
+      (body.personId === support.id || support.email?.toLowerCase() === body.email.toLowerCase())
+    ) {
+      throw notFound();
+    }
     const sameEmail = people.find(
       (p) => p.email?.toLowerCase() === body.email.toLowerCase() && p.id !== body.personId,
     );

@@ -20,15 +20,15 @@ const detail = tolerant(ENDPOINTS.getInstance.response).parse(await response.jso
 | `src/enums.ts` | Every enum in `docs/contracts/domain-model.md` §2, plus `IMPORT_ISSUE_SEVERITY`, `FIRM_ROLES`, `CLIENT_ROLES` |
 | `src/errors.ts` | `ErrorCode`, `ERROR_HTTP_STATUS`, `ErrorEnvelope` |
 | `src/defaults.ts` | `DEFAULT_FIRM_SETTINGS`, `DEFAULT_CLIENT_SETTINGS` (PLAN.md §7) |
-| `src/schemas/*` | Entity schemas: tenancy, library (incl. `RecurrenceRule`), work, import, scores, request context |
+| `src/schemas/*` | Entity schemas: tenancy, library (incl. `RecurrenceRule`), work, import, scores, request context, accounts (plans, support grants, operator audit) |
 | `src/engine-api.ts` | Signatures M4 implements (`EngineApi`) |
-| `src/api/endpoints.ts` | `ENDPOINTS`: every endpoint with method, path, `can()` actions, role access and schemas |
+| `src/api/endpoints.ts` | `ENDPOINTS`: every endpoint with method, path, `can()` actions, role access and schemas; `PLATFORM_ENDPOINTS`: the operator API under `/api/platform/v1` |
 | `src/api/can.ts` | `can()`: the stub policy from the `ENDPOINTS` role matrix, until M5's lands |
 | `src/api/{auth,entities,workflow,imports,dashboards}.ts` | Request bodies, query schemas and response shapes per provider module |
 | `src/api/common.ts` | Pagination, sorting, comma lists, `page()`, `list()`, bulk results, signed URLs |
 | `src/api/tolerant.ts` | `tolerant(schema)`: the schema clients parse responses with |
 | `src/api/error-details.ts` | `ERROR_DETAILS` per error code and `ApiErrorResponse` |
-| `src/api/openapi.ts` | `buildOpenApi()`; `pnpm --filter @canopy/contracts openapi` writes `docs/contracts/openapi.json` |
+| `src/api/openapi.ts` | `buildOpenApi()` and `buildPlatformOpenApi()`; `pnpm --filter @canopy/contracts openapi` writes `docs/contracts/openapi.json` and `openapi.platform.json` |
 | `src/fixtures/schema.ts` | `FixtureSet`, `DueDatesFixture`, `ExpectedFixture` |
 | `src/fixtures/index.ts` | Node entry `@canopy/contracts/fixtures`: `fixtureId`, `uuidV5`, `loadFixtureSet`, `loadDueDates`, `loadExpected` |
 | `fixtures/*.json` | Generated fixtures (`docs/contracts/fixtures.md`); do not edit by hand |

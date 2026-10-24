@@ -83,3 +83,23 @@ fixture test now cover the company's site names as well as its organisation name
 For M11 and M13: `FIRM_B_AS_OF` (2024-11-15) names firm B's "today". Nothing in its data happens after it, and a mock
 serving firm B should pin `today` to it. With an earlier date the demo showed "No items due" next to complied
 counts, and its FY 2022-23 periods held no firm B items (fixtures.md §6). Additive; no schema change.
+
+## 1.5.0 · 2026-10-24
+For M15 (company accounts, ADR M15-0001); additive. Enums `AccountKind`, `AccountStatus` (with `ACCOUNT_TRANSITIONS`,
+`canMoveAccount`, `WORKING_ACCOUNT_STATUSES`, `EXPORT_ACCOUNT_STATUSES`), `PlanLimitKey`, `SupportAccessLevel`,
+`SupportGrantStatus`, `OperatorAuditAction`; primitives `Email`, `PlanCode`, `Gstin`; schemas `Plan`, `PlanLimits`,
+`AccountOverride`, `Entitlements`, `Usage`, `AccountSummary`, `Subscription`, `UsageSnapshot`, `PlatformOperator`,
+`OperatorAuditEvent`, `SupportGrant`, `AccountProfile`, `Account` (domain-model.md §9); account defaults
+(`DEFAULT_TRIAL_DAYS` and others, `DEFAULT_ACCOUNT`). `Firm` gains `kind`, `status`, `planCode`, `trialEndsOn`, each
+with a default; `Me` gains optional `account`. Error codes `ACCOUNT_SUSPENDED` and `PLAN_LIMIT_REACHED` (403);
+`INVALID_TRANSITION.details` may be `{ from, to }` for an account move. Customer routes `GET /account`,
+`GET|POST /account/support-grants`, `POST /account/support-grants/{id}/revoke` (M15) and
+`POST /auth/support/verify` (M5); the operator table `PLATFORM_ENDPOINTS` (endpoints.md §9) and
+`docs/contracts/openapi.platform.json`. Events `account.*` and `support_access.*` with the `OPERATOR` event actor.
+After the 1.5.0 audit: `Account` carries no owner name or email, and the operator's
+`GET /accounts/{id}/support-grants` returns `OperatorSupportGrant` (no person ids), per ADR M15-0001 decision 8.
+`ACCOUNT_TRANSITIONS` follows decision 3 exactly (no TRIAL → PENDING_DELETION, no cancel back to TRIAL);
+`AccountStatusBody.to` is `ACTIVE | SUSPENDED`, and a trial extension is `POST /accounts/{id}/trial`
+(`AccountTrialBody`). `Person.support` (optional) marks the support person; `SUPPORT_TOKEN_SECONDS` is 60.
+`UsageQuery` and `OperatorAuditQuery` refuse `to` before `from`.
+Fixtures: the firm rows carry the account defaults. README decision 39.

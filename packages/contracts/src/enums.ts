@@ -282,3 +282,84 @@ export type CanopyField = z.infer<typeof CanopyField>;
 
 export const BreakdownBy = z.enum(['department', 'act', 'criticality', 'unit', 'owner']);
 export type BreakdownBy = z.infer<typeof BreakdownBy>;
+
+/** Customer accounts (ADR M15-0001). An account is a firm. */
+export const AccountKind = z.enum(['ENTERPRISE', 'CONSULTANCY']);
+export type AccountKind = z.infer<typeof AccountKind>;
+
+export const AccountStatus = z.enum([
+  'PROVISIONING',
+  'TRIAL',
+  'ACTIVE',
+  'SUSPENDED',
+  'PENDING_DELETION',
+  'DELETED',
+]);
+export type AccountStatus = z.infer<typeof AccountStatus>;
+
+/** Statuses in which everyone in the account can work and jobs run. */
+export const WORKING_ACCOUNT_STATUSES = [
+  'TRIAL',
+  'ACTIVE',
+] as const satisfies readonly AccountStatus[];
+
+/**
+ * Statuses in which only account admins may sign in, to read `/me` and download the account export (the plan's
+ * default: a SUSPENDED account signs nobody in). ADR M15-0001 decision 4.
+ */
+export const EXPORT_ACCOUNT_STATUSES = [
+  'PENDING_DELETION',
+] as const satisfies readonly AccountStatus[];
+
+/**
+ * Every allowed account status move (ADR M15-0001 decision 3). Only `ACTIVE` and `SUSPENDED` accounts can be put up for
+ * deletion, so `PENDING_DELETION` → `ACTIVE | SUSPENDED` is a cancelled deletion returning to the status it left.
+ * Extending a trial changes `trialEndsOn`, not the status (`POST /accounts/{id}/trial`, TRIAL accounts only). Anything
+ * else is 409 INVALID_TRANSITION.
+ */
+export const ACCOUNT_TRANSITIONS = {
+  PROVISIONING: ['TRIAL', 'ACTIVE'],
+  TRIAL: ['ACTIVE', 'SUSPENDED'],
+  ACTIVE: ['SUSPENDED', 'PENDING_DELETION'],
+  SUSPENDED: ['ACTIVE', 'PENDING_DELETION'],
+  PENDING_DELETION: ['ACTIVE', 'SUSPENDED', 'DELETED'],
+  DELETED: [],
+} as const satisfies Record<AccountStatus, readonly AccountStatus[]>;
+
+/** True when an account may move from `from` to `to`. */
+export function canMoveAccount(from: AccountStatus, to: AccountStatus): boolean {
+  return (ACCOUNT_TRANSITIONS[from] as readonly AccountStatus[]).includes(to);
+}
+
+/** Plan limits counted by `entitlements()` (ADR M15-0001 decision 5). */
+export const PlanLimitKey = z.enum(['companies', 'units', 'users', 'storageBytes']);
+export type PlanLimitKey = z.infer<typeof PlanLimitKey>;
+
+/** How much of an account PlanetPulse support may reach under a grant (ADR M15-0001 decision 11). */
+export const SupportAccessLevel = z.enum(['READ_ONLY', 'ADMIN']);
+export type SupportAccessLevel = z.infer<typeof SupportAccessLevel>;
+
+export const SupportGrantStatus = z.enum(['ACTIVE', 'EXPIRED', 'REVOKED']);
+export type SupportGrantStatus = z.infer<typeof SupportGrantStatus>;
+
+/** Operator audit actions (ADR M15-0001 decision 12). */
+export const OperatorAuditAction = z.enum([
+  'OPERATOR_LOGIN',
+  'ACCOUNT_CREATE',
+  'OWNER_INVITE_SEND',
+  'ACCOUNT_ACTIVATE',
+  'ACCOUNT_SUSPEND',
+  'ACCOUNT_RESUME',
+  'TRIAL_CONVERT',
+  'TRIAL_EXTEND',
+  'ACCOUNT_UPDATE',
+  'PLAN_CHANGE',
+  'OVERRIDE_CHANGE',
+  'SUBSCRIPTION_RECORD',
+  'ACCOUNT_DELETE_REQUEST',
+  'ACCOUNT_DELETE_CANCEL',
+  'ACCOUNT_PURGE',
+  'SUPPORT_ACCESS_START',
+  'SUPPORT_ACCESS_END',
+]);
+export type OperatorAuditAction = z.infer<typeof OperatorAuditAction>;

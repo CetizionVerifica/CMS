@@ -15,10 +15,20 @@ const endpoints = Object.entries(ENDPOINTS) as [string, Endpoint][];
 const committed = JSON.parse(
   readFileSync(new URL('../../../docs/contracts/openapi.json', import.meta.url), 'utf8'),
 ) as unknown;
-const endpointsMd = readFileSync(
+const [endpointsMd = ''] = readFileSync(
   new URL('../../../docs/contracts/endpoints.md', import.meta.url),
   'utf8',
-);
+).split(/^## 9\. /m);
+
+/** The paths in the table rows of a slice of endpoints.md. */
+function documentedPaths(markdown: string): Set<string> {
+  const rows = markdown.split('\n').filter((line) => /^\| (GET|POST|PUT|PATCH)\b/.test(line));
+  return new Set(
+    rows.flatMap((row) =>
+      [...row.matchAll(/`(\/[a-z][\w\-/{}]*)`/g)].map((match) => match[1] as string),
+    ),
+  );
+}
 
 describe('OpenAPI document', () => {
   const doc = buildOpenApi();
@@ -81,12 +91,7 @@ describe('endpoint table', () => {
   });
 
   it('lists the same paths as endpoints.md', () => {
-    const rows = endpointsMd.split('\n').filter((line) => /^\| (GET|POST|PUT|PATCH)\b/.test(line));
-    const documented = new Set(
-      rows.flatMap((row) =>
-        [...row.matchAll(/`(\/[a-z][\w\-/{}]*)`/g)].map((match) => match[1] as string),
-      ),
-    );
+    const documented = documentedPaths(endpointsMd);
     const coded = new Set(endpoints.map(([, ep]) => ep.path));
     expect([...coded].filter((path) => !documented.has(path))).toEqual([]);
     expect([...documented].filter((path) => !coded.has(path))).toEqual([]);
@@ -123,7 +128,7 @@ describe('endpoint table', () => {
     }
   });
 
-  it('honours Idempotency-Key on transitions, bulk approve, import commit and export creation', () => {
+  it('honours Idempotency-Key on transitions, bulk approve, import commit, export creation and support grants', () => {
     const idempotent = endpoints.filter(([, ep]) => ep.idempotent).map(([id]) => id);
     expect(idempotent.sort()).toEqual(
       [
@@ -131,6 +136,7 @@ describe('endpoint table', () => {
         'bulkApprove',
         'commitImport',
         'createExport',
+        'createSupportGrant',
         'reopenInstance',
         'requestNa',
         'sendBackInstance',

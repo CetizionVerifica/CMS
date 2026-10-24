@@ -21,7 +21,11 @@ import type {
   ScanStatus,
   TimelineType,
 } from './types.js';
-import { DEFAULT_CLIENT_SETTINGS, DEFAULT_FIRM_SETTINGS } from '../../src/index.js';
+import {
+  DEFAULT_ACCOUNT,
+  DEFAULT_CLIENT_SETTINGS,
+  DEFAULT_FIRM_SETTINGS,
+} from '../../src/index.js';
 import { fixtureId } from '../../src/fixtures/index.js';
 import { addDays, type Period, periodsIn } from '../../src/mock/periods.js';
 
@@ -835,6 +839,7 @@ export function buildFirmB(): FixtureSet {
       id: firmId,
       name: 'Second Ledger Consulting',
       settings: DEFAULT_FIRM_SETTINGS,
+      ...DEFAULT_ACCOUNT,
     },
     clients,
     companies,
