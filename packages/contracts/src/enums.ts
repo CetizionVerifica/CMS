@@ -219,6 +219,11 @@ export const NotificationKind = z.enum([
   'APPROVAL_REQUESTED',
   /** To the owner, on `instance.sent_back`. Event-driven: dedupes on the source event id. */
   'SENT_BACK',
+  /**
+   * To each account admin of a TRIAL account, 7 days and 1 day before its trial ends (ADR M15-0001 decision 4).
+   * Scheduled, with no instance: dedupes on recipient, kind and send date, as `CONSULTANT_DIGEST` does.
+   */
+  'TRIAL_ENDING',
 ]);
 export type NotificationKind = z.infer<typeof NotificationKind>;
 

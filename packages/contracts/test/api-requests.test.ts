@@ -361,6 +361,23 @@ describe('import bodies', () => {
     const result = ExportCreateBody.safeParse({ ...body, filters: 'status=LATE_ISH' });
     expect(result.error?.issues[0]?.path).toEqual(['filters', 'status', 0]);
   });
+
+  it('refuses a scope on the client archive, which is the whole register', () => {
+    const body = { kind: 'CLIENT_ARCHIVE_ZIP' };
+    expect(ok(ExportCreateBody, body)).toBe(true);
+    expect(ok(ExportCreateBody, { ...body, filters: '' })).toBe(true);
+    for (const extra of [
+      { filters: 'status=OVERDUE' },
+      { unitId: '11111111-1111-4111-8111-111111111111' },
+      { fy: '2025-26' },
+    ]) {
+      const result = ExportCreateBody.safeParse({ ...body, ...extra });
+      expect(result.error?.issues.map((i) => i.path)).toEqual([Object.keys(extra)]);
+    }
+    expect(
+      ok(ExportCreateBody, { kind: 'REGISTER_XLSX', fy: '2025-26', filters: 'status=OVERDUE' }),
+    ).toBe(true);
+  });
 });
 
 describe('responses', () => {
