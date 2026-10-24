@@ -21,7 +21,13 @@ import {
   type LoginTokenKind,
   type NewSession,
 } from './accounts.js';
-import { buildRequestContext, mfaRequired, type Principal, type SessionRecord } from './context.js';
+import {
+  activeMemberships,
+  buildRequestContext,
+  mfaRequired,
+  type Principal,
+  type SessionRecord,
+} from './context.js';
 import { ApiError } from './errors.js';
 import { hashPassword, verifyAgainstDummy, verifyPassword } from './passwords.js';
 import { can, canGrantRole } from './policy.js';
@@ -130,19 +136,32 @@ export class AuthService {
     return this.startSession(person.firmId, person.personId, 'PASSWORD', requestId);
   }
 
-  /** Always succeeds, so it reveals nothing; ACTIVE people with the email get a link (sent by M9). */
+  /**
+   * Always succeeds, so it reveals nothing; ACTIVE people with the email get a link (sent by M9). While the account
+   * is PENDING_DELETION only its account admins can sign in, so only they get one.
+   */
   async requestMagicLink(email: string, requestId: string): Promise<void> {
     const candidates = await this.store.findLoginCandidates(email);
-    const now = this.clock().getTime();
+    const at = this.clock();
+    const now = at.getTime();
     for (const c of candidates.filter(
       (x) => x.status === 'ACTIVE' && signInStatuses.includes(x.accountStatus),
     )) {
+      if (!working.includes(c.accountStatus) && !(await this.isAccountAdmin(c, at))) continue;
       const key = `${c.firmId}/${c.personId}`;
       const last = this.magicLinks.get(key);
       if (last !== undefined && now - last < MAGIC_LINK_INTERVAL_SECONDS * 1000) continue;
       remember(this.magicLinks, key, now);
       await this.store.requestMagicLink(c.firmId, c.personId, requestId);
     }
+  }
+
+  private async isAccountAdmin(c: LoginCandidate, now: Date): Promise<boolean> {
+    const principal = await this.store.loadPrincipal(c.firmId, c.personId);
+    return (
+      principal !== null &&
+      activeMemberships(principal.memberships, now).some((m) => m.role === 'FIRM_ADMIN')
+    );
   }
 
   /**
@@ -282,9 +301,8 @@ export class AuthService {
   async invite(ctx: RequestContext, body: InviteBody, requestId: string): Promise<Invite> {
     const { personId, displayName, email, ...grant } = body;
     this.authorizeGrant(ctx, grant);
-    let invitee: Awaited<ReturnType<AccountStore['findInvitee']>> = null;
     if (personId !== undefined) {
-      invitee = await this.store.findInvitee(ctx.firmId, personId, this.clock());
+      const invitee = await this.store.findInvitee(ctx.firmId, personId, this.clock());
       // Claiming the account brings every role the person holds, so the inviter must be able to grant each one;
       // otherwise the person is outside their scope and reads as not found.
       // The PlanetPulse support person gets access only from a support grant (ADR M15-0001 decision 11).
@@ -310,18 +328,6 @@ export class AuthService {
         { field: 'email', existingId: owner },
         'Someone in this firm already has this email.',
       );
-    }
-    // An invite holds a seat: someone new (or imported, so not yet counted) must fit the plan's user limit.
-    if (personId === undefined || invitee?.status === 'UNCLAIMED') {
-      const account = await this.store.account(ctx.firmId);
-      const max = account?.entitlements.limits.users ?? null;
-      if (account && max !== null && account.usage.users >= max) {
-        throw new ApiError(
-          'PLAN_LIMIT_REACHED',
-          { limit: 'users', max, used: account.usage.users },
-          `Your plan allows ${max} users. Contact PlanetPulse to upgrade.`,
-        );
-      }
     }
     const now = this.clock();
     const record = await this.store.createInvite({

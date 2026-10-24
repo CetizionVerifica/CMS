@@ -9,6 +9,7 @@ import type {
   Role,
 } from '@canopy/contracts';
 import type { AuthStore, SessionRecord } from './context.js';
+import { ApiError } from './errors.js';
 
 /**
  * Storage for sign-in, MFA and invites (M5 PR 2). The database adapter on M3's repositories implements it;
@@ -75,6 +76,10 @@ export interface AccountStore extends AuthStore {
    * Records the invite, sets the person INVITED with the email (creating them first when `personId` is null),
    * revokes earlier pending invites for the person. Audit: `CREATE` on a new person, `UPDATE` on an existing
    * one. Outbox: `person.invited { personId, inviteId, role, clientId }`.
+   * An invite holds a seat: when it adds one to the account's user count past the plan's limit, it throws
+   * PLAN_LIMIT_REACHED `{ limit: 'users', max, used }` and changes nothing. The count is read in the same
+   * transaction as the insert, so someone not yet counted (new, imported, or with only an expired invite) is
+   * always checked and someone already counted never is.
    */
   createInvite(invite: NewInvite): Promise<InviteRecord>;
   findInvite(firmId: string, inviteId: string): Promise<InviteRecord | null>;
@@ -93,6 +98,15 @@ export interface AccountStore extends AuthStore {
    * `MEMBERSHIP_CHANGE`. Outbox: `person.claimed` and `membership.changed` (GRANTED).
    */
   acceptInvite(accept: AcceptInvite): Promise<boolean>;
+}
+
+/** What `createInvite` throws when the invite would take the account past its plan's user limit. */
+export function userLimitReached(max: number, used: number): ApiError {
+  return new ApiError(
+    'PLAN_LIMIT_REACHED',
+    { limit: 'users', max, used },
+    `Your plan allows ${max} users. Contact PlanetPulse to upgrade.`,
+  );
 }
 
 export const LOCKOUT = { attempts: 10, minutes: 15 } as const;

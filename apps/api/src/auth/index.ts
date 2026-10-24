@@ -29,9 +29,11 @@ export {
   type RouteAuth,
 } from './plugin.js';
 export * from './accounts.js';
-export { hashPassword, verifyPassword } from './passwords.js';
+export { hashPassword, verifyAgainstDummy, verifyPassword } from './passwords.js';
 export { SecretBox } from './secretbox.js';
-export { redactUrl } from './tokens.js';
+export { hashToken, newToken, redactUrl, sameToken } from './tokens.js';
+// The operator console (M15) signs in with the same scrypt, TOTP and secret box (ADR M15-0001 decision 9).
+export { newTotpSecret, otpauthUri, verifyTotp } from './totp.js';
 export { isSupportSession, sessionOf } from './plugin.js';
 export { AuthService, type IssuedSession } from './service.js';
 export { registerAuthRoutes, type AuthRoutesOptions } from './routes.js';

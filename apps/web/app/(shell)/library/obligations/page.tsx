@@ -4,6 +4,7 @@ import type { Metadata } from 'next';
 import NextLink from 'next/link';
 
 import { isApiError } from '../../../../lib/api/client';
+import { redirectIfSignedOut } from '../../c/[clientId]/overview/signed-out';
 import { serverApi } from '../../../../lib/api/server';
 import { NoPermission, PageEmpty, PageHeader } from '../../../../lib/patterns';
 import { homeHref } from '../../../../lib/shell/model';
@@ -50,6 +51,7 @@ export default async function ObligationsPage({ searchParams }: Props) {
       loadAllActs(api),
     ]);
   } catch (error) {
+    await redirectIfSignedOut(error);
     if (isApiError(error, 'FORBIDDEN', 'ACCESS_EXPIRED')) {
       const model = await loadShell();
       return <NoPermission what="the library" backHref={homeHref(model)} backLabel="Go to home" />;

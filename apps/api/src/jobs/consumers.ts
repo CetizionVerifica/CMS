@@ -2,6 +2,7 @@ import { Id } from '@canopy/contracts';
 import { z } from 'zod';
 import { generateForScope, type GenerationScope } from './generate-instances.js';
 import type { JobDeps, JobReport, OutboxEvent } from './ports.js';
+import { ACCOUNT_CONSUMERS } from './account-setup.js';
 import { LOGIN_EMAIL_CONSUMERS } from './login-emails.js';
 import { WORKFLOW_EMAIL_CONSUMERS } from './workflow-emails.js';
 
@@ -60,7 +61,8 @@ const assignmentConsumer = (type: string): Consumer => ({
  * Regeneration on change (apps/api/CLAUDE.md Jobs): a new or changed assignment, a new applicability, a library
  * rule pushed to clients and a committed import each get their current and next FY now. Generation only adds
  * missing periods; it never moves or removes an existing instance. Submissions and send-backs email the person
- * whose turn it is (workflow-emails.ts); sign-in link requests and invites get their email (login-emails.ts).
+ * whose turn it is (workflow-emails.ts); sign-in link requests and invites get their email (login-emails.ts). A new
+ * account gets its copy of the master library (account-setup.ts).
  */
 export const CONSUMERS: readonly Consumer[] = [
   assignmentConsumer('assignment.created'),
@@ -93,4 +95,19 @@ export const CONSUMERS: readonly Consumer[] = [
   },
   ...WORKFLOW_EMAIL_CONSUMERS,
   ...LOGIN_EMAIL_CONSUMERS,
+  ...ACCOUNT_CONSUMERS,
 ];
+
+/**
+ * The consumers this process registers. Without a mail transport the ones that send are left off, and without M5's
+ * issuer the sign-in emails: their events are marked relayed, and nothing is claimed that could never be done. The
+ * library copy is never left off, since a new account must get its library: without M6's copier it throws and is
+ * retried.
+ */
+export function activeConsumers(deps: JobDeps, mail: boolean): Consumer[] {
+  return CONSUMERS.filter(
+    (consumer) =>
+      (mail || !consumer.sendsMail) &&
+      (deps.issueLoginToken !== undefined || !consumer.needsLoginTokens),
+  );
+}

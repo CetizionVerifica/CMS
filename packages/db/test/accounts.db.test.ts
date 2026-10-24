@@ -256,6 +256,32 @@ describe('the app’s own account', () => {
     expect(usage).toMatchObject({ companies: 2, units: 2 });
   });
 
+  it('serialises usage checks per firm with lockUsage, and leaves other firms alone', async () => {
+    const order: string[] = [];
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => (release = resolve));
+    let locked!: () => void;
+    const lockTaken = new Promise<void>((resolve) => (locked = resolve));
+    const first = inFirm(a.firmId, async (tx) => {
+      await r.account.lockUsage(tx);
+      locked();
+      await held;
+      order.push('first done');
+    });
+    await lockTaken;
+    const second = inFirm(a.firmId, async (tx) => {
+      await r.account.lockUsage(tx);
+      order.push('second locked');
+    });
+    // Another firm's lock is a different key, so it does not wait.
+    await inFirm(b.firmId, (tx) => r.account.lockUsage(tx));
+    order.push('other firm locked');
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    release();
+    await Promise.all([first, second]);
+    expect(order).toEqual(['other firm locked', 'first done', 'second locked']);
+  });
+
   it('lays the account override over the plan', async () => {
     await asOperator(async (tx) => {
       const current = (await r.platformAccounts.get(tx, a.firmId))!;

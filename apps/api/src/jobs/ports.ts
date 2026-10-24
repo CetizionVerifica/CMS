@@ -139,6 +139,15 @@ export type LoginTokenIssuer = (input: {
 }) => Promise<{ token: string; expiresAt: string }>;
 
 /**
+ * M6's `copyMasterLibrary`: copies the master library into a new account in its own system context and records the
+ * copy, once (ADR M15-0001 decision 8, ADR M6-0001). `copied` is false when it was already copied.
+ */
+export type LibraryCopier = (
+  accountId: Id,
+  requestId: string,
+) => Promise<{ copied: boolean; categories: number; acts: number; obligations: number }>;
+
+/**
  * Dedupe key of the send log. Scheduled sends are unique per instance, kind, send date and recipient (digests:
  * recipient, kind, date). Event-driven sends carry the domain event's id and are unique per event and recipient
  * whatever the date (events.md §4 rule 4, `EVENT_NOTIFICATION_DEDUPE_KEY`; ADR M9-0001 §13), so a second send-back on the same day is its own email.
@@ -362,6 +371,8 @@ export interface JobDeps {
   /** The evidence scan job runs only with both. */
   scanner?: Scanner;
   evidenceObjects?: EvidenceObjects;
+  /** Needed by the `account.created` consumer, which throws without it. */
+  copyLibrary?: LibraryCopier;
 }
 
 /** What every job returns, for logs and tests. Counts only; no names or addresses. */
