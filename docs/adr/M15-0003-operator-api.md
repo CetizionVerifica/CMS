@@ -1,11 +1,13 @@
 # ADR M15-0003: The operator API
 
 ## Context
+
 ADR M15-0001 decides what the PlanetPulse operator can do to an account; M0 1.5.0 gives the routes
 (`PLATFORM_ENDPOINTS`) and M3 the storage (ADR M3-0002). This ADR records the choices the API makes inside
 `apps/api/src/platform/` that neither of those fixes.
 
 ## Decisions
+
 1. **One mount, its own session.** Every operator route lives under `/api/platform/v1`, behind the IP allowlist (an
    address outside it answers `404`, so the console is not discoverable) and the `op_sid` cookie (path `/api/platform`,
    `HttpOnly`, `Secure`, `SameSite=Strict`). Sessions end 8 hours after sign-in or after 30 idle minutes; an idle
@@ -13,7 +15,8 @@ ADR M15-0001 decides what the PlanetPulse operator can do to an account; M0 1.5.
    sessions never reach these routes and the operator cookie never reaches customer routes.
 2. **Responses are parsed with the contract.** `mountPlatform` parses params, query and body with the endpoint's
    schemas and parses the response before sending it, so a route cannot leak a field the contract does not name (for
-   example `libraryCopiedAt` before contracts 1.5.1, or `statusBeforeDeletion`).
+   example the account's `statusBeforeDeletion`). `Account.libraryCopiedAt` (contracts 1.5.1) shows when the master
+   library was copied, so the console can flag a PROVISIONING account still waiting for it.
 3. **Idempotency is kept in the process for 24 hours.** `POST /accounts` and `POST /accounts/{id}/subscriptions` take an
    `Idempotency-Key` (a UUID). A repeat with the same key and body from the same operator returns the first answer; the
    same key with another body is `400 VALIDATION`. One operator and one API process make a table unnecessary for now;
@@ -43,7 +46,7 @@ ADR M15-0001 decides what the PlanetPulse operator can do to an account; M0 1.5.
    follows when that stops being true.
 
 ## Consequences
-- Contracts 1.5.1 (M0) must add `AuditActorKind` `OPERATOR`, `EntityType` `account` and `Account.libraryCopiedAt`
-  before any reader lists account entries without a client filter: `auditEvents.query` parses each row with the
-  contract, so today such a read would fail on the first account entry.
+
+- Contracts 1.5.1 (M0) adds `AuditActorKind` `OPERATOR`, `EntityType` `account` and `Account.libraryCopiedAt`, so a
+  reader that lists account entries without a client filter can parse them; this API needs it merged first.
 - Each route has a Postgres test in `db-accounts.db.test.ts` and `db-auth.db.test.ts`, run as `canopy_operator`.

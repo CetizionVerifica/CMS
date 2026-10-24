@@ -85,9 +85,13 @@ describe('the account view', () => {
     );
     expect(view.usage).toEqual({ companies: 1, units: 2, users: 3, storageBytes: 4 });
     expect(view.purgeAfter).toBe('2026-11-23T03:30:00.000Z');
-    expect(view).not.toHaveProperty('libraryCopiedAt');
+    expect(view.libraryCopiedAt).toBeNull();
     expect(view).not.toHaveProperty('statusBeforeDeletion');
     expect(accountOf(record(), entitlements, usage).purgeAfter).toBeNull();
+    const copied = '2026-10-24T03:31:00.000Z';
+    expect(
+      accountOf(record({ libraryCopiedAt: copied }), entitlements, usage).libraryCopiedAt,
+    ).toBe(copied);
   });
 
   it('fills the profile of a firm from before accounts with the defaults', () => {

@@ -76,6 +76,7 @@ export function accountOf(
       storageBytes: usage.storageBytes,
     },
     trialEndsOn: record.trialEndsOn,
+    libraryCopiedAt: record.libraryCopiedAt,
     onboardedAt: record.onboardedAt,
     deletionRequestedAt: record.deletionRequestedAt,
     purgeAfter,

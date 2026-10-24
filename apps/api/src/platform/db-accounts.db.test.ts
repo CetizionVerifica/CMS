@@ -222,7 +222,7 @@ describe.skipIf(!url)('the operator account routes', () => {
         purgeAfter: null,
         version: 1,
       });
-      expect(Object.keys(account)).not.toContain('libraryCopiedAt');
+      expect(account.libraryCopiedAt).toBeNull();
       const clients = await inAccount(account.id, (tx) => r.clients.findAll(tx, {}));
       expect(clients.map((c) => c.name)).toEqual(['Kestrel Metals Group']);
       expect((await outbox(account.id)).map((e) => e.type)).toEqual(
@@ -355,6 +355,7 @@ describe.skipIf(!url)('the operator account routes', () => {
       await ownerAccepts(account.id);
       let current = z(Account, await get(`/accounts/${account.id}`));
       expect(current.status).toBe('TRIAL');
+      expect(current.libraryCopiedAt).not.toBeNull();
 
       const blank = await send('POST', `/accounts/${account.id}/status`, {
         version: current.version,
