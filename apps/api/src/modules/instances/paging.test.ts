@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { ApiError } from '../../auth/index.js';
 import {
+  COUNT_PAGE_SIZE,
+  countMatching,
   encodeCursor,
   MAX_READS_PER_PAGE,
   mergedPage,
@@ -98,5 +100,24 @@ describe('mergedPage', () => {
     await expect(
       mergedPage(sources, read, { limit: 5, cursor: undefined, keep: (r) => r }),
     ).rejects.toMatchObject({ code: 'VALIDATION' } satisfies Partial<ApiError>);
+  });
+});
+
+describe('countMatching', () => {
+  it('counts the rows keep accepts in every source, past one page', async () => {
+    const many = Array.from({ length: COUNT_PAGE_SIZE + 5 }, (_, i) =>
+      row('2023-01-05', `a${String(i).padStart(4, '0')}`),
+    );
+    const { sources, read, reads } = sourcesOf({ a: many, b: [row('2023-01-01', 'b1')] });
+    expect(await countMatching(sources, read, () => true)).toBe(COUNT_PAGE_SIZE + 6);
+    expect(reads()).toBe(3);
+    expect(await countMatching(sources, read, (r) => r.id.endsWith('1'))).toBe(22);
+  });
+
+  it('is 0 with no sources or no rows', async () => {
+    const { read } = sourcesOf({});
+    expect(await countMatching([], read, () => true)).toBe(0);
+    const empty = sourcesOf({ a: [] });
+    expect(await countMatching(empty.sources, empty.read, () => true)).toBe(0);
   });
 });
