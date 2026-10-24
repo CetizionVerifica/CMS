@@ -16,6 +16,7 @@ import {
   FIRM_B,
   PASSWORD,
   ACCOUNTS,
+  EICAR,
   databaseUrl,
   storageStateOf,
 } from './stack.js';
@@ -70,10 +71,32 @@ const NOT_SWEPT: Record<string, string> = {
 const PROBE = 'isolation probe';
 const SHA = '0'.repeat(64);
 
+const SETTINGS = {
+  fyStartMonth: 4,
+  timeZone: 'Asia/Kolkata',
+  holidayPolicy: 'NONE',
+  reminders: {
+    ownerDaysBefore: [7],
+    approverDaysAfter: [2],
+    sendAtLocalTime: '09:00',
+    consultantDigestWeekday: 1,
+  },
+};
+/** An assignment of firm A's obligation to its unit, department, owner and approver. */
+const ASSIGNMENT = (id: Record<string, string>) => ({
+  unitId: id.units,
+  obligationId: id.obligations,
+  departmentId: id.departments,
+  defaultOwnerId: id.people,
+  defaultApproverId: id.otherPerson,
+  activeFrom: '2023-04-01',
+  activeTo: null,
+});
+
 /**
- * Valid bodies for the writes that change compliance state or reach a record through the body, built from firm A's
- * own record versions, so a write that got past the tenant check would be applied, not refused for its body. Each one
- * is checked against the contract's schema first.
+ * Valid bodies for every signed-in write that names a record in its path or body, built from firm A's own records and
+ * versions, so a write that got past the tenant check would be applied, not refused for its body. Each one is checked
+ * against the contract's schema first. A write with no body schema gets none.
  */
 const BODIES: Record<string, (ids: Ids) => unknown> = {
   submitInstance: ({ v }) => ({ version: v.instances, completedOn: '2023-03-31', comment: PROBE }),
@@ -98,6 +121,58 @@ const BODIES: Record<string, (ids: Ids) => unknown> = {
   archiveMembership: ({ v }) => ({ version: v.memberships, reason: PROBE }),
   archiveObligation: ({ v }) => ({ version: v.obligations, reason: PROBE }),
   updatePerson: ({ v }) => ({ version: v.people, displayName: 'Probe Person' }),
+  // Writes that change no compliance state but name a record in the path (and often another in the body).
+  putClientSettings: ({ v }) => ({ version: v.clientId, settings: SETTINGS }),
+  createCompany: () => ({ name: 'Probe Company' }),
+  updateCompany: ({ v }) => ({ version: v.companies, name: 'Probe Company' }),
+  createUnit: ({ id }) => ({
+    companyId: id.companies,
+    name: 'Probe Unit',
+    locationId: id.locations,
+  }),
+  updateUnit: ({ v }) => ({ version: v.units, name: 'Probe Unit' }),
+  createDepartment: () => ({ name: 'Probe Department', aliases: [] }),
+  updateDepartment: ({ v }) => ({ version: v.departments, name: 'Probe Department' }),
+  mergeDepartments: ({ id, v }) => ({ version: v.departments, sourceIds: [id.otherDepartment] }),
+  createClientPerson: () => ({ displayName: 'Probe Person', email: null, role: 'OWNER' }),
+  mergePeople: ({ id, v }) => ({ version: v.people, sourceIds: [id.otherPerson] }),
+  createMembership: ({ id }) => ({
+    role: 'VIEWER',
+    clientId: id.clientId,
+    consultantClientIds: null,
+    unitIds: null,
+    expiresAt: '2099-12-31T00:00:00Z',
+  }),
+  updateMembership: ({ v }) => ({ version: v.memberships, expiresAt: '2099-12-31T00:00:00Z' }),
+  updateAct: ({ v }) => ({ version: v.acts, aliases: [PROBE] }),
+  mergeActs: ({ id, v }) => ({ version: v.acts, sourceIds: [id.otherAct] }),
+  updateCategory: ({ v }) => ({ version: v.categories, aliases: [PROBE] }),
+  mergeCategories: ({ id, v }) => ({ version: v.categories, sourceIds: [id.otherCategory] }),
+  updateObligation: ({ v }) => ({ version: v.obligations, title: 'Probe obligation' }),
+  pushObligation: ({ id }) => ({ clientIds: [id.clientId] }),
+  createAssignment: ({ id }) => ASSIGNMENT(id),
+  bulkCreateAssignments: ({ id }) => ({ items: [ASSIGNMENT(id)] }),
+  updateAssignment: ({ id, v }) => ({ version: v.assignments, defaultOwnerId: id.people }),
+  setAssignmentApplicability: ({ v }) => ({
+    version: v.assignments,
+    applicability: 'NOT_APPLICABLE',
+    reason: PROBE,
+  }),
+  importUploaded: () => ({ sha256: SHA }),
+  putImportMapping: () => ({
+    sheetName: 'Register',
+    mapping: [{ sourceHeader: 'Title', field: 'title' }],
+  }),
+  decideImportIssue: () => ({ decision: 'ACCEPTED' }),
+  createMappingTemplate: () => ({
+    name: 'Probe layout',
+    mapping: [{ sourceHeader: 'Title', field: 'title' }],
+    scope: 'CLIENT',
+  }),
+  updateMappingTemplate: ({ v }) => ({ version: v['mapping-templates'], name: 'Probe layout' }),
+  parseImport: () => undefined,
+  dryRunImport: () => undefined,
+  commitImport: () => undefined,
   revokeInvite: () => undefined,
   cancelImport: () => undefined,
   // Names firm A's person and client in the body rather than the path.
@@ -133,16 +208,15 @@ async function firmAIds(): Promise<Ids> {
   const instance = itemsOf(
     await get(`/clients/${clients.kestrel}/instances?${FY}&workflowState=OPEN&limit=1`),
   )[0]!;
-  const detail = (await get(`/instances/${instance.id}`)) as {
-    obligationId: string;
-    actId: string;
-  };
+  const detail = (await get(`/instances/${instance.id}`)) as { obligationId: string };
   type Rec = { id: string; version: number };
-  const first = async (path: string) => {
-    const item = ((await get(path)) as { items: Rec[] }).items[0];
-    if (!item) throw new Error(`firm A has no record at ${path}`);
+  /** Firm A's `n`th record at `path` (from 0). */
+  const nth = async (path: string, n: number) => {
+    const item = ((await get(path)) as { items: Rec[] }).items[n];
+    if (!item) throw new Error(`firm A has no record ${n} at ${path}`);
     return item;
   };
+  const first = (path: string) => nth(path, 0);
   const exportJob = await admin.post(`/clients/${clients.kestrel}/exports`, {
     kind: 'REGISTER_XLSX',
     filters: FY,
@@ -165,6 +239,7 @@ async function firmAIds(): Promise<Ids> {
     scope: 'CLIENT',
   });
   expect(template.status, JSON.stringify(template.body)).toBe(201);
+  const unit = (await first(`/clients/${clients.kestrel}/units`)) as Rec & { locationId: string };
   const records: Record<string, Rec> = {
     clientId: (await get(`/clients/${clients.kestrel}`)) as Rec,
     instances: instance,
@@ -173,16 +248,21 @@ async function firmAIds(): Promise<Ids> {
     imports: batch,
     'mapping-templates': template.body as Rec,
     companies: await first(`/clients/${clients.kestrel}/companies`),
-    units: await first(`/clients/${clients.kestrel}/units`),
+    units: unit,
+    locations: { id: unit.locationId, version: 1 },
     departments: await first(`/clients/${clients.kestrel}/departments`),
+    otherDepartment: await nth(`/clients/${clients.kestrel}/departments`, 1),
     assignments: await first(`/clients/${clients.kestrel}/assignments`),
     people: (
       (await get(`/clients/${clients.kestrel}/people?limit=100`)) as { items: Rec[] }
     ).items.find((p) => p.id === people.owner)!,
+    otherPerson: { id: people.approver, version: 1 },
     memberships: await first(`/people/${people.owner}/memberships`),
-    acts: { id: detail.actId, version: 1 },
+    acts: await first('/library/acts'),
+    otherAct: await nth('/library/acts', 1),
     obligations: (await get(`/library/obligations/${detail.obligationId}`)) as Rec,
     categories: await first('/library/categories'),
+    otherCategory: await nth('/library/categories', 1),
     evidence: { id: await evidenceOf(instance.id), version: 1 },
   };
   await admin.dispose();
@@ -192,13 +272,17 @@ async function firmAIds(): Promise<Ids> {
   };
 }
 
-/** Uploads a small PDF to an instance as the client admin, the way the drawer will, and returns its evidence id. */
-async function evidenceOf(instanceId: string): Promise<string> {
+/** Uploads a file (a small PDF by default) to an instance as the client admin, the way the drawer does; its evidence id. */
+async function evidenceOf(
+  instanceId: string,
+  fileName = 'challan.pdf',
+  data = PDF,
+): Promise<string> {
   const admin = await apiAs('clientAdmin');
   const ticket = await admin.post(`/instances/${instanceId}/evidence/upload-url`, {
-    fileName: 'challan.pdf',
+    fileName,
     mimeType: 'application/pdf',
-    sizeBytes: PDF.length,
+    sizeBytes: data.length,
   });
   expect(ticket.status, JSON.stringify(ticket.body)).toBe(200);
   const { uploadId, url, headers } = ticket.body as {
@@ -206,12 +290,12 @@ async function evidenceOf(instanceId: string): Promise<string> {
     url: string;
     headers: Record<string, string>;
   };
-  const put = await admin.http.put(url, { headers, data: PDF });
+  const put = await admin.http.put(url, { headers, data });
   expect(put.status()).toBe(200);
   const confirmed = await admin.post(`/instances/${instanceId}/evidence`, {
     uploadId,
-    fileName: 'challan.pdf',
-    sha256: createHash('sha256').update(PDF).digest('hex'),
+    fileName,
+    sha256: createHash('sha256').update(data).digest('hex'),
   });
   expect(confirmed.status, JSON.stringify(confirmed.body)).toBe(201);
   await admin.dispose();
@@ -477,26 +561,77 @@ test.describe('evidence files', () => {
     await admin.dispose();
   });
 
-  test('an unscanned file cannot be downloaded, and the vault is per client', async () => {
+  test('a file is handed out only once the scan finds it clean, and the vault is per client', async () => {
+    test.setTimeout(180_000);
     const { clients } = seeded();
     const admin = await apiAs('clientAdmin');
     const open = itemsOf(
       (await admin.get(`/clients/${clients.kestrel}/instances?${FY}&workflowState=OPEN&limit=1`))
         .body,
     )[0]!;
-    await evidenceOf(open.id);
-    const vault = await admin.get(`/clients/${clients.kestrel}/evidence`);
-    expect(vault.status).toBe(200);
-    const files = itemsOf(vault.body) as unknown as { id: string; scanStatus: string }[];
-    expect(files.length).toBeGreaterThan(0);
-    // No scanner runs yet (docs/security/review.md F8), so every file stays PENDING and is not handed out.
-    for (const file of files) {
-      expect(file.scanStatus).toBe('PENDING');
-      const link = await admin.get(`/evidence/${file.id}/download-url`);
-      expect(link).toMatchObject({ status: 422, body: { error: { code: 'EVIDENCE_NOT_READY' } } });
-    }
-    // The vault never returns the storage key.
-    expect(JSON.stringify(vault.body)).not.toContain('storageKey');
+    const clean = await evidenceOf(open.id, 'challan.pdf');
+    // EICAR's test string in a file with an accepted name and type: only the scan can catch it.
+    const flagged = await evidenceOf(open.id, 'form-5a.pdf', Buffer.from(EICAR));
+    // The scan job runs once a minute (M9), so a file just recorded is still PENDING and is not handed out.
+    const early = await admin.get(`/evidence/${flagged}/download-url`);
+    expect(early).toMatchObject({ status: 422, body: { error: { code: 'EVIDENCE_NOT_READY' } } });
+
+    type File = { id: string; scanStatus: string };
+    const statusOf = async () => {
+      const vault = await admin.get(`/clients/${clients.kestrel}/evidence?limit=200`);
+      expect(vault.status).toBe(200);
+      // The vault never returns the storage key.
+      expect(JSON.stringify(vault.body)).not.toContain('storageKey');
+      const files = itemsOf(vault.body) as unknown as File[];
+      return Object.fromEntries(files.map((f) => [f.id, f.scanStatus]));
+    };
+    await expect
+      .poll(
+        async () => {
+          const status = await statusOf();
+          return [status[clean], status[flagged]];
+        },
+        { timeout: 150_000, intervals: [5_000] },
+      )
+      .toEqual(['CLEAN', 'INFECTED']);
+
+    const refused = await admin.get(`/evidence/${flagged}/download-url`);
+    expect(refused).toMatchObject({ status: 422, body: { error: { code: 'EVIDENCE_NOT_READY' } } });
+    const link = await admin.get(`/evidence/${clean}/download-url`);
+    expect(link.status, JSON.stringify(link.body)).toBe(200);
+    const { url } = link.body as { url: string };
+    expect(new URL(url).searchParams.get('X-Amz-Expires')).toBe('300');
+    const download = await admin.http.get(url);
+    expect(download.status()).toBe(200);
+    expect(Buffer.from(await download.body()).equals(PDF)).toBe(true);
+
+    // The scan's verdicts and the download are on the instance's audit trail.
+    const trail = await admin.get(`/instances/${open.id}/audit?limit=50`);
+    expect(trail.status, JSON.stringify(trail.body)).toBe(200);
+    const events = (
+      trail.body as { items: { action: string; after: Record<string, unknown> | null }[] }
+    ).items;
+    for (const [evidenceId, scanStatus] of [
+      [clean, 'CLEAN'],
+      [flagged, 'INFECTED'],
+    ])
+      expect(events, `${scanStatus} verdict audited`).toContainEqual(
+        expect.objectContaining({
+          action: 'UPDATE',
+          after: expect.objectContaining({ evidenceId, scanStatus }),
+        }),
+      );
+    expect(events).toContainEqual(
+      expect.objectContaining({ action: 'EVIDENCE_DOWNLOAD', after: { evidenceId: clean } }),
+    );
+
+    // Firm B's admin sees none of it.
+    const osprey = await apiAs('ospreyAdmin');
+    expect(SAFE_DENIALS).toContain(
+      (await osprey.get(`/clients/${clients.kestrel}/evidence`)).status,
+    );
+    expect(SAFE_DENIALS).toContain((await osprey.get(`/evidence/${clean}/download-url`)).status);
+    await osprey.dispose();
     await admin.dispose();
   });
 });

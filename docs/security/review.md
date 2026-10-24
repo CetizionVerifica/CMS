@@ -36,9 +36,9 @@ Each line is a test in `e2e/integrated` unless it says otherwise.
 - Every contract endpoint that names a record in its path or body, called by firm B's firm admin and by its client
   admin with firm A's ids (client, instance, evidence, export, import, invite, company, unit, department, assignment,
   person, membership, Act, category, obligation): reads answer 404 or 403; writes answer exactly as they do for an id
-  that does not exist, and the writes that change compliance state (submit, approve, bulk approve, send back, reopen,
-  NA, reassign, comment, evidence, export, archive) are sent with valid bodies and firm A's current versions, so only
-  the tenant check stands in their way. Every firm-wide list holds firm B's records only, and no answer contains firm
+  that does not exist. Every such write is sent with a valid body (checked against the contract) and firm A's current
+  versions, and bodies that name records name firm A's (merge sources, a unit's company and location, an assignment's
+  owner and approver, the clients an obligation is pushed to), so only the tenant check stands in their way. Every firm-wide list holds firm B's records only, and no answer contains firm
   A's names. Endpoints left out are listed with a reason, and a new endpoint fails the check until it is placed;
   contract endpoints the API does not serve yet (the M15 account routes) are listed too, and the check fails the day
   one answers. (`04-security.spec.ts`)
@@ -69,7 +69,11 @@ Each line is a test in `e2e/integrated` unless it says otherwise.
   no upload link.
 - Upload links expire in 5 minutes and bind the declared content type: storage refuses a PUT with another type.
 - Export download links expire in 5 minutes; the file is a real workbook.
-- The vault never returns storage keys; an unscanned file is not handed out (see F8).
+- The evidence scan (F8) runs end to end against a stand-in clamd (`e2e/integrated/fake-clamd.ts`, port 4110) that
+  reports EICAR's test string: a clean upload becomes `CLEAN` and downloads through a 5-minute link as the same bytes;
+  a file carrying EICAR under an accepted name and type becomes `INFECTED` and, like a file still `PENDING`, is never
+  handed out. Both verdicts and the download are on the instance's audit trail. The vault never returns storage keys,
+  and firm B's admin reaches neither the vault nor the file.
 
 **Integration**
 
@@ -81,10 +85,10 @@ Each line is a test in `e2e/integrated` unless it says otherwise.
 - Every overview count is exactly the register's rows for that status, and they add up to the whole register; the
   overdue number on the page opens a register showing the same count. (`03-dashboards-reports.spec.ts`)
 - Act-wise, department-wise and overdue reports answer for a client admin.
-- Every client and firm list answers a full page of 200, the contract's largest (`06-lists.spec.ts`; the M6 lists in
-  F13 are expected to fail, and the check fails the day one of them answers).
-- One consultant browsing the main pages at an ordinary pace from one address (`05-shell-load.spec.ts`): expected to
-  fail until F7 is fixed, so the day it passes is reported.
+- Every client and firm list answers a full page of 200, the contract's largest (`06-lists.spec.ts`).
+- One consultant browsing the main pages at an ordinary pace from one address is never refused (F7), while a flood
+  of anonymous requests from one address gets `429 RATE_LIMITED` once it passes the 300-a-minute budget and another
+  address is still served. (`05-shell-load.spec.ts`)
 
 Not yet covered, because the screens are still being built: the instance drawer (M12), approvals inbox, evidence
 vault and calendar pages (M12), setup, reports and audit pages (M13), and company accounts (M15). The journeys use the
@@ -101,8 +105,9 @@ pnpm --filter @canopy/e2e test:integrated
 ```
 
 `pnpm db:up` starts Postgres and SeaweedFS. The run drops and recreates a `canopy_e2e` database on the same server,
-creates the app login `canopy_e2e_app`, seeds two firms with one client each and an account per role
-(`e2e/integrated/stack.ts`), and starts the API on port 4100 and the web app on 3100. Set `PLAYWRIGHT_CHROMIUM_PATH`
+creates the app login `canopy_e2e_app` and the jobs login `canopy_e2e_jobs`, seeds two firms with one client each and an account per role
+(`e2e/integrated/stack.ts`), and starts the API on port 4100 (with its jobs, the evidence scan included), the web
+app on 3100 and the stand-in clamd on 4110. Set `PLAYWRIGHT_CHROMIUM_PATH`
 to use a Chromium that is already installed.
 
 ## Deploy checklist (pilot)
