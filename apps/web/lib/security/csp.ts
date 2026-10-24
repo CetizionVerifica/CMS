@@ -8,13 +8,14 @@ export type CspOptions = {
   /**
    * Extra `connect-src` sources, space-separated (`CANOPY_CSP_CONNECT_SRC`): the object storage origin that presigned
    * upload URLs point at, so the browser may PUT evidence and import workbooks there. Only bare https origins are
-   * kept (http too under `next dev`); see `connectOrigins`.
+   * kept, plus http to a loopback host (any http under `next dev`); see `connectOrigins`.
    */
   connectSrc?: string;
 };
 
 /**
- * The origins in `connectSrc` that are safe to put in the header: `https://host[:port]` and nothing else, so a
+ * The origins in `connectSrc` that are safe to put in the header: `https://host[:port]` or `http://localhost[:port]`
+ * (127.0.0.1, [::1]) and nothing else, so a
  * mistyped value can neither open uploads to plain http nor add a directive (`https://x; script-src *`). Others are
  * returned as `rejected` for the caller to report; uploads to them then fail, which is the safe way round.
  */
@@ -35,8 +36,14 @@ export function connectOrigins(
 const HTTPS_ORIGIN = /^https:\/\/[a-z0-9-]+(\.[a-z0-9-]+)*(:\d{1,5})?\/?$/i;
 const HTTP_ORIGIN = /^http:\/\/[a-z0-9-]+(\.[a-z0-9-]+)*(:\d{1,5})?\/?$/i;
 
+// Plain http to this machine's own loopback address, as the local and CI storage (SeaweedFS on localhost) needs. It
+// can't reach another host, so it is allowed outside `next dev` too.
+const HTTP_LOOPBACK = /^http:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d{1,5})?\/?$/i;
+
 function isOrigin(source: string, dev: boolean): boolean {
-  return HTTPS_ORIGIN.test(source) || (dev && HTTP_ORIGIN.test(source));
+  return (
+    HTTPS_ORIGIN.test(source) || HTTP_LOOPBACK.test(source) || (dev && HTTP_ORIGIN.test(source))
+  );
 }
 
 export function contentSecurityPolicy({ nonce, dev = false, connectSrc }: CspOptions): string {
