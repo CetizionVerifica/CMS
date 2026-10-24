@@ -21,6 +21,7 @@ import { addOperator, runAddOperator } from './db-operators.js';
 const url = process.env.DATABASE_URL;
 
 const KEY = Buffer.alloc(32, 9).toString('base64');
+const APP_URL = 'https://app.planetpulse.example';
 const PASSWORD = 'operator password, long enough';
 let now = new Date('2026-10-24T03:30:00.000Z');
 
@@ -98,7 +99,7 @@ describe.skipIf(!url)('operator sign-in', () => {
     operatorId = added.operator.id;
     app = buildServer({
       clock: () => now,
-      platform: { db, secrets, secureCookies: true },
+      platform: { db, secrets, secureCookies: true, appUrl: APP_URL },
     });
     await app.ready();
   });
@@ -322,7 +323,7 @@ describe.skipIf(!url)('operator sign-in', () => {
   it('answers 404 on every operator route to an address outside PLATFORM_IP_ALLOWLIST', async () => {
     const listed = buildServer({
       clock: () => now,
-      platform: { db, secrets, allowlist: ipAllowlistFromEnv('203.0.113.0/24') },
+      platform: { db, secrets, allowlist: ipAllowlistFromEnv('203.0.113.0/24'), appUrl: APP_URL },
     });
     try {
       const outside = await listed.inject({

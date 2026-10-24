@@ -13,7 +13,12 @@ function server(allowlist: string | undefined) {
     close: vi.fn(),
   };
   const app = buildServer({
-    platform: { db, secrets, allowlist: ipAllowlistFromEnv(allowlist) },
+    platform: {
+      db,
+      secrets,
+      allowlist: ipAllowlistFromEnv(allowlist),
+      appUrl: 'https://app.planetpulse.example',
+    },
   });
   return { app, db };
 }
