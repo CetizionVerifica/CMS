@@ -491,6 +491,7 @@ export class InMemoryAuthStore implements AccountStore {
     const stored = this.person(invite.firmId, invite.personId);
     stored.status = 'ACTIVE';
     stored.passwordHash = accept.passwordHash;
+    if (accept.mfa !== null) this.mfa.set(key, accept.mfa);
     if (accept.displayName !== null) stored.displayName = accept.displayName;
     const granted = membership({
       firmId: invite.firmId,

@@ -17,8 +17,9 @@ decision 3), so it had the same gap.
 3. **Accept checks the code first.** `POST /invites/{token}/accept` takes the authenticator's first code in
    `mfaCode`. With no setup or no code it answers `401 MFA_REQUIRED`. A wrong or replayed code answers
    `VALIDATION` on `mfaCode`. Both change nothing: the token stays usable and no password is set. A correct code
-   completes enrolment before the password is stored, then the session starts MFA-satisfied. So no session ever
-   exists with a password and no MFA. A wrong code does not count towards the session lockout, since there is no
+   completes enrolment in the same transaction that stores the password, then the session starts MFA-satisfied. If
+   that transaction fails, nothing is enrolled and setup can restart. So no session ever exists with a password and
+   no MFA. A wrong code does not count towards the session lockout, since there is no
    session yet. The per-IP token limit (20 a minute) caps guessing, and only the invitee holds the token.
 4. **Sign-in is unchanged.** Signing in still asks for the code. In-session enrolment (`POST /auth/mfa/enroll`)
    remains for people who accepted before this change and for seeded and demo accounts. Once none are left, it can

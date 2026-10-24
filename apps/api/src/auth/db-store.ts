@@ -477,6 +477,7 @@ export function createDbAccountStore(db: Database, options: DbAccountStoreOption
           passwordHash: accept.passwordHash,
           now: accept.now.toISOString(),
         });
+        if (accept.mfa !== null) await credentials.saveMfa(tx, person.after.id, accept.mfa);
         let after = person.after;
         if (accept.displayName !== null && accept.displayName !== after.displayName) {
           after = await people.update(tx, after.id, after.version, {

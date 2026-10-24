@@ -9,7 +9,7 @@ import {
   type Role,
 } from '@canopy/contracts';
 import type { FastifyInstance, LightMyRequestResponse } from 'fastify';
-import { afterAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { buildServer, trustProxyFromEnv } from '../server.js';
 import { LOCKOUT } from './accounts.js';
 import { hashPassword } from './passwords.js';
@@ -601,7 +601,21 @@ describe('invites', () => {
     });
     expect((await login('new.consultant@example.com')).statusCode).toBe(401);
 
-    const accepted = await accept({ password: PASSWORD, mfaCode: code });
+    // A right code whose accept then fails commits no enrolment, so the invitee can start the setup again.
+    const key = `${created.firmId}/${imported.personId}`;
+    vi.spyOn(store, 'acceptInvite').mockResolvedValueOnce(false);
+    expect(errorCode(await accept({ password: PASSWORD, mfaCode: code }))).toBe('NOT_FOUND');
+    expect(store.mfa.get(key)?.enrolledAt).toBeNull();
+    expect(store.people.get(key)).toMatchObject({ status: 'INVITED' });
+    const again = await app.inject({ method: 'POST', url: `/api/v1/invites/${token}/mfa/enroll` });
+    expect(again.statusCode).toBe(200);
+    const fresh = new URL(MfaEnrollment.parse(again.json()).otpauthUrl).searchParams.get('secret')!;
+    expect(fresh).not.toBe(secret);
+
+    const accepted = await accept({
+      password: PASSWORD,
+      mfaCode: hotp(base32Decode(fresh), totpStep(now)),
+    });
     expect(accepted.statusCode).toBe(200);
     expect(Me.parse(accepted.json()).mfa).toEqual({
       required: true,

@@ -230,6 +230,8 @@ export interface AcceptInvite {
   readonly passwordHash: string;
   /** The name the person chose on the accept page, or null to keep the imported one. */
   readonly displayName: string | null;
+  /** The authenticator enrolment the accept completes (F14), saved in the same transaction; null when none. */
+  readonly mfa: MfaRecord | null;
   readonly requestId: string;
   readonly now: Date;
 }

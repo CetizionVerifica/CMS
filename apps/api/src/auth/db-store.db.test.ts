@@ -630,6 +630,7 @@ describe.skipIf(!url)('database AccountStore', () => {
         tokenId: unknown,
         passwordHash: await hashPassword(PASSWORD),
         displayName: null,
+        mfa: null,
         requestId: 'unknown-invite',
         now,
       }),
@@ -675,6 +676,7 @@ describe.skipIf(!url)('database AccountStore', () => {
         tokenId: stored!.id,
         passwordHash: await hashPassword(PASSWORD),
         displayName: null,
+        mfa: null,
         requestId: 'firm-invite',
         now,
       }),
@@ -875,9 +877,14 @@ describe.skipIf(!url)('database AccountStore', () => {
         accountJobs.markLibraryCopied(tx),
       );
       expect(await store.libraryCopied(created.accountId)).toBe(true);
+      // The refused accept left the setup open; the enrolment commits with the accept that opens the account.
+      expect((await store.getMfa(created.accountId, created.ownerId))?.enrolledAt).toBeNull();
       const opened = await accept();
       expect(opened.statusCode, opened.body).toBe(200);
       expect(await store.account(created.accountId)).toMatchObject({ status: 'TRIAL' });
+      expect((await store.getMfa(created.accountId, created.ownerId))?.enrolledAt).toBe(
+        now.toISOString(),
+      );
     } finally {
       await operator.close();
     }

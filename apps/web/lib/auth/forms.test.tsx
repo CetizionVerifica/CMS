@@ -136,7 +136,8 @@ describe('auth forms', () => {
     const heading = await screen.findByRole('heading', {
       name: 'Add PlanetPulse Compliance to your app',
     });
-    expect(document.activeElement).toBe(heading);
+    // Focus moves in an effect after the heading renders, so wait for it.
+    await waitFor(() => expect(document.activeElement).toBe(heading));
     expect(screen.getByText('JBSW Y3DP EHPK 3PXP')).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Create account' })).toBeTruthy();
   });

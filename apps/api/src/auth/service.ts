@@ -19,6 +19,7 @@ import {
   type InviteRecord,
   type LoginCandidate,
   type LoginTokenKind,
+  type MfaRecord,
   type NewSession,
 } from './accounts.js';
 import {
@@ -407,7 +408,7 @@ export class AuthService {
     // A firm role completes MFA setup here, before the password is set, so no session ever exists with a password
     // and no MFA (F14). A missing or wrong code changes nothing and leaves the invite usable.
     const mfa = await this.inviteNeedsMfa(invite);
-    if (mfa) await this.completeInviteMfa(invite, input.mfaCode, now);
+    const enrolment = mfa ? await this.checkInviteMfa(invite, input.mfaCode, now) : null;
     const passwordHash = await hashPassword(input.password);
     const accepted = await this.store.acceptInvite({
       firmId: invite.firmId,
@@ -415,6 +416,7 @@ export class AuthService {
       tokenId: found.id,
       passwordHash,
       displayName: input.displayName ?? null,
+      mfa: enrolment,
       requestId,
       now,
     });
@@ -429,12 +431,15 @@ export class AuthService {
     return principal?.mfaRequiredForFirmRoles ?? true;
   }
 
-  /** Checks the authenticator's first code against the invite's setup and completes the enrolment. */
-  private async completeInviteMfa(
+  /**
+   * Checks the authenticator's first code against the invite's setup and returns the completed enrolment, which the
+   * store saves with the accept so a failed accept leaves the setup open to restart.
+   */
+  private async checkInviteMfa(
     invite: InviteRecord,
     code: string | undefined,
     now: Date,
-  ): Promise<void> {
+  ): Promise<MfaRecord | null> {
     const record = await this.store.getMfa(invite.firmId, invite.personId);
     if (record === null || code === undefined) {
       throw new ApiError('MFA_REQUIRED', { enrolled: false }, 'Set up MFA first.');
@@ -445,13 +450,9 @@ export class AuthService {
         issues: [{ path: ['mfaCode'], message: 'Code is not correct.' }],
       });
     }
-    if (record.enrolledAt === null) {
-      await this.store.saveMfa(invite.firmId, invite.personId, {
-        ...record,
-        enrolledAt: now.toISOString(),
-        lastStep: step,
-      });
-    }
+    return record.enrolledAt === null
+      ? { ...record, enrolledAt: now.toISOString(), lastStep: step }
+      : null;
   }
 
   async revokeInvite(ctx: RequestContext, inviteId: string, requestId: string): Promise<Invite> {
