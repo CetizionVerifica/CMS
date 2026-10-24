@@ -1,11 +1,16 @@
 import { ERROR_HTTP_STATUS, type ErrorCode, type ErrorEnvelope } from '@canopy/contracts';
 
-const DEFAULT_MESSAGES: Partial<Record<ErrorCode, string>> = {
+/** Codes contracts 1.5.0 adds (ADR M15-0001); listed here first so its merge finds a message for each. */
+type AccountErrorCode = 'ACCOUNT_SUSPENDED' | 'PLAN_LIMIT_REACHED';
+
+const DEFAULT_MESSAGES: Partial<Record<ErrorCode | AccountErrorCode, string>> = {
   VALIDATION: 'The request is not valid.',
   UNAUTHENTICATED: 'Sign in to continue.',
   MFA_REQUIRED: 'Two-step verification is required.',
   FORBIDDEN: 'You do not have permission to do this.',
   ACCESS_EXPIRED: 'Your access has expired.',
+  ACCOUNT_SUSPENDED: 'Your account is paused. Contact PlanetPulse.',
+  PLAN_LIMIT_REACHED: 'Your plan limit is reached. Contact PlanetPulse to upgrade.',
   NOT_FOUND: 'Not found.',
   STALE_VERSION: 'Someone else changed this; reload and try again.',
   INVALID_TRANSITION: 'This action is not allowed in the current state.',
