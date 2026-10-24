@@ -25,9 +25,11 @@ import type {
   Mailer,
   OutboxEvent,
   OutgoingEmail,
+  PendingEvidence,
   PersonNotice,
   Recipient,
   ReminderCandidate,
+  ScanResult,
   SendFailureCode,
   SendKey,
 } from '../ports.js';
@@ -81,6 +83,12 @@ export interface MemoryInvite {
   revokedAt: string | null;
 }
 
+export interface MemoryEvidence extends PendingEvidence {
+  scanStatus: 'PENDING' | ScanResult;
+  archived: boolean;
+  createdAt: string;
+}
+
 export interface MemorySend extends SendKey {
   id: Id;
   sentAt: string | null;
@@ -110,6 +118,7 @@ export interface MemoryFirm {
   instances: MemoryInstance[];
   people: MemoryPerson[];
   invites: MemoryInvite[];
+  evidence: MemoryEvidence[];
   sends: MemorySend[];
   audits: JobAuditEvent[];
   events: MemoryOutboxEvent[];
@@ -125,6 +134,7 @@ export function memoryFirm(id: Id = randomUUID()): MemoryFirm {
     instances: [],
     people: [],
     invites: [],
+    evidence: [],
     sends: [],
     audits: [],
     events: [],
@@ -228,6 +238,32 @@ function firmTx(firm: MemoryFirm, hooks: MemoryStoreHooks): FirmTx {
       return p
         ? { personId: p.id, displayName: p.displayName, email: p.email, status: p.status }
         : null;
+    },
+    listPendingEvidence: async (limit) =>
+      firm.evidence
+        .filter((e) => e.scanStatus === 'PENDING' && !e.archived)
+        .sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id))
+        .slice(0, limit)
+        .map(({ id, clientId, instanceId, storageKey, sizeBytes }) => ({
+          id,
+          clientId,
+          instanceId,
+          storageKey,
+          sizeBytes,
+        })),
+    scanAttempts: async (evidenceId) =>
+      firm.audits.filter(
+        (a) =>
+          a.entityType === 'evidence' &&
+          a.entityId === evidenceId &&
+          a.action === 'UPDATE' &&
+          a.after?.scanStatus === 'PENDING',
+      ).length,
+    recordScan: async (evidenceId, scanStatus) => {
+      const e = firm.evidence.find((x) => x.id === evidenceId);
+      if (!e || e.archived || e.scanStatus !== 'PENDING') return null;
+      e.scanStatus = scanStatus;
+      return { instanceVersion: firm.instances.find((i) => i.id === e.instanceId)!.version };
     },
     findInvite: async (inviteId): Promise<InviteNotice | null> => {
       const i = firm.invites.find((x) => x.id === inviteId);

@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import pg from 'pg';
 import { PgBoss } from 'pg-boss';
 import { CONSUMERS, OutboxEventSchema } from './consumers.js';
 import { runConsultantDigest, CONSULTANT_DIGEST } from './digest.js';
@@ -6,6 +7,7 @@ import { GENERATE_INSTANCES, runGenerateInstances } from './generate-instances.j
 import { RELAY_OUTBOX, runRelayOutbox } from './outbox-relay.js';
 import type { EventBus, JobDeps, JobReport } from './ports.js';
 import { REMINDERS, runReminders } from './reminders.js';
+import { runScanEvidence, SCAN_EVIDENCE } from './scan-evidence.js';
 
 export interface JobDefinition {
   name: string;
@@ -14,6 +16,8 @@ export interface JobDefinition {
   tz: string;
   /** Sends email, so it runs only when a mailer is configured. */
   sendsMail: boolean;
+  /** Scans evidence, so it runs only with a virus scanner and evidence storage. */
+  scansEvidence?: boolean;
   run(deps: JobDeps, requestId: string): Promise<JobReport>;
 }
 
@@ -21,7 +25,8 @@ export interface JobDefinition {
  * The schedule. Generation runs nightly at 01:00 India time and catches up once after downtime. Reminders and the
  * digest run every 15 minutes in UTC and decide per client whether its local send time has passed, so each client
  * is served in its own time zone; missed slots are skipped because the next run covers them. The outbox relay runs
- * every minute. Without a mailer only generation and the relay run (`sendsMail: false`).
+ * every minute, and so does the evidence scan. Without a mailer only generation, the relay and the scan run
+ * (`sendsMail: false`); without a scanner the scan does not.
  */
 export const JOBS: readonly JobDefinition[] = [
   {
@@ -40,6 +45,14 @@ export const JOBS: readonly JobDefinition[] = [
     run: runConsultantDigest,
   },
   { name: RELAY_OUTBOX, cron: '* * * * *', tz: 'UTC', sendsMail: false, run: runRelayOutbox },
+  {
+    name: SCAN_EVIDENCE,
+    cron: '* * * * *',
+    tz: 'UTC',
+    sendsMail: false,
+    scansEvidence: true,
+    run: runScanEvidence,
+  },
 ];
 
 const RETRIES = { retryLimit: 3, retryDelay: 60, retryBackoff: true, expireInSeconds: 30 * 60 };
@@ -60,6 +73,10 @@ export interface JobRunnerOptions {
 export interface JobRunner {
   /** Whether the email jobs and consumers are running (false: no mail transport is configured). */
   mail: boolean;
+  /** Whether sign-in link and invite emails are sent: mail is on and the API passed M5's token issuer. */
+  loginEmails: boolean;
+  /** Whether the evidence scan runs (false: no virus scanner is configured, so evidence stays PENDING). */
+  scan: boolean;
   /** Runs one job now, outside the schedule (admin trigger, tests). */
   trigger(name: string): Promise<string | null>;
   /** The registered cron schedules, for health checks. */
@@ -73,16 +90,20 @@ export interface JobRunner {
  * that correlates its audit rows, events and logs.
  */
 export async function startJobRunner(deps: JobDeps, options: JobRunnerOptions): Promise<JobRunner> {
+  const schema = options.schema ?? 'pgboss';
   const boss = new PgBoss({
     connectionString: options.connectionString,
-    schema: options.schema ?? 'pgboss',
+    schema,
+    // A deploy pre-creates the schema (owned by canopy_app), so the app's login needs no CREATE on the database.
+    createSchema: !(await schemaExists(options.connectionString, schema)),
   });
   const log = options.log ?? (() => {});
   boss.on('error', (error) => log({ job: 'pg-boss', requestId: '-', error: error.message }));
   await boss.start();
 
   const mail = options.mail ?? true;
-  const jobs = JOBS.filter((job) => mail || !job.sendsMail);
+  const scan = deps.scanner !== undefined && deps.evidenceObjects !== undefined;
+  const jobs = JOBS.filter((job) => (mail || !job.sendsMail) && (scan || !job.scansEvidence));
   // Without M5's issuer the sign-in link and invite consumers are left off like the mail ones: their events are
   // marked relayed, and no send is claimed that could never carry a token.
   const consumers = CONSUMERS.filter(
@@ -133,12 +154,17 @@ export async function startJobRunner(deps: JobDeps, options: JobRunnerOptions): 
   }
   return {
     mail,
+    loginEmails: consumers.some((consumer) => consumer.needsLoginTokens),
+    scan,
     trigger: (name) => {
       if (!jobs.some((job) => job.name === name)) {
+        const known = JOBS.find((job) => job.name === name);
         throw new RangeError(
-          JOBS.some((job) => job.name === name)
-            ? `Job not running without a mail transport: ${name}`
-            : `Unknown job: ${name}`,
+          !known
+            ? `Unknown job: ${name}`
+            : known.scansEvidence
+              ? `Job not running without a virus scanner: ${name}`
+              : `Job not running without a mail transport: ${name}`,
         );
       }
       return boss.send(name, {});
@@ -147,4 +173,18 @@ export async function startJobRunner(deps: JobDeps, options: JobRunnerOptions): 
       (await boss.getSchedules()).map((s) => ({ name: s.name, cron: s.cron, tz: s.timezone })),
     stop: () => boss.stop({ graceful: true }),
   };
+}
+
+/** Whether the pg-boss schema is already there, so pg-boss is not asked to create it. */
+async function schemaExists(connectionString: string, schema: string): Promise<boolean> {
+  const client = new pg.Client({ connectionString });
+  await client.connect();
+  try {
+    const { rowCount } = await client.query('SELECT 1 FROM pg_namespace WHERE nspname = $1', [
+      schema,
+    ]);
+    return rowCount === 1;
+  } finally {
+    await client.end();
+  }
 }

@@ -1,13 +1,18 @@
 import type { Database } from '@canopy/db';
-import type { Clock, LoginTokenIssuer, Mailer } from './ports.js';
+import { s3SettingsFromEnv } from '../s3-env.js';
+import { clamAvConfigFromEnv, clamAvScanner } from './clamav-scanner.js';
+import type { Clock, JobDeps, LoginTokenIssuer, Mailer, Scanner } from './ports.js';
 import { postgresJobStore } from './postgres-store.js';
 import { startJobRunner, type JobRunner, type JobRunnerOptions } from './runner.js';
+import { s3EvidenceObjects } from './s3-objects.js';
 import { mailConfigFromEnv, smtpMailer } from './smtp-mailer.js';
 
 export interface JobsFromEnvOptions extends Omit<JobRunnerOptions, 'mail'> {
   db: Database;
   /** M5's `AuthService.issueLoginToken`. Without it, sign-in link and invite emails are not sent. */
   issueLoginToken?: LoginTokenIssuer;
+  /** Replaces the ClamAV scanner `CLAMAV_HOST` configures, for a host's own scanning service. */
+  scanner?: Scanner;
   /** Defaults to the system clock; tests pass a fixed one. */
   clock?: Clock;
 }
@@ -22,25 +27,24 @@ const NO_MAILER: Mailer = {
  * the environment (`SMTP_URL`, or `SMTP_HOST` with `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS` and `SMTP_SECURE`, plus
  * `MAIL_FROM` and `APP_URL`). Without an SMTP server, instance generation and the outbox relay still run and every
  * email job is left off (the runner's `mail` is false, so the caller can warn), so no send is ever recorded as done
- * without a transport. Throws on half-set mail settings.
+ * without a transport. The evidence scan runs when `CLAMAV_HOST` (or a given scanner) and the `S3_*` bucket are set;
+ * otherwise the runner's `scan` is false. Throws on half-set mail or scanner settings.
  */
 export async function startJobsFromEnv(
   env: Record<string, string | undefined>,
   options: JobsFromEnvOptions,
 ): Promise<JobRunner> {
-  const { db, clock, issueLoginToken, ...runnerOptions } = options;
-  const store = postgresJobStore(db);
-  const now = clock ?? (() => new Date().toISOString());
+  const { db, clock, issueLoginToken, scanner, ...runnerOptions } = options;
+  const shared: Omit<JobDeps, 'mailer' | 'appUrl'> = {
+    store: postgresJobStore(db),
+    clock: clock ?? (() => new Date().toISOString()),
+    ...(issueLoginToken && { issueLoginToken }),
+    ...scanningFromEnv(env, scanner),
+  };
   const mail = mailConfigFromEnv(env);
   if (!mail) {
     return startJobRunner(
-      {
-        store,
-        mailer: NO_MAILER,
-        clock: now,
-        appUrl: '',
-        ...(issueLoginToken && { issueLoginToken }),
-      },
+      { ...shared, mailer: NO_MAILER, appUrl: '' },
       { ...runnerOptions, mail: false },
     );
   }
@@ -48,13 +52,7 @@ export async function startJobsFromEnv(
   let runner: JobRunner;
   try {
     runner = await startJobRunner(
-      {
-        store,
-        mailer,
-        clock: now,
-        appUrl: mail.appUrl,
-        ...(issueLoginToken && { issueLoginToken }),
-      },
+      { ...shared, mailer, appUrl: mail.appUrl },
       { ...runnerOptions, mail: true },
     );
   } catch (error) {
@@ -68,4 +66,24 @@ export async function startJobsFromEnv(
       mailer.close();
     },
   };
+}
+
+/**
+ * The evidence scan's scanner and storage: the given scanner or clamd at `CLAMAV_HOST`, reading from the `S3_*`
+ * bucket. Neither when no scanner is set, so the scan job is left off. Throws when a scanner is set without storage.
+ */
+function scanningFromEnv(
+  env: Record<string, string | undefined>,
+  given: Scanner | undefined,
+): Pick<JobDeps, 'scanner' | 'evidenceObjects'> {
+  const clamAv = clamAvConfigFromEnv(env);
+  const scanner = given ?? (clamAv ? clamAvScanner(clamAv) : undefined);
+  if (!scanner) return {};
+  const storage = s3SettingsFromEnv(env);
+  if (!storage) {
+    throw new Error(
+      'A virus scanner is set but evidence storage is not (S3_BUCKET, S3_ACCESS_KEY_ID, S3_SECRET_ACCESS_KEY)',
+    );
+  }
+  return { scanner, evidenceObjects: s3EvidenceObjects(storage) };
 }

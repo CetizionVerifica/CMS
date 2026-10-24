@@ -12,6 +12,8 @@ vi.mock('./runner.js', () => ({
     started.push({ deps, options });
     return {
       mail: options.mail ?? true,
+      loginEmails: deps.issueLoginToken !== undefined,
+      scan: deps.scanner !== undefined,
       trigger: async () => null,
       schedules: async () => [],
       stop: async () => {},
@@ -26,6 +28,11 @@ vi.mock('./smtp-mailer.js', async (actual) => ({
 const { startJobsFromEnv } = await import('./start.js');
 const issueLoginToken = async () => ({ token: 't', expiresAt: '2026-10-13T10:00:00.000Z' });
 const options = { db: {} as never, connectionString: 'postgres://unused', issueLoginToken };
+const S3 = {
+  S3_BUCKET: 'canopy-evidence',
+  S3_ACCESS_KEY_ID: 'key',
+  S3_SECRET_ACCESS_KEY: 'secret',
+};
 const SMTP = {
   SMTP_HOST: 'smtp.example.com',
   MAIL_FROM: 'PlanetPulse Compliance <no-reply@planetpulse.example>',
@@ -63,6 +70,35 @@ describe('startJobsFromEnv', () => {
   it('leaves the issuer out when the API passes none', async () => {
     await startJobsFromEnv(SMTP, { db: {} as never, connectionString: 'postgres://unused' });
     expect(started[0]!.deps).not.toHaveProperty('issueLoginToken');
+  });
+
+  it('leaves the scan off without a scanner', async () => {
+    const runner = await startJobsFromEnv(SMTP, options);
+    expect(runner.scan).toBe(false);
+    expect(started[0]!.deps).not.toHaveProperty('scanner');
+    expect(started[0]!.deps).not.toHaveProperty('evidenceObjects');
+  });
+
+  it('scans with clamd at CLAMAV_HOST, reading the S3 evidence bucket', async () => {
+    const runner = await startJobsFromEnv({ ...S3, CLAMAV_HOST: 'clamav' }, options);
+    expect(runner.scan).toBe(true);
+    expect(started[0]!.deps.scanner).toBeDefined();
+    expect(started[0]!.deps.evidenceObjects).toBeDefined();
+  });
+
+  it('scans with a given scanner instead of clamd, also without mail', async () => {
+    const scanner = { scan: async () => ({ status: 'CLEAN' as const }) };
+    const runner = await startJobsFromEnv(S3, { ...options, scanner });
+    expect(runner.mail).toBe(false);
+    expect(runner.scan).toBe(true);
+    expect(started[0]!.deps.scanner).toBe(scanner);
+  });
+
+  it('refuses a scanner without evidence storage', async () => {
+    await expect(startJobsFromEnv({ CLAMAV_HOST: 'clamav' }, options)).rejects.toThrow(
+      'A virus scanner is set but evidence storage is not',
+    );
+    expect(started).toHaveLength(0);
   });
 
   it('closes the transport when the runner fails to start', async () => {
