@@ -246,6 +246,21 @@ describe('auth actions', () => {
     });
   });
 
+  it('explains a support link that is used, expired or malformed', async () => {
+    expect(
+      await actions.startSupportSession(IDLE, form({ token: 'not-a-live-support-token' })),
+    ).toEqual({
+      status: 'error',
+      message:
+        'This support link has expired, was already used, or the account’s support access has ended. Open a new one from the console.',
+    });
+    // A token the contract rejects never reaches the API.
+    expect(await actions.startSupportSession(IDLE, form({ token: 'short' }))).toEqual({
+      status: 'error',
+      message: 'This support link isn’t valid.',
+    });
+  });
+
   it('verifies the MFA code', async () => {
     await run(
       actions.signIn(IDLE, form({ email: 'consultant@demo.test', password: 'demo-password' })),

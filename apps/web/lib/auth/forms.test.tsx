@@ -6,6 +6,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { FormState } from './form-state';
 
 const results: Record<string, FormState> = {};
+const posted: string[] = [];
 vi.mock('./actions', () => {
   const make = (name: string) => async () => results[name] ?? { status: 'idle' };
   return {
@@ -15,6 +16,10 @@ vi.mock('./actions', () => {
     startMfaEnrolment: make('startMfaEnrolment'),
     acceptInvite: make('acceptInvite'),
     redeemMagicLink: make('redeemMagicLink'),
+    startSupportSession: async (_prev: FormState, data: FormData) => {
+      posted.push(String(data.get('token')));
+      return results.startSupportSession ?? { status: 'idle' };
+    },
   };
 });
 vi.mock('next/link', () => ({
@@ -25,7 +30,8 @@ vi.mock('next/link', () => ({
   ),
 }));
 
-const { InviteForm, LoginForm, MagicLinkForm, MfaForm, MfaSetupForm } = await import('./forms');
+const { InviteForm, LoginForm, MagicLinkForm, MfaForm, MfaSetupForm, SupportStartForm } =
+  await import('./forms');
 
 describe('auth forms', () => {
   it('signs in and shows field errors beside the fields', async () => {
@@ -160,5 +166,25 @@ describe('auth forms', () => {
     expect((await screen.findByRole('alert')).textContent).toBe(
       'We couldn’t start the setup. Try again in a moment.',
     );
+  });
+
+  it('posts the support token from the fragment once and wipes it from the address bar', async () => {
+    results.startSupportSession = {
+      status: 'error',
+      message: 'This support link has expired.',
+    };
+    window.history.replaceState(null, '', '/support/start#token=one-time-support-token-1');
+    render(<SupportStartForm />);
+    expect((await screen.findByRole('alert')).textContent).toContain('expired');
+    expect(posted).toEqual(['one-time-support-token-1']);
+    expect(window.location.hash).toBe('');
+    expect(window.location.pathname).toBe('/support/start');
+    expect(screen.queryByRole('button', { name: 'Open the account' })).toBeNull();
+  });
+
+  it('says so when the support link has no token', async () => {
+    window.history.replaceState(null, '', '/support/start');
+    render(<SupportStartForm />);
+    expect((await screen.findByRole('alert')).textContent).toContain('incomplete');
   });
 });

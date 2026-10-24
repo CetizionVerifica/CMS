@@ -176,4 +176,27 @@ test.describe('auth pages', () => {
     await page.goto(`/c/${DEMO_METALS}/overview`);
     await expect(page).toHaveURL(/\/login\?next=/);
   });
+
+  test('a support link without its token, or with a used one, never opens the account', async ({
+    page,
+  }) => {
+    await page.goto('/support/start');
+    await expect(page).toHaveTitle('PlanetPulse support · PlanetPulse Compliance');
+    await expect(page.getByRole('alert').filter({ hasText: 'incomplete' })).toHaveText(
+      'This support link is incomplete. Open the account again from the PlanetPulse console.',
+    );
+    await checkPage(page);
+
+    // A fresh document: a hash-only change on the same page would not re-read the fragment.
+    await page.goto('/login');
+    await page.goto('/support/start#token=an-unknown-support-token');
+    await expect(page.getByRole('alert').filter({ hasText: 'expired' })).toHaveText(
+      'This support link has expired, was already used, or the account’s support access has ended. Open a new one from the console.',
+    );
+    // The token is wiped from the address bar once read, and no session starts.
+    await expect(page).toHaveURL('/support/start');
+    await checkPage(page);
+    await page.goto(`/c/${DEMO_METALS}/overview`);
+    await expect(page).toHaveURL(/\/login\?next=/);
+  });
 });
