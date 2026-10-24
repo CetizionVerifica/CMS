@@ -160,9 +160,17 @@ function matches<T>(row: T, where: Where<T>): boolean {
 export class MemoryStore implements Store {
   private data: Data = emptyData();
   private clock: () => Date;
+  /** Plan limits by key; a key left out is unlimited. */
+  limits: Partial<Record<'companies' | 'units', number | null>>;
 
-  constructor(options: { now?: () => Date } = {}) {
+  constructor(
+    options: {
+      now?: () => Date;
+      limits?: Partial<Record<'companies' | 'units', number | null>>;
+    } = {},
+  ) {
     this.clock = options.now ?? (() => new Date());
+    this.limits = options.limits ?? {};
   }
 
   /** Audit rows written by committed transactions. */
@@ -515,6 +523,13 @@ export class MemoryStore implements Store {
             .map((a) => a.obligationId as Id),
         ),
       ],
+      // Firm-wide, like app_usage(): rows of clients the context cannot see count too.
+      planAllowance: async (limit) => ({
+        max: this.limits[limit] ?? null,
+        used: [...this.data.tables[limit].values()].filter(
+          (r) => r.firmId === scope.firmId && r.archivedAt === null,
+        ).length,
+      }),
       audit: async (event) => {
         this.data.audits.push({
           ...event,

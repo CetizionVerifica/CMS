@@ -1,5 +1,6 @@
 import type { Id, Membership, Person, RequestContext } from '@canopy/contracts';
 import {
+  account,
   acts,
   assignments,
   auditEvents,
@@ -27,6 +28,7 @@ import {
   type NewRow,
   type Patch,
   type PersonReach,
+  type PlanAllowance,
   type Repo,
   type Store,
   type Tx,
@@ -250,6 +252,11 @@ export class PostgresStore implements Store {
       clientPersonIds: (clientId) => people.idsInClient(tx, clientId),
       firmStaffIds: () => people.firmStaffIds(tx),
       assignedObligationIds: () => assignments.obligationIds(tx),
+      async planAllowance(limit): Promise<PlanAllowance> {
+        await account.lockUsage(tx);
+        const view = await account.get(tx);
+        return { max: view.entitlements.limits[limit], used: view.usage[limit] };
+      },
       // M3's security-definer app_person_reach: ids of clients this context may not see, for decisions only.
       personReach: (personId): Promise<PersonReach> => people.reach(tx, personId),
       async createPersonInClient(person, membership) {
