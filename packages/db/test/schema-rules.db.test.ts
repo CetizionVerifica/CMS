@@ -373,6 +373,7 @@ describe('platform schema and operator roles', () => {
       'app_end_trial',
       'app_mark_library_copied',
       'app_record_support_expiry',
+      'app_subscription_ends_on',
       'app_take_usage_snapshot',
       'app_usage',
       'canopy_activate_account',
