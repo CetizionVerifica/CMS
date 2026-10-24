@@ -12,6 +12,8 @@ export interface PlatformDeps {
   readonly clock: () => Date;
   /** `Secure` on the `op_sid` cookie. */
   readonly secure: boolean;
+  /** The customer app's origin, for support-session links. */
+  readonly appUrl: string;
 }
 
 export interface SignedIn {

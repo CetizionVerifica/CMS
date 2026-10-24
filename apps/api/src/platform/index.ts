@@ -2,8 +2,13 @@ import type { OperatorDatabase } from '@canopy/db';
 import type { FastifyInstance } from 'fastify';
 import { ApiError, type SecretBox } from '../auth/index.js';
 import type { IpAllowlist } from './allowlist.js';
+import { registerAccountRoutes } from './db-accounts.js';
+import { registerBillingRoutes } from './db-billing.js';
 import { registerOperatorAuth } from './db-auth.js';
+import { registerLifecycleRoutes } from './db-lifecycle.js';
+import { registerSupportRoutes } from './db-support.js';
 import type { PlatformDeps } from './db-http.js';
+import { OperatorIdempotency } from './idempotency.js';
 import { OPERATOR_PREFIX } from './session.js';
 
 export { ipAllowlistFromEnv, type IpAllowlist } from './allowlist.js';
@@ -20,6 +25,8 @@ export interface PlatformOptions {
   readonly allowlist?: IpAllowlist | null;
   /** `Secure` on the `op_sid` cookie. Default: on unless NODE_ENV is development or test. */
   readonly secureCookies?: boolean;
+  /** The customer app's origin (`APP_URL`), where support-session links open. */
+  readonly appUrl: string;
 }
 
 /**
@@ -32,8 +39,10 @@ export function registerPlatform(app: FastifyInstance, options: PlatformOptions)
     secrets: options.secrets,
     clock: options.clock ?? (() => new Date()),
     secure: options.secureCookies ?? !['development', 'test'].includes(process.env.NODE_ENV ?? ''),
+    appUrl: options.appUrl,
   };
   const allowlist = options.allowlist ?? null;
+  const idempotency = new OperatorIdempotency();
   void app.register(
     async (api) => {
       if (allowlist) {
@@ -44,6 +53,10 @@ export function registerPlatform(app: FastifyInstance, options: PlatformOptions)
         });
       }
       registerOperatorAuth(api, deps);
+      registerAccountRoutes(api, deps, idempotency);
+      registerLifecycleRoutes(api, deps);
+      registerBillingRoutes(api, deps, idempotency);
+      registerSupportRoutes(api, deps);
     },
     { prefix: OPERATOR_PREFIX },
   );
