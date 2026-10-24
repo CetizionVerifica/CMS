@@ -5,6 +5,7 @@ import { PostgresReportsStore } from './modules/dashboard/db-store.js';
 import { PostgresStore } from './modules/entities/service.js';
 import { repositoryStore, s3ImportFilesFromEnv } from './modules/imports/index.js';
 import { S3ExportFiles } from './modules/reports/files.js';
+import { s3SettingsFromEnv } from './s3-env.js';
 import type { ServerOptions } from './server.js';
 
 /** Where a failed background import parse is reported: counts and ids only, never row data. */
@@ -58,15 +59,8 @@ export function wiringFromEnv(env: NodeJS.ProcessEnv, logImportError: ImportErro
 
 /** M10's export files in the same S3 bucket as imports (keys under `exports/`, imports under `imports/`). */
 function s3ExportFilesFromEnv(env: NodeJS.ProcessEnv): S3ExportFiles | null {
-  const { S3_ENDPOINT, S3_REGION, S3_BUCKET, S3_ACCESS_KEY_ID, S3_SECRET_ACCESS_KEY } = env;
-  if (!S3_BUCKET || !S3_ACCESS_KEY_ID || !S3_SECRET_ACCESS_KEY) return null;
-  return new S3ExportFiles({
-    bucket: S3_BUCKET,
-    region: S3_REGION ?? 'ap-south-1',
-    ...(S3_ENDPOINT && { endpoint: S3_ENDPOINT }),
-    accessKeyId: S3_ACCESS_KEY_ID,
-    secretAccessKey: S3_SECRET_ACCESS_KEY,
-  });
+  const settings = s3SettingsFromEnv(env);
+  return settings && new S3ExportFiles(settings);
 }
 
 export interface JobsWiring {

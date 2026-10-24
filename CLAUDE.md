@@ -64,7 +64,12 @@ pnpm db:seed        # seeds two firms and the sample client from the Excel fixtu
 ## Working style for Claude in this repo
 - Small PRs, one concern each. Migrations in their own PR when they change existing tables.
 - Write or update tests in the same PR. Engine changes need unit tests with explicit dates; workflow changes need API tests for each role.
-- The sample register is the golden fixture: `packages/importer/fixtures/sample-register.xlsx`. Its expected counts are in `docs/requirements/excel-analysis.md` §5. Do not edit the fixture; add new fixtures instead.
+- The sample register is the golden fixture. Tests load its anonymised copy, `packages/importer/fixtures/sample-register-anonymised.xlsx`,
+  made from `packages/importer/fixtures/sample-register.xlsx`. Its expected counts are in `docs/requirements/excel-analysis.md` §5.
+  Do not edit either fixture; add new fixtures instead.
+- Never write a real client, company or plant name in a tracked file: tests, fixtures, demos and docs use fictional names.
+  The denied names live in `tooling/client-names.json`; `tooling/scripts/check-client-names.mjs` (in the `tooling` job,
+  also in the merge queue) fails on any tracked file outside that file's `exempt` list and names each file still dirty.
 - When a requirement is unclear, check the Excel analysis, then `PLAN.md` §7 defaults, then ask. Record decisions as ADRs in `docs/adr/M<n>-NNNN-slug.md`,
   where `M<n>` is the module that owns the decision (M1 for repo-wide ones) and `NNNN` is the next number in that module's
   own series. Parallel threads never share a series, so numbers can't collide. The first ADRs, `0001` to `0006`, keep their
