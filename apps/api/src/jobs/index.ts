@@ -2,7 +2,7 @@
 // evidence virus scan.
 export { clamAvConfigFromEnv, clamAvScanner, type ClamAvConfig } from './clamav-scanner.js';
 export { clientDay, currentAndNextFy, reminderWindow, sendTimeReached } from './client-day.js';
-export { CONSUMERS, OutboxEventSchema, type Consumer } from './consumers.js';
+export { activeConsumers, CONSUMERS, OutboxEventSchema, type Consumer } from './consumers.js';
 export { CONSULTANT_DIGEST, runConsultantDigest } from './digest.js';
 export {
   GENERATE_INSTANCES,

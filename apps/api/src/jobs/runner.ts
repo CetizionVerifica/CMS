@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import pg from 'pg';
 import { PgBoss } from 'pg-boss';
-import { CONSUMERS, OutboxEventSchema } from './consumers.js';
+import { activeConsumers, OutboxEventSchema } from './consumers.js';
 import { runConsultantDigest, CONSULTANT_DIGEST } from './digest.js';
 import { GENERATE_INSTANCES, runGenerateInstances } from './generate-instances.js';
 import { RELAY_OUTBOX, runRelayOutbox } from './outbox-relay.js';
@@ -104,13 +104,7 @@ export async function startJobRunner(deps: JobDeps, options: JobRunnerOptions): 
   const mail = options.mail ?? true;
   const scan = deps.scanner !== undefined && deps.evidenceObjects !== undefined;
   const jobs = JOBS.filter((job) => (mail || !job.sendsMail) && (scan || !job.scansEvidence));
-  // Without M5's issuer the sign-in link and invite consumers are left off like the mail ones: their events are
-  // marked relayed, and no send is claimed that could never carry a token.
-  const consumers = CONSUMERS.filter(
-    (consumer) =>
-      (mail || !consumer.sendsMail) &&
-      (deps.issueLoginToken !== undefined || !consumer.needsLoginTokens),
-  );
+  const consumers = activeConsumers(deps, mail);
   const consumed = new Set(consumers.map((c) => c.type));
   const bus: EventBus = {
     consumes: (type) => consumed.has(type),
