@@ -922,6 +922,91 @@ describe('support access', () => {
     expect(again).toEqual([{ recorded: false }]);
   });
 
+  it('records an expiry only for a grant that has run out by the database clock, whatever the caller says', async () => {
+    const { grant } = await inFirm(a.firmId, (tx) =>
+      r.supportGrants.create(tx, { level: 'READ_ONLY', days: 1, grantedById: adminId, now: NOW() }),
+    );
+    const { rows } = await inFirm(a.firmId, (tx) =>
+      tx.execute<{ recorded: boolean }>(
+        sql`SELECT app_record_support_expiry(${grant.id}, '2099-01-01T00:00:00Z'::timestamptz) AS recorded`,
+      ),
+    );
+    expect(rows).toEqual([{ recorded: false }]);
+    const { rows: trail } = await t.ownerQuery<{ action: string }>(
+      `SELECT action FROM platform.operator_audit_event WHERE after->>'grantId' = '${grant.id}' ORDER BY at, id`,
+    );
+    expect(trail.map((e) => e.action)).toEqual(['SUPPORT_ACCESS_START']);
+  });
+
+  it('records an expiry once when two runs race on the same grant', async () => {
+    const past = new Date(Date.now() - 10 * 86_400_000).toISOString();
+    const { grant } = await inFirm(a.firmId, (tx) =>
+      r.supportGrants.create(tx, { level: 'READ_ONLY', days: 1, grantedById: adminId, now: past }),
+    );
+    const record = (holdMs: number) =>
+      inFirm(a.firmId, async (tx) => {
+        const { rows } = await tx.execute<{ recorded: boolean }>(
+          sql`SELECT app_record_support_expiry(${grant.id}, now()) AS recorded`,
+        );
+        // The first run keeps its transaction open; the second insert waits on its entry, then does nothing.
+        await new Promise((done) => setTimeout(done, holdMs));
+        return rows[0]!.recorded;
+      });
+    const first = record(400);
+    await new Promise((done) => setTimeout(done, 100));
+    const second = record(0);
+    expect(await Promise.all([first, second])).toEqual([true, false]);
+    const { rows: ends } = await t.ownerQuery<{ n: number }>(
+      `SELECT count(*)::int AS n FROM platform.operator_audit_event
+       WHERE action = 'SUPPORT_ACCESS_END' AND after->>'grantId' = '${grant.id}'`,
+    );
+    expect(ends).toEqual([{ n: 1 }]);
+  });
+
+  it('records the expiry of a grant whose support person holds no membership, once', async () => {
+    const past = new Date(Date.now() - 20 * 86_400_000).toISOString();
+    const { grant } = await inFirm(a.firmId, (tx) =>
+      r.supportGrants.create(tx, { level: 'READ_ONLY', days: 1, grantedById: adminId, now: past }),
+    );
+    // As on an account with no clients: the READ_ONLY grant made no VIEWER membership.
+    await t.ownerQuery(
+      `UPDATE membership SET archived_at = now()
+       WHERE firm_id = $1 AND person_id = $2 AND expires_at = $3 AND archived_at IS NULL`,
+      [a.firmId, grant.supportPersonId, grant.endsAt],
+    );
+    expect(await inFirm(a.firmId, (tx) => r.supportGrants.closeExpired(tx, NOW()))).toBe(0);
+    expect(await inFirm(a.firmId, (tx) => r.supportGrants.closeExpired(tx, NOW()))).toBe(0);
+    const { rows: trail } = await t.ownerQuery<{ action: string; source: string }>(
+      `SELECT action, after->>'source' AS source FROM platform.operator_audit_event
+       WHERE after->>'grantId' = '${grant.id}' ORDER BY at, id`,
+    );
+    expect(trail).toEqual([
+      { action: 'SUPPORT_ACCESS_START', source: 'grant' },
+      { action: 'SUPPORT_ACCESS_END', source: 'expiry' },
+    ]);
+  });
+
+  it('lets a late revoke through when the expiry is already in the trail, keeping one END', async () => {
+    const past = new Date(Date.now() - 30 * 86_400_000).toISOString();
+    const { grant } = await inFirm(a.firmId, (tx) =>
+      r.supportGrants.create(tx, { level: 'READ_ONLY', days: 1, grantedById: adminId, now: past }),
+    );
+    await inFirm(a.firmId, (tx) => r.supportGrants.closeExpired(tx, NOW()));
+    // A caller whose clock still reads a time before the grant ended.
+    const { grant: revoked } = await inFirm(a.firmId, (tx) =>
+      r.supportGrants.revoke(tx, grant.id, adminId, past),
+    );
+    expect(revoked.status).toBe('REVOKED');
+    const { rows: trail } = await t.ownerQuery<{ action: string; source: string }>(
+      `SELECT action, after->>'source' AS source FROM platform.operator_audit_event
+       WHERE after->>'grantId' = '${grant.id}' ORDER BY at, id`,
+    );
+    expect(trail).toEqual([
+      { action: 'SUPPORT_ACCESS_START', source: 'grant' },
+      { action: 'SUPPORT_ACCESS_END', source: 'expiry' },
+    ]);
+  });
+
   it('keeps a revoke final: the tenant cannot revive a revoked grant or rewrite who revoked it', async () => {
     const { grant } = await inFirm(a.firmId, (tx) =>
       r.supportGrants.create(tx, { level: 'READ_ONLY', days: 1, grantedById: adminId, now: NOW() }),

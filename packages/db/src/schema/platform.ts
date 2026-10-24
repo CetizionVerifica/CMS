@@ -195,6 +195,11 @@ export const operatorAuditEvent = platform.table(
   (t) => [
     index('operator_audit_event_account_idx').on(t.accountId, t.at),
     index('operator_audit_event_at_idx').on(t.at),
+    // A support grant ends once in the trail, by revoke or by expiry (app_record_support_expiry inserts with
+    // ON CONFLICT DO NOTHING and no conflict target, which needs no SELECT on the trail).
+    uniqueIndex('operator_audit_event_support_end_key')
+      .on(sql`(after->>'grantId')`)
+      .where(sql`action = 'SUPPORT_ACCESS_END'`),
     check('operator_audit_event_request_id_check', sql`length(request_id) between 1 and 200`),
   ],
 );

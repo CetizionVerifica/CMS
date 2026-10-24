@@ -296,18 +296,19 @@ export const supportGrants = {
       .catch(rethrow);
     let closed = 0;
     for (const row of rows) {
+      // The operator trail's SUPPORT_ACCESS_END, written once per grant by a canopy_platform function, also for a
+      // grant whose support person holds no membership (READ_ONLY on an account with no clients).
+      await tx
+        .execute(
+          sql`SELECT app_record_support_expiry(${row.id}, ${when.toISOString()}::timestamptz)`,
+        )
+        .catch(rethrow);
       const open = await tx
         .select({ id: s.membership.id })
         .from(s.membership)
         .where(and(eq(s.membership.personId, row.supportPersonId), isNull(s.membership.archivedAt)))
         .catch(rethrow);
       if (open.length === 0) continue;
-      // The operator trail's SUPPORT_ACCESS_END, written by a canopy_platform function while the grant is still open.
-      await tx
-        .execute(
-          sql`SELECT app_record_support_expiry(${row.id}, ${when.toISOString()}::timestamptz)`,
-        )
-        .catch(rethrow);
       await closeGrant(tx, row, when);
       closed++;
     }
