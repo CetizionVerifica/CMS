@@ -32,7 +32,9 @@ Shared code for every web screen. M12 and M13 import from here; they don't chang
 - `proxy.ts` sends a Content-Security-Policy with a fresh nonce per response (`security/csp.ts`); Next puts the nonce on
   its own scripts, and the root layout renders every page per request so none is prerendered without it. Browser
   uploads go straight to object storage, so a deployment sets `CANOPY_CSP_CONNECT_SRC` to the storage origin of the
-  presigned upload URLs (space-separated); unset, `connect-src` is `'self'` only. In e2e, wait with a function, not a
+  presigned upload URLs (space-separated bare https origins; anything else is left out with a warning at start-up);
+  unset, `connect-src` is `'self'` only. `CANOPY_CSP_REPORT_ONLY=true` sends the same policy as
+  `Content-Security-Policy-Report-Only` for a trial: violations show in the browser console, nothing is blocked. In e2e, wait with a function, not a
   string: `page.waitForFunction('…')` evaluates the string in the page, which the policy refuses.
 - The sidebar's Approvals item shows the count from `GET /me/approvals` for approvers and client admins. That count
   covers every client the user approves in (the endpoint has no client filter), and its label says so.
