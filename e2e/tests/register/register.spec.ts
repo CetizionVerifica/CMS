@@ -74,6 +74,113 @@ test.describe('register', () => {
     await checkPage(page);
   });
 
+  // The drawer journeys run after the bulk approve above has approved what was waiting: the owner submits one
+  // instance and asks for another to be marked not applicable, and the approver then decides both.
+  test('an owner opens an instance, attaches evidence and submits it', async ({ page }) => {
+    await signIn(
+      page,
+      'owner@demo.test',
+      `${REGISTER}?dueFrom=2023-04-01&ownerId=me&workflowState=OPEN`,
+    );
+    const link = page.getByRole('table', { name: 'Register' }).getByRole('link').first();
+    await expect(link).toBeVisible();
+    const title = await link.innerText();
+    await link.click();
+    const drawer = page.getByRole('dialog', { name: title });
+    await expect(drawer.getByRole('heading', { name: 'Mark as done' })).toBeVisible();
+    await expect(page).toHaveURL(/\/register\/[0-9a-f-]{36}\?dueFrom=2023-04-01&/);
+    await expectNoA11yViolations(page);
+
+    // The drawer's URL is a link to it: a reload opens the same instance.
+    await page.reload();
+    await expect(drawer.getByRole('heading', { name: 'Mark as done' })).toBeVisible();
+
+    await drawer.locator('input[type=file]').setInputFiles({
+      name: 'challan.pdf',
+      mimeType: 'application/pdf',
+      buffer: Buffer.from('%PDF-1.4 demo challan'),
+    });
+    const files = drawer.getByRole('list', { name: 'Evidence files' });
+    // PENDING until the virus check, then the file opens.
+    await expect(files.getByRole('button', { name: 'Open challan.pdf' })).toBeVisible({
+      timeout: 15_000,
+    });
+    await drawer.getByLabel('Completed on', { exact: true }).fill('15 Nov 2024');
+    await drawer.getByLabel('Completed on', { exact: true }).press('Tab');
+    await drawer.getByLabel('What was done').fill('Deposited and filed; the challan is attached.');
+    await drawer.getByRole('button', { name: 'Submit' }).click();
+    await expect(page.getByText('Submitted for approval.').first()).toBeVisible();
+    await expect(drawer.getByRole('heading', { name: 'Mark as done' })).toBeHidden();
+    await expect(drawer.getByText(/submitted it/).first()).toBeVisible();
+    await expectNoA11yViolations(page);
+
+    await drawer.getByRole('button', { name: 'Close' }).click();
+    await expect(drawer).toBeHidden();
+    await expect(page).toHaveURL(new RegExp(`${REGISTER}\\?dueFrom=2023-04-01&`));
+    await checkPage(page);
+
+    // Closing refreshes the view, so the submitted instance leaves this list of open work.
+    await expect(link).not.toHaveText(title);
+    const other = await link.innerText();
+    await link.click();
+    const second = page.getByRole('dialog', { name: other });
+    await second.getByRole('button', { name: 'Not applicable…' }).click();
+    const na = page.getByRole('alertdialog', { name: 'Ask to mark this not applicable?' });
+    await na.getByLabel(/doesn’t apply/).fill('The unit has no boilers.');
+    await na.getByRole('button', { name: 'Ask for not applicable' }).click();
+    await expect(page.getByText('Sent to the approver as not applicable.').first()).toBeVisible();
+    await expect(second.getByText('The unit has no boilers.').first()).toBeVisible();
+  });
+
+  test('an approver approves an instance from the drawer with the keyboard, then sends the next back', async ({
+    page,
+  }) => {
+    await signIn(
+      page,
+      'approver@demo.test',
+      `${REGISTER}?dueFrom=2023-04-01&approverId=me&workflowState=SUBMITTED`,
+    );
+    const link = page.getByRole('table', { name: 'Register' }).getByRole('link').first();
+    await expect(link).toBeVisible();
+    const title = await link.innerText();
+    await link.focus();
+    await page.keyboard.press('Enter');
+    const drawer = page.getByRole('dialog', { name: title });
+    const approve = drawer.getByRole('button', { name: /^Approve/ });
+    await expect(approve).toBeVisible();
+    await approve.focus();
+    await page.keyboard.press('Enter');
+    const confirm = page.getByRole('alertdialog', {
+      name: /^Approve (this instance|as not applicable)\?$/,
+    });
+    await expect(confirm).toBeVisible();
+    await expectNoA11yViolations(page);
+    // Focus starts in the optional comment; Ctrl+Enter confirms.
+    await page.keyboard.press('Control+Enter');
+    await expect(page.getByText('Approved.').first()).toBeVisible();
+    await expect(confirm).toBeHidden();
+    await expect(approve).toBeHidden();
+
+    // The next waiting instance, without closing the drawer.
+    await drawer.getByRole('button', { name: 'Next instance' }).click();
+    const next = page.getByRole('dialog');
+    await expect(next).not.toHaveAccessibleName(title);
+    const sendBack = next.getByRole('button', { name: 'Send back…' });
+    await expect(sendBack).toBeVisible();
+    await sendBack.click();
+    const reason = page.getByRole('alertdialog', { name: 'Send this back to the owner?' });
+    await reason.getByLabel('Reason').fill('The challan is for the wrong month.');
+    await reason.getByRole('button', { name: 'Send back' }).click();
+    await expect(page.getByText('Sent back to the owner.').first()).toBeVisible();
+    await expect(next.getByText('The challan is for the wrong month.').first()).toBeVisible();
+
+    // Send back is gone, so focus is back on the drawer's title rather than lost.
+    await expect(next.getByRole('heading', { level: 2 })).toBeFocused();
+    await next.getByRole('button', { name: 'Close' }).click();
+    await expect(page.getByRole('dialog')).toBeHidden();
+    await checkPage(page);
+  });
+
   test('an owner sees their rows with no approve or export', async ({ page }) => {
     await signIn(page, 'owner@demo.test', `${REGISTER}?${FY}`);
     const table = page.getByRole('table', { name: 'Register' });
@@ -135,5 +242,22 @@ test.describe('register at 375px on a phone', () => {
     await checkPage(page);
     await page.getByRole('button', { name: 'Filters' }).click();
     await expect(page.getByRole('dialog')).toBeVisible();
+  });
+
+  test('opens an instance full screen with a way back', async ({ page }) => {
+    await signIn(page, 'approver@demo.test', `${REGISTER}?${FY}`);
+    const link = page.getByRole('table', { name: 'Register' }).getByRole('link').first();
+    await expect(link).toBeVisible();
+    await link.click();
+    const drawer = page.getByRole('dialog');
+    await expect(drawer.getByRole('heading', { name: 'Description' })).toBeVisible();
+    await expectNoA11yViolations(page);
+    const overflow = await page.evaluate<number>(
+      'document.documentElement.scrollWidth - window.innerWidth',
+    );
+    expect(overflow).toBeLessThanOrEqual(0);
+    await drawer.getByRole('button', { name: 'Back to the register' }).click();
+    await expect(drawer).toBeHidden();
+    await expect(page).toHaveURL(`${REGISTER}?${FY}`);
   });
 });

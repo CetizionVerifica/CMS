@@ -25,6 +25,8 @@ export async function generateMetadata({ params }: Pick<Props, 'params'>): Promi
 
 /** Roles that may approve in a client (bulkApprove: CLIENT_ADMIN, APPROVER for their own items). */
 const APPROVERS: readonly Role[] = ['CLIENT_ADMIN', 'APPROVER'];
+/** Roles that may reopen, reassign and remove any evidence in a client (the instance and evidence endpoints' FA CO CA). */
+const MANAGERS: readonly Role[] = ['FIRM_ADMIN', 'CONSULTANT', 'CLIENT_ADMIN'];
 /** Roles that may export (createExport): everyone but an OWNER. */
 const EXPORTERS: readonly Role[] = [
   'FIRM_ADMIN',
@@ -45,7 +47,8 @@ function toSearch(raw: Record<string, string | string[] | undefined>): URLSearch
 }
 
 // The register (apps/web/CLAUDE.md "Register"): every instance in the selected period, filtered by the URL. The
-// first page renders on the server; the grid loads more on request.
+// first page renders on the server; the grid loads more on request. `/register/<id>` renders this same page, and the
+// view opens that instance's drawer over it (./[instanceId]/page.tsx).
 export default async function RegisterPage({ params, searchParams }: Props) {
   const { clientId } = await params;
   const search = toSearch(await searchParams);
@@ -84,6 +87,8 @@ export default async function RegisterPage({ params, searchParams }: Props) {
         facets={facets}
         canApprove={roles.some((r) => APPROVERS.includes(r))}
         canExport={roles.some((r) => EXPORTERS.includes(r))}
+        canManage={roles.some((r) => MANAGERS.includes(r))}
+        timeZone={client.timeZone}
       />
     </>
   );
