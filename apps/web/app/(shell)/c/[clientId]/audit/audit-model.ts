@@ -35,7 +35,9 @@ export function kindsFrom(param: string | null): { kinds: string[]; actions: Aud
   return { kinds, actions };
 }
 
-const ENTITY: Record<EntityType, string> = {
+// 'account' is listed ahead of contracts 1.5.1, which adds it to EntityType for the entries the platform's changes to an
+// account write (ADR M15-0003); naming it here keeps this map complete before and after that bump.
+const ENTITY: Record<EntityType | 'account', string> = {
   client: 'the client',
   company: 'a company',
   unit: 'a unit',
@@ -51,6 +53,7 @@ const ENTITY: Record<EntityType, string> = {
   evidence: 'evidence',
   import_batch: 'an import',
   export: 'an export',
+  account: 'the account',
 };
 
 const VERB: Record<AuditAction, string> = {

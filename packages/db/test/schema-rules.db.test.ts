@@ -333,12 +333,16 @@ describe('platform schema and operator roles', () => {
       ORDER BY p.proname`);
     expect(rows.map((r) => r.name)).toEqual([
       'app_account',
+      'app_end_trial',
+      'app_mark_library_copied',
+      'app_take_usage_snapshot',
       'app_usage',
       'canopy_activate_account',
       'platform_create_account',
       'platform_issue_support_token',
       'platform_provision_account',
       'platform_record_account_event',
+      'platform_resend_owner_invite',
       'platform_usage',
     ]);
     for (const f of rows) {

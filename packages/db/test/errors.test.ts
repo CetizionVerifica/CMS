@@ -10,6 +10,7 @@ describe('rethrow', () => {
     ['23502', 'VALIDATION'],
     ['22P02', 'VALIDATION'],
     ['42501', 'FORBIDDEN'],
+    ['P0002', 'NOT_FOUND'],
   ])('maps SQLSTATE %s to %s, naming the constraint only', (sqlstate, code) => {
     const pg = Object.assign(new Error('duplicate key value (name)=(Surajit Dasgupta)'), {
       code: sqlstate,
