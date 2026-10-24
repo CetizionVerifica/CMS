@@ -3,6 +3,7 @@ import {
   ApiErrorResponse,
   ClientPeriods,
   DEFAULT_CLIENT_SETTINGS,
+  DEFAULT_FIRM_SETTINGS,
   LocalDate,
   Invite,
   InvitePreview,
@@ -11,11 +12,14 @@ import {
   type Role,
 } from '@canopy/contracts';
 import {
+  account,
+  accountJobs,
   clients,
   companies,
   createAdminDatabase,
   createDatabase,
   createOperatorDatabase,
+  platformAccounts,
   platformSupport,
   supportGrants,
   credentials,
@@ -752,7 +756,7 @@ describe.skipIf(!url)('database AccountStore', () => {
     ).toEqual([{ n: 2 }]);
   });
 
-  it('lets only one of two simultaneous invites take the last seat', async () => {
+  it('queues simultaneous invites on the usage lock, so only one takes the last seat', async () => {
     const seeded = await firmWithClient();
     const fa = await person(seeded, { role: 'FIRM_ADMIN' });
     await rows(`INSERT INTO platform.account_override (account_id, limits) VALUES ($1, $2)`, [
@@ -777,14 +781,96 @@ describe.skipIf(!url)('database AccountStore', () => {
         requestId: 'seat-race',
         now,
       });
-    const results = await Promise.allSettled([
+    // Hold the account's usage lock, start both invites, and see both queue behind it before letting them go.
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => (release = resolve));
+    let locked!: () => void;
+    const lockTaken = new Promise<void>((resolve) => (locked = resolve));
+    const holder = db.withTenant(systemContext(seeded.firmId, 'seat-holder'), async (tx) => {
+      await account.lockUsage(tx);
+      locked();
+      await held;
+    });
+    await lockTaken;
+    const racing = Promise.allSettled([
       invite('dev.iyer@kestrel-metals.example'),
       invite('meera.nair@kestrel-metals.example'),
     ]);
+    const waiting = async () =>
+      (
+        await rows(
+          `SELECT count(*)::int AS n FROM pg_locks
+           WHERE locktype = 'advisory' AND NOT granted
+             AND database = (SELECT oid FROM pg_database WHERE datname = current_database())`,
+          [],
+        )
+      )[0]!.n as number;
+    for (let i = 0; i < 200 && (await waiting()) < 2; i += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+    expect(await waiting()).toBe(2);
+    release();
+    await holder;
+    const results = await racing;
     expect(results.map((r) => r.status).sort()).toEqual(['fulfilled', 'rejected']);
     const refused = results.find((r) => r.status === 'rejected')!;
     expect(refused.reason).toMatchObject({ code: 'PLAN_LIMIT_REACHED' });
     expect((await store.account(seeded.firmId))!.usage.users).toBe(2);
+  });
+
+  it("waits for the library copy before the owner's invite opens a new account", async () => {
+    const operator = createOperatorDatabase({ connectionString: owner.options.connectionString! });
+    try {
+      const created = await operator.withOperator('create', (tx) =>
+        platformAccounts.create(tx, {
+          name: 'Osprey Textiles Group',
+          kind: 'ENTERPRISE',
+          planCode: 'BUSINESS',
+          trialEndsOn: '2036-11-11',
+          settings: DEFAULT_FIRM_SETTINGS,
+          profile: {
+            legalName: 'Osprey Textiles Group Private Limited',
+            gstin: null,
+            timeZone: 'Asia/Kolkata',
+            fyStartMonth: 4,
+          },
+          client: { name: 'Osprey Textiles Group', settings: DEFAULT_CLIENT_SETTINGS },
+          owner: { displayName: 'Meera Iyer', email: 'meera.iyer@osprey-textiles.example' },
+          inviteExpiresAt: '2099-01-01T00:00:00.000Z',
+          operatorId: randomUUID(),
+          requestId: 'create',
+        }),
+      );
+      expect(await store.libraryCopied(created.accountId)).toBe(false);
+      const { token } = await service.issueLoginToken({
+        firmId: created.accountId,
+        personId: created.ownerId,
+        kind: 'INVITE',
+        inviteId: created.inviteId,
+      });
+      const accept = () =>
+        app.inject({
+          method: 'POST',
+          url: `/api/v1/invites/${token}/accept`,
+          payload: { password: PASSWORD },
+        });
+      const early = await accept();
+      expect(errorCode(early)).toBe('ACCOUNT_SUSPENDED');
+      expect(ApiErrorResponse.parse(early.json()).error.details).toEqual({
+        status: 'PROVISIONING',
+      });
+      expect(await store.account(created.accountId)).toMatchObject({ status: 'PROVISIONING' });
+
+      await db.withTenant(systemContext(created.accountId, 'copy'), (tx) =>
+        accountJobs.markLibraryCopied(tx),
+      );
+      expect(await store.libraryCopied(created.accountId)).toBe(true);
+      const opened = await accept();
+      expect(opened.statusCode, opened.body).toBe(200);
+      expect(await store.account(created.accountId)).toMatchObject({ status: 'TRIAL' });
+    } finally {
+      await operator.close();
+    }
   });
 
   it('opens a support session from a console token, and ends it with the grant', async () => {
