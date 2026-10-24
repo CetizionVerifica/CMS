@@ -15,14 +15,21 @@ async function count(page: Page): Promise<number> {
   return Number((await matchCount(page).innerText()).split(' ')[0]);
 }
 
+type AnimatedDocument = {
+  getAnimations(): { playState: string; effect: { getTiming(): { iterations?: number } } | null }[];
+};
+
 /**
  * Waits for CSS transitions and animations to finish, so axe measures colours at rest: a row's buttons fade in and out
- * with focus, and mid-fade they fail contrast. A string, because the e2e tsconfig has no DOM types.
+ * with focus, and mid-fade they fail contrast. A function, not a string: the app's Content-Security-Policy refuses
+ * eval, and Playwright evaluates a string in the page. The e2e tsconfig has no DOM types, hence `AnimatedDocument`.
  */
 async function settled(page: Page): Promise<void> {
   // Endless ones (a spinner) never finish, so only the ones that end are waited for.
-  await page.waitForFunction(
-    "document.getAnimations().every((a) => a.playState !== 'running' || a.effect?.getTiming().iterations === Infinity)",
+  await page.waitForFunction(() =>
+    (globalThis as unknown as { document: AnimatedDocument }).document
+      .getAnimations()
+      .every((a) => a.playState !== 'running' || a.effect?.getTiming().iterations === Infinity),
   );
 }
 
