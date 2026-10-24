@@ -93,7 +93,7 @@ beforeEach(async () => {
 });
 
 // Each step reads the whole sample workbook, which is slow under coverage on a busy runner.
-describe('import API', { timeout: 30_000 }, () => {
+describe('import API', { timeout: 60_000 }, () => {
   let h: Harness;
   beforeEach(() => {
     h = harness();
