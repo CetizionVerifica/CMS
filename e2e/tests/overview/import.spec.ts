@@ -85,6 +85,8 @@ test.describe('import wizard', () => {
     await expect(
       page.getByRole('status').filter({ hasText: /rows from sample-register-anonymised\.xlsx/ }),
     ).toBeVisible();
+    // The refresh after the commit re-renders the whole client layout, title included; wait for it to settle.
+    await expect(page).toHaveTitle('Import · Demo Metals · PlanetPulse Compliance');
     await checkPage(page);
 
     // The history lists it as committed.
