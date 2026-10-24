@@ -19,8 +19,14 @@ export const JOBS_PASSWORD = 'e2e-jobs-login';
 
 /** The stand-in clamd (fake-clamd.ts) the API's evidence scan calls (CLAMAV_HOST, docs/security/review.md F8). */
 export const CLAMD_PORT = 4110;
-/** EICAR's anti-virus test string: harmless, and every scanner reports it. */
-export const EICAR = 'X5O!P%@AP[4\\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*';
+/**
+ * EICAR's anti-virus test string: harmless, and every scanner reports it. Joined at run time, so a desktop scanner does
+ * not quarantine this file in a checkout.
+ */
+export const EICAR = [
+  'X5O!P%@AP[4\\PZX54(P^)7CC)7}$EICAR',
+  '-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*',
+].join('');
 
 /** Test-only key: 32 bytes of 9. */
 export const AUTH_SECRET_KEY = Buffer.alloc(32, 9).toString('base64');
