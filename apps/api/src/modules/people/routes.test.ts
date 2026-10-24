@@ -685,6 +685,103 @@ describe('the PlanetPulse support person', () => {
     expect(error(res.body).message).toMatch(/at least one firm admin/);
   });
 
+  it('keeps a READ_ONLY grant as made: client roles cannot change or re-grant its VIEWER membership', async () => {
+    const world = testApp();
+    const base = { firmId: FIRM_A, createdAt: AT, updatedAt: AT, archivedAt: null, version: 1 };
+    world.store.seed('people', {
+      ...base,
+      id: supportId,
+      displayName: 'PlanetPulse support',
+      nameNormalized: 'planetpulse support',
+      email: 'support@planetpulse.life',
+      status: 'ACTIVE',
+      support: true,
+    });
+    world.store.seed('memberships', {
+      ...base,
+      id: supportMembership,
+      personId: supportId,
+      role: 'VIEWER',
+      clientId: ids.clientA,
+      consultantClientIds: null,
+      unitIds: null,
+      expiresAt: '2026-10-19T00:00:00Z',
+    });
+    const { call, store } = world;
+    refused(
+      await call('clientAdmin', 'PATCH', `/memberships/${supportMembership}`, {
+        version: 1,
+        expiresAt: '2027-01-01T00:00:00Z',
+      }),
+      'membership.write',
+    );
+    for (const actor of ['clientAdmin', 'consultant'] as const) {
+      refused(
+        await call(actor, 'POST', `/memberships/${supportMembership}/archive`, {
+          version: 1,
+          reason: 'Not needed',
+        }),
+        'membership.write',
+      );
+    }
+    refused(
+      await call('clientAdmin', 'POST', `/people/${supportId}/memberships`, {
+        role: 'APPROVER',
+        clientId: ids.clientA,
+        consultantClientIds: null,
+        unitIds: null,
+        expiresAt: null,
+      }),
+      'membership.write',
+    );
+    refused(
+      await call('clientAdmin', 'PATCH', `/people/${supportId}`, {
+        version: 1,
+        displayName: 'Someone else',
+      }),
+      'person.write',
+    );
+    expect(store.raw('memberships', supportMembership)).toMatchObject({
+      archivedAt: null,
+      expiresAt: '2026-10-19T00:00:00Z',
+      version: 1,
+    });
+    expect(store.audits).toEqual([]);
+  });
+
+  it('refuses a membership change when the member cannot be read', async () => {
+    const world = testApp();
+    const orphan = uid(902);
+    world.store.seed('memberships', {
+      firmId: FIRM_A,
+      createdAt: AT,
+      updatedAt: AT,
+      archivedAt: null,
+      version: 1,
+      id: orphan,
+      personId: uid(903),
+      role: 'VIEWER',
+      clientId: ids.clientA,
+      consultantClientIds: null,
+      unitIds: null,
+      expiresAt: null,
+    });
+    refused(
+      await world.call('firmAdmin', 'POST', `/memberships/${orphan}/archive`, {
+        version: 1,
+        reason: 'Not needed',
+      }),
+      'membership.write',
+    );
+    refused(
+      await world.call('firmAdmin', 'PATCH', `/memberships/${orphan}`, {
+        version: 1,
+        expiresAt: '2027-01-01T00:00:00Z',
+      }),
+      'membership.write',
+    );
+  });
+
   it('is still listed with the firm’s staff, marked as support', async () => {
     const { call } = withSupport();
     const res = await call('firmAdmin', 'GET', '/people?q=planetpulse');

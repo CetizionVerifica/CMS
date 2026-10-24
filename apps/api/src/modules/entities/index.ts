@@ -1,9 +1,9 @@
 import type { FastifyInstance } from 'fastify';
+import { loggableError } from '../../auth/index.js';
 import { assignmentRoutes } from '../assignments/routes.js';
 import { clientRoutes } from '../clients/routes.js';
 import { libraryRoutes } from '../library/routes.js';
 import { peopleRoutes } from '../people/routes.js';
-import { loggableError } from './http/log-error.js';
 import { errorEnvelope, type M6Deps } from './http/route.js';
 import { entityRoutes } from './routes.js';
 

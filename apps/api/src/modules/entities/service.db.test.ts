@@ -503,6 +503,30 @@ describe.skipIf(!url)('M6 on the Postgres store', () => {
       expect(acts.body).toMatchObject({ items: [{ name: 'Income Tax Act, 1961' }] });
     });
 
+    it("answers every list at the contract's largest page, which is M3's MAX_LIMIT", async () => {
+      signIn('firmAdmin', w.firmA, { role: 'FIRM_ADMIN', clientId: null }, [w.clientA, w.clientB]);
+      const lists = [
+        '/clients',
+        `/clients/${w.clientA}/companies`,
+        `/clients/${w.clientA}/units`,
+        '/locations',
+        `/clients/${w.clientA}/departments`,
+        '/people',
+        `/clients/${w.clientA}/people`,
+        '/library/acts',
+        '/library/categories',
+        '/library/obligations',
+        `/clients/${w.clientA}/assignments`,
+      ];
+      for (const path of lists) {
+        const res = await call('firmAdmin', 'GET', `${path}?limit=200&count=true`);
+        expect({ path, status: res.status }).toEqual({ path, status: 200 });
+        const body = res.body as { items: unknown[]; nextCursor: string | null; total: number };
+        expect({ path, more: body.nextCursor }).toEqual({ path, more: null });
+        expect(body.items).toHaveLength(body.total);
+      }
+    });
+
     it('pages assignments in id order', async () => {
       const created = await call('firmAdmin', 'POST', `/clients/${w.clientA}/assignments`, {
         unitId: w.unitA,
