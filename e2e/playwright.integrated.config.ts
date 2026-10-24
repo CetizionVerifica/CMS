@@ -5,6 +5,8 @@ import {
   API_URL,
   APP_LOGIN,
   APP_PASSWORD,
+  JOBS_LOGIN,
+  JOBS_PASSWORD,
   AUTH_SECRET_KEY,
   E2E_DATABASE,
   WEB_PORT,
@@ -59,6 +61,7 @@ export default defineConfig({
         // prepare.ts connects to the server as the owner; the API as the app login.
         E2E_SERVER_DATABASE_URL: base,
         DATABASE_URL: databaseUrl(base, E2E_DATABASE, [APP_LOGIN, APP_PASSWORD]),
+        JOBS_DATABASE_URL: databaseUrl(base, E2E_DATABASE, [JOBS_LOGIN, JOBS_PASSWORD]),
         AUTH_SECRET_KEY,
         // The web server calls from loopback and passes on each browser's X-Forwarded-For (stack.ts addressOf).
         TRUST_PROXY: '127.0.0.1,::1',

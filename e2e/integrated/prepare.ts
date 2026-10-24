@@ -21,6 +21,8 @@ import {
   ACCOUNTS,
   APP_LOGIN,
   APP_PASSWORD,
+  JOBS_LOGIN,
+  JOBS_PASSWORD,
   E2E_DATABASE,
   FIRM_A,
   FIRM_B,
@@ -62,6 +64,20 @@ END $$`);
 await owner.query(`GRANT canopy_app TO ${APP_LOGIN}`);
 // CONNECT, and CREATE because M9's pg-boss creates and owns its `pgboss` schema when the API starts.
 await owner.query(`GRANT CONNECT, CREATE ON DATABASE ${E2E_DATABASE} TO ${APP_LOGIN}`);
+// The jobs run as their own login, as in production. Once M3 hands the job schema to canopy_jobs, the login is a
+// member of canopy_jobs and defaults to it, so pg-boss's tables belong to canopy_jobs; before that, of canopy_app.
+const { rowCount: jobsRole } = await owner.query(
+  `SELECT 1 FROM pg_roles WHERE rolname = 'canopy_jobs'`,
+);
+const jobsGroup = jobsRole === 1 ? 'canopy_jobs' : 'canopy_app';
+await owner.query(`DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '${JOBS_LOGIN}') THEN
+    CREATE ROLE ${JOBS_LOGIN} LOGIN PASSWORD '${JOBS_PASSWORD}' NOSUPERUSER NOBYPASSRLS;
+  END IF;
+END $$`);
+await owner.query(`GRANT ${jobsGroup} TO ${JOBS_LOGIN}`);
+await owner.query(`ALTER ROLE ${JOBS_LOGIN} SET role = ${jobsGroup}`);
+await owner.query(`GRANT CONNECT ON DATABASE ${E2E_DATABASE} TO ${JOBS_LOGIN}`);
 await owner.end();
 
 for (const firm of Object.values(SEED_FIRMS)) await admin.createFirm(firm);
