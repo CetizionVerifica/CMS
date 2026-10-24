@@ -70,6 +70,14 @@ describe('startJobsFromEnv', () => {
   it('leaves the issuer out when the API passes none', async () => {
     await startJobsFromEnv(SMTP, { db: {} as never, connectionString: 'postgres://unused' });
     expect(started[0]!.deps).not.toHaveProperty('issueLoginToken');
+    expect(started[0]!.deps).not.toHaveProperty('copyLibrary');
+  });
+
+  it("passes M6's library copier through, with or without mail", async () => {
+    const copyLibrary = async () => ({ copied: true, categories: 0, acts: 0, obligations: 0 });
+    await startJobsFromEnv({}, { ...options, copyLibrary });
+    await startJobsFromEnv(SMTP, { ...options, copyLibrary });
+    expect(started.map((s) => s.deps.copyLibrary)).toEqual([copyLibrary, copyLibrary]);
   });
 
   it('leaves the scan off without a scanner', async () => {

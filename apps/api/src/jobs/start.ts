@@ -1,7 +1,7 @@
 import type { Database } from '@canopy/db';
 import { s3SettingsFromEnv } from '../s3-env.js';
 import { clamAvConfigFromEnv, clamAvScanner } from './clamav-scanner.js';
-import type { Clock, JobDeps, LoginTokenIssuer, Mailer, Scanner } from './ports.js';
+import type { Clock, JobDeps, LibraryCopier, LoginTokenIssuer, Mailer, Scanner } from './ports.js';
 import { postgresJobStore } from './postgres-store.js';
 import { startJobRunner, type JobRunner, type JobRunnerOptions } from './runner.js';
 import { s3EvidenceObjects } from './s3-objects.js';
@@ -13,6 +13,8 @@ export interface JobsFromEnvOptions extends Omit<JobRunnerOptions, 'mail'> {
   issueLoginToken?: LoginTokenIssuer;
   /** Replaces the ClamAV scanner `CLAMAV_HOST` configures, for a host's own scanning service. */
   scanner?: Scanner;
+  /** M6's `copyMasterLibrary` on the API's database. Without it, a new account's library is not copied. */
+  copyLibrary?: LibraryCopier;
   /** Defaults to the system clock; tests pass a fixed one. */
   clock?: Clock;
 }
@@ -34,11 +36,12 @@ export async function startJobsFromEnv(
   env: Record<string, string | undefined>,
   options: JobsFromEnvOptions,
 ): Promise<JobRunner> {
-  const { db, clock, issueLoginToken, scanner, ...runnerOptions } = options;
+  const { db, clock, issueLoginToken, copyLibrary, scanner, ...runnerOptions } = options;
   const shared: Omit<JobDeps, 'mailer' | 'appUrl'> = {
     store: postgresJobStore(db),
     clock: clock ?? (() => new Date().toISOString()),
     ...(issueLoginToken && { issueLoginToken }),
+    ...(copyLibrary && { copyLibrary }),
     ...scanningFromEnv(env, scanner),
   };
   const mail = mailConfigFromEnv(env);
