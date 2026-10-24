@@ -89,6 +89,19 @@ export const account = {
     const { rows } = await tx.execute<Record<string, unknown>>(sql`SELECT * FROM app_usage()`);
     return usageOf(rows[0]);
   },
+  /**
+   * Holds the account's usage lock until the transaction ends, so two plan-limit checks (say, two invites at the user
+   * limit) cannot both read the count before either writes. Call it before reading `usage`. It is a transaction-scoped
+   * advisory lock on the firm, not a row lock: the firm row's UPDATE policy admits firm staff only, so a client admin
+   * could not lock the row.
+   */
+  async lockUsage(tx: TenantTx): Promise<void> {
+    await tx
+      .execute(
+        sql`SELECT pg_advisory_xact_lock(hashtextextended('canopy.usage:' || app_firm_id()::text, 0))`,
+      )
+      .catch(rethrow);
+  },
 };
 
 export const SupportGrantRequest = z.strictObject({
