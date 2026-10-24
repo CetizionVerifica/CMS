@@ -180,7 +180,6 @@ function ApprovalsDemo() {
       toast({
         tone: 'success',
         message: `Approved ${item.title}.`,
-        action: { label: 'Undo', onClick: () => setItems((xs) => [item, ...xs]) },
       });
     }, 400);
   };
