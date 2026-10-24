@@ -17,6 +17,15 @@ describe('ApiError', () => {
     }
   });
 
+  it('already has messages for the account codes contracts 1.5.0 adds', () => {
+    expect(new ApiError('ACCOUNT_SUSPENDED' as ErrorCode).message).toBe(
+      'Your account is paused. Contact PlanetPulse.',
+    );
+    expect(new ApiError('PLAN_LIMIT_REACHED' as ErrorCode).message).toBe(
+      'Your plan limit is reached. Contact PlanetPulse to upgrade.',
+    );
+  });
+
   it('falls back to a generic message for a code added to the contract later', () => {
     // A newer @canopy/contracts can add a code (and its HTTP status) before this map gives it a message.
     const code = 'NEW_CODE' as ErrorCode;
