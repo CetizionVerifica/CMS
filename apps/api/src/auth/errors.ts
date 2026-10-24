@@ -1,9 +1,6 @@
 import { ERROR_HTTP_STATUS, type ErrorCode, type ErrorEnvelope } from '@canopy/contracts';
 
-/** Codes contracts 1.5.0 adds (ADR M15-0001); listed here first so its merge finds a message for each. */
-type AccountErrorCode = 'ACCOUNT_SUSPENDED' | 'PLAN_LIMIT_REACHED';
-
-const DEFAULT_MESSAGES: Partial<Record<ErrorCode | AccountErrorCode, string>> = {
+const DEFAULT_MESSAGES: Partial<Record<ErrorCode, string>> = {
   VALIDATION: 'The request is not valid.',
   UNAUTHENTICATED: 'Sign in to continue.',
   MFA_REQUIRED: 'Two-step verification is required.',
