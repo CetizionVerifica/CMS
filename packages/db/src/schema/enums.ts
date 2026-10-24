@@ -73,11 +73,19 @@ export const importIssueTypeEnum = pgEnum('import_issue_type', values(ImportIssu
 export const issueSeverityEnum = pgEnum('issue_severity', values(IssueSeverity.options));
 export const issueDecisionEnum = pgEnum('issue_decision', values(IssueDecision.options));
 export const canopyFieldEnum = pgEnum('canopy_field', values(CanopyField.options));
-// APPROVAL_REQUESTED and SENT_BACK (M9 event-driven sends) arrive in the database before contracts 1.4.0
-// lists them; the Set keeps the order stable once it does (migration 0017).
+// APPROVAL_REQUESTED and SENT_BACK (M9 event-driven sends) arrived in the database before contracts 1.4.0 listed
+// them; the Set keeps the order stable once it does (migration 0017). TRIAL_ENDING (M9's email to an account's admins
+// before its trial ends, ADR M15-0001 decision 4) arrives ahead of its contracts bump the same way (migration 0027).
 export const notificationKindEnum = pgEnum(
   'notification_kind',
-  values([...new Set([...NotificationKind.options, 'APPROVAL_REQUESTED', 'SENT_BACK'] as const)]),
+  values([
+    ...new Set([
+      ...NotificationKind.options,
+      'APPROVAL_REQUESTED',
+      'SENT_BACK',
+      'TRIAL_ENDING',
+    ] as const),
+  ]),
 );
 // CLIENT_ARCHIVE_ZIP (a client's register and evidence, downloadable while an account is PENDING_DELETION, ADR
 // M15-0001 decision 4) arrives in the database before the contracts list it, as OPERATOR did above.
