@@ -31,7 +31,6 @@ M3-0003), each run in the account's own system context. M15's operator console r
 
 ## Not yet
 - Trial-ending emails to the account admins: ADR M9-0003. The operator's copy (trials ending, renewals due) is M15's.
-- A renewal reminder to the account admins before a paid subscription ends is still to build. It needs its own
-  notification kind (M0, then M3), like `TRIAL_ENDING`.
+- The renewal reminder to the account admins before a paid subscription ends: ADR M9-0004.
 - The purge job (ADR M15-0002 decision 5) waits for M3's `platform_purge_account` and runs on the operator's
   database login, which alone may execute it.

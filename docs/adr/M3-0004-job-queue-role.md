@@ -29,3 +29,9 @@ Migration 0025 moves it.
 - M9 (`apps/api/src/jobs`) connects pg-boss through a login set up as in decision 2, with `createSchema: false`.
   Checked against pg-boss 12.37: it installs, creates a queue and sends a job that way, and `canopy_app` is refused.
 - A local database where pg-boss already made the schema needs `DROP SCHEMA pgboss CASCADE` before migrating.
+- A purged account's jobs (ADR M15-0002, migration 0035) stay in `pgboss` until pg-boss removes them:
+  `platform_purge_account` cannot reach the schema, by decision 1. The runner keeps pg-boss 12's queue defaults
+  (`apps/api/src/jobs/runner.ts` sets no retention), so a queued job is dropped 14 days after it was due and a finished
+  one 7 days after it ended. Job and event payloads carry ids and enums only, and a job that runs for a purged account
+  finds the firm DELETED and its rows gone. M9 owns that retention: a change that keeps jobs longer, or puts names or
+  contents in a payload, must also delete the account's jobs at purge time.

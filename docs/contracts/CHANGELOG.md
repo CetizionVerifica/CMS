@@ -142,3 +142,14 @@ The mock follows the provider: accept refuses a code before setup (`MFA_REQUIRED
 `123456` as the first code (`MOCK_INVITE_MFA_CODE`; any other is `VALIDATION` on `mfaCode`); setup restarts freely.
 Also, from the 1.5.3 audit: the `TRIAL_ENDING` and `ACCOUNT_NOTIFICATION_KINDS` comments and the 1.5.3 entry now cite
 the ADR's order of work (step 6, M9's reminders), not decision 4, which is about what each status allows.
+
+## 1.6.1 · 2026-10-24
+For M9 and M5; additive. `NotificationKind` gains `RENEWAL_DUE`, an email to each account admin of an ACTIVE account
+30 days and 7 days before its latest paid subscription ends (ADR M15-0001, order of work step 6), and `MFA_ENROLLED`,
+an email to a person when MFA is set up on their account (docs/security/review.md F14, mitigation 3).
+`ACCOUNT_NOTIFICATION_KINDS` adds `RENEWAL_DUE`. New event `person.mfa_enrolled { personId, via }` (events.md §3),
+which M5 emits in the transaction that completes MFA setup, from a session or while accepting an invite. The database
+stored both kinds first (M3). No route or schema shape changes.
+Also, from the 1.6.1 audit: `EVENT_NOTIFICATION_KINDS` now lists every event-driven kind (`INVITE`, `MAGIC_LINK` and
+`MFA_ENROLLED` join `APPROVAL_REQUESTED` and `SENT_BACK`), and README decision 40 records the trial and renewal
+reminder offsets as defaults.

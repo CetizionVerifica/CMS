@@ -225,6 +225,34 @@
       "when": 1792859047457,
       "tag": "0031_support_end_key_sources",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1792861661577,
+      "tag": "0032_notification_kind_renewal_mfa",
+      "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1792861662822,
+      "tag": "0033_subscription_ends_on",
+      "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1792861852338,
+      "tag": "0034_send_check_renewal",
+      "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1792863022581,
+      "tag": "0035_purge_account",
+      "breakpoints": true
     }
   ]
 }

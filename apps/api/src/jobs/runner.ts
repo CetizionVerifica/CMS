@@ -9,6 +9,7 @@ import { RELAY_OUTBOX, runRelayOutbox } from './outbox-relay.js';
 import type { EventBus, JobDeps, JobReport } from './ports.js';
 import { REMINDERS, runReminders } from './reminders.js';
 import { runScanEvidence, SCAN_EVIDENCE } from './scan-evidence.js';
+import { RENEWAL_REMINDERS, runRenewalReminders } from './renewal-reminders.js';
 import { runTrialReminders, TRIAL_REMINDERS } from './trial-reminders.js';
 
 export interface JobDefinition {
@@ -61,6 +62,14 @@ export const JOBS: readonly JobDefinition[] = [
     sendsMail: true,
     catchUp: true,
     run: runTrialReminders,
+  },
+  {
+    name: RENEWAL_REMINDERS,
+    cron: '0 10 * * *',
+    tz: 'Asia/Kolkata',
+    sendsMail: true,
+    catchUp: true,
+    run: runRenewalReminders,
   },
   {
     name: CONSULTANT_DIGEST,

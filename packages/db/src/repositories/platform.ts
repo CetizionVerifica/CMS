@@ -667,6 +667,19 @@ export const accountJobs = {
       .catch(rethrow);
     return rows[0]!.marked;
   },
+  /**
+   * The last day of the context's account's latest recorded subscription, paid or not (the one that ends last), or
+   * null when it has none. Any tenant context of the account; a date only, never the amount or invoice.
+   */
+  async subscriptionEndsOn(tx: TenantTx): Promise<LocalDate | null> {
+    const { rows } = await tx
+      .execute<{
+        ends_on: string | null;
+      }>(sql`SELECT to_char(app_subscription_ends_on(), 'YYYY-MM-DD') AS ends_on`)
+      .catch(rethrow);
+    const endsOn = rows[0]!.ends_on;
+    return endsOn === null ? null : LocalDate.parse(endsOn);
+  },
   /** Takes the context's account's usage snapshot for `on`, replacing one already taken that day. */
   async takeUsageSnapshot(tx: TenantTx, on: string): Promise<void> {
     await tx

@@ -46,6 +46,21 @@ cannot relax root rules, so the rule texts are amended first (decision 6).
 5. **Evidence files first.** Evidence keys already start with the firm's prefix. The M9 purge job deletes the account's
    storage prefix, then calls the function. Both steps are idempotent, so a crash between them is retried the next night.
    The job never lists or logs file names.
+   As built: the job is M15's (`apps/api/src/platform/db-purge.ts`), one of the extra jobs M9's runner runs, because
+   only `canopy_operator` may call the function and M9 runs on the tenant login. It runs nightly at 02:00 India time.
+   It takes the accounts due by the database's clock, as the function judges them. For each, it deletes the
+   `evidence/<id>/`, `imports/<id>/` and `exports/<id>/` prefixes (M7, M8 and M10 share the bucket), then calls the
+   function. The server adds it only when the operator API and object storage are both configured, so files never
+   outlive their rows. The function also empties `profile` (legal name, GSTIN), which is the customer's data and not
+   needed for invoicing.
+   - The job does each account in one transaction. It locks the firm row (`lockDeletion`, `FOR UPDATE`), checks the
+     account is still PENDING_DELETION past its 30 days, deletes the prefixes, purges, and only then releases the lock.
+   - Cancelling a deletion takes the same lock first. It is refused once the 30 days are over by the database's clock
+     (decision 1's cancel belongs to the grace period only). A cancel sent while a purge is running waits for the
+     purge, then finds the account DELETED. So no account comes back without its files. The console hides the button
+     once `purgeAfter` has passed.
+   - Each night the job also sweeps again the accounts purged in the last 7 days, files and rows. This removes a row
+     committed after the purge's snapshot, or an upload that landed after its prefix was emptied.
 6. **Tests.** An isolation test seeds two firms with rows in every client-data table, purges one, and asserts the other
    firm's row counts and contents are unchanged and the purged firm has zero rows outside the kept list. A test asserts
    the function refuses inside the grace period, for any other status, and for the app role. A schema test fails when a

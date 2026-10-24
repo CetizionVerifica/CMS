@@ -40,6 +40,7 @@ const SQLSTATE: Record<string, ErrorCode> = {
   '22P02': 'VALIDATION', // invalid_text_representation (bad uuid, enum value)
   '42501': 'FORBIDDEN', // insufficient_privilege, including RLS WITH CHECK
   P0002: 'NOT_FOUND', // no_data_found, raised by the platform_* functions for an unknown account or grant
+  '55000': 'INVALID_TRANSITION', // object_not_in_prerequisite_state: platform_purge_account on an account not due
 };
 
 /**

@@ -112,19 +112,27 @@ export const NOTIFICATION_DEDUPE_KEY = [
   'recipientId',
 ] as const satisfies readonly (keyof PlannedNotification)[];
 
-/** Kinds sent in reaction to a domain event rather than on a schedule. */
+/**
+ * Kinds sent in reaction to a domain event rather than on a schedule. All of them dedupe on
+ * `EVENT_NOTIFICATION_DEDUPE_KEY`; `INVITE`, `MAGIC_LINK` and `MFA_ENROLLED` answer a person's own event and name no
+ * client or instance (events.md §4 rule 4).
+ */
 export const EVENT_NOTIFICATION_KINDS = [
   'APPROVAL_REQUESTED',
   'SENT_BACK',
+  'INVITE',
+  'MAGIC_LINK',
+  'MFA_ENROLLED',
 ] as const satisfies readonly NotificationKind[];
 
 /**
  * Scheduled kinds about the whole account rather than a client or an instance, so their send-log row has neither:
- * the trial-ending email to the account admins (ADR M15-0001, order of work step 6). They dedupe on recipient, kind and send
+ * the trial-ending and renewal emails to the account admins (ADR M15-0001, order of work step 6). They dedupe on recipient, kind and send
  * date, as digests do (events.md §4 rule 4).
  */
 export const ACCOUNT_NOTIFICATION_KINDS = [
   'TRIAL_ENDING',
+  'RENEWAL_DUE',
 ] as const satisfies readonly NotificationKind[];
 
 /**

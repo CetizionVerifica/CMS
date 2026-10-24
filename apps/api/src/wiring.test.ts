@@ -255,7 +255,45 @@ describe('jobsFromEnv', () => {
     expect(start.mock.calls[1]![1].extraJobs).toEqual([
       expect.objectContaining({ name: 'operator-digest', sendsMail: true }),
     ]);
+    // Without object storage the purge stays off, and says so: files must not outlive their rows.
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('account purge not started'));
     await Promise.all([off.database?.close(), on.database?.close(), on.operatorDatabase?.close()]);
+  });
+
+  it('adds the account purge only with the operator database and object storage', async () => {
+    const start = vi.fn().mockResolvedValue(runner(true));
+    const warn = vi.fn();
+    const storage = {
+      S3_BUCKET: 'canopy',
+      S3_ACCESS_KEY_ID: 'key',
+      S3_SECRET_ACCESS_KEY: 'secret',
+    };
+    const storageOnly = wiringFromEnv({ ...DB, ...storage }, vi.fn());
+    await jobsFromEnv({ ...DB, ...storage }, storageOnly.database, { warn, start });
+    expect(start.mock.calls[0]![1]).not.toHaveProperty('extraJobs');
+    const env = {
+      ...DB,
+      ...storage,
+      PLATFORM_ENABLED: 'true',
+      OPERATOR_DATABASE_URL: 'postgres://console@localhost:5432/canopy',
+      APP_URL: 'https://app.planetpulse.example/',
+    };
+    const on = wiringFromEnv(env, vi.fn());
+    await jobsFromEnv(env, on.database, {
+      warn,
+      start,
+      ...(on.operatorDatabase && { operatorDatabase: on.operatorDatabase }),
+    });
+    expect(start.mock.calls[1]![1].extraJobs).toEqual([
+      expect.objectContaining({ name: 'operator-digest', sendsMail: true }),
+      expect.objectContaining({ name: 'account-purge', sendsMail: false, catchUp: true }),
+    ]);
+    expect(warn).not.toHaveBeenCalledWith(expect.stringContaining('account purge'));
+    await Promise.all([
+      storageOnly.database?.close(),
+      on.database?.close(),
+      on.operatorDatabase?.close(),
+    ]);
   });
 
   it('warns when mail runs but nothing can issue sign-in tokens', async () => {

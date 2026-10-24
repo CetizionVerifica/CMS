@@ -32,6 +32,7 @@ import type { EventBus, OutboxEvent } from './ports.js';
 import { postgresJobStore } from './postgres-store.js';
 import { runReminders } from './reminders.js';
 import { runScanEvidence } from './scan-evidence.js';
+import { RENEWAL_REMINDERS, runRenewalReminders } from './renewal-reminders.js';
 import { runTrialReminders, TRIAL_REMINDERS } from './trial-reminders.js';
 import { APP_URL } from './testing/builders.js';
 import { captureMailer, type CaptureMailer } from './testing/memory-store.js';
@@ -1037,8 +1038,8 @@ describe.skipIf(!url)('jobs on the Postgres store', () => {
         return {
           live: await make('live', 'admin.live@example.com', null),
           lapsed: await make('lapsed', 'admin.lapsed@example.com', '2026-01-01T00:00:00Z'),
-          // Expired by the job's clock (16 Nov), though not yet by the wall clock when this was written.
-          ended: await make('ended', 'admin.ended@example.com', '2026-11-01T00:00:00Z'),
+          // Expired by the job's clock (16 Nov 2099) but not by the wall clock, so only the job's `now` drops it.
+          ended: await make('ended', 'admin.ended@example.com', '2099-11-01T00:00:00Z'),
           unclaimed: await make('unclaimed', null, null),
         };
       });
@@ -1048,7 +1049,7 @@ describe.skipIf(!url)('jobs on the Postgres store', () => {
         await client.query('BEGIN');
         await client.query(`SELECT set_config('app.firm_id', $1, true)`, [trial.firmId]);
         await client.query(
-          `UPDATE firm SET status = 'TRIAL', trial_ends_on = '2026-11-23' WHERE id = $1`,
+          `UPDATE firm SET status = 'TRIAL', trial_ends_on = '2099-11-23' WHERE id = $1`,
           [trial.firmId],
         );
         await client.query('COMMIT');
@@ -1056,7 +1057,7 @@ describe.skipIf(!url)('jobs on the Postgres store', () => {
         await client.end();
       }
       mailer.sent.length = 0;
-      now = '2026-11-16T04:30:00.000Z'; // 10:00 IST, 7 days before the last day
+      now = '2099-11-16T04:30:00.000Z'; // 10:00 IST, 7 days before the last day
       expect(await runTrialReminders(deps, 'job:trial-reminders:1')).toMatchObject({
         firms: 1,
         admins: 4,
@@ -1089,6 +1090,109 @@ describe.skipIf(!url)('jobs on the Postgres store', () => {
       for (const other of [a, b]) {
         expect(await t.count(other.firmId, 'notification_send', `kind = 'TRIAL_ENDING'`)).toBe(0);
       }
+    });
+  });
+
+  describe(RENEWAL_REMINDERS, () => {
+    it('emails an active account’s admin 30 days before its latest subscription ends, once', async () => {
+      const paid = await seedFirm('Stonebridge Advisory', 'Stonebridge Mills', 'stonebridge');
+      const adminId = await inFirm(paid.firmId, async (tx) => {
+        const admin = await people.create(tx, {
+          displayName: 'Admin renewal',
+          nameNormalized: 'admin renewal',
+          email: 'admin.renewal@example.com',
+          status: 'ACTIVE',
+        });
+        await memberships.create(tx, {
+          personId: admin.id,
+          role: 'FIRM_ADMIN',
+          clientId: null,
+          consultantClientIds: null,
+          unitIds: null,
+          expiresAt: null,
+        });
+        return admin.id;
+      });
+      // The operator records two periods; the later one is what the account renews.
+      const client = new pg.Client({ connectionString: t.url });
+      await client.connect();
+      try {
+        const { rows } = await client.query<{ id: string }>(
+          `INSERT INTO platform.operator (email, display_name) VALUES ('ops@planetpulse-ops.test', 'Ops') RETURNING id`,
+        );
+        for (const [startsOn, endsOn] of [
+          ['2026-01-01', '2026-12-31'],
+          ['2027-01-01', '2027-03-31'],
+        ]) {
+          await client.query(
+            `INSERT INTO platform.subscription (account_id, plan_code, starts_on, ends_on, amount_paise, recorded_by_id)
+             SELECT id, plan_code, $2, $3, 100000, $4 FROM firm WHERE id = $1`,
+            [paid.firmId, startsOn, endsOn, rows[0]!.id],
+          );
+        }
+      } finally {
+        await client.end();
+      }
+      mailer.sent.length = 0;
+      now = '2027-03-01T04:30:00.000Z'; // 10:00 IST, 30 days before 31 Mar
+      expect(await runRenewalReminders(deps, 'job:renewal-reminders:1')).toMatchObject({
+        firms: 1,
+        admins: 1,
+        sent: 1,
+      });
+      expect(mailer.sent.map((m) => [m.to.email, m.subject])).toEqual([
+        ['admin.renewal@example.com', 'Your PlanetPulse Compliance subscription ends in 30 days'],
+      ]);
+      expect(
+        await t.count(
+          paid.firmId,
+          'notification_send',
+          `kind = 'RENEWAL_DUE' and client_id is null and instance_id is null and event_id is null and sent_at is not null and recipient_id = $1`,
+          [adminId],
+        ),
+      ).toBe(1);
+      expect(await runRenewalReminders(deps, 'job:renewal-reminders:2')).toMatchObject({
+        alreadySent: 1,
+      });
+      expect(mailer.sent).toHaveLength(1);
+      for (const other of [a, b]) {
+        expect(await t.count(other.firmId, 'notification_send', `kind = 'RENEWAL_DUE'`)).toBe(0);
+      }
+    });
+  });
+
+  describe('person.mfa_enrolled', () => {
+    it('emails the person once, with a send-log row that keeps the event and names no client', async () => {
+      const consumer = CONSUMERS.find((c) => c.type === 'person.mfa_enrolled')!;
+      const event: OutboxEvent = {
+        id: randomUUID(),
+        type: 'person.mfa_enrolled',
+        schemaVersion: 1,
+        occurredAt: now,
+        firmId: a.firmId,
+        clientId: null,
+        actor: { kind: 'PERSON', personId: a.consultantId },
+        requestId: 'req:mfa',
+        aggregate: { type: 'person', id: a.consultantId },
+        aggregateVersion: 1,
+        data: { personId: a.consultantId, via: 'SETTINGS' },
+      };
+      mailer.sent.length = 0;
+      expect(await consumer.handle(deps, event, 'job:mfa:1')).toEqual({ sent: 1 });
+      expect(await consumer.handle(deps, event, 'job:mfa:2')).toEqual({
+        sent: 0,
+        alreadySent: 1,
+      });
+      expect(mailer.sent.map((m) => m.to.email)).toEqual([a.consultantEmail]);
+      expect(
+        await t.count(
+          a.firmId,
+          'notification_send',
+          `kind = 'MFA_ENROLLED' and client_id is null and instance_id is null and event_id = $1 and sent_at is not null`,
+          [event.id],
+        ),
+      ).toBe(1);
+      expect(await t.count(b.firmId, 'notification_send', `kind = 'MFA_ENROLLED'`)).toBe(0);
     });
   });
 });

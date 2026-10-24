@@ -50,6 +50,7 @@ function firmTx(tx: TenantTx): FirmTx {
     endTrial: (now, job) => accountJobs.endTrial(tx, now, job),
     takeUsageSnapshot: (on) => accountJobs.takeUsageSnapshot(tx, on),
     closeExpiredSupport: (now) => supportGrants.closeExpired(tx, now),
+    subscriptionEndsOn: () => accountJobs.subscriptionEndsOn(tx),
     accountTrial: async () => {
       const firm = await firms.current(tx);
       return { name: firm.name, trialEndsOn: firm.trialEndsOn };

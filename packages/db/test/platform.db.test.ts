@@ -1,4 +1,4 @@
-import { randomBytes } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 import { DEFAULT_CLIENT_SETTINGS, DEFAULT_FIRM_SETTINGS } from '@canopy/contracts';
 import { sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -364,6 +364,26 @@ describe('subscriptions and renewals', () => {
     expect(await asOperator((tx) => r.subscriptions.renewals(tx, '2026-10-24', 12))).toEqual([
       expect.objectContaining({ accountId: trial }),
     ]);
+  });
+
+  it('tells the account itself only its own latest subscription’s last day', async () => {
+    expect(await inFirm(a.firmId, (tx) => r.accountJobs.subscriptionEndsOn(tx))).toBe('2026-11-20');
+    // A trial account with no subscription, and another account's context, see no date of a's.
+    expect(await inFirm(trial, (tx) => r.accountJobs.subscriptionEndsOn(tx))).toBeNull();
+    // Any tenant context of the account may ask, as for app_account(); the table itself stays closed to it.
+    const { rows } = await t.db.withTenant(
+      { firmId: a.firmId, personId: randomUUID(), clientIds: 'ALL', requestId: 'platform-test' },
+      (tx) =>
+        tx.execute<{ ends_on: string }>(sql`SELECT app_subscription_ends_on()::text AS ends_on`),
+    );
+    expect(rows).toEqual([{ ends_on: '2026-11-20' }]);
+    const denied = await inFirm(a.firmId, (tx) =>
+      tx.execute(sql`SELECT ends_on FROM platform.subscription`),
+    ).then(
+      () => 'resolved',
+      (e: unknown) => String((e as { cause?: { code?: string } }).cause?.code ?? e),
+    );
+    expect(denied).toBe('42501');
   });
 });
 

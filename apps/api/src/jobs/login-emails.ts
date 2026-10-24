@@ -1,5 +1,6 @@
 import { Id } from '@canopy/contracts';
 import type { EmailMessage } from '@canopy/notifications';
+import { localDateIn } from '@canopy/engine';
 import { z } from 'zod';
 import { clientDay } from './client-day.js';
 import type { Consumer } from './consumers.js';
@@ -17,6 +18,7 @@ export const MAGIC_LINK_MAX_AGE_MINUTES = 15;
 
 const MagicLinkData = z.object({ personId: Id });
 const InvitedData = z.object({ personId: Id, inviteId: Id });
+const MfaEnrolledData = z.object({ personId: Id, via: z.enum(['SETTINGS', 'INVITE']) });
 
 function issuer(deps: JobDeps): LoginTokenIssuer {
   if (!deps.issueLoginToken) throw new Error('Sign-in emails need issueLoginToken');
@@ -156,7 +158,57 @@ async function sendInvite(
   return report;
 }
 
-/** A person who asked for a sign-in link, or was invited, gets the email with a fresh one-time link. */
+/**
+ * Tells a person, on `person.mfa_enrolled`, that MFA was set up on their account (docs/security/review.md F14
+ * mitigation 3; ADR M9-0004), so someone who set it up in their place is noticed. However late it is delivered it
+ * is still sent: the notice is about safety, not a link that expires. It names the day and how, never a code or
+ * secret, and links nowhere. A person who is archived or not ACTIVE gets nothing; a redelivered event sends nothing
+ * twice.
+ */
+async function sendMfaEnrolled(
+  deps: JobDeps,
+  event: OutboxEvent,
+  requestId: string,
+): Promise<JobReport> {
+  const report: JobReport = { sent: 0 };
+  const { personId, via } = MfaEnrolledData.parse(event.data);
+  const person = await deps.store.withFirm(event.firmId, requestId, (tx) =>
+    tx.findPerson(personId),
+  );
+  if (!person) {
+    report.skippedStale = 1;
+    return report;
+  }
+  const key: SendKey = {
+    clientId: null,
+    instanceId: null,
+    recipientId: personId,
+    kind: 'MFA_ENROLLED',
+    sendDate: clientDay(deps.clock(), DEFAULT_TIME_ZONE).today,
+    eventId: event.id,
+  };
+  await deliver(
+    deps,
+    event.firmId,
+    requestId,
+    key,
+    { name: person.displayName, email: person.email, canReceive: person.status === 'ACTIVE' },
+    {
+      kind: 'MFA_ENROLLED',
+      recipientName: person.displayName,
+      enrolledOn: localDateIn(event.occurredAt, DEFAULT_TIME_ZONE),
+      via,
+    },
+    event.type,
+    report,
+  );
+  return report;
+}
+
+/**
+ * A person who asked for a sign-in link, or was invited, gets the email with a fresh one-time link; a person whose
+ * MFA was set up is told so.
+ */
 export const LOGIN_EMAIL_CONSUMERS: readonly Consumer[] = [
   {
     type: 'auth.magic_link_requested',
@@ -165,4 +217,5 @@ export const LOGIN_EMAIL_CONSUMERS: readonly Consumer[] = [
     handle: sendMagicLink,
   },
   { type: 'person.invited', sendsMail: true, needsLoginTokens: true, handle: sendInvite },
+  { type: 'person.mfa_enrolled', sendsMail: true, handle: sendMfaEnrolled },
 ];

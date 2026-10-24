@@ -19,6 +19,11 @@ export { ScanInterruptedError, ScanServiceError, ScanTimeoutError } from './port
 export { postgresJobStore } from './postgres-store.js';
 export { REMINDERS, runReminders } from './reminders.js';
 export { runScanEvidence, SCAN_EVIDENCE } from './scan-evidence.js';
+export {
+  RENEWAL_REMINDER_DAYS,
+  RENEWAL_REMINDERS,
+  runRenewalReminders,
+} from './renewal-reminders.js';
 export { runTrialReminders, TRIAL_REMINDER_DAYS, TRIAL_REMINDERS } from './trial-reminders.js';
 export { s3EvidenceObjects } from './s3-objects.js';
 export {

@@ -224,6 +224,11 @@ export interface FirmTx {
    * `app_record_support_expiry` writes SUPPORT_ACCESS_END to the operator trail. Returns how many it closed.
    */
   closeExpiredSupport(now: string): Promise<number>;
+  /**
+   * The last day of the account's latest paid subscription (the one that ends last), or null when it has none, for
+   * the renewal email (M3's `app_subscription_ends_on`).
+   */
+  subscriptionEndsOn(): Promise<LocalDate | null>;
   /** The account's name and its trial's last day (null outside a trial), for the trial-ending email. */
   accountTrial(): Promise<{ name: string; trialEndsOn: LocalDate | null }>;
   /**

@@ -12,7 +12,10 @@ export type AccountAction =
   | 'requestDeletion'
   | 'cancelDeletion';
 
-export function accountActions(account: Pick<Account, 'status' | 'onboardedAt'>): AccountAction[] {
+export function accountActions(
+  account: Pick<Account, 'status' | 'onboardedAt' | 'purgeAfter'>,
+  now: number = Date.now(),
+): AccountAction[] {
   const { status } = account;
   const actions: AccountAction[] = [];
   if (status === 'PROVISIONING') actions.push('resendInvite');
@@ -25,7 +28,9 @@ export function accountActions(account: Pick<Account, 'status' | 'onboardedAt'>)
   if (canMoveAccount(status, 'PENDING_DELETION') && status !== 'PENDING_DELETION') {
     actions.push('requestDeletion');
   }
-  if (status === 'PENDING_DELETION') actions.push('cancelDeletion');
+  // Past purgeAfter the API refuses the cancel: the nightly purge may already be deleting the account's files.
+  const purgeDue = account.purgeAfter !== null && Date.parse(account.purgeAfter) <= now;
+  if (status === 'PENDING_DELETION' && !purgeDue) actions.push('cancelDeletion');
   return actions;
 }
 

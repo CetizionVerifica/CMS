@@ -79,12 +79,16 @@ describe('schema', () => {
   });
 
   // Values the database stores ahead of the contracts bump that lists them (contracts 1.5.1, then the account
-  // export's bump, then the trial-ending email's).
+  // export's bump, then the trial-ending email's, then the renewal and MFA notices').
   it.each([
     [schema.entityTypeEnum, contracts.EntityType, ['account']],
     [schema.auditActorKindEnum, contracts.AuditActorKind, ['OPERATOR']],
     [schema.exportKindEnum, contracts.ExportKind, ['CLIENT_ARCHIVE_ZIP']],
-    [schema.notificationKindEnum, contracts.NotificationKind, ['TRIAL_ENDING']],
+    [
+      schema.notificationKindEnum,
+      contracts.NotificationKind,
+      ['TRIAL_ENDING', 'RENEWAL_DUE', 'MFA_ENROLLED'],
+    ],
   ] as const)('enum %# matches the contract plus its staged values', (pgEnum, zodEnum, ahead) => {
     expect(pgEnum.enumValues).toEqual([...new Set([...zodEnum.options, ...ahead])]);
   });
@@ -103,9 +107,9 @@ describe('schema', () => {
     const text = chk!.value.queryChunks
       .map((c) => (c as { value?: string[] }).value?.join('') ?? '')
       .join('');
-    for (const kind of contracts.ACCOUNT_NOTIFICATION_KINDS)
-      expect(text).toContain(`kind::text = '${kind}'`);
-    expect(contracts.ACCOUNT_NOTIFICATION_KINDS).toHaveLength(1);
+    // RENEWAL_DUE is named ahead of the contracts bump that lists it as an account kind.
+    const named = [...text.matchAll(/'([A-Z_]+)'/g)].map((m) => m[1]);
+    expect(named).toEqual([...new Set([...contracts.ACCOUNT_NOTIFICATION_KINDS, 'RENEWAL_DUE'])]);
   });
 
   it('does not store the derived status', () => {

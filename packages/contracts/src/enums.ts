@@ -224,6 +224,16 @@ export const NotificationKind = z.enum([
    * Scheduled, with no instance: dedupes on recipient, kind and send date, as `CONSULTANT_DIGEST` does.
    */
   'TRIAL_ENDING',
+  /**
+   * To each account admin of an ACTIVE account, 30 days and 7 days before its latest paid subscription ends (ADR
+   * M15-0001, order of work step 6: M9's reminders). Scheduled, with no instance: dedupes as `TRIAL_ENDING` does.
+   */
+  'RENEWAL_DUE',
+  /**
+   * To a person, when MFA is set up on their account (docs/security/review.md F14, mitigation 3), on
+   * `person.mfa_enrolled`. Event-driven: dedupes on the source event id, as `MAGIC_LINK` does.
+   */
+  'MFA_ENROLLED',
 ]);
 export type NotificationKind = z.infer<typeof NotificationKind>;
 

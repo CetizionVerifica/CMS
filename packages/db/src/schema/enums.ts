@@ -75,7 +75,9 @@ export const issueDecisionEnum = pgEnum('issue_decision', values(IssueDecision.o
 export const canopyFieldEnum = pgEnum('canopy_field', values(CanopyField.options));
 // APPROVAL_REQUESTED and SENT_BACK (M9 event-driven sends) arrived in the database before contracts 1.4.0 listed
 // them; the Set keeps the order stable once it does (migration 0017). TRIAL_ENDING (M9's email to an account's admins
-// before its trial ends, ADR M15-0001 decision 4) arrives ahead of its contracts bump the same way (migration 0027).
+// before its trial ends, ADR M15-0001 decision 4) arrives ahead of its contracts bump the same way (migration 0027),
+// as do RENEWAL_DUE (the admins' reminder before the subscription ends) and MFA_ENROLLED (a person's notice that
+// MFA was set up on their account, docs/security/review.md F14 mitigation 3) in migration 0032.
 export const notificationKindEnum = pgEnum(
   'notification_kind',
   values([
@@ -84,6 +86,8 @@ export const notificationKindEnum = pgEnum(
       'APPROVAL_REQUESTED',
       'SENT_BACK',
       'TRIAL_ENDING',
+      'RENEWAL_DUE',
+      'MFA_ENROLLED',
     ] as const),
   ]),
 );
