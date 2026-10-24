@@ -83,7 +83,13 @@ export async function startJobRunner(deps: JobDeps, options: JobRunnerOptions): 
 
   const mail = options.mail ?? true;
   const jobs = JOBS.filter((job) => mail || !job.sendsMail);
-  const consumers = CONSUMERS.filter((consumer) => mail || !consumer.sendsMail);
+  // Without M5's issuer the sign-in link and invite consumers are left off like the mail ones: their events are
+  // marked relayed, and no send is claimed that could never carry a token.
+  const consumers = CONSUMERS.filter(
+    (consumer) =>
+      (mail || !consumer.sendsMail) &&
+      (deps.issueLoginToken !== undefined || !consumer.needsLoginTokens),
+  );
   const consumed = new Set(consumers.map((c) => c.type));
   const bus: EventBus = {
     consumes: (type) => consumed.has(type),

@@ -41,8 +41,8 @@ const url = process.env.DATABASE_URL;
 
 const KEY = Buffer.alloc(32, 7).toString('base64');
 const PASSWORD = 'a long enough password';
-// Ten years ahead: M3's tables check that a session or token expires after its row is created (database time), so a
-// clock in the past would fail once the wall clock passes it.
+// Ten years ahead: M3's tables check that a login token or invite expires after its row is created (database time), so
+// a clock in the past would fail once the wall clock passes it. Sessions take their creation time from this clock.
 let now = new Date('2036-10-12T04:00:00Z');
 const clock = () => now;
 // 2036-10-12 in Asia/Kolkata is in Q3 of FY 2036-37; instances due Apr 2035 to Mar 2037 make two FYs available.
@@ -243,6 +243,33 @@ describe.skipIf(!url)('database AccountStore', () => {
     expect((await login(ca.email)).statusCode).toBe(401);
     now = new Date(now.getTime() + (LOCKOUT.minutes + 1) * 60_000);
     expect((await login(ca.email)).statusCode).toBe(200);
+  });
+
+  it('stamps a session with the service clock, so a clock in the past still signs in', async () => {
+    const saved = now;
+    now = new Date('2020-01-15T06:30:00Z');
+    try {
+      const seeded = await firmWithClient();
+      const ca = await person(seeded, { role: 'CLIENT_ADMIN' });
+      const res = await login(ca.email);
+      expect(res.statusCode).toBe(200);
+      expect(
+        await rows(
+          `SELECT created_at, last_seen_at, expires_at FROM auth_session WHERE person_id = $1`,
+          [ca.personId],
+        ),
+      ).toEqual([
+        {
+          created_at: new Date('2020-01-15T06:30:00Z'),
+          last_seen_at: new Date('2020-01-15T06:30:00Z'),
+          expires_at: expect.any(Date),
+        },
+      ]);
+      const me = await app.inject({ url: '/api/v1/me', headers: sessionHeaders(res) });
+      expect(me.statusCode).toBe(200);
+    } finally {
+      now = saved;
+    }
   });
 
   it('emails a magic link through the outbox and signs in once with it', async () => {

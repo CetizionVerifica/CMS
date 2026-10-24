@@ -1,0 +1,12 @@
+{
+  "$comment": "Real client, company and plant names that must not appear in tracked files (check-client-names.mjs). `names` match anywhere, even inside a longer word; `words` only as a whole word, for names that are common substrings (\"metadata\"). Test data, demos and docs use fictional names (Kestrel Metals Group, Kestrel Aluminium, Riverbend). `exempt` lists the only files allowed to name them: this file, the importer's anonymiser and M0's fixture generator and fixture test, and M8's anonymised-fixture test, which map the names away or assert they are gone.",
+  "names": ["aditya", "birla", "hindalco", "grasim", "novelis", "belur", "renukoot", "hirakud"],
+  "words": ["tata"],
+  "exempt": [
+    "tooling/client-names.json",
+    "packages/importer/scripts/anonymise-companies.mjs",
+    "packages/contracts/scripts/fixtures/firm-a.ts",
+    "packages/contracts/test/fixtures.test.ts",
+    "packages/importer/test/fixture-names.test.ts"
+  ]
+}

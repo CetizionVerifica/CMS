@@ -1,7 +1,12 @@
 import type { LocalDate } from '@canopy/contracts';
 import { describe, expect, it } from 'vitest';
 import { escapeHtml, formatDate } from './format.js';
-import { renderEmail, type DigestClientSummary, type InstanceSummary } from './templates.js';
+import {
+  renderEmail,
+  type DigestClientSummary,
+  type EmailMessage,
+  type InstanceSummary,
+} from './templates.js';
 
 const instance: InstanceSummary = {
   title: 'Deposit TDS for the month',
@@ -234,6 +239,89 @@ describe('sent back', () => {
   });
 });
 
+const magicLink = () =>
+  renderEmail({
+    kind: 'MAGIC_LINK',
+    recipientName: 'Asha Rao',
+    expiresInMinutes: 15,
+    url: 'https://app.planetpulse.example/login/link?token=tok_abc',
+  });
+
+const invite = (overrides: Partial<Extract<EmailMessage, { kind: 'INVITE' }>> = {}) =>
+  renderEmail({
+    kind: 'INVITE',
+    recipientName: 'Asha Rao',
+    invitedBy: 'Vikram Shah',
+    firmName: 'Demo Advisory',
+    clientName: 'Kestrel Metals Group',
+    role: 'OWNER',
+    expiresInDays: 7,
+    url: 'https://app.planetpulse.example/invite/tok_abc',
+    ...overrides,
+  });
+
+describe('sign-in link', () => {
+  it('carries the link, says it works once and when it expires', () => {
+    const email = magicLink();
+    expect(email.subject).toBe('Your sign-in link for PlanetPulse Compliance');
+    expect(email.text).toContain('It works once and expires in 15 minutes.');
+    expect(email.text).toContain(
+      'Sign in: https://app.planetpulse.example/login/link?token=tok_abc',
+    );
+    expect(email.html).toContain('href="https://app.planetpulse.example/login/link?token=tok_abc"');
+    expect(email.text).toContain("If it wasn't you, ignore it");
+  });
+
+  it('greets without a name when none is on file', () => {
+    const email = renderEmail({
+      kind: 'MAGIC_LINK',
+      recipientName: '',
+      expiresInMinutes: 15,
+      url: 'https://x.example/l',
+    });
+    expect(email.text.startsWith('Hello,\n')).toBe(true);
+  });
+});
+
+describe('invitation', () => {
+  it('names who invited, the role and the client with its firm', () => {
+    const email = invite();
+    expect(email.subject).toBe('Vikram Shah invited you to PlanetPulse Compliance');
+    expect(email.text).toContain(
+      'Vikram Shah invited you to PlanetPulse Compliance as an owner for Kestrel Metals Group, with Demo Advisory. Set a password to accept. The link expires in 7 days.',
+    );
+    expect(email.text).toContain(
+      'Accept invitation: https://app.planetpulse.example/invite/tok_abc',
+    );
+  });
+
+  it('names the firm for a firm role, and greets an invitee with no name', () => {
+    const email = invite({
+      clientName: null,
+      role: 'CONSULTANT',
+      recipientName: '',
+      expiresInDays: 1,
+    });
+    expect(email.text).toContain(
+      'as a consultant for Demo Advisory. Set a password to accept. The link expires in 1 day.',
+    );
+    expect(email.text.startsWith('Hello,\n')).toBe(true);
+  });
+
+  it('labels every role in plain words', () => {
+    expect(invite({ role: 'APPROVER' }).text).toContain('as an approver for');
+    expect(invite({ role: 'CLIENT_ADMIN' }).text).toContain('as a client admin for');
+    expect(invite({ role: 'VIEWER' }).text).toContain('as a viewer for');
+    expect(invite({ role: 'FIRM_ADMIN', clientName: null }).text).toContain('as a firm admin for');
+  });
+
+  it('escapes the inviter and client names', () => {
+    const email = invite({ invitedBy: '<b>V</b>', clientName: 'A & B' });
+    expect(email.html).not.toContain('<b>V</b>');
+    expect(email.html).toContain('A &amp; B');
+  });
+});
+
 describe('every email', () => {
   const all = [
     owner(-3),
@@ -243,6 +331,8 @@ describe('every email', () => {
     approval(false),
     approval(true),
     sentBack(),
+    magicLink(),
+    invite(),
   ];
 
   it('escapes names and titles so imported text cannot inject markup', () => {

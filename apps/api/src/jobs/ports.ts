@@ -11,6 +11,8 @@ import type {
   RuleStatus,
   ScoreInput,
   Applicability,
+  PersonStatus,
+  Role,
 } from '@canopy/contracts';
 import type { RenderedEmail } from '@canopy/notifications';
 
@@ -98,13 +100,52 @@ export interface ConsultantRef {
   clientIds: Id[];
 }
 
+/** A person a sign-in or invite email goes to. */
+export interface PersonNotice {
+  personId: Id;
+  displayName: string;
+  email: string | null;
+  status: PersonStatus;
+}
+
+/** An invite with the names its email shows. */
+export interface InviteNotice {
+  inviteId: Id;
+  personId: Id;
+  /** The address the invite was sent to, which may differ from the person's. */
+  email: string;
+  firmName: string;
+  role: Role;
+  /** Null for a firm role. */
+  clientId: Id | null;
+  clientName: string | null;
+  clientTimeZone: string | null;
+  createdById: Id;
+  inviterName: string;
+  expiresAt: string;
+  acceptedAt: string | null;
+  revokedAt: string | null;
+}
+
+/**
+ * M5's `AuthService.issueLoginToken`: stores a hash of a new one-time token and returns the raw value, which goes
+ * into the email link only. It is never stored, logged or put in an event by the jobs.
+ */
+export type LoginTokenIssuer = (input: {
+  firmId: Id;
+  personId: Id;
+  kind: 'MAGIC_LINK' | 'INVITE';
+  inviteId?: Id;
+}) => Promise<{ token: string; expiresAt: string }>;
+
 /**
  * Dedupe key of the send log. Scheduled sends are unique per instance, kind, send date and recipient (digests:
  * recipient, kind, date). Event-driven sends carry the domain event's id and are unique per event and recipient
  * whatever the date (events.md §4 rule 4, `EVENT_NOTIFICATION_DEDUPE_KEY`; ADR M9-0001 §13), so a second send-back on the same day is its own email.
  */
 export interface SendKey {
-  clientId: Id;
+  /** Null only for event-driven sends that belong to no client: sign-in links and firm-role invites. */
+  clientId: Id | null;
   instanceId: Id | null;
   recipientId: Id;
   kind: NotificationKind;
@@ -187,6 +228,10 @@ export interface FirmTx {
    * is missing or archived. Event-driven sends read it to check the instance is still where the event left it.
    */
   findInstance(instanceId: Id): Promise<NoticeInstance | null>;
+  /** One non-archived person; null when missing or archived. */
+  findPerson(personId: Id): Promise<PersonNotice | null>;
+  /** One invite in any state, with its client and inviter names; null when missing. */
+  findInvite(inviteId: Id): Promise<InviteNotice | null>;
   /** Scheduled send-log rows of one client for one send date that are DONE (sent or failed). */
   listDoneSends(clientId: Id, sendDate: LocalDate): Promise<SendKey[]>;
   /** Recipients whose CONSULTANT_DIGEST for this send date is DONE (sent or failed), across all clients. */
@@ -245,6 +290,8 @@ export interface JobDeps {
   appUrl: string;
   /** Set by the runner from pg-boss; the outbox relay needs it. */
   bus?: EventBus;
+  /** Needed by the sign-in link and invite emails, which throw without it. */
+  issueLoginToken?: LoginTokenIssuer;
 }
 
 /** What every job returns, for logs and tests. Counts only; no names or addresses. */

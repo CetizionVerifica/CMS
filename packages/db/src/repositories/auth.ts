@@ -178,14 +178,24 @@ export const credentials = {
 export const SessionMethod = z.enum(['PASSWORD', 'MAGIC_LINK', 'INVITE']);
 export type SessionMethod = z.infer<typeof SessionMethod>;
 
-export const NewSession = z.strictObject({
-  personId: Id,
-  tokenHash: TokenHash,
-  csrfToken: z.string().min(32).max(200),
-  mfaSatisfied: z.boolean(),
-  expiresAt: Instant,
-  method: SessionMethod,
-});
+export const NewSession = z
+  .strictObject({
+    personId: Id,
+    tokenHash: TokenHash,
+    csrfToken: z.string().min(32).max(200),
+    mfaSatisfied: z.boolean(),
+    expiresAt: Instant,
+    method: SessionMethod,
+    /**
+     * The caller's clock (the time `expiresAt` was computed from), stored as created and last seen. Omitted, the
+     * database clock is used, and `expiresAt` must then be after the database's now.
+     */
+    createdAt: Instant.optional(),
+  })
+  .refine((n) => n.createdAt === undefined || Date.parse(n.expiresAt) > Date.parse(n.createdAt), {
+    message: 'A session expires after it is created',
+    path: ['expiresAt'],
+  });
 export type NewSession = z.infer<typeof NewSession>;
 
 export interface StoredSession {
@@ -200,11 +210,17 @@ export interface StoredSession {
 export const sessions = {
   /** Stores a session for the hash of its cookie token. Clear failed attempts with `credentials.resetFailures`. */
   async create(tx: TenantTx, session: NewSession): Promise<StoredSession> {
-    const n = validate(NewSession, session);
+    const { createdAt, ...n } = validate(NewSession, session);
     const t = s.authSession;
     const [row] = await tx
       .insert(t)
-      .values({ ...n, expiresAt: new Date(n.expiresAt) })
+      .values({
+        ...n,
+        expiresAt: new Date(n.expiresAt),
+        ...(createdAt === undefined
+          ? {}
+          : { createdAt: new Date(createdAt), lastSeenAt: new Date(createdAt) }),
+      })
       .returning()
       .catch(rethrow);
     return {

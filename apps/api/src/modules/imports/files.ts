@@ -5,6 +5,7 @@ import {
   S3ServiceException,
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import { s3SettingsFromEnv } from '../../s3-env.js';
 
 /**
  * Where uploaded registers live until they are parsed. The browser PUTs the workbook straight to storage
@@ -127,14 +128,14 @@ export function s3ImportFiles({ client, bucket }: S3ImportFilesOptions): ImportF
 
 /** S3 settings from the environment (`.env.example`). Null when storage is not configured. */
 export function s3ImportFilesFromEnv(env: NodeJS.ProcessEnv): ImportFiles | null {
-  const { S3_ENDPOINT, S3_REGION, S3_BUCKET, S3_ACCESS_KEY_ID, S3_SECRET_ACCESS_KEY } = env;
-  if (!S3_BUCKET || !S3_ACCESS_KEY_ID || !S3_SECRET_ACCESS_KEY) return null;
+  const settings = s3SettingsFromEnv(env);
+  if (!settings) return null;
   const client = new S3Client({
-    region: S3_REGION ?? 'ap-south-1',
-    ...(S3_ENDPOINT ? { endpoint: S3_ENDPOINT, forcePathStyle: true } : {}),
-    credentials: { accessKeyId: S3_ACCESS_KEY_ID, secretAccessKey: S3_SECRET_ACCESS_KEY },
+    region: settings.region,
+    ...(settings.endpoint ? { endpoint: settings.endpoint, forcePathStyle: true } : {}),
+    credentials: { accessKeyId: settings.accessKeyId, secretAccessKey: settings.secretAccessKey },
   });
-  return s3ImportFiles({ client, bucket: S3_BUCKET });
+  return s3ImportFiles({ client, bucket: settings.bucket });
 }
 
 /** In-memory storage for tests: `put` stands in for the browser's PUT. */

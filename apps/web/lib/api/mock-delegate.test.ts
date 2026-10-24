@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { createApiClient } from './client';
 import { MOCK_CLIENTS, MOCK_MFA_CODE, MOCK_PASSWORD, mockFetch } from './mock';
-import { CLIENT_MAP } from './mock-delegate';
+import { CLIENT_MAP, delegateToM0 } from './mock-delegate';
 
 const api = (cookie?: string) =>
   createApiClient({ baseUrl: 'http://api.test', fetch: mockFetch, cookie });
@@ -37,6 +37,28 @@ describe('routes the shell mock does not answer go to M0’s mock server', () =>
     });
     // At the old 2023-03-15 nothing in firm B's data was due yet, so nothing could be overdue.
     expect(data.total).toBeGreaterThan(0);
+  });
+
+  it('gives each mapped client the financial year and periods M0 reports for its firm B client', async () => {
+    const admin = await sessionFor('admin@demo.test', true);
+    const ours = (await api(admin).me()).data.clients;
+    const res = await delegateToM0(
+      'admin@demo.test',
+      'GET',
+      new URL('http://api.test/api/v1/me'),
+      undefined,
+    );
+    const theirs = ((await res.json()) as { clients: typeof ours }).clients;
+    for (const { ours: id } of CLIENT_MAP) {
+      const shell = ours.find((c) => c.id === id)!;
+      const m0 = theirs.find((c) => c.id === id)!;
+      expect({ fyStartMonth: shell.fyStartMonth, period: shell.period }).toEqual({
+        fyStartMonth: m0.fyStartMonth,
+        period: m0.period,
+      });
+    }
+    // Northwind Textiles stands in for Harbour Retail Group, which keeps a January financial year.
+    expect(ours.find((c) => c.id === MOCK_CLIENTS.northwind)!.fyStartMonth).toBe(1);
   });
 
   it('answers the client overview for a firm user, with our client name', async () => {

@@ -1,9 +1,9 @@
 # Requirements source: the client compliance register (Excel)
 
 Source file: `/mnt/project-files/ASPxGridView1 (15) (1).xlsx`, one sheet, 424 rows x 19 columns.
-It is an export of a statutory compliance register for one plant (Hindalco, Belur, West Bengal) for
+It is an export of a statutory compliance register for one plant (Kestrel Aluminium, Riverbend, West Bengal) for
 Indian financial year 2022-23. It is the reference for what Canopy must store, show, import and calculate.
-Every number below was computed from the file on 2026-10-10.
+Every number below was computed from the file on 2026-10-10. Organisation and site names here are fictional stand-ins for the real ones.
 
 ## 1. What one row is
 
@@ -37,8 +37,8 @@ and a **Compliance instance** (one dated occurrence of it, 424 in the file).
 | Due Date | Instance | `dueDate` | 2022-04-07 to 2023-03-31. |
 | Form Description | Obligation | `forms[]` | 377 blank or "NA". Values are statutory forms ("Form XIV", "ER I") or file names ("Form 8.docx"). |
 | Log Sheet Description | Obligation | `logSheets[]` (checklist templates) | 266 blank. Often a file name ("Schedule.docx", "Washing Facilities.xlsx"): templates the owner fills as evidence. |
-| Organization | Instance (via Unit) | `unitId` → Company → Group | Single value "Aditya Birla Group/ Hindalco/ Plant": a 3-level path Group / Company / Unit. |
-| Location | Unit | `location` path | Single value "India/ West Bengal/ Belur": Country / State / City. State decides which state laws apply. |
+| Organization | Instance (via Unit) | `unitId` → Company → Group | Single value "Kestrel Metals Group/ Kestrel Aluminium/ Plant": a 3-level path Group / Company / Unit. |
+| Location | Unit | `location` path | Single value "India/ West Bengal/ Riverbend": Country / State / City. State decides which state laws apply. |
 | Owner | Instance (default from assignment) | `ownerId` | 14 spellings, 12 people case-insensitively (e.g. "surajit dasgupta", "Surajit Dasgupta"). |
 | Owner Comments | Instance | first comment on the instance | Mostly "Complied"/"Done". For Not Applicable it holds the justification ("We do not transport compressed gas"). |
 | Approvers | Instance | `approverId` | 11 spellings, 10 people. |
