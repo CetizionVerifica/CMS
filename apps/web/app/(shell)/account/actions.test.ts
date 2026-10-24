@@ -73,4 +73,32 @@ describe('account actions', () => {
       message: 'Choose a level and between 1 and 30 days.',
     });
   });
+
+  it('starts a client archive for an account admin and refuses anyone else', async () => {
+    await signIn('admin@demo.test', true);
+    const session = `pp_session=${request.cookies.get('pp_session')}`;
+    const { data: me } = await api(session).me();
+    const clientId = me.clients[0]!.id;
+    const started = await actions.startArchiveAction(clientId);
+    expect(started).toEqual({ ok: true, id: expect.any(String) });
+    const { data: job } = await api(session).call('getExport', {
+      params: { id: (started as { id: string }).id },
+    });
+    expect(job.kind).toBe('CLIENT_ARCHIVE_ZIP');
+
+    // The demo's consultant acts as M0's firm admin, so an owner of the same client is the refused one.
+    resetRequest();
+    await signIn('owner@demo.test');
+    expect(await actions.startArchiveAction(clientId)).toEqual({
+      ok: false,
+      message: 'Only account admins can download a client’s data.',
+    });
+  });
+
+  it('answers a client id that is not one without calling the API', async () => {
+    expect(await actions.startArchiveAction('not-an-id')).toEqual({
+      ok: false,
+      message: 'The download didn’t start. Try again.',
+    });
+  });
 });
