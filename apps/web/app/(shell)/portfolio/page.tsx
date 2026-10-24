@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { redirect } from 'next/navigation';
 
 import { isApiError } from '../../../lib/api/client';
 import { redirectIfSignedOut } from '../c/[clientId]/overview/signed-out';
@@ -16,6 +17,8 @@ export const metadata: Metadata = { title: 'Portfolio' };
 // last activity. Numbers come from GET /portfolio for the current period.
 export default async function PortfolioPage() {
   const model = await loadShell();
+  // A company account with one client has no portfolio (ADR M15-0001 decision 2): a typed URL goes to its client.
+  if (model.showPortfolio === false) redirect(homeHref(model));
   const noAccess = (
     <NoPermission what="the portfolio" backHref={homeHref(model)} backLabel="Go to home" />
   );

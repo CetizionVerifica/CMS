@@ -9,7 +9,7 @@ export const STATUS_LABEL: Record<PersonStatus, string> = {
 };
 
 export const ROLE_LABEL: Record<Role, string> = {
-  FIRM_ADMIN: 'Firm admin',
+  FIRM_ADMIN: 'Account admin',
   CONSULTANT: 'Consultant',
   CLIENT_ADMIN: 'Client admin',
   APPROVER: 'Approver',

@@ -180,7 +180,7 @@ describe('reminder actions', () => {
     });
   });
 
-  it('lets a firm admin save reminders', async () => {
+  it('lets an account admin save reminders', async () => {
     await signIn('admin@demo.test', true);
     const view = (await session().call('getClientSettings', { params: { clientId: CLIENT } })).data;
     expect(await actions.saveRemindersAction(CLIENT, { version: view.version, reminders })).toEqual(

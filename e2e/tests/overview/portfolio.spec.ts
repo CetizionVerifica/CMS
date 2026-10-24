@@ -3,7 +3,7 @@ import { expect, test } from '@playwright/test';
 import { checkPage, DEMO_METALS, signIn } from '../shell/helpers.js';
 
 // Portfolio (M13) against the web app's in-process mock: Demo Metals has 5 overdue, Northwind 0, Sunrise Foods 12.
-// The consultant sees Demo Metals and Northwind; the firm admin sees all three.
+// The consultant sees Demo Metals and Northwind; the account admin sees all three.
 const SUNRISE = '00000000-0000-5000-8000-000000000103';
 
 test.describe('portfolio', () => {
@@ -35,7 +35,9 @@ test.describe('portfolio', () => {
     await expect(page).toHaveURL(`/c/${DEMO_METALS}/overview`);
   });
 
-  test('a firm admin sees every client and the summary names the worst one', async ({ page }) => {
+  test('an account admin sees every client and the summary names the worst one', async ({
+    page,
+  }) => {
     await signIn(page, 'admin@demo.test', '/portfolio');
     await expect(
       page.getByText('17 overdue items across 2 clients. Sunrise Foods has the most (12).'),
@@ -73,6 +75,16 @@ test.describe('portfolio', () => {
     await page.goto('/portfolio');
     await expect(page.getByText('You don’t have access to the portfolio')).toBeVisible();
     await expect(page.getByRole('table', { name: 'Clients' })).toHaveCount(0);
+    await checkPage(page);
+  });
+
+  test('a company account with one client is sent from the portfolio to its client', async ({
+    page,
+  }) => {
+    await signIn(page, 'company@demo.test');
+    await page.goto('/portfolio');
+    await expect(page).toHaveURL(`/c/${DEMO_METALS}/overview`);
+    await expect(page.getByRole('heading', { level: 1, name: 'Overview' })).toBeVisible();
     await checkPage(page);
   });
 
