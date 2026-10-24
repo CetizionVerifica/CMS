@@ -11,6 +11,8 @@ import {
   DAY_OPTIONS,
   formatInstant,
   grantRows,
+  grantSummary,
+  planName,
   SUPPORT_LEVEL,
   type UsageRow,
 } from './account-model';
@@ -40,7 +42,7 @@ export function PlanUsage({
         Plan and usage
       </h2>
       <p className="text-body text-muted">
-        Plan: <span className="font-semibold text-ink">{plan}</span>.
+        Plan: <span className="font-semibold text-ink">{planName(plan)}</span>.
         {trialEndsOn ? ` The trial ends on ${formatDate(trialEndsOn)}.` : ''} To change the plan,
         contact PlanetPulse.
       </p>
@@ -95,10 +97,19 @@ export function SupportAccess({ grants }: { grants: SupportGrant[] }) {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [revoking, setRevoking] = useState(false);
+  const [confirming, setConfirming] = useState(false);
   const rows = grantRows(grants);
 
-  async function grant(event: FormEvent) {
+  // Admin access, or replacing a live grant, changes what PlanetPulse can do here, so it is confirmed first.
+  const needsConfirm = level === 'ADMIN' || live !== undefined;
+
+  function submit(event: FormEvent) {
     event.preventDefault();
+    if (needsConfirm) setConfirming(true);
+    else void grant();
+  }
+
+  async function grant() {
     setBusy(true);
     setMessage(null);
     const result = await grantSupportAction({ level, days: Number(days) });
@@ -129,7 +140,7 @@ export function SupportAccess({ grants }: { grants: SupportGrant[] }) {
         </div>
       ) : null}
       <form
-        onSubmit={grant}
+        onSubmit={submit}
         aria-label="Let support in"
         className="flex flex-col gap-3 rounded-card border border-line bg-surface p-4"
       >
@@ -201,6 +212,18 @@ export function SupportAccess({ grants }: { grants: SupportGrant[] }) {
           </table>
         </div>
       ) : null}
+      <ConfirmDialog
+        open={confirming}
+        onOpenChange={setConfirming}
+        title={
+          live
+            ? 'Replace the current PlanetPulse support access?'
+            : 'Give PlanetPulse support admin access?'
+        }
+        body={grantSummary(level, Number(days), new Date(), live !== undefined)}
+        confirmLabel={live ? 'Replace access' : 'Give admin access'}
+        onConfirm={grant}
+      />
       {live ? (
         <ConfirmDialog
           open={revoking}

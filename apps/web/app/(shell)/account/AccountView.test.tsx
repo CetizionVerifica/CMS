@@ -47,19 +47,39 @@ describe('account page', () => {
       />,
     );
     expect(screen.getByText(/The trial ends on 23 Nov 2026/)).toBeTruthy();
+    expect(screen.getByText('Business')).toBeTruthy();
     const table = screen.getByRole('table', { name: 'Plan limits and usage' });
     const companies = within(table).getByRole('row', { name: /Companies/ });
     expect(companies.textContent).toContain('At the limit');
     expect(within(table).getByRole('row', { name: /Users/ }).textContent).toContain('No limit');
   });
 
-  it('lets support in with the chosen access for 7 days by default', async () => {
+  it('lets support in read only for 7 days by default, without a confirmation', async () => {
     render(<SupportAccess grants={[]} />);
     expect(screen.queryByRole('table', { name: 'Support access history' })).toBeNull();
+    await userEvent.click(screen.getByRole('button', { name: 'Let support in' }));
+    expect(screen.queryByRole('alertdialog')).toBeNull();
+    expect(grantSupportAction).toHaveBeenCalledWith({ level: 'READ_ONLY', days: 7 });
+    expect(refresh).toHaveBeenCalled();
+  });
+
+  it('confirms admin access, naming the level and the end, before granting it', async () => {
+    render(<SupportAccess grants={[]} />);
     await userEvent.click(screen.getByRole('radio', { name: /Admin/ }));
     await userEvent.click(screen.getByRole('button', { name: 'Let support in' }));
+    expect(grantSupportAction).not.toHaveBeenCalled();
+    const dialog = screen.getByRole('alertdialog', {
+      name: 'Give PlanetPulse support admin access?',
+    });
+    expect(dialog.textContent).toMatch(/Admin access for 7 days, until about /);
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+    expect(grantSupportAction).not.toHaveBeenCalled();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Let support in' }));
+    await userEvent.click(
+      within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Give admin access' }),
+    );
     expect(grantSupportAction).toHaveBeenCalledWith({ level: 'ADMIN', days: 7 });
-    expect(refresh).toHaveBeenCalled();
   });
 
   it('shows the live access, ends it after confirming, and reports a refusal', async () => {
@@ -81,6 +101,11 @@ describe('account page', () => {
       message: 'Only account admins can change support access.',
     });
     await userEvent.click(screen.getByRole('button', { name: 'Replace the current access' }));
+    const replace = screen.getByRole('alertdialog', {
+      name: 'Replace the current PlanetPulse support access?',
+    });
+    expect(replace.textContent).toContain('The current access ends now.');
+    await userEvent.click(within(replace).getByRole('button', { name: 'Replace access' }));
     expect((await screen.findByRole('alert')).textContent).toBe(
       'Only account admins can change support access.',
     );
