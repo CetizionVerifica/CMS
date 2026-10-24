@@ -22,8 +22,9 @@ customer route. Storage is ADR M3-0002.
    ACTIVE.
 3. **Invites hold a seat.** An invite that would take the account's `usage.users` past its plan's `users` limit
    answers `403 PLAN_LIMIT_REACHED { limit: 'users', max, used }` and changes nothing. The store compares the count
-   before and after the insert in the invite's own transaction, so anyone not yet counted (new, imported, or holding
-   only an expired invite) is checked, and re-inviting someone already counted is not.
+   before and after the insert in the invite's own transaction, under the account's usage lock
+   (`account.lockUsage`). So anyone not yet counted (new, imported, or holding only an expired invite) is checked,
+   re-inviting someone already counted is not, and two concurrent invites cannot both take the last seat.
 4. **The support person has one way in.** M3 keeps it out of the login candidates, so password sign-in and magic links
    cannot reach it. Inviting it is `404`. `POST /auth/support/verify` exchanges the console's one-time token (60
    seconds) for a session with MFA satisfied, ending at the earlier of 2 hours and the grant's end, audited as `LOGIN`
