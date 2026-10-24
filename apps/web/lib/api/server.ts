@@ -43,11 +43,19 @@ export const getMe = cache(async (): Promise<Me | null> => {
   }
 });
 
+/**
+ * Whether the session still owes the MFA step. Only roles that require MFA (firm admins and consultants) owe it:
+ * `satisfied` says whether this session passed MFA, so it stays false for a client user who never needs to.
+ */
+export function mfaPending(me: Me): boolean {
+  return me.mfa.required && !me.mfa.satisfied;
+}
+
 /** The signed-in user, or a redirect to the login page that comes back to `returnTo`. */
 export async function requireMe(returnTo: string): Promise<Me> {
   const me = await getMe();
   if (!me) redirect(`/login?next=${encodeURIComponent(returnTo)}`);
-  if (!me.mfa.satisfied) redirect(`/login/verify?next=${encodeURIComponent(returnTo)}`);
+  if (mfaPending(me)) redirect(`/login/verify?next=${encodeURIComponent(returnTo)}`);
   return me;
 }
 

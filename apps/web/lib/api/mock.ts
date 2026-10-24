@@ -187,7 +187,8 @@ function meBody(u: MockUser, mfa: boolean): Me {
         ...shellInfo[c.id]!,
       })),
     csrfToken: `mock-csrf-${u.person.id}`,
-    mfa: { required: firm, enrolled: firm, satisfied: mfa || !firm },
+    // As the API: `satisfied` is whether this session passed MFA, so a client user's stays false.
+    mfa: { required: firm, enrolled: firm, satisfied: firm && mfa },
   };
 }
 
