@@ -130,12 +130,14 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       # SeaweedFS as in docker/compose.yaml. A service container can't take its `server` command, so it runs here.
+      # Fixed volume count and size: `-volume.max=0` sizes it from free disk in 30 GB volumes, which leaves none
+      # writable on a runner with less than 30 GB free, and every upload then answers 500.
       - name: Start S3-compatible storage
         run: |
           docker run -d --name s3 -p 9000:9000 \
             -v "$GITHUB_WORKSPACE/docker/seaweedfs-s3.json:/etc/seaweedfs/s3.json:ro" \
             chrislusf/seaweedfs:4.48 server -dir=/data -s3 -s3.port=9000 \
-            -s3.config=/etc/seaweedfs/s3.json -volume.max=0
+            -s3.config=/etc/seaweedfs/s3.json -volume.max=16 -master.volumeSizeLimitMB=128
           for i in $(seq 60); do
             curl -sf http://127.0.0.1:9000/status >/dev/null && break
             [ "$i" -eq 60 ] && { echo "::error::SeaweedFS S3 did not start"; docker logs s3; exit 1; }
