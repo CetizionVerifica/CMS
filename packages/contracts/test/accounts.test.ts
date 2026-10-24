@@ -10,10 +10,12 @@ import {
   AccountStatusBody,
   AccountTrialBody,
   ApiErrorResponse,
+  AuditActorKind,
   buildPlatformOpenApi,
   canMoveAccount,
   CONTRACTS_VERSION,
   DEFAULT_ACCOUNT,
+  EntityType,
   ENDPOINTS,
   type Endpoint,
   ERROR_HTTP_STATUS,
@@ -210,6 +212,17 @@ describe('account schemas', () => {
 
   it('gives the operator no personal data on an account', () => {
     expect(Object.keys(Account.shape)).not.toContain('owner');
+  });
+
+  it('shows when the master library was copied, null until then (1.5.1)', () => {
+    expect(Account.shape.libraryCopiedAt.safeParse(null).success).toBe(true);
+    expect(Account.shape.libraryCopiedAt.safeParse('2026-10-24T09:00:00Z').success).toBe(true);
+    expect(Account.shape.libraryCopiedAt.safeParse(undefined).success).toBe(false);
+  });
+
+  it("names the operator and the account in the account's own audit entries (1.5.1)", () => {
+    expect(AuditActorKind.options).toContain('OPERATOR');
+    expect(EntityType.options).toContain('account');
   });
 
   it('refuses date ranges that end before they start', () => {

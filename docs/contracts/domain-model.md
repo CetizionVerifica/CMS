@@ -242,9 +242,9 @@ interface Comment extends Base { instanceId: Id; clientId: Id; authorId: Id | nu
 interface AuditEvent {                              // append-only; no updatedAt/archivedAt/version
   id: Id; firmId: Id; clientId: Id | null
   at: Instant; requestId: string
-  actorId: Id | null; actorKind: "PERSON" | "SYSTEM" | "IMPORT"
+  actorId: Id | null; actorKind: "PERSON" | "SYSTEM" | "IMPORT" | "OPERATOR"
   action: AuditAction
-  entityType: "client" | "company" | "unit" | "location" | "department" | "person" | "membership" | "act" | "category" | "obligation" | "assignment" | "instance" | "evidence" | "import_batch" | "export"
+  entityType: "client" | "company" | "unit" | "location" | "department" | "person" | "membership" | "act" | "category" | "obligation" | "assignment" | "instance" | "evidence" | "import_batch" | "export" | "account"
   entityId: Id
   before: Record<string, unknown> | null; after: Record<string, unknown> | null   // changed fields only; never file contents or signed URLs
   reason: string | null
@@ -383,7 +383,7 @@ interface OperatorAuditEvent { id; at; operatorId: Id | null; action: OperatorAu
 interface SupportGrant { id; accountId; level: SupportAccessLevel; status: SupportGrantStatus; startsAt; endsAt; grantedById; revokedAt; revokedById; supportPersonId }
 interface OperatorSupportGrant { id; accountId; level; status; startsAt; endsAt; revokedAt } // the operator's view: no person ids (ADR M15-0001 decision 8)
 interface Account {                                 // the operator's view: never client data, only the firm row and counts
-  id; name; kind; status; planCode; trialEndsOn; onboardedAt; deletionRequestedAt; purgeAfter
+  id; name; kind; status; planCode; trialEndsOn; libraryCopiedAt; onboardedAt; deletionRequestedAt; purgeAfter
   profile: { legalName; gstin: string | null; timeZone; fyStartMonth }
   entitlements: Entitlements; usage: Usage
   createdAt; version
