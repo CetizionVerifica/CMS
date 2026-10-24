@@ -9,10 +9,11 @@ import { CLIENT_ID, makeRow, makeRows, PERSON_ID } from '../_test/rows';
 
 const PATH = `/c/${CLIENT_ID}/register`;
 
+const nav = vi.hoisted(() => ({ path: '', search: '', refresh: vi.fn() }));
 vi.mock('next/navigation', () => ({
-  usePathname: () => PATH,
-  useSearchParams: () => new URLSearchParams(''),
-  useRouter: () => ({ replace: vi.fn(), push: vi.fn() }),
+  usePathname: () => nav.path,
+  useSearchParams: () => new URLSearchParams(nav.search),
+  useRouter: () => ({ replace: vi.fn(), push: vi.fn(), refresh: nav.refresh }),
 }));
 vi.mock('next/link', () => ({
   default: ({ href, children, ...rest }: { href: string; children: ReactNode }) => (
@@ -29,8 +30,48 @@ const actions = vi.hoisted(() => ({
   waitingRows: vi.fn(),
 }));
 vi.mock('../actions', () => actions);
+vi.mock('../instance-actions', () => ({}));
+// The drawer has its own tests; here a stand-in shows what the view hands it.
+vi.mock('./InstanceDrawer', () => ({
+  InstanceDrawer: (p: {
+    instanceId: string | null;
+    fallbackTitle?: string;
+    timeZone: string;
+    onClose: () => void;
+    onPrev?: () => void;
+    onNext?: () => void;
+    onChanged: (detail: unknown) => void;
+  }) =>
+    p.instanceId === null ? null : (
+      <div data-testid="drawer">
+        <span>
+          {p.instanceId} {p.fallbackTitle} {p.timeZone}
+        </span>
+        <button onClick={p.onClose}>Close drawer</button>
+        {p.onPrev ? <button onClick={p.onPrev}>Previous</button> : null}
+        {p.onNext ? <button onClick={p.onNext}>Next</button> : null}
+        <button
+          onClick={() =>
+            p.onChanged({
+              ...makeRow(0),
+              title: 'Changed in the drawer',
+              description: 'd',
+              applicabilityText: null,
+              naReason: null,
+              forms: [],
+              logSheets: [],
+              evidenceRequired: false,
+              allowedActions: [],
+            })
+          }
+        >
+          Change
+        </button>
+      </div>
+    ),
+}));
 
-const { RegisterView, EXPORT_POLL_MS } = await import('./RegisterView');
+const { RegisterView, EXPORT_POLL_MS, openInstanceId } = await import('./RegisterView');
 type Props = Parameters<typeof RegisterView>[0];
 
 const QUERY = 'fy=2022-23&sort=dueDate';
@@ -47,6 +88,8 @@ function view(props: Partial<Props> = {}) {
         facets={facets}
         canApprove={false}
         canExport={false}
+        canManage={false}
+        timeZone="Asia/Kolkata"
         {...props}
       />
       <Toaster />
@@ -61,6 +104,9 @@ function renderView(props: Partial<Props> = {}) {
 
 const assign = vi.fn();
 beforeEach(() => {
+  nav.path = PATH;
+  nav.search = '';
+  nav.refresh.mockReset();
   for (const fn of Object.values(actions)) fn.mockReset();
   assign.mockReset();
   vi.stubGlobal('location', { ...window.location, assign });
@@ -233,5 +279,103 @@ describe('RegisterView', () => {
     expect(assign).not.toHaveBeenCalled();
     rerender({ canExport: false });
     expect(screen.queryByRole('button', { name: /Export/ })).toBeNull();
+  });
+
+  describe('the instance drawer', () => {
+    const rows = makeRows(3);
+    const href = (i: number, qs = '') => `${PATH}/${rows[i]!.id}${qs}`;
+    let push: ReturnType<typeof vi.spyOn>;
+    let replace: ReturnType<typeof vi.spyOn>;
+    beforeEach(() => {
+      push = vi.spyOn(window.history, 'pushState').mockImplementation(() => undefined);
+      replace = vi.spyOn(window.history, 'replaceState').mockImplementation(() => undefined);
+    });
+    afterEach(() => {
+      push.mockRestore();
+      replace.mockRestore();
+    });
+
+    it('reads the open instance from the path', () => {
+      expect(openInstanceId(PATH)).toBeNull();
+      expect(openInstanceId(`${PATH}/`)).toBeNull();
+      expect(openInstanceId(`${PATH}/abc`)).toBe('abc');
+      expect(openInstanceId(`${PATH}/abc/`)).toBe('abc');
+      expect(openInstanceId(`${PATH}/a%20b`)).toBe('a b');
+      expect(openInstanceId(`/c/x/overview`)).toBeNull();
+    });
+
+    it('opens a row in place, keeping the view’s query, and leaves modified clicks to the browser', async () => {
+      const user = userEvent.setup();
+      nav.search = 'fy=2023-24&status=OVERDUE';
+      renderView({ page: { rows, nextCursor: null, total: 3 } });
+      expect(screen.queryByTestId('drawer')).toBeNull();
+      const link = screen.getByRole('link', { name: 'Obligation 1' });
+      expect(link.getAttribute('href')).toBe(href(1, '?fy=2023-24&status=OVERDUE'));
+      await user.click(link);
+      expect(push).toHaveBeenCalledWith(null, '', href(1, '?fy=2023-24&status=OVERDUE'));
+
+      // The view leaves these clicks to the browser: dispatchEvent answers true when nothing prevented the default.
+      // jsdom then reports that it can't navigate, which is silenced here.
+      push.mockClear();
+      const quiet = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+      const click = (init: MouseEventInit) =>
+        link.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, ...init }));
+      expect(click({ ctrlKey: true })).toBe(true);
+      expect(click({ metaKey: true })).toBe(true);
+      expect(click({ button: 1 })).toBe(true);
+      quiet.mockRestore();
+      expect(push).not.toHaveBeenCalled();
+    });
+
+    it('shows the instance in the path, moves through the loaded rows, and closes back to the view', async () => {
+      const user = userEvent.setup();
+      nav.path = href(0);
+      nav.search = 'fy=2023-24';
+      const { rerender } = renderView({ page: { rows, nextCursor: null, total: 3 } });
+      const drawer = screen.getByTestId('drawer');
+      expect(drawer.textContent).toContain(`${rows[0]!.id} Obligation 0 Asia/Kolkata`);
+      expect(within(drawer).queryByRole('button', { name: 'Previous' })).toBeNull();
+      await user.click(within(drawer).getByRole('button', { name: 'Next' }));
+      expect(replace).toHaveBeenCalledWith(null, '', href(1, '?fy=2023-24'));
+
+      nav.path = href(2);
+      rerender({ page: { rows, nextCursor: null, total: 3 } });
+      expect(
+        within(screen.getByTestId('drawer')).queryByRole('button', { name: 'Next' }),
+      ).toBeNull();
+      await user.click(screen.getByRole('button', { name: 'Previous' }));
+      expect(replace).toHaveBeenLastCalledWith(null, '', href(1, '?fy=2023-24'));
+
+      await user.click(screen.getByRole('button', { name: 'Close drawer' }));
+      expect(push).toHaveBeenCalledWith(null, '', `${PATH}?fy=2023-24`);
+      nav.path = PATH;
+      rerender({ page: { rows, nextCursor: null, total: 3 } });
+      expect(screen.queryByTestId('drawer')).toBeNull();
+      // Nothing changed in the drawer, so nothing is reloaded.
+      expect(nav.refresh).not.toHaveBeenCalled();
+    });
+
+    it('opens an instance that isn’t loaded, with no previous or next', () => {
+      nav.path = `${PATH}/00000000-0000-5000-8000-000000000999`;
+      renderView({ page: { rows, nextCursor: null, total: 3 } });
+      const drawer = screen.getByTestId('drawer');
+      expect(drawer.textContent).toContain('00000000-0000-5000-8000-000000000999');
+      expect(within(drawer).queryByRole('button', { name: 'Next' })).toBeNull();
+      expect(within(drawer).queryByRole('button', { name: 'Previous' })).toBeNull();
+    });
+
+    it('shows a change in its row at once, and refreshes the page when the drawer closes', async () => {
+      const user = userEvent.setup();
+      nav.path = href(0);
+      const { rerender } = renderView({ page: { rows, nextCursor: null, total: 3 } });
+      await user.click(screen.getByRole('button', { name: 'Change' }));
+      expect(screen.getByRole('link', { name: 'Changed in the drawer' })).toBeTruthy();
+      expect(screen.queryByRole('link', { name: 'Obligation 0' })).toBeNull();
+      expect(nav.refresh).not.toHaveBeenCalled();
+
+      nav.path = PATH;
+      rerender({ page: { rows, nextCursor: null, total: 3 } });
+      await waitFor(() => expect(nav.refresh).toHaveBeenCalledOnce());
+    });
   });
 });
