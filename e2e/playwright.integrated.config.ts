@@ -73,7 +73,13 @@ export default defineConfig({
       command: `pnpm --filter @canopy/web exec next start --port ${WEB_PORT}`,
       url: WEB_URL,
       reuseExistingServer: false,
-      env: { CANOPY_API_URL: API_URL },
+      env: {
+        CANOPY_API_URL: API_URL,
+        // Browsers upload straight to storage, so the CSP must allow its origin (docs/security/review.md, deploy 7).
+        ...(process.env.S3_ENDPOINT && {
+          CANOPY_CSP_CONNECT_SRC: new URL(process.env.S3_ENDPOINT).origin,
+        }),
+      },
     },
   ],
 });
