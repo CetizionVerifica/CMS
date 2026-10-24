@@ -1,9 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
+import { AuthService } from './auth/index.js';
 import { PostgresReportsStore } from './modules/dashboard/db-store.js';
 import { S3ExportFiles } from './modules/reports/files.js';
 import { jobsFromEnv, wiringFromEnv } from './wiring.js';
 
-const DB = { DATABASE_URL: 'postgres://app@localhost:5432/canopy' };
+const KEY = Buffer.alloc(32, 7).toString('base64');
+const DB = { DATABASE_URL: 'postgres://app@localhost:5432/canopy', AUTH_SECRET_KEY: KEY };
 const S3 = { S3_BUCKET: 'imports', S3_ACCESS_KEY_ID: 'key', S3_SECRET_ACCESS_KEY: 'secret' };
 
 describe('wiringFromEnv', () => {
@@ -21,6 +23,25 @@ describe('wiringFromEnv', () => {
     expect(options.reports?.files).toBeUndefined();
     expect(options.imports).toBeUndefined();
     await database?.close();
+  });
+
+  it('serves sign-in from the database store, sealing MFA secrets with AUTH_SECRET_KEY', async () => {
+    const { options, database, auth } = wiringFromEnv({ ...DB }, vi.fn());
+    expect(options.accountStore).toBeDefined();
+    expect(options.authSecretKey).toBe(KEY);
+    expect(auth).toBeInstanceOf(AuthService);
+    await database?.close();
+  });
+
+  it('refuses to start with a database but no usable AUTH_SECRET_KEY', () => {
+    const noKey = { DATABASE_URL: DB.DATABASE_URL };
+    expect(() => wiringFromEnv(noKey, vi.fn())).toThrow(/AUTH_SECRET_KEY is required/);
+    expect(() => wiringFromEnv({ ...noKey, AUTH_SECRET_KEY: '' }, vi.fn())).toThrow(
+      /AUTH_SECRET_KEY is required/,
+    );
+    expect(() =>
+      wiringFromEnv({ ...DB, AUTH_SECRET_KEY: Buffer.alloc(16).toString('base64') }, vi.fn()),
+    ).toThrow(/32 bytes/);
   });
 
   it('mounts M8 and M10 export files when S3 object storage is configured', async () => {
@@ -69,14 +90,37 @@ describe('jobsFromEnv', () => {
     const start = vi.fn().mockResolvedValue(mailing);
     const warn = vi.fn();
     const log = vi.fn();
+    const issued = { token: 'raw-token', expiresAt: '2026-10-24T06:15:00.000Z' };
+    const auth = { issueLoginToken: vi.fn().mockResolvedValue(issued) };
     const env = { ...DB, SMTP_URL: 'smtp://mail.example:587' };
-    expect(await jobsFromEnv(env, database, { warn, log, start })).toBe(mailing);
+    expect(await jobsFromEnv(env, database, { warn, log, auth, start })).toBe(mailing);
     expect(start).toHaveBeenCalledWith(env, {
       db: database,
       connectionString: DB.DATABASE_URL,
       log,
+      issueLoginToken: expect.any(Function),
     });
     expect(warn).not.toHaveBeenCalled();
+    // The jobs get M5's issuer, so sign-in link and invite emails carry a fresh token.
+    const input = {
+      firmId: 'firm-1',
+      personId: 'person-1',
+      kind: 'INVITE' as const,
+      inviteId: 'invite-1',
+    };
+    await expect(start.mock.calls[0]![1].issueLoginToken(input)).resolves.toEqual(issued);
+    expect(auth.issueLoginToken).toHaveBeenCalledWith(input);
+    await database?.close();
+  });
+
+  it('warns when mail runs but nothing can issue sign-in tokens', async () => {
+    const { database } = wiringFromEnv({ ...DB }, vi.fn());
+    const start = vi.fn().mockResolvedValue(runner(true));
+    const warn = vi.fn();
+    await jobsFromEnv({ ...DB, SMTP_URL: 'smtp://mail.example:587' }, database, { warn, start });
+    expect(start.mock.calls[0]![1]).not.toHaveProperty('issueLoginToken');
+    expect(warn).toHaveBeenCalledOnce();
+    expect(warn.mock.calls[0]![0]).toMatch(/sign-in link and invite emails not sent/);
     await database?.close();
   });
 

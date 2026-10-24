@@ -1,5 +1,6 @@
 import { createDatabase, type Database } from '@canopy/db';
 import { inferRule } from '@canopy/engine';
+import { AuthService, SecretBox, createDbAccountStore } from './auth/index.js';
 import { startJobsFromEnv, type JobRunner, type JobRunnerOptions } from './jobs/index.js';
 import { PostgresReportsStore } from './modules/dashboard/db-store.js';
 import { PostgresStore } from './modules/entities/service.js';
@@ -15,6 +16,8 @@ export interface Wiring {
   readonly options: ServerOptions;
   /** The database the options use, if any; main.ts closes it on shutdown. */
   readonly database?: Database;
+  /** M5's sign-in service on the same account store, for M9's sign-in link and invite emails (`issueLoginToken`). */
+  readonly auth?: AuthService;
 }
 
 /**
@@ -22,18 +25,31 @@ export interface Wiring {
  * mounted: M6 (library and entities), M7 (instances), M10 (dashboards and reports on the Postgres store) and, when
  * object storage is configured too (S3_*), M8 (imports) and M10's export files. Without it (the e2e web server, a
  * UI-only dev run) they stay unmounted, and M10 keeps its empty default store. Sign-in (registerAuth) runs before
- * every route.
+ * every route; with DATABASE_URL it reads sessions and accounts from M5's database store and serves the sign-in,
+ * MFA and invite routes, which need AUTH_SECRET_KEY (32 bytes, base64) to seal MFA secrets.
  */
 export function wiringFromEnv(env: NodeJS.ProcessEnv, logImportError: ImportErrorLog): Wiring {
   const connectionString = env.DATABASE_URL;
   if (!connectionString) return { options: {} };
+  const authSecretKey = env.AUTH_SECRET_KEY;
+  if (!authSecretKey) {
+    throw new Error(
+      'AUTH_SECRET_KEY is required with DATABASE_URL: 32 bytes, base64 (openssl rand -base64 32); it seals MFA secrets',
+    );
+  }
+  // Checks the key's length before anything connects.
+  const secrets = new SecretBox(authSecretKey);
   const database = createDatabase({ connectionString });
+  const accountStore = createDbAccountStore(database, {});
   const importFiles = s3ImportFilesFromEnv(env);
   const exportFiles = s3ExportFilesFromEnv(env);
   return {
     database,
+    auth: new AuthService({ store: accountStore, secrets }),
     options: {
       database,
+      accountStore,
+      authSecretKey,
       libraryAndEntities: { store: new PostgresStore(database) },
       reports: {
         store: new PostgresReportsStore(database),
@@ -68,6 +84,8 @@ export interface JobsWiring {
   readonly warn: (message: string) => void;
   /** Per-run job lines (counts only). */
   readonly log?: JobRunnerOptions['log'];
+  /** M5's sign-in service (`Wiring.auth`): issues the one-time tokens in sign-in link and invite emails. */
+  readonly auth?: Pick<AuthService, 'issueLoginToken'>;
   /** Tests replace the M9 boot. */
   readonly start?: typeof startJobsFromEnv;
 }
@@ -81,14 +99,23 @@ export interface JobsWiring {
 export async function jobsFromEnv(
   env: NodeJS.ProcessEnv,
   database: Database | undefined,
-  { warn, log, start = startJobsFromEnv }: JobsWiring,
+  { warn, log, auth, start = startJobsFromEnv }: JobsWiring,
 ): Promise<JobRunner | null> {
   const connectionString = env.DATABASE_URL;
   if (!database || !connectionString) return null;
-  const jobs = await start(env, { db: database, connectionString, ...(log && { log }) });
+  const jobs = await start(env, {
+    db: database,
+    connectionString,
+    ...(log && { log }),
+    ...(auth && { issueLoginToken: (input) => auth.issueLoginToken(input) }),
+  });
   if (!jobs.mail)
     warn(
       'email jobs not started: no SMTP server configured (set SMTP_URL or SMTP_HOST, MAIL_FROM and APP_URL); instance generation still runs',
+    );
+  else if (!auth)
+    warn(
+      'sign-in link and invite emails not sent: no sign-in service to issue their one-time tokens',
     );
   return jobs;
 }

@@ -53,3 +53,19 @@ test('the pattern escapes regex characters in names', () => {
   assert.deepEqual(findNames('a.b and axb', namePattern(['a.b'])), { lines: [1], names: ['a.b'] });
   assert.deepEqual(findNames('axb', namePattern(['a.b'])), { lines: [], names: [] });
 });
+
+test('words match only as whole words, in any case', () => {
+  const pattern = namePattern([], ['abc']);
+  assert.deepEqual(findNames('xabcx\nmy abc site\nABC-group\nabcd', pattern), {
+    lines: [2, 3],
+    names: ['abc'],
+  });
+  for (const word of denylist.words) assert.equal(word, word.toLowerCase());
+  const [word] = denylist.words;
+  const dir = mkdtempSync(join(tmpdir(), 'client-words-'));
+  writeFileSync(join(dir, 'inside.ts'), `const x${word}y = 1;\n`);
+  writeFileSync(join(dir, 'alone.ts'), `// ${title(word)} plant\n`);
+  assert.deepEqual(scan(dir, ['inside.ts', 'alone.ts'], denylist), [
+    { file: 'alone.ts', lines: [1], names: [word] },
+  ]);
+});
