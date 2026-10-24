@@ -124,17 +124,22 @@ CREATE TRIGGER "firm_deleted_by_purge" BEFORE INSERT OR UPDATE OF "status" ON "f
 
 -- 6. The purge. In one transaction: lock the firm; refuse unless it is PENDING_DELETION for 30 days or more; make it
 --    DELETED with its settings and profile emptied (the tombstone keeps id, name, kind, plan, dates); delete its rows
---    table by table; record ACCOUNT_PURGE with the row counts (no contents) in the operator trail. Returns the counts,
---    or null for an account already purged, so a retry after a crash does nothing twice.
+--    table by table; record ACCOUNT_PURGE with the row counts (no contents) in the operator trail. Returns the counts.
+--    On an account already DELETED it sweeps again: a write that waited on the firm's lock (an admin's export, a job)
+--    can commit after the purge, and the next call removes it. A sweep that removes nothing returns zero counts and
+--    writes no trail row; one that removes something records ACCOUNT_PURGE from DELETED with its counts.
+--    app.firm_id is set for the policies and put back as the caller had it before returning.
 CREATE FUNCTION platform_purge_account(p_firm uuid) RETURNS jsonb
 LANGUAGE plpgsql SECURITY DEFINER
 SET search_path = public, pg_temp
 AS $$
 DECLARE
   v_request text := coalesce(nullif(current_setting('app.request_id', true), ''), 'account-purge');
+  v_caller_firm text := coalesce(current_setting('app.firm_id', true), '');
   v_status account_status;
   v_requested timestamptz;
   v_counts jsonb := '{}'::jsonb;
+  v_total bigint := 0;
   v_rows bigint;
   t text;
 BEGIN
@@ -143,21 +148,24 @@ BEGIN
   IF NOT FOUND THEN
     RAISE EXCEPTION 'no such account' USING ERRCODE = 'no_data_found';
   END IF;
-  IF v_status = 'DELETED' THEN
-    RETURN NULL;
+  IF v_status <> 'DELETED' THEN
+    IF v_status <> 'PENDING_DELETION' OR v_requested > now() - interval '30 days' THEN
+      RAISE EXCEPTION 'the account is not due for purge' USING ERRCODE = 'object_not_in_prerequisite_state';
+    END IF;
+    UPDATE firm SET status = 'DELETED', settings = '{}'::jsonb, profile = '{}'::jsonb WHERE id = p_firm;
   END IF;
-  IF v_status <> 'PENDING_DELETION' OR v_requested > now() - interval '30 days' THEN
-    RAISE EXCEPTION 'the account is not due for purge' USING ERRCODE = 'object_not_in_prerequisite_state';
-  END IF;
-  UPDATE firm SET status = 'DELETED', settings = '{}'::jsonb, profile = '{}'::jsonb WHERE id = p_firm;
   FOREACH t IN ARRAY canopy_purge_tables() LOOP
     EXECUTE format('DELETE FROM %I WHERE firm_id = $1', t) USING p_firm;
     GET DIAGNOSTICS v_rows = ROW_COUNT;
     v_counts := v_counts || jsonb_build_object(t, v_rows);
+    v_total := v_total + v_rows;
   END LOOP;
-  INSERT INTO platform.operator_audit_event (operator_id, action, account_id, before, after, request_id)
-  VALUES (NULL, 'ACCOUNT_PURGE', p_firm, jsonb_build_object('status', 'PENDING_DELETION'),
-    jsonb_build_object('status', 'DELETED', 'rows', v_counts), v_request);
+  IF v_status <> 'DELETED' OR v_total > 0 THEN
+    INSERT INTO platform.operator_audit_event (operator_id, action, account_id, before, after, request_id)
+    VALUES (NULL, 'ACCOUNT_PURGE', p_firm, jsonb_build_object('status', v_status),
+      jsonb_build_object('status', 'DELETED', 'rows', v_counts), v_request);
+  END IF;
+  PERFORM set_config('app.firm_id', v_caller_firm, true);
   RETURN v_counts;
 END
 $$;

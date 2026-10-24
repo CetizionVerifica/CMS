@@ -557,12 +557,13 @@ export const platformAccounts = {
   },
   /**
    * Purges the account (platform_purge_account): DELETED tombstone, every tenant row and its audit trail removed,
-   * ACCOUNT_PURGE in the operator trail. Returns the row count per table, or null when it was already purged.
+   * ACCOUNT_PURGE in the operator trail. Returns the row count per table. On an account already DELETED it sweeps
+   * again, for writes that committed after the purge: zero counts and no trail row when there was nothing left.
    * INVALID_TRANSITION when it is not PENDING_DELETION or still inside its 30 days. Storage objects are the caller's.
    */
-  async purge(tx: OperatorTx, accountId: string): Promise<Record<string, number> | null> {
+  async purge(tx: OperatorTx, accountId: string): Promise<Record<string, number>> {
     const { rows } = await tx
-      .execute<{ counts: Record<string, number> | null }>(
+      .execute<{ counts: Record<string, number> }>(
         sql`SELECT platform_purge_account(${validate(Id, accountId)}) AS counts`,
       )
       .catch(rethrow);

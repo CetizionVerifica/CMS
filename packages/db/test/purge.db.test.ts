@@ -106,6 +106,16 @@ async function platformCounts(firmId: string): Promise<Record<string, number>> {
   return out;
 }
 
+/** The ACCOUNT_PURGE rows of the operator trail for one account, oldest first. */
+async function purgeTrail(firmId: string): Promise<{ before: unknown; after: unknown }[]> {
+  const { rows } = await t.ownerQuery<{ before: unknown; after: unknown }>(
+    `SELECT before, after FROM platform.operator_audit_event
+     WHERE account_id = $1 AND action = 'ACCOUNT_PURGE' ORDER BY at, id`,
+    [firmId],
+  );
+  return rows;
+}
+
 beforeAll(async () => {
   t = await createTestDatabase();
   op = createOperatorDatabase({ connectionString: t.url, max: 2 });
@@ -284,8 +294,11 @@ describe('platform_purge_account', () => {
     });
   });
 
-  it('does nothing twice, and a deleted account stays deleted', async () => {
-    expect(await asOperator((tx) => r.platformAccounts.purge(tx, b.firmId))).toBeNull();
+  it('sweeps a deleted account again with zero counts and no trail row, and it stays deleted', async () => {
+    const trailBefore = await purgeTrail(b.firmId);
+    const zero = Object.fromEntries(tenantTables.map((n) => [n, 0]));
+    expect(await asOperator((tx) => r.platformAccounts.purge(tx, b.firmId))).toEqual(zero);
+    expect(await purgeTrail(b.firmId)).toEqual(trailBefore);
     expect(await asOperator((tx) => r.platformAccounts.dueForPurge(tx))).toEqual([]);
     expect(
       await failure(
@@ -295,6 +308,74 @@ describe('platform_purge_account', () => {
         }),
       ),
     ).toBe('23514');
+  });
+
+  it('puts app.firm_id back as the caller had it', async () => {
+    const other = '01920000-0000-7000-8000-0000000000fe';
+    const after = await asOperator(async (tx) => {
+      const unset = (
+        await tx.execute<{ v: string }>(sql`SELECT current_setting('app.firm_id', true) AS v`)
+      ).rows[0]!.v;
+      await r.platformAccounts.purge(tx, b.firmId);
+      const restored = (
+        await tx.execute<{ v: string }>(sql`SELECT current_setting('app.firm_id', true) AS v`)
+      ).rows[0]!.v;
+      await tx.execute(sql`SELECT set_config('app.firm_id', ${other}, true)`);
+      await r.platformAccounts.purge(tx, b.firmId);
+      const kept = (
+        await tx.execute<{ v: string }>(sql`SELECT current_setting('app.firm_id', true) AS v`)
+      ).rows[0]!.v;
+      return { unset, restored, kept };
+    });
+    expect(after).toEqual({ unset: '', restored: '', kept: other });
+  });
+
+  it('removes on the next call a write that waited on the purge and committed after it', async () => {
+    const c = await t.admin.createFirm({ name: 'Third Ledger Advisory' });
+    await pendingSince(c, 31);
+    let insert: Promise<void> | undefined;
+    let waited = false;
+    const first = await asOperator(async (tx) => {
+      const counts = await r.platformAccounts.purge(tx, c);
+      // A tenant write starts while the purge holds the firm's lock: its foreign key to firm waits for the commit.
+      insert = t.ownerTransaction(async (client) => {
+        await client.query(`SELECT set_config('app.firm_id', $1, true)`, [c]);
+        await client.query(
+          `INSERT INTO audit_event (firm_id, actor_kind, action, entity_type, entity_id, request_id)
+           VALUES ($1, 'SYSTEM', 'UPDATE', 'client', $1, 'purge-straggler')`,
+          [c],
+        );
+        // ownerTransaction rolls back when fn returns; this write must land.
+        await client.query('COMMIT');
+      });
+      for (let i = 0; i < 100; i++) {
+        const { rows } = await t.ownerQuery<{ n: string }>(
+          `SELECT count(*) AS n FROM pg_stat_activity
+           WHERE wait_event_type = 'Lock' AND query LIKE 'INSERT INTO audit_event%'`,
+        );
+        waited = Number(rows[0]!.n) > 0;
+        if (waited) break;
+        await new Promise((resolve) => setTimeout(resolve, 20));
+      }
+      return counts;
+    });
+    await insert;
+    expect(waited).toBe(true);
+    expect(first.audit_event).toBe(0);
+    expect((await counts(c)).audit_event).toBe(1);
+
+    const second = await asOperator((tx) => r.platformAccounts.purge(tx, c));
+    expect(second).toEqual({
+      ...Object.fromEntries(tenantTables.map((n) => [n, 0])),
+      audit_event: 1,
+    });
+    expect(Object.values(await counts(c)).every((n) => n === 0)).toBe(true);
+    const trail = await purgeTrail(c);
+    expect(trail).toHaveLength(2);
+    expect(trail[1]).toEqual({
+      before: { status: 'DELETED' },
+      after: { status: 'DELETED', rows: second },
+    });
   });
 
   it('the owner still cannot delete audit rows of a deleted account', async () => {
