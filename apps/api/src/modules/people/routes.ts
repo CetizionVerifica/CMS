@@ -48,6 +48,24 @@ export function statusForEmail(person: Pick<Person, 'status'> | null, email: str
 type PersonCall = Pick<Call<never>, 'ctx' | 'authorize'>;
 
 /**
+ * The PlanetPulse support person comes and goes with a support grant (ADR M15-0001 decision 11): no people or
+ * membership route edits, merges, disables or re-grants them. The database refuses it too (ADR M3-0002 decision 7);
+ * this answers the contract error first.
+ */
+export function refuseSupportPerson(
+  person: Pick<Person, 'support'> | null | undefined,
+  type: 'person' | 'membership',
+): void {
+  if (person?.support) {
+    throw new HttpError(
+      'FORBIDDEN',
+      'PlanetPulse support access is managed under Account, Support access.',
+      { action: `${type}.write` },
+    );
+  }
+}
+
+/**
  * Checks a route on one person (endpoints.md §3). A firm admin reaches everyone. Anyone else, consultants included,
  * reaches only people of the clients they work in; firm staff (people holding a firm role) are changed by a firm admin
  * alone. A write must stay inside the actor's clients, because a person shared with another client is that client's
@@ -229,6 +247,7 @@ export function peopleRoutes(app: FastifyInstance, deps: M6Deps): void {
     return store.transaction(call.ctx, async (tx) => {
       const row = await getLive(tx.people, call.params.id as Id);
       await authorizePerson(tx, call, 'person', row.id, 'write');
+      refuseSupportPerson(row, 'person');
       const email = body.email === undefined ? row.email : body.email;
       // An active person signs in with their email, so changing it hands over the account: firm admins only.
       if (row.status === 'ACTIVE' && email !== row.email && !hasRole(call.ctx, 'FIRM_ADMIN')) {
@@ -265,8 +284,9 @@ export function peopleRoutes(app: FastifyInstance, deps: M6Deps): void {
       // Every person involved must be within the actor's reach, so no other client's rows are left on an archived
       // source.
       for (const id of [target.id, ...body.sourceIds]) {
-        if (id !== target.id) await getLive(tx.people, id);
+        const person = id === target.id ? target : await getLive(tx.people, id);
         await authorizePerson(tx, call, 'person', id, 'write');
+        refuseSupportPerson(person, 'person');
       }
       return replacePersonEverywhere({
         tx,
@@ -303,6 +323,7 @@ export function peopleRoutes(app: FastifyInstance, deps: M6Deps): void {
       // roles from a firm admin only.
       const reach = await authorizePerson(tx, call, 'membership', person.id, 'read');
       if (reach !== null && reach.firmStaff) throw forbidden('membership.write');
+      refuseSupportPerson(person, 'membership');
       await checkGrant(tx, body);
       const existing = (await tx.memberships.findAll({ personId: person.id })).find(
         (m) => m.role === body.role && m.clientId === body.clientId,
@@ -325,6 +346,7 @@ export function peopleRoutes(app: FastifyInstance, deps: M6Deps): void {
     return store.transaction(ctx, async (tx) => {
       const row = await getLive(tx.memberships, call.params.id as Id);
       authorizeMembership(call, ctx, row.role, row.clientId);
+      refuseSupportPerson(await tx.people.get(row.personId), 'membership');
       const patch = {
         consultantClientIds: body.consultantClientIds,
         unitIds: body.unitIds,
@@ -360,8 +382,13 @@ export function peopleRoutes(app: FastifyInstance, deps: M6Deps): void {
     return store.transaction(ctx, async (tx) => {
       const row = await getLive(tx.memberships, call.params.id as Id);
       authorizeMembership(call, ctx, row.role, row.clientId);
+      refuseSupportPerson(await tx.people.get(row.personId), 'membership');
       if (row.role === 'FIRM_ADMIN') {
-        const admins = await tx.memberships.findAll({ role: 'FIRM_ADMIN' });
+        // The support person's FIRM_ADMIN membership ends with its grant, so it never counts as an admin.
+        const admins = [];
+        for (const m of await tx.memberships.findAll({ role: 'FIRM_ADMIN' })) {
+          if (!(await tx.people.get(m.personId))?.support) admins.push(m);
+        }
         if (admins.length <= 1) {
           throw invalid('The firm needs at least one firm admin.', ['params', 'id']);
         }

@@ -1,6 +1,6 @@
 import { ApiErrorResponse, Membership, Person } from '@canopy/contracts';
 import { describe, expect, it } from 'vitest';
-import { ACTORS, ids, membershipId, testApp } from '../entities/testing/world.js';
+import { ACTORS, FIRM_A, ids, membershipId, testApp, uid } from '../entities/testing/world.js';
 import { normalizeName, statusForEmail } from './routes.js';
 
 const error = (body: unknown) => ApiErrorResponse.parse(body).error;
@@ -562,5 +562,134 @@ describe("an email already used outside the actor's clients", () => {
       code: 'DUPLICATE',
       details: { field: 'email', existingId: heldId },
     });
+  });
+});
+
+describe('the PlanetPulse support person', () => {
+  const supportId = uid(900);
+  const supportMembership = uid(901);
+  const AT = '2026-10-01T00:00:00Z';
+
+  /** A support grant at ADMIN level: the support person with a FIRM_ADMIN membership (ADR M15-0001 decision 11). */
+  function withSupport() {
+    const world = testApp();
+    const base = { firmId: FIRM_A, createdAt: AT, updatedAt: AT, archivedAt: null, version: 1 };
+    world.store.seed('people', {
+      ...base,
+      id: supportId,
+      displayName: 'PlanetPulse support',
+      nameNormalized: 'planetpulse support',
+      email: 'support@planetpulse.life',
+      status: 'ACTIVE',
+      support: true,
+    });
+    world.store.seed('memberships', {
+      ...base,
+      id: supportMembership,
+      personId: supportId,
+      role: 'FIRM_ADMIN',
+      clientId: null,
+      consultantClientIds: null,
+      unitIds: null,
+      expiresAt: '2026-10-19T00:00:00Z',
+    });
+    return world;
+  }
+  const refused = (res: { status: number; body: unknown }, action: string) => {
+    expect(res.status).toBe(403);
+    expect(error(res.body)).toMatchObject({ code: 'FORBIDDEN', details: { action } });
+  };
+
+  it('cannot be renamed, given another email or disabled', async () => {
+    const { call, store } = withSupport();
+    for (const patch of [
+      { displayName: 'Someone else' },
+      { email: 'mine@kestrel-metals.example' },
+      { email: null },
+    ]) {
+      refused(
+        await call('firmAdmin', 'PATCH', `/people/${supportId}`, { version: 1, ...patch }),
+        'person.write',
+      );
+    }
+    expect(store.raw('people', supportId)).toMatchObject({
+      displayName: 'PlanetPulse support',
+      version: 1,
+    });
+    expect(store.audits).toEqual([]);
+  });
+
+  it('is never merged, into or away', async () => {
+    const { call } = withSupport();
+    refused(
+      await call('firmAdmin', 'POST', `/people/${ACTORS.firmAdmin.person}/merge`, {
+        version: 1,
+        sourceIds: [supportId],
+      }),
+      'person.write',
+    );
+    refused(
+      await call('firmAdmin', 'POST', `/people/${supportId}/merge`, {
+        version: 1,
+        sourceIds: [ids.duplicate],
+      }),
+      'person.write',
+    );
+  });
+
+  it('gets no membership, and keeps the ones its grant gave', async () => {
+    const { call, store } = withSupport();
+    refused(
+      await call('firmAdmin', 'POST', `/people/${supportId}/memberships`, {
+        role: 'OWNER',
+        clientId: ids.clientA,
+        consultantClientIds: null,
+        unitIds: null,
+        expiresAt: null,
+      }),
+      'membership.write',
+    );
+    refused(
+      await call('firmAdmin', 'PATCH', `/memberships/${supportMembership}`, {
+        version: 1,
+        expiresAt: '2027-01-01T00:00:00Z',
+      }),
+      'membership.write',
+    );
+    refused(
+      await call('firmAdmin', 'POST', `/memberships/${supportMembership}/archive`, {
+        version: 1,
+        reason: 'Not needed',
+      }),
+      'membership.write',
+    );
+    expect(store.raw('memberships', supportMembership)).toMatchObject({
+      archivedAt: null,
+      version: 1,
+    });
+    expect(store.events).toEqual([]);
+  });
+
+  it('does not count as the firm’s last admin', async () => {
+    const { call } = withSupport();
+    const res = await call(
+      'firmAdmin',
+      'POST',
+      `/memberships/${membershipId('firmAdmin')}/archive`,
+      {
+        version: 1,
+        reason: 'Leaving',
+      },
+    );
+    expect(res.status).toBe(400);
+    expect(error(res.body).message).toMatch(/at least one firm admin/);
+  });
+
+  it('is still listed with the firm’s staff, marked as support', async () => {
+    const { call } = withSupport();
+    const res = await call('firmAdmin', 'GET', '/people?q=planetpulse');
+    expect((res.body as { items: unknown[] }).items).toEqual([
+      expect.objectContaining({ id: supportId, support: true }),
+    ]);
   });
 });

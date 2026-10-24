@@ -662,4 +662,46 @@ describe.skipIf(!url)('M6 on the Postgres store', () => {
       ).toMatchObject({ firmStaff: true });
     });
   });
+
+  describe('the PlanetPulse support person', () => {
+    it('is refused by the people and membership routes, and stays as its grant made it', async () => {
+      const { grant } = await system(w.firmA, (tx) =>
+        r.supportGrants.create(tx, {
+          level: 'ADMIN',
+          days: 7,
+          grantedById: w.people.firmAdmin,
+          now: new Date().toISOString(),
+        }),
+      );
+      const supportId = grant.supportPersonId;
+      const patch = await call('firmAdmin', 'PATCH', `/people/${supportId}`, {
+        version: 1,
+        displayName: 'Someone else',
+      });
+      expect(patch.status).toBe(403);
+      expect(error(patch.body)).toMatchObject({
+        code: 'FORBIDDEN',
+        details: { action: 'person.write' },
+      });
+      const memberships = await system(w.firmA, (tx) =>
+        r.memberships.findAll(tx, { personId: supportId }),
+      );
+      expect(memberships.map((m) => m.role)).toEqual(['FIRM_ADMIN']);
+      const archive = await call(
+        'firmAdmin',
+        'POST',
+        `/memberships/${memberships[0]!.id}/archive`,
+        {
+          version: memberships[0]!.version,
+          reason: 'Not needed',
+        },
+      );
+      expect(archive.status).toBe(403);
+      const person = await system(w.firmA, (tx) => r.people.get(tx, supportId));
+      expect(person).toMatchObject({ displayName: 'PlanetPulse support', support: true });
+      await system(w.firmA, (tx) =>
+        r.supportGrants.revoke(tx, grant.id, w.people.firmAdmin, new Date().toISOString()),
+      );
+    });
+  });
 });
