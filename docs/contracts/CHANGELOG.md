@@ -119,3 +119,10 @@ client's whole register and its evidence in a zip, for account admins only, thro
 stay open to account admins while the account is PENDING_DELETION (endpoints.md §6, §8). The database stored the value
 first (M3). No route or schema shape changes; M10's export switch has a default branch, so the bump keeps api
 typecheck green.
+
+## 1.5.3 · 2026-10-24
+For M9 (ADR M15-0001 decision 4, the plan's trial-ending reminder); additive. `NotificationKind` gains
+`TRIAL_ENDING`: an email to each account admin of a TRIAL account 7 days and 1 day before its trial ends. It is a
+scheduled kind with no instance, so it dedupes on `(recipientId, kind, sendDate)` like `CONSULTANT_DIGEST` (events.md
+§4 rule 4). `ACCOUNT_NOTIFICATION_KINDS` lists the kinds about the whole account, whose sends name no client. The
+database stored the value first (M3). No route or schema shape changes.
