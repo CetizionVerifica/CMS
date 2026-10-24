@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // Real client names (tooling/client-names.json) must not appear in tracked files: test data, fixtures, demos and docs
 // use fictional names. The match is case-insensitive; `names` are also found inside a longer word, `words` only as a
-// whole word (a name that is a common substring, such as the one inside "metadata"). Binary files are
+// whole word (a name that is a common substring, such as the one inside "metadata"). For `words`, only a letter
+// joins a word: `_`, digits and punctuation separate, so snake_case and numbered names are caught. Binary files are
 // skipped (a NUL byte in the first 8 KB, as git does). Lists every file that still has one, with line numbers.
 //
 // Usage: node tooling/scripts/check-client-names.mjs [repo-root]   (default: the current directory)
@@ -19,9 +20,12 @@ export function loadDenylist(root) {
 
 const escape = (name) => name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-/** `names` match anywhere; `words` only between word boundaries. */
+/** `names` match anywhere; `words` only where no letter touches them. */
 export function namePattern(names, words = []) {
-  const parts = [...names.map(escape), ...words.map((word) => `\\b${escape(word)}\\b`)];
+  const parts = [
+    ...names.map(escape),
+    ...words.map((word) => `(?<![a-z])${escape(word)}(?![a-z])`),
+  ];
   return new RegExp(parts.join('|'), 'gi');
 }
 

@@ -54,12 +54,12 @@ test('the pattern escapes regex characters in names', () => {
   assert.deepEqual(findNames('axb', namePattern(['a.b'])), { lines: [], names: [] });
 });
 
-test('words match only as whole words, in any case', () => {
+test('words match only as whole words, in any case, with _ and digits as separators', () => {
   const pattern = namePattern([], ['abc']);
-  assert.deepEqual(findNames('xabcx\nmy abc site\nABC-group\nabcd', pattern), {
-    lines: [2, 3],
-    names: ['abc'],
-  });
+  assert.deepEqual(
+    findNames('xabcx\nmy abc site\nABC-group\nabcd\nabc_steel\nplant2abc\nmetaabcs', pattern),
+    { lines: [2, 3, 5, 6], names: ['abc'] },
+  );
   for (const word of denylist.words) assert.equal(word, word.toLowerCase());
   const [word] = denylist.words;
   const dir = mkdtempSync(join(tmpdir(), 'client-words-'));
