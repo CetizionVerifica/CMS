@@ -385,7 +385,10 @@ describe.skipIf(!url)('M6 on the Postgres store', () => {
         email: 'BINA@bharat.example',
       });
       expect(res.status).toBe(400);
-      expect(error(res.body).code).toBe('VALIDATION');
+      expect(error(res.body)).toMatchObject({
+        code: 'VALIDATION',
+        message: "This email can't be used here; ask your account admin.",
+      });
       expect(JSON.stringify(res.body)).not.toContain(w.bina);
     });
 

@@ -39,12 +39,18 @@ export const duplicate = (field: string, existingId: Id): HttpError<'DUPLICATE'>
 export const invalid = (message: string, path: (string | number)[] = []): HttpError<'VALIDATION'> =>
   new HttpError('VALIDATION', message, { issues: [{ path, message }] });
 
+/** What a hidden email clash says: the address belongs to someone outside the actor's clients (ADR 0006 decision 7). */
+export const HIDDEN_EMAIL_CLASH = "This email can't be used here; ask your account admin.";
+
 /** 409 DUPLICATE naming the existing row, or 400 when that row is outside what the actor can see (its id stays hidden). */
 export const fromDuplicate = (
   e: DuplicateError,
 ): HttpError<'DUPLICATE'> | HttpError<'VALIDATION'> =>
   e.existingId === null
-    ? invalid(`This ${e.field} is already in use.`, ['body', e.field])
+    ? invalid(e.field === 'email' ? HIDDEN_EMAIL_CLASH : `This ${e.field} is already in use.`, [
+        'body',
+        e.field,
+      ])
     : duplicate(e.field, e.existingId);
 
 /** 400 VALIDATION from a Zod error, with paths prefixed by where the value came from. */
