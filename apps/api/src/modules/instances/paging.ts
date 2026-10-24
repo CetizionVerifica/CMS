@@ -82,3 +82,28 @@ export async function mergedPage<R extends Position, T>(
   }
   return { items, nextCursor: cursor ?? null };
 }
+
+/** Rows per register query when counting: the repository's largest page. */
+export const COUNT_PAGE_SIZE = 200;
+
+/**
+ * `?count=true`'s `total`: how many rows of all the sources `keep` accepts. The sources a list reads are
+ * disjoint (one per category, or per client), so each is read through on its own and the counts added. Like
+ * the page, this reads rows rather than counting in SQL, because derived status is engine work.
+ */
+export async function countMatching<R extends Position>(
+  sources: readonly RegisterSource[],
+  read: ReadRegister<R>,
+  keep: (row: R) => boolean,
+): Promise<number> {
+  let total = 0;
+  for (const source of sources) {
+    let cursor: string | undefined;
+    do {
+      const page = await read(source, { limit: COUNT_PAGE_SIZE, cursor });
+      for (const row of page.items) if (keep(row)) total += 1;
+      cursor = page.nextCursor ?? undefined;
+    } while (cursor !== undefined);
+  }
+  return total;
+}

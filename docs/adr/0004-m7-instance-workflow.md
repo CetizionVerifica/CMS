@@ -81,8 +81,10 @@ several fail, and in which states the non-transition actions (reassign, due date
     route returns a signed URL, so no signed URL is ever stored (root CLAUDE.md rule 6).
 14. **Bulk approve in one transaction.** Each item runs in its own savepoint (`withSavepoint`), so a refused
     item rolls back alone and `instance.bulk_approved` commits with the approvals it lists.
-15. **Not yet built.** Only `sort=dueDate` is accepted (`VALIDATION` otherwise). Lists return no total
-    count; `count=true` is accepted and ignored.
+15. **Not yet built.** Only `sort=dueDate` is accepted (`VALIDATION` otherwise). The register and the
+    `/me` queues return `total` with `count=true`: derived status is engine work, so the total is counted
+    by reading every matching row in pages of 200, not by a SQL count, and only callers that ask pay for
+    it. The evidence vault and audit trail lists return no total; there `count=true` is accepted and ignored.
 16. **Evidence vault and audit trail reads.** `GET /clients/{clientId}/evidence` lists live files (metadata
     only, never the storage key) on M3's `evidence.vault`, newest first. APPROVER and OWNER see only their
     units: an asked `unitId` is limited to the person's units, so asking for another unit returns nothing.

@@ -34,7 +34,7 @@ import { ApiError, can } from '../../auth/index.js';
 import { loadInstance, toApiError } from './access.js';
 import { allowedActions, INSTANCE_ACTION_POLICY, instanceResource } from './allowed-actions.js';
 import { recordFor, replay, type KeyedRequest } from './idempotency.js';
-import { mergedPage, type RegisterSource } from './paging.js';
+import { countMatching, mergedPage, type ReadRegister, type RegisterSource } from './paging.js';
 import { clientsWithRole, mayChooseAsOf, unitScope } from './scope.js';
 import { commentAddedEvent, emit, transitionEvent } from './events.js';
 import { clientToday, rowStatus } from './status.js';
@@ -334,19 +334,20 @@ export function createInstanceService(options: InstanceServiceOptions) {
       return inTenant(actor.ctx, async (tx) => {
         const cal = await calendar(tx, clientId);
         const asOf = readAsOf(actor.ctx, clientId, cal, query.asOf);
-        const keep = keepRow(query);
-        return mergedPage(
-          registerSources(actor.ctx, clientId, query, cal),
-          (s, p) => readSource(tx, s, p),
-          {
-            limit: query.limit,
-            cursor: query.cursor,
-            keep: (row) => {
-              const item = withStatus(row, asOf, cal);
-              return keep(item) ? item : null;
-            },
-          },
-        );
+        const keepItem = keepRow(query);
+        const sources = registerSources(actor.ctx, clientId, query, cal);
+        const read: ReadRegister = (s, p) => readSource(tx, s, p);
+        const keep = (row: RegisterRow) => {
+          const item = withStatus(row, asOf, cal);
+          return keepItem(item) ? item : null;
+        };
+        const page = await mergedPage(sources, read, {
+          limit: query.limit,
+          cursor: query.cursor,
+          keep,
+        });
+        if (query.count !== true) return page;
+        return { ...page, total: await countMatching(sources, read, (row) => keep(row) !== null) };
       });
     },
 
@@ -564,7 +565,12 @@ export function createInstanceService(options: InstanceServiceOptions) {
     async queue(
       actor: Actor,
       kind: 'approvals' | 'tasks',
-      query: { limit: number; cursor?: string | undefined; asOf?: LocalDate | undefined },
+      query: {
+        limit: number;
+        cursor?: string | undefined;
+        count?: boolean | undefined;
+        asOf?: LocalDate | undefined;
+      },
     ) {
       const { ctx } = actor;
       const roles =
@@ -595,7 +601,8 @@ export function createInstanceService(options: InstanceServiceOptions) {
                 : { workflowState: ['OPEN', 'SENT_BACK'], ownerId: ctx.personId, ...units },
           });
         }
-        return mergedPage(sources, (s, p) => readSource(tx, s, p), {
+        const read: ReadRegister = (s, p) => readSource(tx, s, p);
+        const page = await mergedPage(sources, read, {
           limit: query.limit,
           cursor: query.cursor,
           keep: (row) => {
@@ -603,6 +610,8 @@ export function createInstanceService(options: InstanceServiceOptions) {
             return withStatus(row, asOf, cal);
           },
         });
+        if (query.count !== true) return page;
+        return { ...page, total: await countMatching(sources, read, () => true) };
       });
     },
 
