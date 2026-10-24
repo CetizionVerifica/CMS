@@ -84,6 +84,8 @@ export interface JobsWiring {
   readonly warn: (message: string) => void;
   /** Per-run job lines (counts only). */
   readonly log?: JobRunnerOptions['log'];
+  /** M5's sign-in service (`Wiring.auth`): issues the one-time tokens in sign-in link and invite emails. */
+  readonly auth?: Pick<AuthService, 'issueLoginToken'>;
   /** Tests replace the M9 boot. */
   readonly start?: typeof startJobsFromEnv;
 }
@@ -97,14 +99,23 @@ export interface JobsWiring {
 export async function jobsFromEnv(
   env: NodeJS.ProcessEnv,
   database: Database | undefined,
-  { warn, log, start = startJobsFromEnv }: JobsWiring,
+  { warn, log, auth, start = startJobsFromEnv }: JobsWiring,
 ): Promise<JobRunner | null> {
   const connectionString = env.DATABASE_URL;
   if (!database || !connectionString) return null;
-  const jobs = await start(env, { db: database, connectionString, ...(log && { log }) });
+  const jobs = await start(env, {
+    db: database,
+    connectionString,
+    ...(log && { log }),
+    ...(auth && { issueLoginToken: (input) => auth.issueLoginToken(input) }),
+  });
   if (!jobs.mail)
     warn(
       'email jobs not started: no SMTP server configured (set SMTP_URL or SMTP_HOST, MAIL_FROM and APP_URL); instance generation still runs',
+    );
+  else if (!auth)
+    warn(
+      'sign-in link and invite emails not sent: no sign-in service to issue their one-time tokens',
     );
   return jobs;
 }
