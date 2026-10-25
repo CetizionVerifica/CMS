@@ -45,6 +45,9 @@ APPROVED|NOT_APPLICABLE ──reopen(client admin or consultant, reason)──�
 - `generate-instances`: nightly and on assignment change; generates the current and next FY; idempotent on `(assignment_id, period_start)`.
 - `reminders`: daily 07:00 client time; uses `engine.planNotifications`; dedupes sends.
 - `exports`: Excel register and PDF certificate generated off-request, stored, link emailed.
+- ISO catalogue copy: the `account.features_changed` consumer and the `iso-catalogue-sweep` job (every 10 minutes, TRIAL
+  and ACTIVE accounts with `isoManagement` not yet copied) call M6's `copyIsoCatalogue`, which `wiring.ts` binds to the
+  API's database beside `copyLibrary` (docs/iso/plan.md §4.3).
 
 ## Tests
 Service tests run against a real Postgres (testcontainers) with RLS on. Postgres-backed tests are `*.db.test.ts` and run with
