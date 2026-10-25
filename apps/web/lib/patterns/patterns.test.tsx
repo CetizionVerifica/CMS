@@ -11,8 +11,16 @@ vi.mock('next/link', () => ({
   ),
 }));
 
-const { ComingSoon, NoPermission, NotFoundState, PageEmpty, PageError, PageHeader, PageLoading } =
-  await import('.');
+const {
+  ComingSoon,
+  FeatureNotEnabled,
+  NoPermission,
+  NotFoundState,
+  PageEmpty,
+  PageError,
+  PageHeader,
+  PageLoading,
+} = await import('.');
 
 describe('page patterns', () => {
   it('header has the one h1 and actions', () => {
@@ -52,6 +60,22 @@ describe('page patterns', () => {
     expect(screen.getByText('You don’t have access to this page')).toBeTruthy();
     render(<NotFoundState />);
     expect(screen.getByRole('heading', { name: 'We couldn’t find that page' })).toBeTruthy();
+  });
+
+  it('says an add-on is not turned on and links home, with nothing else', () => {
+    const { container } = render(
+      <FeatureNotEnabled feature="isoManagement" homeHref="/c/1/overview" />,
+    );
+    expect(
+      screen.getByRole('heading', {
+        name: 'ISO management systems is not turned on for your account',
+      }),
+    ).toBeTruthy();
+    expect(screen.getByRole('heading', { level: 1, name: 'ISO management systems' })).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Go to home' }).getAttribute('href')).toBe(
+      '/c/1/overview',
+    );
+    expect(container.querySelectorAll('a, button')).toHaveLength(1);
   });
 
   it('error offers a retry and shows the reference', async () => {

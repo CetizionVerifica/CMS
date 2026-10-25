@@ -9,7 +9,7 @@ import {
   type Role,
 } from '@canopy/contracts';
 
-import { hrefFor, routeByPath, visibleTo } from '../routes';
+import { featureOn, hrefFor, routeByPath, visibleTo } from '../routes';
 
 export type ShellClient = {
   id: string;
@@ -42,6 +42,8 @@ export type ShellModel = {
    * to show and firm users land on its overview (ADR M15-0001 decision 2).
    */
   showPortfolio?: boolean;
+  /** The account's add-ons (`Me.account.features`), such as `isoManagement`. A missing account or list is none. */
+  features: string[];
 };
 
 /** The account's state, for the line above every page; ShellFrame words it. */
@@ -135,6 +137,7 @@ export function buildShellModel(
     notice: accountNotice(me),
     showClientSwitcher: !(enterprise && clients.length <= 1),
     showPortfolio: !(enterprise && clients.length === 1),
+    features: [...(me.account?.features ?? [])],
   };
 }
 
@@ -142,18 +145,35 @@ const CLIENT_SECTIONS: { label?: string; paths: string[] }[] = [
   { paths: ['overview', 'register', 'calendar', 'approvals', 'evidence'] },
   { label: 'Reporting', paths: ['reports', 'audit'] },
   { label: 'Setup', paths: ['setup/entities', 'setup/people', 'import'] },
+  {
+    label: 'ISO',
+    paths: [
+      'iso/overview',
+      'iso/checklist',
+      'iso/documents',
+      'iso/risks',
+      'iso/objectives',
+      'iso/audits',
+      'iso/nonconformities',
+      'iso/management-reviews',
+      'iso/certification',
+    ],
+  },
 ];
 
 const FIRM_SECTION = { label: 'Firm', paths: ['portfolio', 'library/acts', 'account'] };
 
 /**
  * Sidebar sections (spec 01 "Default nav"). With no client selected only the firm items show. Items a role can't
- * use are left out rather than shown disabled.
+ * use, or that belong to an add-on the account doesn't have, are left out rather than shown disabled.
  */
 export function navSections(
   roles: readonly Role[],
   clientId?: string,
-  { showPortfolio = true }: { showPortfolio?: boolean } = {},
+  {
+    showPortfolio = true,
+    features = [],
+  }: { showPortfolio?: boolean; features?: readonly string[] } = {},
 ): NavSection[] {
   const groups = clientId ? [...CLIENT_SECTIONS, FIRM_SECTION] : [FIRM_SECTION];
   return groups
@@ -162,7 +182,7 @@ export function navSections(
       items: g.paths
         .filter((path) => showPortfolio || path !== 'portfolio')
         .map(routeByPath)
-        .filter((r) => visibleTo(r, roles))
+        .filter((r) => visibleTo(r, roles) && featureOn(r, features))
         .map((r) => ({
           path: r.path,
           label: r.path === 'library/acts' ? 'Library' : r.label,

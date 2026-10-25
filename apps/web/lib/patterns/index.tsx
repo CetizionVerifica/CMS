@@ -1,6 +1,7 @@
 'use client';
 // Page patterns every screen uses (apps/web/CLAUDE.md "Every page has loading, empty, error and no-permission
 // states"). They take plain props, so Server Components can render them; M12 and M13 import them from here.
+import { KNOWN_FEATURES, type KnownFeature } from '@canopy/contracts';
 import { EmptyState, Skeleton } from '@canopy/ui';
 import NextLink from 'next/link';
 import type { ReactNode } from 'react';
@@ -104,6 +105,33 @@ export function NoPermission({
         title={`You don’t have access to ${what}`}
         body="Ask your consultant or client admin if you need it."
         action={backHref ? { label: backLabel, href: backHref } : undefined}
+        renderLink={link}
+      />
+    </section>
+  );
+}
+
+/**
+ * A page of an add-on the account doesn't have (ADR M16-0001): says so, shows none of its data and links home. Only
+ * PlanetPulse turns add-ons on, so it names who to ask rather than offering a switch.
+ */
+export function FeatureNotEnabled({
+  feature = 'isoManagement',
+  homeHref,
+}: {
+  feature?: KnownFeature;
+  homeHref: string;
+}) {
+  const label = KNOWN_FEATURES.find((f) => f.code === feature)?.label ?? 'This add-on';
+  return (
+    <section className="rounded-card border border-line bg-surface">
+      <h1 className="sr-only">{label}</h1>
+      <EmptyState
+        variant="no-permission"
+        size="page"
+        title={`${label} is not turned on for your account`}
+        body="Your account admin can ask PlanetPulse to turn it on."
+        action={{ label: 'Go to home', href: homeHref }}
         renderLink={link}
       />
     </section>
