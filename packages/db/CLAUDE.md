@@ -49,6 +49,27 @@ Accounts and the operator (M15)
   `operator_credential`, `operator_session`, `subscription`, `usage_snapshot`, `operator_audit_event` (append-only for
   every role). ADR M15-0001, M3-0002.
 
+ISO add-on, part 1 (ISO-2d, migration 0040; docs/iso/model.md §1-3.4, §3.8, §6)
+
+- Catalogue, the account's own copy, firm-wide; every context reads it, only a system job (`app_system_job()`) inserts or
+  updates it: `iso_standard` (code, edition), `iso_clause` (number, title, our own summary, parent, `hls_key`,
+  `assessable`, `exclusion_allowed`), `iso_review_input_def`, `iso_review_output_def`. Numbers and our words only.
+- Client records (`client_id`, client policy, a `(firm_id, client_id, id)` key, so a reference never leaves the client):
+  `management_system` (`standard_ids uuid[]`, which only grow, and a climate decision that never returns to null: a
+  trigger), `management_system_unit` and `certification_unit` (join rows, archived when a unit is removed, a partial
+  key on live rows), `context_item`, `clause_assessment` (one per system and clause; the contracts' N/A rules as
+  checks), `controlled_document` (code unique per client; `current_revision_id` names an APPROVED revision of the
+  document, checked by a trigger, not a foreign key, so the purge can delete both), `document_revision` (one DRAFT or
+  IN_REVIEW and one APPROVED per document), `certification`, `external_audit`.
+- `iso_file`: ISO files, never in `evidence`. One nullable subject column per subject with `num_nonnulls(...) = 1`
+  (ISO-2d: clause assessment, document revision, external audit, certification; ISO-2e adds the rest and widens the
+  check); `storage_key` inside `evidence/<firmId>/<clientId>/iso/`; removed files keep the row with `remove_reason`.
+- Repositories (`repositories/iso.ts`): `isoCatalogue`, `managementSystems`, `contextItems`, `clauseAssessments`
+  (`addForStandards` adds the NOT_STARTED rows), `controlledDocuments`, `documentRevisions`, `certifications`,
+  `externalAudits`, `isoFiles` (`create`, `get`, `forSubject`, `pendingScan`, `setScanStatus`, `archive`,
+  `cleanForClient`). Lists take a `UnitScope` (`unitIds`, `personId`) and apply plan §3.3 in SQL. None checks a role,
+  the feature switch or a state machine: M16 does.
+
 Field-level definitions are in `docs/contracts/domain-model.md` (M0); that file wins if it and this list differ.
 
 ## Rules

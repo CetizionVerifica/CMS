@@ -94,3 +94,26 @@ export {
   usageSnapshots,
 } from './platform.js';
 export type { OperatorLogin, OperatorSession, Renewal } from './platform.js';
+export {
+  certifications,
+  CertificationFilter,
+  ChecklistFilter,
+  clauseAssessments,
+  ContextItemFilter,
+  contextItems,
+  controlledDocuments,
+  DocumentFilter,
+  documentRevisions,
+  ExternalAuditFilter,
+  externalAudits,
+  isoCatalogue,
+  IsoClauseFilter,
+  isoFiles,
+  isoFileSubject,
+  isoFileView,
+  ManagementSystemFilter,
+  managementSystems,
+  NewIsoFile,
+  UnitScope,
+} from './iso.js';
+export type { ClauseAssessmentRow, IsoPage } from './iso.js';
