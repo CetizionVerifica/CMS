@@ -59,3 +59,9 @@ consultant digest weekly. Never return a notification for COMPLIED or NOT_APPLIC
   current FY and quarter, the current FY plus every FY from the first to the last generated date (generation is
   contiguous), and the last generated month. FY labels follow `fyLabel` (start year, then the next year's two digits)
   for every start month.
+
+## ISO add-on (docs/adr/M4-0001-iso-engine-rules.md)
+ISO functions live in `src/iso-score.ts`, `src/iso-status.ts` (100% coverage by name), `src/iso-notifications.ts` and
+`src/iso-review.ts`, exported as `isoEngine` (`satisfies IsoEngineApi`). The state machines of `docs/iso/model.md` §4
+are data (`ISO_TRANSITIONS`); `isoTransition` reads only the facts the caller passes, and a missing fact never
+satisfies a guard. Timing uses the instance rule: overdue the day after, due soon within `dueSoonDays`.
