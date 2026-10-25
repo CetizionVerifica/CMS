@@ -90,6 +90,7 @@ export function me(
       kind: firm.data.firm.kind ?? 'CONSULTANCY',
       status: firm.data.firm.status ?? 'ACTIVE',
       trialEndsOn: firm.data.firm.trialEndsOn ?? null,
+      features: [...firm.features],
     },
   };
 }

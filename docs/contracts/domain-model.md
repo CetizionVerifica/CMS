@@ -36,6 +36,7 @@ Rules: no `any`; unknown keys rejected at the edge; strings trimmed; empty strin
 | `TimelineType` | `TIME_BASED`, `ONGOING` | Excel "Time Based" / "On Going". |
 | `ObligationDomain` | `HRS`, `EHS`, `TAX`, `IT`, `INT`, `ENG`, `ENV`, `OTHER` | Parsed from `externalRef` prefix; `OTHER` when unknown. |
 | `Jurisdiction` | `CENTRAL`, `STATE` | `STATE` requires `stateCode`. Excel `CL` → CENTRAL, `WB` → STATE/WB. |
+| `ActKind` | `STATUTE`, `STANDARD` | On Act (§4). `STANDARD`: an ISO management-system standard (ADR M16-0001); statutory scores never count it. |
 | `Applicability` | `APPLICABLE`, `NOT_APPLICABLE`, `TO_ASSESS` | On Assignment. `NOT_APPLICABLE` requires `naReason`. |
 | `WorkflowState` | `OPEN`, `SUBMITTED`, `SENT_BACK`, `APPROVED`, `NOT_APPLICABLE` | Stored on the instance. |
 | `SubmissionKind` | `COMPLETION`, `NA` | What a `SUBMITTED` instance is waiting to be approved as. |
@@ -128,6 +129,7 @@ interface Act extends Base, Versioned {
   name: string; shortName: string | null
   jurisdiction: Jurisdiction; stateCode: string | null
   aliases: string[]                                 // other spellings that resolve to this Act on import
+  kind?: ActKind                                    // STATUTE | STANDARD (ADR M16-0001); missing = STATUTE until M3 stores it; STANDARD is CENTRAL
 }
 interface Category extends Base, Versioned { name: string; aliases: string[] }
 
@@ -147,12 +149,18 @@ interface Obligation extends Base, Versioned {
   forms: TemplateRef[]
   logSheets: TemplateRef[]
   libraryVersion: number                            // bumped on every published change
+  clauseRefs?: string[]                             // clause numbers ("7.1.5") a STANDARD act's activity serves; unique; missing = []
 }
 interface TemplateRef { label: string; fileName: string | null; templateFileId: Id | null } // fileName set + templateFileId null = "file not attached"
 ```
 
 `externalRef` parsing: `DOMAIN-JUR-...` when it has 5 dash-separated parts; otherwise (e.g. `ENV-117-0031`, `INT-FA-1-1`) domain from the
 first part and jurisdiction from the Act, with an `UNPARSED_EXTERNAL_REF` INFO issue.
+
+Recurring ISO activities (calibration, emergency drills, management review inputs) are obligations under a `STANDARD`
+Act, one per standard, so instances, reminders, evidence and maker-checker work as for laws (ADR M16-0001 decision 4,
+`docs/iso/plan.md` §3). `clauseRefs` holds clause numbers only (`ClauseNumber`: one to four dot-separated numbers);
+the standard's own text is never stored. `kind` and `clauseRefs` are optional until M3 stores them.
 
 ### RecurrenceRule (owned by M4 semantics, shape fixed here)
 
@@ -250,6 +258,12 @@ interface AuditEvent {                              // append-only; no updatedAt
   reason: string | null
 }
 ```
+
+The ISO add-on's entity types (`ISO_ENTITY_TYPES`: `management_system`, `certification`, `context_item`,
+`clause_assessment`, `controlled_document`, `document_revision`, `risk_item`, `objective`, `objective_reading`,
+`audit_programme`, `internal_audit`, `audit_finding`, `nonconformity`, `corrective_action`, `management_review`,
+`review_action`) are staged: they join `entityType` once M3 stores them in the `entity_type` Postgres enum and the
+audit trail page has words for them, as `account` did (README decision 39).
 
 ### Instance state machine (M7 implements; shape here so M12 can mirror it)
 
@@ -372,10 +386,10 @@ tenant and creates every account; there is no sign-up. Schemas: `packages/contra
 ```ts
 interface PlanLimits { companies: number | null; units: number | null; users: number | null; storageBytes: number | null } // null = unlimited
 interface Plan { code: string; name: string; limits: PlanLimits; features: string[]; retiredAt: Instant | null }
-interface AccountOverride { limits: Partial<PlanLimits>; features: string[]; note: string | null }
-interface Entitlements { planCode: string; limits: PlanLimits; features: string[] }       // plan overlaid with the override
+interface AccountOverride { limits: Partial<PlanLimits>; features: string[]; removedFeatures?: string[]; note: string | null } // a flag is added or removed, not both
+interface Entitlements { planCode: string; limits: PlanLimits; features: string[] }       // plan overlaid with the override: effectiveFeatures()
 interface Usage { companies: number; units: number; users: number; storageBytes: number } // users: ACTIVE or INVITED, live membership, no support people
-interface AccountSummary { kind: AccountKind; status: AccountStatus; trialEndsOn: LocalDate | null } // Me.account
+interface AccountSummary { kind: AccountKind; status: AccountStatus; trialEndsOn: LocalDate | null; features?: string[] } // Me.account; missing features = []
 interface Subscription { id; accountId; planCode; startsOn: LocalDate; endsOn: LocalDate; amountPaise: number; invoiceNumber: string | null; paidOn: LocalDate | null; recordedAt: Instant; recordedById: Id }
 interface UsageSnapshot { accountId; takenOn: LocalDate; usage: Usage; activeUsers30d: number; instances: number }
 interface PlatformOperator { id; email; displayName; createdAt; disabledAt: Instant | null }
@@ -399,6 +413,14 @@ PENDING_DELETION → the status it left (cancel, so ACTIVE or SUSPENDED) or DELE
 A trial extension moves `trialEndsOn` on a TRIAL account and is not a status move. `WORKING_ACCOUNT_STATUSES` (TRIAL, ACTIVE)
 can do everything and run jobs. SUSPENDED signs nobody in. In `EXPORT_ACCOUNT_STATUSES` (PENDING_DELETION) only account
 admins sign in, to read `/me` and download the account export. Everything else answers `403 ACCOUNT_SUSPENDED`.
+
+Features and add-ons (ADR M16-0001): an account's features are `effectiveFeatures(plan.features, override)`, that is
+(plan features ∪ override `features`) − override `removedFeatures`, sorted. `KNOWN_FEATURES` lists the add-ons the
+console shows by name, each with a label and description; v1 has one, `isoManagement` ("ISO management systems"),
+which no plan includes by default. The console's switch writes the override with a reason (`OVERRIDE_CHANGE`); a
+switch turned off adds the flag to `removedFeatures`, so it beats a plan that includes it. `Me.account.features` tells
+the app which add-ons to show. A route that belongs to an add-on the account lacks answers `403 FEATURE_NOT_ENABLED`
+`{ feature }`, reads included; turning a feature off hides and blocks, never deletes.
 
 Support access: an account admin grants `READ_ONLY` (a VIEWER membership per client) or `ADMIN` (one FIRM_ADMIN
 membership) for 1-30 days to the account's support person, "PlanetPulse support" (`Person.support = true`), whose

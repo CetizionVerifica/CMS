@@ -1,13 +1,14 @@
 // The mock API: every endpoint in ENDPOINTS, served from the fixtures under /api/v1, with the same validation,
 // role checks, error envelope, CSRF and Idempotency-Key rules a provider must follow (api-conventions.md).
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify';
-import type { z } from 'zod';
+import { z } from 'zod';
 import { ENDPOINTS, type Endpoint } from '../api/endpoints.js';
 import { ApiErrorResponse } from '../api/error-details.js';
 import { EVIDENCE_EXTENSIONS } from '../api/workflow.js';
 import { SESSION_COOKIE } from '../api/openapi.js';
 import { SUPPORT_TOKEN_SECONDS } from '../defaults.js';
 import { ERROR_HTTP_STATUS } from '../errors.js';
+import { FeatureFlag } from '../schemas/accounts.js';
 import {
   actorFor,
   type Actor,
@@ -282,6 +283,20 @@ export function createMockServer(
           .replace(/\.\d{3}Z$/, 'Z'),
       });
       return reply.code(201).send({ token });
+    },
+  );
+  /** Stands in for the console's add-on switches: sets the firm's features until the next reset. */
+  app.put<{ Params: { firmId: string }; Body: unknown }>(
+    '/__mock/firms/:firmId/features',
+    async (request, reply) => {
+      const firm = store.firms.find((f) => f.data.firm.id === request.params.firmId);
+      if (firm === undefined) return reply.code(404).send();
+      const body = z
+        .strictObject({ features: z.array(FeatureFlag).max(50) })
+        .safeParse(request.body);
+      if (!body.success) return reply.code(400).send();
+      firm.features = [...new Set(body.data.features)].sort();
+      return reply.code(200).send({ features: firm.features });
     },
   );
   app.post('/__mock/reset', async (_request, reply) => {

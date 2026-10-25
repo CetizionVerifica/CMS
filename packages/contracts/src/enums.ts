@@ -40,6 +40,13 @@ export type ObligationDomain = z.infer<typeof ObligationDomain>;
 export const Jurisdiction = z.enum(['CENTRAL', 'STATE']);
 export type Jurisdiction = z.infer<typeof Jurisdiction>;
 
+/**
+ * What an Act is (ADR M16-0001 decision 4): a law, or a management-system standard (ISO 9001, 14001, 45001) whose
+ * obligations are the recurring activities the standard asks for. Statutory scores never count STANDARD acts.
+ */
+export const ActKind = z.enum(['STATUTE', 'STANDARD']);
+export type ActKind = z.infer<typeof ActKind>;
+
 export const Applicability = z.enum(['APPLICABLE', 'NOT_APPLICABLE', 'TO_ASSESS']);
 export type Applicability = z.infer<typeof Applicability>;
 
@@ -133,6 +140,32 @@ export const EntityType = z.enum([
   'account',
 ]);
 export type EntityType = z.infer<typeof EntityType>;
+
+/**
+ * Entity types the ISO add-on's audit events name (docs/iso/plan.md §3). Staged: they join `EntityType` in a later bump,
+ * once M3 stores them in the `entity_type` Postgres enum and the audit trail page (M13) has words for them, as
+ * `account` did (README decision 39). Nothing writes them before the ISO API (M16).
+ */
+export const ISO_ENTITY_TYPES = [
+  'management_system',
+  'certification',
+  'context_item',
+  'clause_assessment',
+  'controlled_document',
+  'document_revision',
+  'risk_item',
+  'objective',
+  'objective_reading',
+  'audit_programme',
+  'internal_audit',
+  'audit_finding',
+  'nonconformity',
+  'corrective_action',
+  'management_review',
+  'review_action',
+] as const;
+export const IsoEntityType = z.enum(ISO_ENTITY_TYPES);
+export type IsoEntityType = z.infer<typeof IsoEntityType>;
 
 export const HolidayPolicy = z.enum(['NONE', 'NEXT_WORKING_DAY', 'PREVIOUS_WORKING_DAY']);
 export type HolidayPolicy = z.infer<typeof HolidayPolicy>;
