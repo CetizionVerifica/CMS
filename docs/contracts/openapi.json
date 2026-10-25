@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Canopy API",
-    "version": "1.6.1",
+    "version": "1.7.0",
     "description": "Generated from @canopy/contracts; do not edit. Conventions: docs/contracts/api-conventions.md. Role permissions per operation are in x-canopy-roles (all, own, limited); a missing role is 403."
   },
   "servers": [
@@ -9037,6 +9037,13 @@
               }
             ]
           },
+          "features": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z][a-zA-Z0-9]{1,39}$"
+            }
+          },
           "entitlements": {
             "type": "object",
             "properties": {
@@ -9210,6 +9217,10 @@
               "minLength": 1,
               "maxLength": 300
             }
+          },
+          "kind": {
+            "type": "string",
+            "enum": ["STATUTE", "STANDARD"]
           }
         },
         "required": [
@@ -9616,6 +9627,7 @@
                         "ACCESS_EXPIRED",
                         "ACCOUNT_SUSPENDED",
                         "PLAN_LIMIT_REACHED",
+                        "FEATURE_NOT_ENABLED",
                         "NOT_FOUND",
                         "STALE_VERSION",
                         "INVALID_TRANSITION",
@@ -9698,6 +9710,7 @@
                         "ACCESS_EXPIRED",
                         "ACCOUNT_SUSPENDED",
                         "PLAN_LIMIT_REACHED",
+                        "FEATURE_NOT_ENABLED",
                         "NOT_FOUND",
                         "STALE_VERSION",
                         "INVALID_TRANSITION",
@@ -11111,6 +11124,32 @@
                       }
                     },
                     "required": ["limit", "max", "used"],
+                    "additionalProperties": false
+                  }
+                },
+                "required": ["code", "message"],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "code": {
+                    "type": "string",
+                    "const": "FEATURE_NOT_ENABLED"
+                  },
+                  "message": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "details": {
+                    "type": "object",
+                    "properties": {
+                      "feature": {
+                        "type": "string",
+                        "pattern": "^[a-z][a-zA-Z0-9]{1,39}$"
+                      }
+                    },
+                    "required": ["feature"],
                     "additionalProperties": false
                   }
                 },
@@ -13598,6 +13637,13 @@
                     "type": "null"
                   }
                 ]
+              },
+              "features": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[a-z][a-zA-Z0-9]{1,39}$"
+                }
               }
             },
             "required": ["kind", "status", "trialEndsOn"],
@@ -13909,6 +13955,14 @@
             "type": "integer",
             "minimum": 1,
             "maximum": 9007199254740991
+          },
+          "clauseRefs": {
+            "maxItems": 20,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[1-9]\\d?(\\.(0|[1-9]\\d?)){0,3}$"
+            }
           }
         },
         "required": [

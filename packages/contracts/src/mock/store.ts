@@ -43,7 +43,20 @@ export interface FirmState {
   scanning: Set<string>;
   /** PlanetPulse support access grants (M15). */
   supportGrants: Plain<typeof SupportGrant>[];
+  /** The account's features (`Me.account.features`); `PUT /__mock/firms/{firmId}/features` changes them. */
+  features: string[];
 }
+
+/**
+ * Features each fixture firm starts with: firm A (Demo Advisory) has the ISO add-on and firm B does not, so a client
+ * can be built and tested both ways (README decision 41).
+ */
+export const MOCK_FEATURES: Readonly<
+  Record<'firm-a.sample' | 'firm-b.synthetic', readonly string[]>
+> = {
+  'firm-a.sample': ['isoManagement'],
+  'firm-b.synthetic': [],
+};
 
 /** How long a mock session reports it lasts. */
 const SESSION_HOURS = 12;
@@ -100,6 +113,7 @@ export class MockStore {
       exports: [],
       scanning: new Set(),
       supportGrants: [],
+      features: [...MOCK_FEATURES[name]],
     }));
     this.sessions.clear();
     this.magicLinks.clear();

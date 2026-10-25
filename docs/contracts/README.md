@@ -17,7 +17,7 @@ API server that serves every endpoint from those fixtures (`@canopy/contracts/mo
 | [CHANGELOG.md](CHANGELOG.md) | Contract versions | everyone |
 
 ## Status
-Version `1.5.0` (`CONTRACTS_VERSION` in `packages/contracts/src/version.ts`). The domain model in §1-8 of
+Version `1.7.0` (`CONTRACTS_VERSION` in `packages/contracts/src/version.ts`). The domain model in §1-8 of
 [domain-model.md](domain-model.md) is published as v1 so wave 1 (M3, M4, M8, M11) can build against it. Each consumer
 module owner still reviews its part (MODULES.md M0 acceptance); review findings ship as additive changes or, if breaking,
 with sign-off per "How to change a contract".
@@ -126,3 +126,12 @@ with sign-off per "How to change a contract".
 40. Account reminder schedules (contracts 1.6.1, ADR M15-0001 order of work step 6) are defaults, not fixed by the
     ADR: `TRIAL_ENDING` goes 7 days and 1 day before `trialEndsOn`, and `RENEWAL_DUE` 30 days and 7 days before the
     latest paid subscription ends. Changing the offsets changes no schema; M9 owns the schedule.
+41. Add-ons (contracts 1.7.0, ADR M16-0001, `docs/iso/plan.md` ISO-0). New fields are optional so this bump merges
+    before their providers send them: `AccountOverride.removedFeatures` and `Me.account.features` (a reader treats a
+    missing list as empty), `Act.kind` (missing reads as `STATUTE`) and `Obligation.clauseRefs` (missing reads as
+    empty); later patches make them required once M3 stores and M5 sends them. A `STANDARD` act is `CENTRAL` with no
+    state code rather than a new jurisdiction, and the library's create and update bodies take no `kind`: only the ISO
+    catalogue (M6, as code) creates STANDARD acts. The ISO entity types are staged in `ISO_ENTITY_TYPES` and join
+    `EntityType` in a later bump, after M3's migration and the audit page's words, as `account` did (decision 39).
+    The mock gives firm A (Demo Advisory) `isoManagement` and firm B none, and
+    `PUT /__mock/firms/{firmId}/features` `{ features }` stands in for the console's switches until the next reset.

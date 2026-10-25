@@ -1370,6 +1370,47 @@ describe('mock server', () => {
     expect(bad.statusCode).toBe(400);
   });
 
+  it("lists the account's features, which firm A starts with and the console stand-in switches", async () => {
+    const firmA = app.store.firms[0]!.data.firm.id;
+    const admin = app.store.firms[0]!.data.people.find(
+      (p) => p.email === 'admin@demo-advisory.example',
+    )!.id;
+    const featuresOf = async (as: string) =>
+      (await ok<{ account?: { features?: string[] } }>(app, 'getMe', { as })).account?.features;
+    expect(await featuresOf(admin)).toEqual(['isoManagement']);
+    expect(
+      (await ok<{ entitlements: { features: string[] } }>(app, 'getAccount', { as: admin }))
+        .entitlements.features,
+    ).toEqual(['isoManagement']);
+    expect(await featuresOf(PERSON.meera)).toEqual([]);
+
+    const off = await app.inject({
+      method: 'PUT',
+      url: `/__mock/firms/${firmA}/features`,
+      headers: { 'content-type': 'application/json' },
+      payload: JSON.stringify({ features: [] }),
+    });
+    expect(off.statusCode).toBe(200);
+    expect(await featuresOf(admin)).toEqual([]);
+    const bad = await app.inject({
+      method: 'PUT',
+      url: `/__mock/firms/${firmA}/features`,
+      headers: { 'content-type': 'application/json' },
+      payload: JSON.stringify({ features: ['Not a flag'] }),
+    });
+    expect(bad.statusCode).toBe(400);
+    const missing = await app.inject({
+      method: 'PUT',
+      url: `/__mock/firms/${PERSON.meera}/features`,
+      headers: { 'content-type': 'application/json' },
+      payload: JSON.stringify({ features: [] }),
+    });
+    expect(missing.statusCode).toBe(404);
+
+    await app.inject({ method: 'POST', url: '/__mock/reset' });
+    expect(await featuresOf(admin)).toEqual(['isoManagement']);
+  });
+
   it('resets to the fixtures', async () => {
     const reset = await app.inject({ method: 'POST', url: '/__mock/reset' });
     expect(reset.statusCode).toBe(204);
@@ -1393,7 +1434,12 @@ describe('mock server', () => {
     await fails(app, 'getAccount', { as: PERSON.kabir }, 'FORBIDDEN', 403);
     await fails(app, 'getAccount', { as: PERSON.arjun }, 'FORBIDDEN', 403);
     const me = await ok<{ account?: unknown }>(app, 'getMe');
-    expect(me.account).toEqual({ kind: 'CONSULTANCY', status: 'ACTIVE', trialEndsOn: null });
+    expect(me.account).toEqual({
+      kind: 'CONSULTANCY',
+      status: 'ACTIVE',
+      trialEndsOn: null,
+      features: [],
+    });
 
     const first = await ok<{ id: string; supportPersonId: string; endsAt: string }>(
       app,

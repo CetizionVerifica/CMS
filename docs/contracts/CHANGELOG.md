@@ -153,3 +153,15 @@ stored both kinds first (M3). No route or schema shape changes.
 Also, from the 1.6.1 audit: `EVENT_NOTIFICATION_KINDS` now lists every event-driven kind (`INVITE`, `MAGIC_LINK` and
 `MFA_ENROLLED` join `APPROVAL_REQUESTED` and `SENT_BACK`), and README decision 40 records the trial and renewal
 reminder offsets as defaults.
+
+## 1.7.0 · 2026-10-25
+For the ISO management systems add-on (ADR M16-0001, `docs/iso/plan.md` package ISO-0); additive. `KNOWN_FEATURES`
+and `KnownFeature` list the add-ons the operator console switches per account, with labels: v1 has `isoManagement`
+("ISO management systems"). `AccountOverride` gains optional `removedFeatures`, which turns a feature off for one
+account even when its plan has it (a flag is added or removed, not both), and `effectiveFeatures(plan, override)`
+spells out the rule. `AccountSummary` (so `Me.account` and `GET /account`) gains optional `features`. New error code
+`FEATURE_NOT_ENABLED` (403, details `{ feature }`) for any route of an add-on the account lacks, reads included.
+`ActKind` (`STATUTE`, `STANDARD`) and optional `Act.kind`, a STANDARD act being CENTRAL; optional
+`Obligation.clauseRefs`, unique `ClauseNumber`s such as "7.1.5". `ISO_ENTITY_TYPES` stages the ISO audit entity
+types; they join `EntityType` once M3 stores them (README decision 41). The mock lists each firm's features (firm A
+has `isoManagement`, firm B none) and `PUT /__mock/firms/{firmId}/features` changes them. No route shape changes.
