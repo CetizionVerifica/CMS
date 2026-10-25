@@ -72,8 +72,11 @@ const contexts = new WeakMap<FastifyRequest, RequestContext>();
 /** Requests on `session-pre-mfa` routes whose actor still owes MFA, with whether they have enrolled. */
 const mfaPending = new WeakMap<FastifyRequest, { enrolled: boolean }>();
 const sessions = new WeakMap<FastifyRequest, SessionRecord>();
-/** Reads the account's features for a request's context; each call goes to the store, nothing is cached. */
-const featureReaders = new WeakMap<RequestContext, () => Promise<readonly string[]>>();
+/**
+ * Reads the account's features for a request, by request id, so a copy of `req.ctx` finds it too; each call goes to
+ * the store, nothing is cached. Entries are removed when the response is sent or the request is aborted.
+ */
+const featureReaders = new Map<string, () => Promise<readonly string[]>>();
 
 /** The session behind a session route's request (auth routes use it for logout and MFA). */
 export function sessionOf(request: FastifyRequest): SessionRecord {
@@ -131,7 +134,11 @@ function sessionHook(
       throw new ApiError('NOT_FOUND');
 
     contexts.set(request, ctx);
-    featureReaders.set(ctx, async () => (await options.store.accountFeatures?.(ctx.firmId)) ?? []);
+    const firmId = ctx.firmId;
+    featureReaders.set(
+      request.id,
+      async () => (await options.store.accountFeatures?.(firmId)) ?? [],
+    );
     if (session) sessions.set(request, session);
     if (principal && !ctx.mfaSatisfied && mfaRequired(principal, ctx.memberships)) {
       mfaPending.set(request, { enrolled: principal.mfaEnrolled });
@@ -225,6 +232,13 @@ export function registerAuth(app: FastifyInstance, options: AuthOptions): void {
     await limiter.call(this, request, reply);
   });
 
+  app.addHook('onResponse', async (request) => {
+    featureReaders.delete(request.id);
+  });
+  app.addHook('onRequestAbort', async (request) => {
+    featureReaders.delete(request.id);
+  });
+
   app.decorateRequest('ctx', {
     getter(this: FastifyRequest) {
       const ctx = contexts.get(this);
@@ -300,10 +314,11 @@ export function requireClient(ctx: RequestContext, clientId: string): void {
 /**
  * Throws `403 FEATURE_NOT_ENABLED { feature }` unless the request's account has the add-on now. It reads the account's
  * features from the store on every call (no session cache), so an operator's switch applies to the next request.
- * Routes can declare `config.feature` instead; call this where one route serves an add-on only in part.
+ * Routes can declare `config.feature` instead; call this where one route serves an add-on only in part. `ctx` is the
+ * request's context or a copy of it; a context of no live session request has no features, so it is refused.
  */
 export async function requireFeature(ctx: RequestContext, feature: KnownFeature): Promise<void> {
-  const read = featureReaders.get(ctx);
-  if (read === undefined) throw new Error('requireFeature() is only available on session routes');
-  if (!(await read()).includes(feature)) throw new ApiError('FEATURE_NOT_ENABLED', { feature });
+  const read = featureReaders.get(ctx.requestId);
+  const features = read === undefined ? [] : await read();
+  if (!features.includes(feature)) throw new ApiError('FEATURE_NOT_ENABLED', { feature });
 }
