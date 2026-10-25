@@ -558,7 +558,6 @@ export function createDbAccountStore(db: Database, options: DbAccountStoreOption
   };
 }
 
-/** The units of a client a person's memberships limit them to, or null for all of them. */
 /**
  * `person.mfa_enrolled` (events.md §3), in the transaction that completed MFA setup, so M9 emails the person
  * (docs/security/review.md F14 mitigation 3). The person's own action; ids only.
@@ -581,6 +580,7 @@ async function mfaEnrolled(
   });
 }
 
+/** The units of a client a person's memberships limit them to, or null for all of them. */
 function unitScope(held: readonly Membership[], clientId: string): string[] | null {
   const inClient = held.filter((m) => m.clientId === clientId);
   if (inClient.length === 0 || inClient.some((m) => m.unitIds === null)) return null;
