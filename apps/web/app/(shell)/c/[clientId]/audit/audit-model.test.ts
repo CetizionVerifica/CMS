@@ -1,7 +1,32 @@
-import { EntityType, ISO_ENTITY_TYPES, type AuditEvent } from '@canopy/contracts';
+import {
+  ChecklistResult,
+  ClauseStatus,
+  DocumentStatus,
+  EntityType,
+  ExternalAuditState,
+  ISO_ENTITY_TYPES,
+  InternalAuditState,
+  IsoActionState,
+  ManagementReviewState,
+  ManagementSystemStatus,
+  NcSeverity,
+  NcState,
+  PersonStatus,
+  RevisionState,
+  WorkflowState,
+  type AuditEvent,
+} from '@canopy/contracts';
 import { describe, expect, it } from 'vitest';
 
-import { ENTITY, auditRows, changes, kindsFrom, recordName, summary } from './audit-model';
+import {
+  ENTITY,
+  VALUE_WORDS,
+  auditRows,
+  changes,
+  kindsFrom,
+  recordName,
+  summary,
+} from './audit-model';
 
 const base: AuditEvent = {
   id: 'e1',
@@ -88,6 +113,110 @@ describe('ENTITY', () => {
   });
 });
 
+describe('VALUE_WORDS', () => {
+  const maps: [string, string, readonly string[]][] = [
+    ['instance', 'workflowState', WorkflowState.options],
+    ['person', 'status', PersonStatus.options],
+    ['management_system', 'status', ManagementSystemStatus.options],
+    ['clause_assessment', 'status', ClauseStatus.options],
+    ['controlled_document', 'status', DocumentStatus.options],
+    ['document_revision', 'state', RevisionState.options],
+    ['internal_audit', 'state', InternalAuditState.options],
+    ['audit_checklist_item', 'result', ChecklistResult.options],
+    ['external_audit', 'state', ExternalAuditState.options],
+    ['nonconformity', 'state', NcState.options],
+    ['nonconformity', 'severity', NcSeverity.options],
+    ['iso_action', 'state', IsoActionState.options],
+    ['management_review', 'state', ManagementReviewState.options],
+  ];
+
+  it.each(maps)('words every value of %s.%s, never as the code', (entity, field, values) => {
+    const map = VALUE_WORDS[entity as keyof typeof VALUE_WORDS]?.[field];
+    expect(Object.keys(map ?? {}).sort()).toEqual([...values].sort());
+    for (const value of values) {
+      expect(map![value]).toMatch(/^[A-Z][a-z]*( [a-z0-9]+)*$/);
+      if (value.length > 2) expect(map![value]).not.toBe(value);
+    }
+  });
+
+  it('has no map the table above leaves out', () => {
+    const named = maps.map(([entity, field]) => `${entity}.${field}`).sort();
+    const all = Object.entries(VALUE_WORDS).flatMap(([entity, fields]) =>
+      Object.keys(fields ?? {}).map((field) => `${entity}.${field}`),
+    );
+    expect(all.sort()).toEqual(named);
+  });
+
+  it('follows model §4.7 and the status language', () => {
+    expect(VALUE_WORDS.nonconformity!.state!.ROOT_CAUSE_FOUND).toBe('Root cause found');
+    expect(VALUE_WORDS.document_revision!.state!.IN_REVIEW).toBe('In review');
+    expect(VALUE_WORDS.instance!.workflowState!.SUBMITTED).toBe('Awaiting approval');
+    expect(VALUE_WORDS.instance!.workflowState!.NOT_APPLICABLE).toBe('Not applicable');
+    expect(VALUE_WORDS.person!.status!.INVITED).toBe('Invited');
+  });
+});
+
+describe('changes in words', () => {
+  it('words a state by the record it belongs to', () => {
+    expect(
+      changes(
+        event({
+          action: 'TRANSITION',
+          entityType: iso('nonconformity'),
+          before: { state: 'ROOT_CAUSE_FOUND', severity: 'MINOR' },
+          after: { action: 'PLAN_ACTIONS', state: 'ACTIONS_PLANNED', severity: 'MAJOR' },
+        }),
+      ),
+    ).toEqual(['State: Root cause found → Actions planned', 'Severity: Minor → Major']);
+    expect(
+      changes(
+        event({
+          action: 'TRANSITION',
+          entityType: 'instance',
+          before: { workflowState: 'OPEN' },
+          after: { workflowState: 'SUBMITTED' },
+        }),
+      ),
+    ).toEqual(['State: Open → Awaiting approval']);
+    expect(
+      changes(event({ entityType: 'person', after: { name: 'Divya Hegde', status: 'INVITED' } })),
+    ).toEqual(['Name: Divya Hegde', 'Status: Invited']);
+  });
+
+  it("keeps a risk item's severity a number and a value without a map as it is", () => {
+    expect(
+      changes(
+        event({
+          action: 'UPDATE',
+          entityType: iso('risk_item'),
+          before: { severity: 2 },
+          after: { severity: 4 },
+        }),
+      ),
+    ).toEqual(['Severity: 2 → 4']);
+    expect(
+      changes(
+        event({
+          action: 'UPDATE',
+          entityType: 'unit',
+          before: { status: 'A' },
+          after: { status: 'B' },
+        }),
+      ),
+    ).toEqual(['Status: A → B']);
+    expect(
+      changes(
+        event({
+          action: 'TRANSITION',
+          entityType: 'instance',
+          before: { workflowState: 'OPEN' },
+          after: { workflowState: 'LATER' },
+        }),
+      ),
+    ).toEqual(['State: Open → LATER']);
+  });
+});
+
 describe('summary for ISO records', () => {
   it('words an ISO step from after.action', () => {
     expect(
@@ -131,6 +260,16 @@ describe('summary for ISO records', () => {
         }),
       ),
     ).toBe('Reported an internal audit (as delegate)');
+    // The API writes `delegated` when a client admin approves or sends back in the approver's place (#268 audit).
+    expect(
+      summary(
+        event({
+          action: 'TRANSITION',
+          entityType: 'instance',
+          after: { workflowState: 'APPROVED', delegated: true },
+        }),
+      ),
+    ).toBe('Approved an instance (as delegate)');
   });
 
   it('spells out the ISO fields it knows', () => {
