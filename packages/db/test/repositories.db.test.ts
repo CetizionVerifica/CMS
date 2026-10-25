@@ -1365,10 +1365,13 @@ describe('ISO library columns (ADR M16-0001)', () => {
     await inA(async (tx) => {
       const obligation = await r.obligations.require(tx, world.obligationId);
       expect(obligation).not.toHaveProperty('clauseRefs');
-      // Bare numbers cannot say which standard they belong to, so they are refused, not stored.
+      // Until the repository maps clause references (ISO-2b), a non-empty clauseRefs is refused, not stored. The cast
+      // keeps this compiling on contracts 1.7.0 (bare numbers) and 1.8.0 ({ standard, clauseNumber } objects).
       expect(
         await code(
-          r.obligations.update(tx, obligation.id, obligation.version, { clauseRefs: ['7.1.5'] }),
+          r.obligations.update(tx, obligation.id, obligation.version, {
+            clauseRefs: [{ standard: 'ISO_9001', clauseNumber: '7.1.5' }],
+          } as never),
         ),
       ).toBe('VALIDATION');
       expect(await code(r.obligations.query(tx, { where: { clauseRefs: [] } }))).toBe('VALIDATION');

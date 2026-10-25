@@ -31,6 +31,8 @@ type Endpoint = {
   method: string;
   path: string;
   body?: { parse(v: unknown): unknown } | null;
+  /** The add-on an endpoint belongs to; the ISO add-on's endpoints carry it from ISO-1 (ADR M16-0001). */
+  feature?: string;
 };
 const endpoints = Object.entries(ENDPOINTS as Record<string, Endpoint>);
 
@@ -38,7 +40,14 @@ const endpoints = Object.entries(ENDPOINTS as Record<string, Endpoint>);
  * Contract endpoints the API does not serve yet, with why. Every check below expects them to answer 404 (no route) and
  * fails once one answers anything else, so it must come off this list the day it ships and be checked like the rest.
  */
-const UNMOUNTED: Record<string, string> = {};
+const UNMOUNTED: Record<string, string> = Object.fromEntries(
+  endpoints
+    .filter(([, e]) => 'feature' in e)
+    .map(([name, e]) => [
+      name,
+      `${String(e.feature)} add-on: M16 mounts its routes (docs/iso/plan.md ISO-8)`,
+    ]),
+);
 
 /**
  * Endpoints the isolation sweep does not call with firm A's ids, with why. The sweep fails on any endpoint that is in
