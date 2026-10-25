@@ -80,7 +80,10 @@ statutory scores stay comparable.
     APPROVE or SEND_BACK on an EXTERNAL document, RECORD_EDITION on any other, an action whose subject is closed:
     model §1.8). Otherwise it returns the first failed guard with the fields it names, or the next state. `facts` are
     named after the contract fields plus `asOf` and `<what>Count` counts; a missing fact never satisfies a guard, so
-    M16 must gather every fact an arrow reads (listed on the table).
+    M16 must gather every fact an arrow reads (listed on the table). A fact that may be empty is passed as null, and
+    an absent key fails: SUBMIT_NO_ACTION reads the contract `incident` object (null for an NC with no incident) and
+    its `outcome`, ADD_ROOT_CAUSE reads `source` and `disposition`. `openNcCount` counts the audit's NCs still in
+    state OPEN, not those not yet closed.
 11. **Guard readings** (plan v2.2 and the mock's picks, kept): RAISE refuses a `dueOn` before `reportedOn` (README
     decision 51 q); ADD_ROOT_CAUSE needs `rootCauseMethod` and, when a disposition is set,
     `dispositionAuthorisedById`; PLAN_ACTIONS needs `effectivenessDueOn` today or
@@ -92,7 +95,7 @@ statutory scores stay comparable.
     it CLEAN.
 12. **Maker-checker.** `isoMayCheck(machine, action, actorId, history)` reads the record's steps (oldest first, from
     its audit trail): nobody takes a checker step (VERIFY_EFFECTIVE, VERIFY_NOT_EFFECTIVE, revision APPROVE,
-    APPROVE_NA) where they took a maker step (ADD_ROOT_CAUSE, PLAN_ACTIONS, SUBMIT, SUBMIT_NO_ACTION, revision
+    APPROVE_NA, REJECT_NA) where they took a maker step (ADD_ROOT_CAUSE, PLAN_ACTIONS, SUBMIT, SUBMIT_NO_ACTION, revision
     DRAFT_REVISION and SUBMIT, REQUEST_NA) since the last reset (RAISE, REOPEN, VERIFY_NOT_EFFECTIVE, DRAFT_REVISION,
     REQUEST_NA). DRAFT_REVISION and REQUEST_NA are both a reset and a maker step, so the preparer and the latest
     requester count. False is 403 FORBIDDEN, not a guard. `ISO_APPROVER_STEPS` lists the steps only the record's
@@ -131,7 +134,8 @@ statutory scores stay comparable.
     timestamps turned into client-local dates): the figure keys and readings are the mock's (`docs/contracts/
     iso-mock.md`, "Management review figures"). `since` is the last HELD or CLOSED review covering the input's
     standards, else the system's `createdOn`; a `since` after `asOf` is a `RangeError`. COMPLIANCE_EVALUATION scores
-    the STATUTE instances due in the window with `computeScore`; MANUAL has no figures.
+    the STATUTE instances due in the window with `computeScore`; MANUAL has no figures. `readingsRecorded` counts
+    the readings recorded in the window, whatever their period; on-track reads only readings whose period has ended.
 
 ### The overview's stand-ins
 19. Kept as the mock reads them: the overview's 12-month window is the gate window of rule 4; a certificate is

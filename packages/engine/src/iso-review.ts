@@ -194,9 +194,7 @@ function objectives(d: ObjectivesData, w: Window): ReviewFigure[] {
     open.map((o) => [o.id, objectiveProgress(o.readings, o, w.asOf, d.calendar).onTrack]),
   );
   const closed = d.objectives.filter((o) => within(w, o.closedOn));
-  const recorded = d.objectives.flatMap((o) =>
-    o.readings.filter((r) => compareDates(r.periodEnd, w.asOf) <= 0 && within(w, r.recordedOn)),
-  );
+  const recorded = d.objectives.flatMap((o) => o.readings.filter((r) => within(w, r.recordedOn)));
   return [
     figure('objectivesOpen', ids(open)),
     figure('onTrack', ids(open.filter((o) => track.get(o.id) === true))),

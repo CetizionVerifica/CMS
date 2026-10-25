@@ -181,7 +181,6 @@ const GOOD: Record<string, unknown> = {
   systemChange: 'None needed',
   openActionCount: 1,
   effectivenessDueOn: asOf,
-  incidentOutcome: null,
   hadVerifyNotEffective: false,
   noActionReason: 'One-off',
   doneActionCount: 1,
@@ -326,6 +325,29 @@ describe('isoTransition: nonconformity guards (model §4.1)', () => {
   it('ADD_ROOT_CAUSE needs rootCauseMethod (plan v2.2)', () => {
     expect(rootCause({ rootCauseMethod: null })).toEqual(guard('REQUIRED', ['rootCauseMethod']));
   });
+  it('a missing NC fact fails its guard: incident, its outcome, source, disposition (ADR rule 10)', () => {
+    const without = (action: string, from: string, ...names: string[]) => {
+      const facts: Record<string, unknown> = { ...GOOD };
+      for (const name of names) delete facts[name];
+      return isoTransition('NONCONFORMITY', from, action, facts);
+    };
+    expect(without('SUBMIT_NO_ACTION', 'ROOT_CAUSE_FOUND', 'incident')).toEqual(
+      guard('INCIDENT_OUTCOME_NEEDS_ACTIONS', ['incident.outcome']),
+    );
+    expect(noAction({ incident: { type: 'INJURY' } })).toEqual(
+      guard('INCIDENT_OUTCOME_NEEDS_ACTIONS', ['incident.outcome']),
+    );
+    expect(
+      noAction({ incidentOutcome: 'FIRST_AID', incident: { type: 'INJURY', outcome: 'FATALITY' } }),
+    ).toEqual(guard('INCIDENT_OUTCOME_NEEDS_ACTIONS', ['incident.outcome']));
+    expect(without('ADD_ROOT_CAUSE', 'OPEN', 'source')).toEqual(
+      guard('INCIDENT_RISK_REVIEW', ['source']),
+    );
+    expect(without('ADD_ROOT_CAUSE', 'OPEN', 'disposition')).toEqual(
+      guard('DISPOSITION_AUTHORISED', ['dispositionAuthorisedById']),
+    );
+  });
+
   it('ADD_ROOT_CAUSE needs whoever authorised a disposition', () => {
     expect(rootCause({ disposition: 'CONCESSION' })).toEqual(
       guard('DISPOSITION_AUTHORISED', ['dispositionAuthorisedById']),
@@ -365,12 +387,12 @@ describe('isoTransition: nonconformity guards (model §4.1)', () => {
     expect(noAction({ source: 'EXTERNAL_AUDIT' })).toEqual(
       guard('EXTERNAL_AUDIT_NEEDS_ACTIONS', ['source']),
     );
-    for (const incidentOutcome of ['LOST_TIME', 'FATALITY']) {
-      expect(noAction({ incidentOutcome })).toEqual(
+    for (const outcome of ['LOST_TIME', 'FATALITY']) {
+      expect(noAction({ incident: { type: 'INJURY', outcome } })).toEqual(
         guard('INCIDENT_OUTCOME_NEEDS_ACTIONS', ['incident.outcome']),
       );
     }
-    expect(noAction({ incidentOutcome: 'FIRST_AID' })).toEqual({
+    expect(noAction({ incident: { type: 'INJURY', outcome: 'FIRST_AID' } })).toEqual({
       ok: true,
       to: 'AWAITING_VERIFICATION',
     });
@@ -661,7 +683,7 @@ describe('isoMayCheck: maker-checker (model §4 preamble)', () => {
     }
     expect(isoMayCheck('DOCUMENT_REVISION', 'APPROVE', 'carl', history)).toBe(true);
   });
-  it('an N/A is approved by anyone but its latest requester', () => {
+  it('an N/A is approved or rejected by anyone but its latest requester', () => {
     const history = [
       step('REQUEST_NA', 'ann'),
       step('REJECT_NA', 'bob'),
@@ -669,6 +691,8 @@ describe('isoMayCheck: maker-checker (model §4 preamble)', () => {
     ];
     expect(isoMayCheck('CLAUSE_NA', 'APPROVE_NA', 'bob', history)).toBe(false);
     expect(isoMayCheck('CLAUSE_NA', 'APPROVE_NA', 'ann', history)).toBe(true);
+    expect(isoMayCheck('CLAUSE_NA', 'REJECT_NA', 'bob', history)).toBe(false);
+    expect(isoMayCheck('CLAUSE_NA', 'REJECT_NA', 'ann', history)).toBe(true);
   });
   it('maker steps and machines without the rule are never refused', () => {
     expect(isoMayCheck('NONCONFORMITY', 'SUBMIT', 'ann', [step('ADD_ROOT_CAUSE', 'ann')])).toBe(

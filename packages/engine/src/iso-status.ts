@@ -84,6 +84,17 @@ function after(facts: Facts, a: string, b: string): boolean {
 
 const when = (holds: boolean, fields: string[]): string[] => (holds ? [] : fields);
 
+/** The fact was gathered: its key is there, even when its value is null (a field the record leaves empty). */
+const has = (facts: Facts, name: string): boolean => Object.hasOwn(facts, name);
+
+/** An NC's incident outcome (contract `incident.outcome`), or null for an NC with no incident. */
+function incidentOutcome(facts: Facts): unknown {
+  const incident = facts.incident;
+  return typeof incident === 'object' && incident !== null
+    ? (incident as Readonly<Record<string, unknown>>).outcome
+    : null;
+}
+
 // ---------- guard builders ----------
 
 const required = (...fields: string[]): IsoGuard => ({
@@ -164,8 +175,11 @@ const NC_OPEN_STATES = ['OPEN', 'ROOT_CAUSE_FOUND', 'ACTIONS_PLANNED', 'AWAITING
  * - field values by their contract names (`description`, `reason`, `effectivenessDueOn`, ...) and `asOf`, the
  *   client's today;
  * - counts as `<what>Count` (`openActionCount`, `doneActionCount`, `liveFileCount`, ...);
- * - NONCONFORMITY: `fromFinding` (RAISE), `incidentOutcome`, `hadVerifyNotEffective`, `doneSinceResetCount` (actions
+ * - NONCONFORMITY: `fromFinding` (RAISE), `incident` (the contract object, null for an NC without one; SUBMIT_NO_ACTION
+ *   reads its `outcome`), `disposition` (null when none), `hadVerifyNotEffective`, `doneSinceResetCount` (actions
  *   created since the last VERIFY_NOT_EFFECTIVE or REOPEN that are DONE; null when there was none);
+ * - INTERNAL_AUDIT CLOSE and EXTERNAL_AUDIT RECORD_RESPONSE: `openNcCount`, the audit's NCs still in state OPEN
+ *   (not the ones not yet closed: an NC past OPEN lets the audit move on, model §4.3 and §4.4);
  * - DOCUMENT_REVISION and DOCUMENT: `documentType`, `documentStatus`; ISO_ACTION: `subjectOpen` (model §3.12).
  */
 export const ISO_TRANSITIONS: Readonly<Record<IsoMachine, readonly IsoArrow[]>> = {
@@ -213,19 +227,23 @@ export const ISO_TRANSITIONS: Readonly<Record<IsoMachine, readonly IsoArrow[]>> 
         {
           guard: 'DISPOSITION_AUTHORISED',
           check: (f) =>
-            when(!given(f.disposition) || given(f.dispositionAuthorisedById), [
-              'dispositionAuthorisedById',
-            ]),
+            when(
+              has(f, 'disposition') &&
+                (!given(f.disposition) || given(f.dispositionAuthorisedById)),
+              ['dispositionAuthorisedById'],
+            ),
         },
         {
           guard: 'INCIDENT_RISK_REVIEW',
           check: (f) =>
-            when(
-              !INCIDENT_SOURCES.includes(f.source) ||
-                count(f, 'relatedRiskItemCount') >= 1 ||
-                given(f.riskReview),
-              ['relatedRiskItemIds', 'riskReview'],
-            ),
+            given(f.source)
+              ? when(
+                  !INCIDENT_SOURCES.includes(f.source) ||
+                    count(f, 'relatedRiskItemCount') >= 1 ||
+                    given(f.riskReview),
+                  ['relatedRiskItemIds', 'riskReview'],
+                )
+              : ['source'],
         },
       ],
     },
@@ -255,9 +273,13 @@ export const ISO_TRANSITIONS: Readonly<Record<IsoMachine, readonly IsoArrow[]>> 
         {
           guard: 'INCIDENT_OUTCOME_NEEDS_ACTIONS',
           check: (f) =>
-            when(f.incidentOutcome !== 'LOST_TIME' && f.incidentOutcome !== 'FATALITY', [
-              'incident.outcome',
-            ]),
+            when(
+              has(f, 'incident') &&
+                (f.incident === null || given(incidentOutcome(f))) &&
+                incidentOutcome(f) !== 'LOST_TIME' &&
+                incidentOutcome(f) !== 'FATALITY',
+              ['incident.outcome'],
+            ),
         },
         {
           guard: 'NOT_EFFECTIVE_NEEDS_ACTIONS',
@@ -538,7 +560,11 @@ export const ISO_MAKER_CHECKER: Readonly<
     checkers: ['APPROVE'],
     resets: ['DRAFT_REVISION'],
   },
-  CLAUSE_NA: { makers: ['REQUEST_NA'], checkers: ['APPROVE_NA'], resets: ['REQUEST_NA'] },
+  CLAUSE_NA: {
+    makers: ['REQUEST_NA'],
+    checkers: ['APPROVE_NA', 'REJECT_NA'],
+    resets: ['REQUEST_NA'],
+  },
 };
 
 /**

@@ -175,7 +175,7 @@ describe('reviewInputFigures (model §5.4)', () => {
       objectives: [
         objective('o-on', { readings: [reading('rd-1', '2025-06-30', 8, '2025-07-02')] }),
         objective('o-off', { readings: [reading('rd-2', '2025-06-30', 12, '2025-03-31')] }),
-        objective('o-none', { readings: [reading('rd-future', '2026-06-30', 1, '2026-03-31')] }),
+        objective('o-none', { readings: [reading('rd-future', '2026-06-30', 1, '2026-03-31')] }), // recorded in the window, whatever its period
         objective('o-met', { closedOn: d('2026-03-31'), outcome: 'ACHIEVED' }),
         objective('o-missed', { closedOn: d('2025-06-30'), outcome: 'NOT_ACHIEVED' }),
         objective('o-closed-before', { closedOn: d('2025-03-31'), outcome: 'ACHIEVED' }),
@@ -189,7 +189,7 @@ describe('reviewInputFigures (model §5.4)', () => {
       withoutReading: [u('o-none')],
       achieved: [u('o-met')],
       notAchieved: [u('o-missed')],
-      readingsRecorded: [u('rd-1')],
+      readingsRecorded: [u('rd-1'), u('rd-future')],
     });
     expect(figures('OBJECTIVES', { objectives: [] })).toMatchObject({ objectivesOpen: 0 });
   });
