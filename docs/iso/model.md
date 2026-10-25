@@ -53,6 +53,16 @@ Every ISO table follows `packages/db/CLAUDE.md` and ADR 0003. On top of that:
    INVALID_TRANSITION`. Only its machine's actions change it. The one exception is in §6: a finding of a REPORTED internal
    audit still takes new actions. The document's own fields (owner, approver,
    `reviewDueOn`) stay editable while it is ACTIVE.
+9. **Reasons.** Every field edit audited as `REASSIGN` (a new owner, approver, lead auditor or chair) or
+   `DUE_DATE_CHANGE` (a moved planned, due, review or response date) needs a `reason` (`422 REASON_REQUIRED` without
+   one), and the event carries it, as `instance.reassign` and `instance.dueDate` do. In contracts 1.8.1 (ISO-1a,
+   README decision 51 p) each update body lists those fields: the checklist row's owner; a document's owner, approver
+   and review date; a risk item's owner and review date; an objective's owner and due date; an internal audit's dates
+   and lead; an external audit's response date; an action's owner and due date; an NC's reassign route (§4.1); a
+   review's date and chair (replan, §4.5). Other edits are `UPDATE` with no reason. A date that a step sets needs
+   none, and its event names the step or the action: REVIEW's next `reviewDueOn`, PLAN_ACTIONS'
+   `effectivenessDueOn`, RECORD_HELD's visit dates, and a risk item's `reviewDueOn` set to today when a treatment
+   action puts a control in place (§3.5) (the ISO-1 audit, Low 5).
 
 ## 2. Catalogue tables (per-account copy)
 
@@ -89,6 +99,10 @@ One climate decision per system: Amd 1:2024 adds the same wording to clause 4.1 
 integrated system records it once. Setting or changing it is audited, like an NA decision. Once decided it can change
 but not return to null (`400 VALIDATION`).
 
+`standardIds` may only grow. Adding a standard adds its checklist rows (§3.3); dropping one is `400 VALIDATION`, since
+its checklist rows, certificates and reviews would lose their standard (contracts README decision 51 d). A client that
+stops working to a standard leaves it in the system; moving to a newer edition is Later (catalogue §6).
+
 ### 3.2 ContextItem (4.1, 4.2)
 ```
 managementSystemId, kind (INTERNAL_ISSUE | EXTERNAL_ISSUE | INTERESTED_PARTY), text, needs (interested parties:
@@ -106,9 +120,11 @@ unique (managementSystemId, clauseId)
 ```
 - One row per assessable clause of each standard of the system, created when the standard is added to the system.
 - `NOT_APPLICABLE` is accepted only on a clause with `exclusionAllowed`, otherwise `400 VALIDATION`, and needs a
-  justification. It takes effect only when an approver or client admin other than the requester approves it (PLAN.md
-  §7 default 6, as for instance NA). Until then the row counts as NOT_STARTED in readiness. Request, approval,
-  rejection and withdrawal each write an `AuditEvent`. REQUEST_NA stores the current status in `statusBeforeNa` and
+  justification: the N/A request body is `{ version, reason }` and the reason is stored as `justification`, so a
+  request without one is `422 REASON_REQUIRED` like every other N/A request (contracts README decision 51 c). It
+  takes effect only when an approver or client admin other than the requester approves it (PLAN.md §7 default 6, as
+  for instance NA). Until then the row counts as NOT_STARTED in readiness. Request, approval, rejection and
+  withdrawal each write an `AuditEvent`. REQUEST_NA stores the current status in `statusBeforeNa` and
   sets `status` NOT_APPLICABLE; REJECT_NA restores `statusBeforeNa`. A direct write of `status` is refused (`400
   VALIDATION`) while `naState` is REQUESTED or APPROVED, and a direct write of NOT_APPLICABLE is always refused. When
   the clause later applies (say the client starts design work), WITHDRAW_NA ends an approved N/A (§4.6).
@@ -125,10 +141,16 @@ ControlledDocument  managementSystemId, code (unique per client), title,
                     retention (FORM only, text: how long records made on it are kept, where, how disposed of; 7.5.3.2),
                     issuer, externalRef (EXTERNAL only)
 DocumentRevision    documentId, revision (text, "B" or "2.0"), changeNote, state (DRAFT | IN_REVIEW | APPROVED | SUPERSEDED),
-                    preparedById, approvedById, approvedAt, sendBackReason
+                    preparedById, approvedById (null for a recorded edition of an EXTERNAL document: its issuer
+                    approved it, not a person in the client), approvedAt (set for every APPROVED revision),
+                    sendBackReason
 ```
-There is no RECORD type: records are the files on ISO records and on activity instances, and they are not revised.
-A revision's file is its `iso_file` (§6); SUBMIT needs exactly one live CLEAN file on the revision.
+A DRAFT or IN_REVIEW revision has no `approvedById`. Among APPROVED and SUPERSEDED revisions, `approvedById` is null
+only on one approved by RECORD_EDITION; a revision approved by APPROVE always names its approver. The revision gets no
+new field for this: the schema cannot tell the two apart, so M16 enforces it (RECORD_EDITION leaves it null, APPROVE
+always sets it) and M3 may check it across the two tables (README decision 51 m; the ISO-1 audit, Low 2). There is no
+RECORD type: records are the files on ISO records and on activity instances, and they
+are not revised. A revision's file is its `iso_file` (§6); SUBMIT needs exactly one live CLEAN file on the revision.
 
 ### 3.5 RiskItem and RiskControl (6.1, 14001 6.1.2, 45001 6.1.2, 8.1.2)
 ```
@@ -138,7 +160,7 @@ RiskItem            managementSystemId, kind (RISK | OPPORTUNITY | ASPECT | HAZA
                     lifeCycleStages[] (RAW_MATERIAL | DESIGN | PRODUCTION | TRANSPORT | USE | END_OF_LIFE; ASPECT, at least one),
                     controlType (CONTROL | INFLUENCE; ASPECT, required),
                     routine (bool; HAZARD, required), personsExposed[] (WORKER | CONTRACTOR | VISITOR | PUBLIC; HAZARD, at least one),
-                    condition (NORMAL | ABNORMAL | EMERGENCY; ASPECT and HAZARD),
+                    condition (NORMAL | ABNORMAL | EMERGENCY; ASPECT and HAZARD, required),
                     assessedWith (text: the workers who took part, 45001 5.4 e),
                     likelihood 1-5, severity 1-5 (with the existing controls; for OPPORTUNITY the second axis means benefit),
                     residualLikelihood, residualSeverity (after the planned treatment actions),
@@ -181,14 +203,15 @@ AuditChecklistItem  internalAuditId, clauseId, unitId (nullable), question, audi
                     result (CONFORMS | FINDING | NOT_AUDITED | null until answered), findingId (set when FINDING),
                     notAuditedReason (required when NOT_AUDITED)
 ```
-Independence (9.2.2): when a person is both auditor (or lead) and auditee of the same audit, the save is refused
-with `400 VALIDATION` unless `independenceNote` is given. The note is stored, written into the audit event and
-printed in the audit report PDF.
+The lead auditor is not also listed in `auditorIds` (`400 VALIDATION`). Independence (9.2.2): when a person is both
+auditor (or lead) and auditee of the same audit, the save is refused with `400 VALIDATION` unless `independenceNote`
+is given. The note is stored, written into the audit event and printed in the audit report PDF.
 
 ### 3.8 ExternalAudit and Certification
 ```
 Certification       managementSystemId, standardId, body, certificateNumber (null until issued), issuedOn (null until
-                    issued), expiresOn, scopeText (null = the system's scope), unitIds[] (empty = the system's units)
+                    issued), expiresOn (null until issued), scopeText (null = the system's scope),
+                    unitIds[] (empty = the system's units)
 ExternalAudit       managementSystemId, standardIds[] (one integrated visit can cover several),
                     type (STAGE_1 | STAGE_2 | SURVEILLANCE_1 | SURVEILLANCE_2 | RECERTIFICATION | SPECIAL | TRANSITION),
                     body, leadAuditorName (text: the body's auditor, not a Person), startOn, endOn,
@@ -196,6 +219,9 @@ ExternalAudit       managementSystemId, standardIds[] (one integrated visit can 
                     responseDueOn (the body's deadline for the corrective-action response, null if none),
                     state (PLANNED | HELD | RESPONDED | CLOSED | CANCELLED), cancelReason
 ```
+`certificateNumber`, `issuedOn` and `expiresOn` are set together or not at all (contracts README decision 51 a), so a
+certificate being pursued can be recorded before it is issued. Until then its cycle (§5.2) is empty, it sends no
+ISO_CERTIFICATE_EXPIRING or ISO_SURVEILLANCE_DUE reminder (§7), and the overview does not count it as expiring.
 
 ### 3.9 AuditFinding
 ```
@@ -205,8 +231,14 @@ AuditFinding        internalAuditId or externalAuditId (exactly one, CHECK num_n
 ```
 - Saving a MAJOR_NC or MINOR_NC finding creates its Nonconformity in the same transaction: source INTERNAL_AUDIT or
   EXTERNAL_AUDIT, severity MAJOR or MINOR from the type, the finding's clauses and unit (or the audit's single unit),
-  owner and approver given on the finding form. Changing a finding's type away from an NC type is refused once the
-  NC exists; cancel the NC instead.
+  owner and approver given on the finding form.
+- A finding's `type` moves only among OBSERVATION, OFI and GOOD_PRACTICE (to GOOD_PRACTICE only while it has no action
+  that is not CANCELLED), or between MAJOR_NC and MINOR_NC, when the NC's severity follows in the same transaction,
+  only while that NC is OPEN or ROOT_CAUSE_FOUND (`409 INVALID_TRANSITION` after, the window of §3.10) and never by
+  the NC's own owner (`403 FORBIDDEN`). Every other move is `400 VALIDATION`: record a new
+  finding instead of turning one into an NC, and cancel the NC instead of turning an NC finding into another type. So
+  a finding and its NC never come apart (contracts README decision 51 f). An NC raised from a finding takes its
+  severity only from the finding.
 - OBSERVATION and OFI findings may have **improvement actions** (§3.12, 10.3). GOOD_PRACTICE findings have none.
   MAJOR_NC and MINOR_NC findings take no actions of their own; their corrective actions go on the NC (`400
   VALIDATION` otherwise), so the NC's PLAN_ACTIONS and SUBMIT guards see every one.
@@ -234,8 +266,17 @@ Nonconformity       number (per client, from a sequence), managementSystemId,
                     incident (§3.11; required when source is INCIDENT or NEAR_MISS, null otherwise)
 ```
 The owner and the approver of an NC are different people (maker-checker). When `disposition` is set,
-`dispositionAuthorisedById` is required (9001 8.7.2), and both are set no later than ADD_ROOT_CAUSE (`400
-VALIDATION` otherwise).
+`dispositionAuthorisedById` is required (9001 8.7.2), and both are set no later than ADD_ROOT_CAUSE (`400 VALIDATION`
+otherwise). `dueOn` is not before `reportedOn`. `rootCauseMethod` is required with `rootCause` from ADD_ROOT_CAUSE on
+(the ISO-1 audit, Low 1).
+
+**Severity and the incident outcome** are what SUBMIT_NO_ACTION reads (§4.1), so they change only while the NC is
+OPEN or ROOT_CAUSE_FOUND (`409 INVALID_TRANSITION` after). On an NC raised by hand they change only on the reassign
+route (§4.1), with a reason; the incident `outcome` likewise (§3.11), with `lostDays` when the outcome moves to or
+from LOST_TIME. On an NC raised from a finding, severity follows the finding's type alone (§3.9), in the same window,
+and the reassign route refuses it (`400 VALIDATION`). So an NC owner who is not a client admin cannot lower an NC's
+severity or outcome to use SUBMIT_NO_ACTION, and nobody can raise them after an NC has skipped corrective action
+(the ISO-1 audit, Medium 2). A client admin may, with a reason, like any reassignment.
 
 ### 3.11 Incident fields (stored on the nonconformity row)
 ```
@@ -248,7 +289,9 @@ investigatorIds[], workerParticipation (bool: a non-managerial worker took part 
 Rules (45001 10.2):
 - An INCIDENT or NEAR_MISS NC always has a `unitId`, so unit scope applies to it.
 - `type` is NEAR_MISS exactly when the NC's `source` is NEAR_MISS, and then `outcome` is NONE and `lostDays` null.
-  `lostDays` is required when `outcome` is LOST_TIME and null otherwise (`400 VALIDATION`).
+  `lostDays` is required when `outcome` is LOST_TIME and null otherwise (`400 VALIDATION`). `outcome` changes only
+  as §3.10 says (the reassign route, while OPEN or ROOT_CAUSE_FOUND); the owner may still update `lostDays` on the
+  NC's PATCH while the outcome stays LOST_TIME.
 - The investigation reviews the related risk items. A new hazard found is raised as a HAZARD risk item from the NC
   (it is then in `updatedRiskItemIds`).
 - When `reportable` is true, the NC page says a statutory accident notice is due, and the user may link an existing
@@ -314,8 +357,8 @@ REQUEST_NA) since its last RAISE, REOPEN, VERIFY_NOT_EFFECTIVE or DRAFT_REVISION
 
 | From | Action | Who | Guard | To |
 |---|---|---|---|---|
-| (new) | RAISE | any role but viewer, for a unit they can see; automatic from an NC finding | description, source, severity, owner, approver; sets `reportedById`, `reportedOn`; `incident` when INCIDENT or NEAR_MISS | OPEN |
-| OPEN | ADD_ROOT_CAUSE | owner | containment, correction, rootCause, similarOccurrences; INCIDENT or NEAR_MISS also needs related risk items or a `riskReview` | ROOT_CAUSE_FOUND |
+| (new) | RAISE | any role but viewer, for a unit they can see; automatic from an NC finding | description, source, severity, owner, approver; sets `reportedById`, `reportedOn`; `dueOn` not before `reportedOn`; `incident` when INCIDENT or NEAR_MISS; by hand, any source but INTERNAL_AUDIT and EXTERNAL_AUDIT, which come only from an NC finding (§3.9; contracts `RaisableNcSource`) | OPEN |
+| OPEN | ADD_ROOT_CAUSE | owner | containment, correction, rootCauseMethod, rootCause, similarOccurrences; INCIDENT or NEAR_MISS also needs related risk items or a `riskReview` | ROOT_CAUSE_FOUND |
 | ROOT_CAUSE_FOUND | PLAN_ACTIONS | owner | at least one OPEN action on the NC; sets `effectivenessDueOn` (editable later, audited) | ACTIONS_PLANNED |
 | ROOT_CAUSE_FOUND | SUBMIT_NO_ACTION | owner | `noActionReason`, `riskReview`, `systemChange`; refused when severity is MAJOR, source is EXTERNAL_AUDIT, the incident outcome is LOST_TIME or FATALITY, or the NC has had a VERIFY_NOT_EFFECTIVE | AWAITING_VERIFICATION |
 | ACTIONS_PLANNED | SUBMIT | owner | at least one action on the NC DONE, every action on the NC DONE or CANCELLED; `riskReview` and `systemChange` recorded; after a VERIFY_NOT_EFFECTIVE or REOPEN, at least one action created since then is DONE | AWAITING_VERIFICATION |
@@ -323,6 +366,15 @@ REQUEST_NA) since its last RAISE, REOPEN, VERIFY_NOT_EFFECTIVE or DRAFT_REVISION
 | AWAITING_VERIFICATION | VERIFY_NOT_EFFECTIVE | approver | reason, `backTo` OPEN (root cause was wrong) or ACTIONS_PLANNED; sets `effective = false`; with `backTo` ACTIONS_PLANNED also a new `effectivenessDueOn` after today; with `backTo` OPEN it clears `effectivenessDueOn` | OPEN or ACTIONS_PLANNED |
 | any but CLOSED, CANCELLED | CANCEL | approver, client admin | reason | CANCELLED |
 | CLOSED | REOPEN | client admin | reason, `backTo` OPEN or ACTIONS_PLANNED; clears `closedOn`; with `backTo` ACTIONS_PLANNED also a new `effectivenessDueOn` after today | OPEN or ACTIONS_PLANNED |
+
+Changing an NC's owner, approver, severity or incident outcome, or moving its `dueOn` or `effectivenessDueOn`, is not
+a step of the machine but its own route, `POST .../nonconformities/{id}/reassign` (ISO-1a), under `isoNc.reassign`
+(plan §3.2: account admin, consultant or client admin), with a reason, audited as `REASSIGN`, `DUE_DATE_CHANGE` or,
+for severity and outcome, `UPDATE`, each with the reason. Severity and outcome follow §3.10. The NC's PATCH is
+`isoNc.work` only: its owner (or a client admin) edits every other field there (description, standards, clauses,
+unit, source instance, the incident fields but `outcome`, and the investigation fields). An owner who is not a client
+admin cannot reassign their NC, move its dates or change its severity or outcome (contracts README decision 51 h and
+o). The owner and approver stay different people.
 
 ### 4.2 Document revision and document
 
@@ -332,7 +384,7 @@ REQUEST_NA) since its last RAISE, REOPEN, VERIFY_NOT_EFFECTIVE or DRAFT_REVISION
 | revision | DRAFT | SUBMIT | document owner | not an EXTERNAL document; change note, one live CLEAN file | IN_REVIEW |
 | revision | IN_REVIEW | APPROVE | document approver | approver is not the preparer | APPROVED; the previous APPROVED revision becomes SUPERSEDED and `currentRevisionId` moves, in the same transaction |
 | revision | IN_REVIEW | SEND_BACK | document approver | reason | DRAFT |
-| revision | DRAFT | RECORD_EDITION | document owner | EXTERNAL documents only: issuer, external reference, one live CLEAN file on the revision; no internal approval | APPROVED; the previous APPROVED revision becomes SUPERSEDED and `currentRevisionId` moves, in the same transaction |
+| revision | DRAFT | RECORD_EDITION | document owner | EXTERNAL documents only: issuer, external reference, one live CLEAN file on the revision; no internal approval; sets `approvedAt`, leaves `approvedById` null | APPROVED; the previous APPROVED revision becomes SUPERSEDED and `currentRevisionId` moves, in the same transaction |
 | document | ACTIVE | REVIEW | document approver | `currentRevisionId` set; note; sets `lastReviewedOn` and the next `reviewDueOn`; no new revision | ACTIVE |
 | document | ACTIVE | MAKE_OBSOLETE | document approver | reason | OBSOLETE |
 
@@ -375,11 +427,15 @@ Changing `plannedStart` or `plannedEnd` is a due-date change: audited, with a re
 | PLANNED | RECORD_HELD | chair, client admin | `heldOn` not in the future, attendees, notes on every input row | HELD |
 | HELD | CLOSE | chair, client admin | a decision on every output row; every review action DONE or CANCELLED | CLOSED |
 
+A review's standards, `plannedOn` and chair change only while it is PLANNED, through the
+`POST .../management-reviews/{id}/replan` route under `isoReview.plan` (ISO-1a); a new `plannedOn` or chair needs a
+reason (§1.9). The review's PATCH (attendees, minutes) is `isoReview.write`, which its chair holds.
+
 ### 4.6 Clause N/A
 
 | From `naState` | Action | Who | Guard | To |
 |---|---|---|---|---|
-| NONE or REJECTED | REQUEST_NA | row owner, client admin | clause has `exclusionAllowed`; justification | REQUESTED |
+| NONE or REJECTED | REQUEST_NA | row owner, client admin | clause has `exclusionAllowed`; reason, stored as `justification` | REQUESTED |
 | REQUESTED | APPROVE_NA | approver role or client admin, not the requester | | APPROVED (status NOT_APPLICABLE takes effect) |
 | REQUESTED | REJECT_NA | the same | reason | REJECTED (`status` = `statusBeforeNa`) |
 | APPROVED | WITHDRAW_NA | row owner, client admin | reason | NONE (`status` NOT_STARTED) |
@@ -412,7 +468,11 @@ IsoEngineApi`. Formulas need an M4 ADR and an `ENGINE_VERSION` bump (`packages/e
   for ISO 45001 at least one HAZARD; live items of the system; `missing` names the kind that is absent).
   Clause readiness is the client's self-assessment; these gates come from records; neither replaces the other.
 - `objectiveProgress(readings, objective, asOf)`: latest value, progress towards target by direction, on track or
-  not, missed readings.
+  not, missed readings. The objective's creation day reaches it as `createdOn`, a `LocalDate` (its `createdAt` in the
+  client's time zone, passed by the caller through the engine's date helper, as for `managementReviewDue`), never as
+  an `Instant`: an objective created at 02:00 IST is still that day's. It also takes `{ fyStartMonth }`, since
+  reading periods follow the client's financial year as `generateInstances` does (ISO-1a, README decision 51 r; the
+  ISO-1 audit, Medium 3).
 - `auditProgrammeCoverage(audits, checklistItems, system, clauses, fy)`: a clause is covered when a checklist row of
   a REPORTED or CLOSED audit in that FY's programme names it with result CONFORMS or FINDING (a NOT_AUDITED row covers
   nothing). A unit is covered when such a row names the unit; a row with no unit covers the units in its audit's
@@ -428,18 +488,21 @@ IsoEngineApi`. Formulas need an M4 ADR and an `ENGINE_VERSION` bump (`packages/e
 ### 5.2 `src/iso-status.ts` (100% coverage: the `*status*` threshold applies)
 - The transition tables of §4 and one `isoTransition(machine, from, action, facts)` that returns the next state or
   the failed guard.
-- `nonconformityStatus(nc, actions, asOf)` and `actionStatus(action, asOf)`: on time, due soon, overdue, with overdue
-  days; the NC status also reports an overdue effectiveness check (`effectivenessDueOn`).
+- `nonconformityStatus(nc, actions, asOf, { dueSoonDays })` and `actionStatus(action, asOf, { dueSoonDays })`: on
+  time, due soon, overdue, with overdue days; the NC status also reports an overdue effectiveness check
+  (`effectivenessDueOn`). `dueSoonDays` is `FirmSettings.dueSoonDays`, so DUE_SOON means what it means on the
+  register; `managementReviewDue` and `reviewDue` take the same option (contracts README decision 51 k).
 - `certificationCycle(certification, externalAudits, asOf)`: surveillance 1 and 2 and recertification due dates
-  (recertification before `expiresOn`), each marked met by a HELD, RESPONDED or CLOSED external audit of that type
-  that covers the certificate's standard and ended after the certificate's `issuedOn` (the current cycle only; for
-  SURVEILLANCE_2, also after the audit that met SURVEILLANCE_1). An audit that ended after the due date marks it met
-  late, with the days late. With no such audit, the result gives the overdue days up to `asOf`.
-- `managementReviewDue(system, reviews, asOf)`: per standard of the system, the next due date is the last HELD or
-  CLOSED review covering that standard plus `reviewIntervalMonths`. With no such review, it is `system.createdOn` (the
-  system's `createdAt` as a `LocalDate` in the client's time zone, passed by the caller through the engine's date
-  helper) plus the interval. Returns due soon and overdue per standard.
-- `reviewDue(reviewDueOn, asOf)` for documents and risk items.
+  (recertification before `expiresOn`; none while the certificate is not issued, §3.8), each marked met by a HELD,
+  RESPONDED or CLOSED external audit of that type that covers the certificate's standard and ended after the
+  certificate's `issuedOn` (the current cycle only; for SURVEILLANCE_2, also after the audit that met SURVEILLANCE_1).
+  An audit that ended after the due date marks it met late, with the days late. With no such audit, the result gives
+  the overdue days up to `asOf`.
+- `managementReviewDue(system, reviews, asOf, { dueSoonDays })`: per standard of the system, the next due date is
+  the last HELD or CLOSED review covering that standard plus `reviewIntervalMonths`. With no such review, it is
+  `system.createdOn` (the system's `createdAt` as a `LocalDate` in the client's time zone, passed by the caller
+  through the engine's date helper) plus the interval. Returns due soon and overdue per standard.
+- `reviewDue(reviewDueOn, asOf, { dueSoonDays })` for documents and risk items.
 
 ### 5.3 `src/iso-notifications.ts`
 `planIsoNotifications(items: IsoNotificationInput[], schedule: IsoReminderSchedule, asOf: LocalDate):
@@ -615,7 +678,14 @@ na-reject|na-withdraw`), `catalogue/standards`, `catalogue/clauses`, `catalogue/
 `/{id}/review`, `/{id}/significance`), `objectives` (and `/{id}/readings`), `actions` (filter by subject type and id,
 owner, state; `complete|cancel|reopen`), `audit-programmes`, `internal-audits` (and `/{id}/checklist`, `/{id}/findings`,
 `start|report|close|cancel`), `external-audits` (and findings, `held|response|close|cancel`), `certifications`,
-`nonconformities` (and the §4.1 actions), `management-reviews` (and inputs, each input row returned with its
-`sourceFigures` from `reviewInputFigures` (§5.4), outputs, `held|close|cancel`), `files`
-(§6), `overview` (the ISO overview KPIs, every number with the ids behind it). The ISO exports go through M10's
-`/clients/{clientId}/exports`.
+`nonconformities` (and the §4.1 actions and `/{id}/reassign`), `management-reviews` (and `/{id}/replan`, inputs, each
+input row returned with its `sourceFigures` from `reviewInputFigures` (§5.4), outputs, `held|close|cancel`), `files`
+(§6), `overview` (the ISO overview KPIs, every number with the ids behind it; M16's, ISO-8c). The ISO exports go
+through M10's `/clients/{clientId}/exports`.
+
+Every route takes exactly one `can()` action (plan §3.2, ISO-1a). The catalogue and overview reads use
+`isoSystem.read` (plan §3.2), since neither has a resource of its own. Views of records with a machine (§4, and
+`IsoAction` in §3.12) carry `allowedActions`, the steps the caller may take now, as `InstanceDetail` does, so screens
+show only those steps and never work them out (contracts README decision 51 i, j). Where this model is silent, the M0
+mock's readings are in `docs/contracts/iso-mock.md`; M4, M16 and M17 keep them or record another choice in their ADR
+(packages.md, shared rules).

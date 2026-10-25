@@ -1,8 +1,12 @@
 # ISO management systems add-on: plan (v2)
 
-Status: v2, 2026-10-25. Decisions: ADR [M16-0001](../adr/M16-0001-iso-management-systems.md), amended by ADR
+Status: v2.2, 2026-10-25. Decisions: ADR [M16-0001](../adr/M16-0001-iso-management-systems.md), amended by ADR
 [M16-0002](../adr/M16-0002-iso-plan-v2.md). v2 answers the 58 findings of the independent review of v1 (trace at the
-end of [packages.md](packages.md)).
+end of [packages.md](packages.md)). v2.1 takes in the departures the ISO contracts (ISO-1, contracts 1.8.0) list in
+`docs/contracts/README.md` decision 51 (a-n), and points the API, engine and screen briefs at the M0 mock's own
+readings in `docs/contracts/iso-mock.md` (trace at the end of [packages.md](packages.md)). v2.2 adds ISO-1a, the M0 patch
+(contracts 1.8.1) that fixes the findings of the ISO-1 audit: one action per route, an NC's severity moved to
+reassignment, and a calendar date for `objectiveProgress`.
 
 Every ISO thread reads, in order: the root `CLAUDE.md`, this file, its own brief in [packages.md](packages.md), the
 parts of [model.md](model.md) and [catalogue.md](catalogue.md) its brief names, then the area `CLAUDE.md` of the paths
@@ -96,7 +100,7 @@ call it (model §4 preamble).
 
 | Action | FA | CO | CA | AP | OW | VI | Covers |
 |---|---|---|---|---|---|---|---|
-| `<resource>.read` for every resource below | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | reads, lists, files' download URLs (an incident NC's files only for the people model §6 names), overview |
+| `<resource>.read` for every resource below | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | reads, lists, files' download URLs (an incident NC's files only for the people model §6 names); the catalogue and the overview, which have no resource of their own, use `isoSystem.read` |
 | `isoSystem.write` | ✓ | ✓ | ✓ | | | | systems, scope, units, context items, climate decision, audit programmes |
 | `isoChecklist.write` | ✓ | ✓ | ✓ | | own | | status, notes, files of a checklist row |
 | `isoChecklist.requestNa` | ✓ | ✓ | ✓ | | own | | REQUEST_NA, WITHDRAW_NA |
@@ -110,7 +114,8 @@ call it (model §4 preamble).
 | `isoAudit.conduct` | ✓ | ✓ | ✓ | own | own | | START, checklist, findings, REPORT, CLOSE (own = lead or auditor on the audit) |
 | `isoCertification.write` | ✓ | ✓ | ✓ | | | | certificates, external audits and their findings |
 | `isoNc.raise` | ✓ | ✓ | ✓ | ✓ | ✓ | | RAISE, for a unit the actor can see |
-| `isoNc.work` | | | ✓ | | own | | ADD_ROOT_CAUSE, PLAN_ACTIONS, SUBMIT, SUBMIT_NO_ACTION |
+| `isoNc.work` | | | ✓ | | own | | ADD_ROOT_CAUSE, PLAN_ACTIONS, SUBMIT, SUBMIT_NO_ACTION; the NC's PATCH: every field but owner, approver, dates, severity and incident outcome (description, standards, clauses, unit, source instance, the other incident fields and the investigation fields) |
+| `isoNc.reassign` | ✓ | ✓ | ✓ | | | | the NC's reassign route: owner, approver, `dueOn`, `effectivenessDueOn`, `severity` and incident `outcome`, with a reason (model §3.10, §4.1) |
 | `isoNc.verify` | | | ✓ | own | | | VERIFY_EFFECTIVE, VERIFY_NOT_EFFECTIVE |
 | `isoNc.cancel` | | | ✓ | own | | | CANCEL |
 | `isoNc.reopen` | | | ✓ | | | | REOPEN |
@@ -118,12 +123,20 @@ call it (model §4 preamble).
 | `isoAction.complete` | | | ✓ | | own | | COMPLETE (own = action owner) |
 | `isoAction.cancel` | | | ✓ | own | | | CANCEL (own = approver of the subject) |
 | `isoAction.reopen` | | | ✓ | | | | REOPEN |
-| `isoReview.plan` | ✓ | ✓ | ✓ | | | | PLAN, CANCEL |
-| `isoReview.write` | ✓ | ✓ | ✓ | own | own | | inputs, RECORD_HELD, outputs, CLOSE (own = chair) |
+| `isoReview.plan` | ✓ | ✓ | ✓ | | | | PLAN, CANCEL; the review's replan route: standards, `plannedOn` and chair while PLANNED |
+| `isoReview.write` | ✓ | ✓ | ✓ | own | own | | the review's PATCH (attendees, minutes), inputs, RECORD_HELD, outputs, CLOSE (own = chair) |
 | `isoFile.write` | ✓ | ✓ | ✓ | own | own | | upload, confirm, remove: whoever may write the subject |
 
 ISO-1 may split or rename an action where a route needs it, keeping the rules above; the coordinator then corrects
-this table (§5.6).
+this table (§5.6). ISO-1 (contracts 1.8.0, README decision 51 h and i) added `isoNc.reassign`, so an NC's owner cannot
+reassign their own NC or move its dates, and gave the catalogue and overview reads `isoSystem.read`. **One action per
+route** (ISO-1a, contracts 1.8.1, README decision 51 o). In 1.8.0 two routes listed two actions. The M0 stub `can()`
+allows an action when any endpoint listing it grants the role, so those routes leaked rights (an NC's owner got
+`isoNc.reassign`, a review's chair `isoReview.plan`, FA and CO `isoNc.work`); the generic route gate checks only the
+first action an endpoint lists, so under M5's per-action policy it would have refused FA and CO on the NC's PATCH (the
+ISO-1 audit, Medium 1). Now the NC's PATCH is `isoNc.work` only and `POST .../nonconformities/{id}/reassign` is
+`isoNc.reassign`; the review's PATCH is `isoReview.write` only and `POST .../management-reviews/{id}/replan` is
+`isoReview.plan`. No ISO route lists two actions.
 
 ### 3.3 Unit scope
 
@@ -320,8 +333,10 @@ ISO-14 is that package.
 - M17's `e2e/tests/iso/`, M11's `e2e/tests/shell/`, M12's `e2e/tests/register/` and M13's `e2e/tests/overview/` lie
   inside M14's `e2e/`. A package that changes files there and an M14 thread may run at the same time only while the
   M14 thread does not touch those files (§5.5).
-- Up to five threads at once, as for the main build. Each thread marks its PR ready only when it expects it to pass,
-  gets it audited in a separate session, and merges `main` before marking ready.
+- Up to five threads at once, as for the main build. The one exception is ISO-1a, which continued the ISO-1 thread
+  while five I3 packages ran (six at once); no further package starts until fewer than five threads run. Each thread
+  marks its PR ready only when it expects it to pass, gets it audited in a separate session, and merges `main` before
+  marking ready.
 
 ### 5.5 Merging main
 
@@ -339,7 +354,8 @@ before any package that depends on the change starts.
 ## 6. Packages and waves
 
 Briefs: [packages.md](packages.md). Waves are for orientation; the Needs column decides. Status as of 2026-10-25
-(`origin/main` at #259).
+(`origin/main` at #265). ISO-3 and ISO-7b started before ISO-1a was added to their Needs; each merges `main` after
+ISO-1a has merged and before marking ready.
 
 | Wave | Package | Module | Title | Needs | Status |
 |---|---|---|---|---|---|
@@ -348,22 +364,23 @@ Briefs: [packages.md](packages.md). Waves are for orientation; the Needs column 
 | I1 | ISO-7 | M11 | Gate the shell on the ISO add-on | ISO-0 | merged (#254, #257) |
 | I1 | ISO-4a | M5 | Check the add-on feature on requests | ISO-0 | merged (#255, #259) |
 | I1 | ISO-5 | M15 | Add an add-ons switch to the operator console | ISO-0, ISO-2a | merged (#252) |
-| I2 | ISO-4c | M5 | Message for FEATURE_NOT_READY ahead of the contracts | ISO-4a | |
-| I2 | ISO-12b | M13 | Show add-ons on the Account page | ISO-0, ISO-7 | |
-| I2 | ISO-1 | M0 | ISO contracts (shapes, endpoints, events, engine API, fixtures, mock) | ISO-0, ISO-4c | on hold until v2 merges |
-| I3 | ISO-2b | M3 | Stage ISO enum values and give the send log an ISO subject | ISO-1, ISO-2a | |
-| I3 | ISO-3 | M4 | ISO engine functions and transition tables | ISO-1 | |
-| I3 | ISO-7b | M11 | Mock features per demo user for ISO screens | ISO-1, ISO-7 | |
-| I3 | ISO-12a | M13 | Audit trail words for ISO entity types | ISO-1, ISO-12b | |
-| I3 | ISO-11e | M10 | Default branch in the export builder ahead of new export kinds | ISO-1 | |
+| I2 | ISO-4c | M5 | Message for FEATURE_NOT_READY ahead of the contracts | ISO-4a | merged (#261) |
+| I2 | ISO-12b | M13 | Show add-ons on the Account page | ISO-0, ISO-7 | merged (#262) |
+| I2 | ISO-1 | M0 | ISO contracts (shapes, endpoints, events, engine API, fixtures, mock) | ISO-0, ISO-4c | merged (#265) |
+| I3 | ISO-1a | M0 | ISO contract fixes from the ISO-1 audit (contracts 1.8.1) | ISO-1 | started |
+| I3 | ISO-2b | M3 | Stage ISO enum values and give the send log an ISO subject | ISO-1, ISO-2a | started |
+| I3 | ISO-3 | M4 | ISO engine functions and transition tables | ISO-1, ISO-1a | started |
+| I3 | ISO-7b | M11 | Mock features per demo user for ISO screens | ISO-1, ISO-1a, ISO-7 | started |
+| I3 | ISO-12a | M13 | Audit trail words for ISO entity types | ISO-1, ISO-12b | started |
+| I3 | ISO-11e | M10 | Default branch in the export builder ahead of new export kinds | ISO-1 | started |
 | I3 | ISO-11c | M12 | Source filter on register, approvals, calendar and evidence screens | ISO-1, ISO-7b | |
 | I3 | ISO-6a | M17 | ISO screens 1: gate, overview, systems, checklist, documents, certification | ISO-1, ISO-7, ISO-7b | |
 | I3 | ISO-2c | M3 | Library guards, clause references and the catalogue marker | ISO-2b | |
-| I3 | ISO-1b | M0 | Join the staged ISO enum values | ISO-2b, ISO-12a, ISO-11e | |
+| I3 | ISO-1b | M0 | Join the staged ISO enum values | ISO-1a, ISO-2b, ISO-12a, ISO-11e | |
 | I3 | ISO-16 | M8 | Import matches and creates STATUTE acts only | ISO-2c | |
 | I3 | ISO-5b | M15 | Features-changed event and copy status in the console | ISO-1, ISO-2c, ISO-5 | |
 | I4 | ISO-2d | M3 | ISO tables 1: catalogue copy, systems, checklist, documents, certification, files | ISO-2c | |
-| I4 | ISO-4b | M5 | ISO policy rows, `hasFeature`, readiness and multi-unit scope | ISO-1, ISO-2c, ISO-4c | |
+| I4 | ISO-4b | M5 | ISO policy rows, `hasFeature`, readiness and multi-unit scope | ISO-1a, ISO-2c, ISO-4c | |
 | I4 | ISO-10a | M9 | Copy the ISO catalogue when the add-on comes on | ISO-1, ISO-2c | |
 | I4 | ISO-6b | M17 | ISO screens 2: risks, objectives, actions | ISO-6a, ISO-1b | |
 | I4 | ISO-12c | M13 | Statutory numbers link to Law only | ISO-1, ISO-11c, ISO-12a | |
