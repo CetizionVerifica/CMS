@@ -47,6 +47,7 @@ import {
   addMonths,
   certificationCycle,
   fyOf,
+  incidentsIn,
   isoTiming,
   localDate,
   objectiveOnTrack,
@@ -169,8 +170,8 @@ function addChecklistRows(
 
 /**
  * Applies the defined fields of `patch` to `row` (version checked first) and bumps it once, then audits the changed
- * fields: those named in `split` under their own action (a status change is a TRANSITION, an owner change a REASSIGN),
- * the rest as one UPDATE. Nothing is written when nothing changed.
+ * fields: those named in `split` under their own action (an owner change is a REASSIGN), the rest as one UPDATE.
+ * Nothing is written when nothing changed.
  */
 function patchWithEvents<
   T extends { id: string; clientId: string; version: number; updatedAt: string },
@@ -314,7 +315,8 @@ const NA_FIELDS = [
 
 /**
  * One clause N/A arrow (model §4.6): version, then the from-state (409 INVALID_TRANSITION), then the change, audited
- * as a TRANSITION with its reason. `delegated` when the actor is not the person who normally takes the step.
+ * as a TRANSITION naming the action, with its reason. `delegated` when the actor is not the person who normally takes
+ * the step.
  */
 function naTransition(
   ctx: IsoCtx,
@@ -339,7 +341,7 @@ function naTransition(
     entityId: row.id,
     clientId: row.clientId,
     before: changes.before,
-    after: changes.after,
+    after: { action, ...changes.after },
     reason: options.reason,
     ...(options.delegated ? { delegated: true } : {}),
   });
@@ -624,17 +626,13 @@ function managementReviewDue(
   };
 }
 
-/** `incidentCounts` over the client's current FY, by the client-local date of `occurredAt`. */
+/** `incidentCounts` over the client's current FY, by the client-local date of `occurredAt` (`incidentsIn`). */
 function incidentCounts(
   ncs: Records['nonconformities'],
   period: { from: string; to: string },
   timeZone: string,
 ): SystemOverview['incidents'] {
-  const inPeriod = ncs.filter((n) => {
-    if (n.incident === null || n.state === 'CANCELLED') return false;
-    const on = localDate(n.incident.occurredAt, timeZone);
-    return on >= period.from && on <= period.to;
-  });
+  const inPeriod = incidentsIn(ncs, period, timeZone);
   const ids = (pick: (incident: NonNullable<(typeof inPeriod)[number]['incident']>) => boolean) =>
     idCount(inPeriod.filter((n) => pick(n.incident!)).map((n) => n.id));
   return {
@@ -977,9 +975,8 @@ export const systemsHandlers: PartialHandlers<Ids> = {
     if (patch.unitIds !== undefined) {
       checkClientUnits(actor.firm, system.clientId, patch.unitIds, 'unitIds');
     }
-    patchWithEvents(ctx, actor, system, version, patch, 'management_system', {
-      status: 'TRANSITION',
-    });
+    // The system's status has no machine (model §4), so a status change is a field edit like the others.
+    patchWithEvents(ctx, actor, system, version, patch, 'management_system');
     addChecklistRows(ctx, actor, system, added);
     return system;
   },

@@ -10,6 +10,7 @@ import {
   BENGALURU,
   CHENNAI,
   call,
+  clause,
   fails,
   FIRM_B,
   firmB,
@@ -2039,6 +2040,110 @@ describe('review input figures', () => {
     const none = byKey(await inputs(review.id, PERSON.leela, HARBOUR), 'COMPLIANCE_EVALUATION');
     expect(none.sourceFigures!.since).toBe(TODAY);
     expect(none.sourceFigures!.figures.map((f) => f.key)).not.toContain('statutoryScore');
+  });
+
+  it('counts a held review up to the day it was held, not up to today', async () => {
+    // Firm B's review of its integrated system, held on 2024-10-28 (the system was set up on 2024-04-10).
+    const held = fixtureId('firm-b:iso:review:2024');
+    const ims = fixtureId('firm-b:iso:system:ims');
+    const onTheDay = seedNc(ims, { reportedOn: '2024-10-28' });
+    const dayAfter = seedNc(ims, { reportedOn: '2024-10-29' });
+    const input = byKey(await inputs(held), 'NONCONFORMITIES');
+    expect(input.sourceFigures).toMatchObject({ since: '2024-04-10', asOf: '2024-10-28' });
+    expect(figureOf(input, 'raised').ids).toContain(onTheDay.id);
+    expect(figureOf(input, 'raised').ids).not.toContain(dayAfter.id);
+    for (const row of [onTheDay, dayAfter]) row.archivedAt = NOW;
+  });
+
+  it('leaves a cancelled incident out of the review figures, as the overview does', async () => {
+    const incident = seedNc(system.id, {
+      source: 'INCIDENT',
+      standards: ['ISO_45001'],
+      reportedOn: '2024-09-05',
+      incident: {
+        occurredAt: '2024-09-05T04:00:00Z',
+        location: 'Cold store',
+        type: 'FIRE',
+        outcome: 'NONE',
+        personCategory: 'EMPLOYEE',
+        lostDays: null,
+        reportable: false,
+        statutoryInstanceId: null,
+        investigatorIds: [],
+        workerParticipation: true,
+      },
+    });
+    const overview = async () =>
+      (
+        await ok<{ systems: { incidents: { total: { count: number; ids: string[] } } }[] }>(
+          app,
+          'getIsoOverview',
+          { as: PERSON.kabir, query: { managementSystemId: system.id } },
+        )
+      ).systems[0]!.incidents.total;
+    expect(sorted((await overview()).ids)).toEqual(sorted([ids.incident!, incident.id]));
+    expectFigure(await figures('INCIDENTS'), 'incidents', [ids.incident!, incident.id]);
+    expectFigure(await figures('INCIDENTS'), 'typeFire', [incident.id]);
+
+    await ok(app, 'cancelIsoNc', {
+      as: PERSON.kabir,
+      params: { id: incident.id },
+      body: { version: 1, reason: 'Logged twice' },
+    });
+    expect(await overview()).toEqual({ count: 1, ids: [ids.incident] });
+    const input = await figures('INCIDENTS');
+    expectFigure(input, 'incidents', [ids.incident!]);
+    expectFigure(input, 'typeFire', []);
+    expect(figureOf(input, 'outcomeNone')).toEqual({ key: 'outcomeNone', value: 0, ids: [] });
+  });
+
+  it("gives a one-standard review only that standard's audits, an internal audit's by its clauses", async () => {
+    const programme = seedProgramme(system.id);
+    const environment = seedAudit(programme.id, {
+      ...reported('2024-10-01'),
+      clauseIds: [clause('ISO_14001', '8.1')],
+    });
+    const quality = seedAudit(programme.id, {
+      ...reported('2024-10-01'),
+      clauseIds: [clause('ISO_9001', '8.1')],
+    });
+    const environmentFinding = seedFinding({
+      internalAuditId: environment.id,
+      type: 'GOOD_PRACTICE',
+    });
+    const qualityFinding = seedFinding({ internalAuditId: quality.id, type: 'GOOD_PRACTICE' });
+    const review = await plan(system.id, { standards: ['ISO_14001'] });
+    const input = await figures('AUDIT_RESULTS', PERSON.kabir, review.id);
+    // An audit that lists no clauses covers its system's standards, as for the nonconformities its findings raise.
+    expectFigure(input, 'internalAuditsReported', [ids.auditReported!, environment.id]);
+    expectFigure(input, 'findingsGoodPractice', [environmentFinding.id]);
+    expectFigure(input, 'externalAuditsHeld', []);
+    expectFigure(input, 'findingsOfi', []);
+    // The integrated review counts both.
+    const all = await figures('AUDIT_RESULTS');
+    expectFigure(all, 'internalAuditsReported', [ids.auditReported!, environment.id, quality.id]);
+    expectFigure(all, 'findingsGoodPractice', [environmentFinding.id, qualityFinding.id]);
+    for (const row of [programme, environment, quality, environmentFinding, qualityFinding]) {
+      row.archivedAt = NOW;
+    }
+  });
+
+  it('counts a reading recorded in the window whose period has not ended by as-of', async () => {
+    const objective = seedObjective(system.id, { standards: ['ISO_14001'] });
+    const running = seed(app, 'readings', {
+      ...base(),
+      objectiveId: objective.id,
+      periodStart: '2024-11-01',
+      periodEnd: '2024-11-30',
+      value: 40,
+      note: null,
+      recordedById: PERSON.rohan,
+    });
+    const input = await figures('OBJECTIVES');
+    expectFigure(input, 'readingsRecorded', [ids.reading1!, ids.reading2!, running.id]);
+    // On track reads only the periods ended by as-of: the objective has none yet.
+    expectFigure(input, 'withoutReading', [ids.noReading!, objective.id]);
+    for (const row of [objective, running]) row.archivedAt = NOW;
   });
 });
 

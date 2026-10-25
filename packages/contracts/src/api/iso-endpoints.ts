@@ -898,7 +898,7 @@ export const ISO_ENDPOINTS = {
     method: 'POST',
     path: `${ROOT}/nonconformities/{id}/reassign`,
     summary:
-      'Owner, approver, due dates or severity, with a reason; severity only while OPEN or ROOT_CAUSE_FOUND.',
+      'Owner, approver, due dates, severity or incident outcome, with a reason; severity and outcome only while OPEN or ROOT_CAUSE_FOUND.',
     action: 'isoNc.reassign',
     roles: MANAGERS,
     body: iso.NcReassignBody,

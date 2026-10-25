@@ -1392,8 +1392,8 @@ describe('internal audit findings', () => {
     expect(lastEvent(obs.id)).toMatchObject({
       action: 'UPDATE',
       entityType: 'audit_finding',
-      before: { type: 'OBSERVATION' },
-      after: { type: 'OFI', description: 'Records could be digital.' },
+      before: { type: 'OBSERVATION', description: '[not recorded]' },
+      after: { type: 'OFI', description: '[not recorded]' },
     });
     expect((await edit(obs, { type: 'MAJOR_NC' })).status).toBe(400);
     expect((await edit(obs, { clauseIds: [clause('ISO_45001', '5.4')] })).status).toBe(400);
@@ -1466,6 +1466,139 @@ describe('internal audit findings', () => {
     }
   });
 
+  it('moves MAJOR_NC and MINOR_NC while the NC is OPEN or ROOT_CAUSE_FOUND, never by its owner', async () => {
+    const a = await start(await createAudit());
+    // sameer leads the audit and owns the NC (NC_BODY); rohan audits.
+    let finding = await addFinding(a, { type: 'MAJOR_NC', nonconformity: NC_BODY });
+    const nc = ncOf(finding);
+    const onNc = { clientId: nc.clientId, id: nc.id };
+    const edit = (as: string, body: Record<string, unknown>) => ({
+      as,
+      params: at(a, { findingId: finding.id }),
+      body: { version: finding.version, ...body },
+    });
+    /** Refuses a type move and changes nothing: no event, the finding and its NC as they were. */
+    const refused = async (as: string, type: string, code: string, status: number) => {
+      const events = firmB(app).isoAuditEvents.length;
+      const was = { state: nc.state, severity: nc.severity, version: nc.version };
+      const out = await fails(app, 'updateIsoInternalFinding', edit(as, { type }), code, status);
+      expect(firmB(app).isoAuditEvents).toHaveLength(events);
+      expect(firmB(app).iso.findings.find((f) => f.id === finding.id)).toMatchObject({
+        type: finding.type,
+        version: finding.version,
+      });
+      expect(nc).toMatchObject(was);
+      return out.error.details;
+    };
+    const update = (as: string, body: Record<string, unknown>) =>
+      ok<Finding>(app, 'updateIsoInternalFinding', edit(as, body));
+
+    // OPEN: the owner is refused though they lead the audit; an auditor moves it and the severity follows.
+    expect(await refused(PERSON.sameer, 'MINOR_NC', 'FORBIDDEN', 403)).toEqual({
+      action: 'isoAudit.conduct',
+    });
+    finding = await update(PERSON.rohan, { type: 'MINOR_NC' });
+    expect(finding).toMatchObject({ type: 'MINOR_NC', version: 2 });
+    expect(nc).toMatchObject({ state: 'OPEN', severity: 'MINOR', version: 2 });
+    expect(lastEvent(nc.id)).toMatchObject({
+      action: 'UPDATE',
+      entityType: 'nonconformity',
+      actorId: PERSON.rohan,
+      before: { severity: 'MAJOR' },
+      after: { severity: 'MINOR' },
+    });
+    // Only the move is closed to the owner: their other edits keep today's rules.
+    finding = await update(PERSON.sameer, {
+      clauseIds: [C('7.2')],
+      description: 'No induction records for two starters.',
+    });
+    expect(finding).toMatchObject({ type: 'MINOR_NC', clauseIds: [C('7.2')], version: 3 });
+    expect(nc.version).toBe(2);
+
+    // ROOT_CAUSE_FOUND: still open to the move.
+    await ok(app, 'addIsoNcRootCause', {
+      as: PERSON.sameer,
+      params: onNc,
+      body: {
+        version: nc.version,
+        containment: 'Paused new starters on the line',
+        correction: 'Inducted the two starters',
+        rootCauseMethod: 'FIVE_WHYS',
+        rootCause: 'The induction checklist has no records step',
+        similarOccurrences: 'None at Bengaluru',
+      },
+    });
+    expect(nc).toMatchObject({ state: 'ROOT_CAUSE_FOUND', version: 3 });
+    expect(await refused(PERSON.sameer, 'MAJOR_NC', 'FORBIDDEN', 403)).toEqual({
+      action: 'isoAudit.conduct',
+    });
+    finding = await update(PERSON.meera, { type: 'MAJOR_NC' });
+    expect(finding).toMatchObject({ type: 'MAJOR_NC', version: 4 });
+    expect(nc).toMatchObject({ state: 'ROOT_CAUSE_FOUND', severity: 'MAJOR', version: 4 });
+    expect(lastEvent(nc.id)).toMatchObject({
+      action: 'UPDATE',
+      entityType: 'nonconformity',
+      actorId: PERSON.meera,
+      before: { severity: 'MINOR' },
+      after: { severity: 'MAJOR' },
+    });
+
+    // ACTIONS_PLANNED and AWAITING_VERIFICATION: 409 for everyone, and still 403 for the owner.
+    const action = seed(app, 'actions', {
+      ...base(),
+      subject: { type: 'NONCONFORMITY', id: nc.id },
+      text: 'Add a records step to the induction checklist.',
+      resources: null,
+      ownerId: PERSON.sameer,
+      dueOn: addDays(TODAY, 14),
+      doneOn: null,
+      state: 'OPEN',
+      effectivenessNote: null,
+      cancelReason: null,
+      controlHierarchy: null,
+      outputKey: null,
+    });
+    await ok(app, 'planIsoNcActions', {
+      as: PERSON.sameer,
+      params: onNc,
+      body: { version: nc.version, effectivenessDueOn: addDays(TODAY, 30) },
+    });
+    expect(nc).toMatchObject({ state: 'ACTIONS_PLANNED', severity: 'MAJOR', version: 5 });
+    for (const as of [PERSON.rohan, PERSON.meera, PERSON.kabir]) {
+      expect(await refused(as, 'MINOR_NC', 'INVALID_TRANSITION', 409)).toEqual({
+        entity: 'nonconformity',
+        from: 'ACTIONS_PLANNED',
+        action: 'UPDATE',
+      });
+    }
+    expect(await refused(PERSON.sameer, 'MINOR_NC', 'FORBIDDEN', 403)).toEqual({
+      action: 'isoAudit.conduct',
+    });
+    Object.assign(action, { state: 'DONE', doneOn: TODAY });
+    await ok(app, 'submitIsoNc', {
+      as: PERSON.sameer,
+      params: onNc,
+      body: {
+        version: nc.version,
+        riskReview: 'None needed',
+        systemChange: 'Induction checklist updated',
+      },
+    });
+    expect(nc).toMatchObject({ state: 'AWAITING_VERIFICATION', severity: 'MAJOR', version: 6 });
+    expect(await refused(PERSON.rohan, 'MINOR_NC', 'INVALID_TRANSITION', 409)).toEqual({
+      entity: 'nonconformity',
+      from: 'AWAITING_VERIFICATION',
+      action: 'UPDATE',
+    });
+    expect(await refused(PERSON.sameer, 'MINOR_NC', 'FORBIDDEN', 403)).toEqual({
+      action: 'isoAudit.conduct',
+    });
+    // The finding's other fields still change.
+    finding = await update(PERSON.rohan, { description: 'No induction records for new starters.' });
+    expect(finding).toMatchObject({ type: 'MAJOR_NC', version: 5 });
+    expect(nc.version).toBe(6);
+  });
+
   it('locks findings once the audit is REPORTED, and finds them only under their audit', async () => {
     const a = await answered();
     const finding = await addFinding(a);
@@ -1496,6 +1629,35 @@ describe('internal audit findings', () => {
       'NOT_FOUND',
       404,
     );
+  });
+
+  it('never copies a finding description into the audit trail (non-negotiable 6)', async () => {
+    const a = await start(await createAudit());
+    const raisedText = 'A fitter on the night shift worked at height without a harness.';
+    const editedText = 'Two fitters on the night shift worked at height without harnesses.';
+    const major = await addFinding(a, {
+      type: 'MAJOR_NC',
+      description: raisedText,
+      nonconformity: NC_BODY,
+    });
+    const nc = ncOf(major);
+    const edited = await ok<Finding>(app, 'updateIsoInternalFinding', {
+      params: at(a, { findingId: major.id }),
+      body: { version: major.version, description: editedText },
+    });
+    expect(edited).toMatchObject({ description: editedText, version: 2 });
+    expect(nc.description).toBe(raisedText);
+    expect(isoEvents(app, major.id)).toHaveLength(2);
+    expect(lastEvent(major.id)).toMatchObject({
+      action: 'UPDATE',
+      entityType: 'audit_finding',
+      before: { description: '[not recorded]' },
+      after: { description: '[not recorded]' },
+    });
+    expect(isoEvents(app, nc.id)[0]!.after).not.toHaveProperty('description');
+    const trail = JSON.stringify(firmB(app).isoAuditEvents.filter((e) => e.clientId === NORTHWIND));
+    expect(trail).not.toContain(raisedText);
+    expect(trail).not.toContain(editedText);
   });
 });
 

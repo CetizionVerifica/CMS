@@ -43,6 +43,7 @@ import {
   canSee,
   checkIsoPerson,
   checkIsoVersion,
+  clauseOf,
   finishIsoScans,
   forbidden,
   holdsRole,
@@ -65,7 +66,7 @@ import {
   systemUnitIds,
   touchIso,
 } from '../../iso/common.js';
-import { localDate, objectiveOnTrack } from '../../iso/derive.js';
+import { incidentsIn, localDate, objectiveOnTrack } from '../../iso/derive.js';
 import type { FirmState, IsoAuditEvent, IsoRow } from '../../store.js';
 
 type Ids =
@@ -115,7 +116,6 @@ const MANAGERS: readonly Role[] = ['FIRM_ADMIN', 'CONSULTANT', 'CLIENT_ADMIN'];
 const FINAL: readonly Review['state'][] = ['CLOSED', 'CANCELLED'];
 /** Reviews that were held: their `heldOn` counts (model §5.2, §5.4). */
 const HELD: readonly Review['state'][] = ['HELD', 'CLOSED'];
-/** The fields only `isoReview.plan` changes, and only while PLANNED (ManagementReviewUpdateBody). */
 /**
  * Audit groups of a review edit (model §8): moving its date is a due-date change and a new chair a reassignment, each
  * with the reason, and its standards (with the input and output rows that follow them), attendees and minutes an UPDATE.
@@ -609,7 +609,8 @@ function riskFigures(f: FigureScope): Figure[] {
 
 /**
  * OBJECTIVES: `objectiveProgress` of each objective of the input's standards (one listing several counts once here):
- * open ones on track, off track or without a reading, those closed in the window by outcome, and readings recorded.
+ * open ones on track, off track or without a reading (on track reads the periods ended by as-of), those closed in the
+ * window by outcome, and the readings recorded in the window, whatever their period.
  */
 function objectiveFigures(f: FigureScope): Figure[] {
   const objectives = liveIso(f.firm, 'objectives', f.review.clientId).filter(
@@ -618,13 +619,19 @@ function objectiveFigures(f: FigureScope): Figure[] {
       o.standards.some((code) => f.codes.includes(code)) &&
       canSee(f.actor, objectiveReach(f.firm, o)),
   );
-  const readingsOf = (o: Objective) =>
-    liveIso(f.firm, 'readings', f.review.clientId).filter(
-      (r) => r.objectiveId === o.id && r.periodEnd <= f.asOf,
-    );
+  const readings = liveIso(f.firm, 'readings', f.review.clientId);
+  const readingsOf = (o: Objective) => readings.filter((r) => r.objectiveId === o.id);
   const open = objectives.filter((o) => o.closedOn === null);
   const track = new Map(
-    open.map((o) => [o.id, objectiveOnTrack(o, readingsOf(o), f.asOf, f.timeZone)]),
+    open.map((o) => [
+      o.id,
+      objectiveOnTrack(
+        o,
+        readingsOf(o).filter((r) => r.periodEnd <= f.asOf),
+        f.asOf,
+        f.timeZone,
+      ),
+    ]),
   );
   const closed = objectives.filter((o) => within(f, o.closedOn));
   const recorded = objectives.flatMap(readingsOf).filter((r) => within(f, dayOf(f, r.createdAt)));
@@ -695,11 +702,12 @@ function ncFigures(f: FigureScope): Figure[] {
   ];
 }
 
-/** INCIDENTS (`incidentCounts`): by the client-local day of `occurredAt`, in total, by type and by outcome. */
+/**
+ * INCIDENTS (`incidentCounts`, the overview's rule `incidentsIn`): by the client-local day of `occurredAt`, cancelled
+ * ones left out, in total, by type and by outcome.
+ */
 function incidentFigures(f: FigureScope): Figure[] {
-  const incidents = ncsFor(f).filter(
-    (n) => n.incident !== null && within(f, dayOf(f, n.incident.occurredAt)),
-  );
+  const incidents = incidentsIn(ncsFor(f), { from: f.since, to: f.asOf }, f.timeZone);
   const lostTime = incidents.filter((n) => n.incident!.lostDays !== null);
   return [
     figure('incidents', ids(incidents)),
@@ -717,18 +725,28 @@ function incidentFigures(f: FigureScope): Figure[] {
   ];
 }
 
-/** AUDIT_RESULTS: internal audits reported and external audits ended (and held) in the window, findings by type. */
+/**
+ * AUDIT_RESULTS: internal audits reported and external audits ended (and held) in the window, of the input's
+ * standards, and their findings by type. An internal audit's standards are its clauses' (the system's when it lists
+ * none, as for the nonconformities its findings raise).
+ */
 function auditFigures(f: FigureScope): Figure[] {
   const clientId = f.review.clientId;
+  const standards = systemStandards(f.firm, f.system);
+  const covered = f.codes
+    .map((code) => standards.get(code))
+    .filter((id): id is string => id !== undefined);
+  const ofStandards = (a: Audit) =>
+    a.clauseIds.length === 0 ||
+    a.clauseIds.some((id) => covered.includes(clauseOf(f.firm, id)?.standardId ?? ''));
   const audits = liveIso(f.firm, 'internalAudits', clientId).filter(
     (a) =>
       auditSystemId(f.firm, a) === f.system.id &&
+      ofStandards(a) &&
       (a.state === 'REPORTED' || a.state === 'CLOSED') &&
       within(f, a.reportedOn) &&
       canSee(f.actor, auditReach(f.firm, a)),
   );
-  const standards = systemStandards(f.firm, f.system);
-  const covered = f.codes.map((code) => standards.get(code));
   const externals = liveIso(f.firm, 'externalAudits', clientId).filter(
     (e) =>
       e.managementSystemId === f.system.id &&
@@ -752,7 +770,7 @@ function auditFigures(f: FigureScope): Figure[] {
 
 /**
  * COMPLIANCE_EVALUATION: the evaluation activity's instances on the system's units (due and done in the window, and
- * the latest due by today), and the STATUTE-only score of the instances due in the window (a score has no ids).
+ * the latest due by as-of), and the STATUTE-only score of the instances due in the window (a score has no ids).
  */
 function complianceFigures(f: FigureScope): Figure[] {
   const look = new Lookup(f.firm);
@@ -793,7 +811,8 @@ const FIGURES: Record<Exclude<ReviewInputSource, 'MANUAL'>, (f: FigureScope) => 
 
 /**
  * `reviewInputFigures` (model §5.4) for one input, from the ISO tables the actor may see (plan §3.3), between `since`
- * and today; null for a MANUAL input, which is written by hand.
+ * and the day the review was held, the window it reviewed (today for a review not held: PLANNED, or CANCELLED, which
+ * is cancelled only while PLANNED); null for a MANUAL input, which is written by hand.
  */
 function inputFigures(
   actor: Actor,
@@ -810,7 +829,7 @@ function inputFigures(
     review,
     system,
     codes,
-    asOf: today,
+    asOf: review.heldOn ?? today,
     timeZone: timeZoneOf(actor.firm, review.clientId),
   };
   const f: FigureScope = { ...base, since: sinceFor(base) };

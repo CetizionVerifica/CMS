@@ -232,6 +232,18 @@ function checkRiskItems(
   }
 }
 
+/** The create body's target rule on the merged objective: INCREASE not below the baseline, DECREASE not above it. */
+function checkTarget(objective: Objective): void {
+  const { baseline, target, direction } = objective;
+  if (baseline === null) return;
+  if (direction === 'INCREASE' && target < baseline) {
+    invalid('target', 'An INCREASE objective has a target at or above its baseline');
+  }
+  if (direction === 'DECREASE' && target > baseline) {
+    invalid('target', 'A DECREASE objective has a target at or below its baseline');
+  }
+}
+
 /** A closed objective takes no field edits and no new or corrected readings (model §1.8). */
 function requireOpen(objective: Objective): void {
   if (objective.closedOn !== null) invalidTransition('objective', 'CLOSED', 'UPDATE');
@@ -642,7 +654,11 @@ export const risksHandlers: PartialHandlers<Ids> = {
     if (fields.ownerId !== undefined) {
       checkIsoPerson(actor, objective.clientId, fields.ownerId, 'ownerId');
     }
-    applyEdit(ctx, actor, objective, fields, 'objective', 'dueOn', reason ?? null);
+    const defined = Object.fromEntries(
+      Object.entries(fields).filter(([, v]) => v !== undefined),
+    ) as Partial<Objective>;
+    checkTarget({ ...objective, ...defined });
+    applyEdit(ctx, actor, objective, defined, 'objective', 'dueOn', reason ?? null);
     return objectiveView(ctx, actor, objective);
   },
 

@@ -258,7 +258,7 @@ describe('management systems', () => {
     });
   });
 
-  it('changes fields, audits a status change as a transition and adds standards with their rows', async () => {
+  it('changes fields, audits a status change as an update and adds standards with their rows', async () => {
     const system = seedSystem(app, { standards: ['ISO_9001'] });
     const before = rowsOf(system.id).length;
     let updated = await ok<System>(app, 'updateIsoSystem', {
@@ -281,18 +281,19 @@ describe('management systems', () => {
       status: 'CERTIFIED',
       reviewIntervalMonths: 6,
     });
+    // A system's status has no machine (model §4): it is a field edit, in the one UPDATE event.
     const events = isoEvents(app, system.id);
-    expect(events.map((e) => e.action)).toEqual(['UPDATE', 'TRANSITION']);
+    expect(events.map((e) => e.action)).toEqual(['UPDATE']);
+    expect(events[0]).toMatchObject({
+      entityType: 'management_system',
+      before: { status: 'IMPLEMENTING' },
+    });
     expect(events[0]!.after).toEqual({
       name: 'Integrated system',
       scopeStatement: 'Food production at Pune.',
       unitIds: [PUNE],
+      status: 'CERTIFIED',
       reviewIntervalMonths: 6,
-    });
-    expect(events[1]).toMatchObject({
-      entityType: 'management_system',
-      before: { status: 'IMPLEMENTING' },
-      after: { status: 'CERTIFIED' },
     });
 
     const s9001 = standardId(app, 'ISO_9001');
@@ -924,8 +925,15 @@ describe('clause N/A (model §4.6)', () => {
       action: 'TRANSITION',
       entityType: 'clause_assessment',
       before: { status: 'PARTIAL', naState: 'NONE', statusBeforeNa: null },
-      after: { status: 'NOT_APPLICABLE', naState: 'REQUESTED', statusBeforeNa: 'PARTIAL' },
       reason: 'We do no design work.',
+    });
+    expect(lastEvent(row.id).after).toEqual({
+      action: 'REQUEST_NA',
+      status: 'NOT_APPLICABLE',
+      naState: 'REQUESTED',
+      statusBeforeNa: 'PARTIAL',
+      justification: 'We do no design work.',
+      naRequestedById: PERSON.sameer,
     });
     expect(lastEvent(row.id).after).not.toHaveProperty('delegated');
 
@@ -984,7 +992,7 @@ describe('clause N/A (model §4.6)', () => {
     });
     expect(lastEvent(row.id)).toMatchObject({
       action: 'TRANSITION',
-      after: { naState: 'REJECTED', status: 'PARTIAL' },
+      after: { action: 'REJECT_NA', naState: 'REJECTED', status: 'PARTIAL' },
       reason: 'Recipes are designed here.',
     });
     await ok(app, 'updateIsoChecklistRow', {
@@ -1015,8 +1023,9 @@ describe('clause N/A (model §4.6)', () => {
       naDecidedById: PERSON.divya,
     });
     expect(lastEvent(row.id)).toMatchObject({
+      action: 'TRANSITION',
       before: { naState: 'REQUESTED' },
-      after: { naState: 'APPROVED', naDecidedById: PERSON.divya },
+      after: { action: 'APPROVE_NA', naState: 'APPROVED', naDecidedById: PERSON.divya },
       reason: 'Agreed.',
     });
     expect(lastEvent(row.id).after).not.toHaveProperty('delegated');
@@ -1067,7 +1076,7 @@ describe('clause N/A (model §4.6)', () => {
     });
     expect(lastEvent(row.id)).toMatchObject({
       action: 'TRANSITION',
-      after: { naState: 'NONE', status: 'NOT_STARTED' },
+      after: { action: 'WITHDRAW_NA', naState: 'NONE', status: 'NOT_STARTED' },
       reason: 'Design work starts at Pune.',
     });
     await fails(
@@ -1078,7 +1087,13 @@ describe('clause N/A (model §4.6)', () => {
       409,
     );
     const transitions = isoEvents(app, row.id).filter((e) => e.action === 'TRANSITION');
-    expect(transitions).toHaveLength(5);
+    expect(transitions.map((e) => e.after?.action)).toEqual([
+      'REQUEST_NA',
+      'REJECT_NA',
+      'REQUEST_NA',
+      'APPROVE_NA',
+      'WITHDRAW_NA',
+    ]);
   });
 
   it('allows N/A only where the clause allows exclusion', async () => {

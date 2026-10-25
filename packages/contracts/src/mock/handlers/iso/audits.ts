@@ -14,6 +14,7 @@ import {
   checkSystemClauses,
   checkSystemUnits,
   clauseOf,
+  forbidden,
   holdsRole,
   invalid,
   invalidTransition,
@@ -35,6 +36,7 @@ import {
 } from '../../iso/common.js';
 import { uncoveredByAudits } from '../../iso/derive.js';
 import type { FirmState, IsoAuditEvent, IsoRow } from '../../store.js';
+import { patchIsoUnrecorded } from './nonconformities.js';
 
 type Ids =
   | 'listIsoAuditProgrammes'
@@ -1002,7 +1004,8 @@ export const auditsHandlers: PartialHandlers<Ids> = {
   /**
    * Changes a finding while its audit is IN_PROGRESS. `type` moves only among OBSERVATION, OFI and GOOD_PRACTICE (a
    * finding with live actions cannot become GOOD_PRACTICE), or between MAJOR_NC and MINOR_NC, when its nonconformity's
-   * severity follows.
+   * severity follows: only while that nonconformity is OPEN or ROOT_CAUSE_FOUND (409 after) and never by its owner
+   * (403), model §3.9. A description edit is audited as changed, not copied (non-negotiable 6).
    */
   updateIsoInternalFinding(ctx) {
     const actor = actorOf(ctx);
@@ -1048,12 +1051,19 @@ export const auditsHandlers: PartialHandlers<Ids> = {
       }
       if (finding.nonconformityId !== null) {
         nc = firm.iso.nonconformities.find((n) => n.id === finding.nonconformityId)!;
-        if (nc.state === 'CLOSED' || nc.state === 'CANCELLED') {
+        // SUBMIT_NO_ACTION reads the severity, so its owner never moves it, and nobody after ROOT_CAUSE_FOUND.
+        if (nc.ownerId === actor.person.id) {
+          forbidden(
+            'isoAudit.conduct',
+            'You own its nonconformity, so someone else moves its type',
+          );
+        }
+        if (nc.state !== 'OPEN' && nc.state !== 'ROOT_CAUSE_FOUND') {
           invalidTransition('nonconformity', nc.state, 'UPDATE');
         }
       }
     }
-    patchIso(
+    patchIsoUnrecorded(
       ctx,
       actor,
       finding,

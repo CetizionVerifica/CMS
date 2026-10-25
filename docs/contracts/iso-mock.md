@@ -16,9 +16,10 @@ README decisions 42-51. M4 owns every formula marked "stand-in".
 - **Audit actions.** Owner, lead, chair and approver changes are `REASSIGN`; date moves are `DUE_DATE_CHANGE`; other
   field edits are `UPDATE`; machine steps are `TRANSITION` with `after.action`. A step taken by someone other than the
   person who normally takes it (a client admin or manager as delegate) has `after.delegated: true`. Every checklist row
-  a new system makes writes its own `CREATE`. The scan writes no event (M9 owns it). Incident and NC descriptions are
-  never copied into audit events (non-negotiable 6): an edit of an NC's description or an incident's location shows
-  `[not recorded]` on both sides.
+  a new system makes writes its own `CREATE`. The scan writes no event (M9 owns it). Incident, nonconformity and audit
+  finding descriptions are never copied into audit events (non-negotiable 6): a RAISE (by hand, or from an internal or
+  external finding, which adds `auditFindingId`) and a finding's `CREATE` leave them out, and an edit of a
+  nonconformity's or a finding's description or an incident's location shows `[not recorded]` on both sides.
 - **File scans.** A confirmed file is `PENDING` and becomes `CLEAN` (or `INFECTED` for an "eicar" name) on the next
   read of its subject's files or download URL, or when a step relies on it: a revision's SUBMIT or RECORD_EDITION, an
   external audit's RECORD_HELD.
@@ -30,7 +31,10 @@ README decisions 42-51. M4 owns every formula marked "stand-in".
   measured as at its `closedOn`). With a baseline, INCREASE and DECREASE compare it with the straight line from the
   baseline on the day the objective was created to the target on `dueOn`, at the reading's `periodEnd`; without a
   baseline, and for MAINTAIN, the reading must meet the target. `missedReadings` are the periods of `readingRule`
-  that ended on or after the creation day, start by `dueOn`, fell due before as-of, and no reading overlaps.
+  that fell due on or after the creation day and before as-of, ended on or after the creation day, start by `dueOn`,
+  and no reading overlaps. The creation day is `createdAt` as a date in the client's time zone (an objective set at
+  01:30 IST on 1 April owes no reading for March), and `readingRule` periods follow the client's financial year
+  (`fyStartMonth`), as `IsoEngineApi.objectiveProgress` takes them (README decision 51 r).
 - **Certification cycle**, one rule for `CertificationView.cycle` and the overview's `cycleOverdue`: surveillance 1
   and 2 due 12 and 24 months after `issuedOn`, recertification on `expiresOn`. Each is met by the earliest HELD,
   RESPONDED or CLOSED external audit of the certificate's system, of that type, covering its standard, that ended
@@ -48,13 +52,19 @@ README decisions 42-51. M4 owns every formula marked "stand-in".
 - **NC status** is OVERDUE when the earliest of `dueOn` (before AWAITING_VERIFICATION) and its OPEN actions' due
   dates is before today.
 - **Management review figures**: `since` is the standard's last HELD or CLOSED review of the same system before this
-  one, else the system's creation day. Figures count only records the caller can see and whose standards overlap the
-  review's.
+  one, else the system's creation day. As-of is the review's `heldOn` once it is held (the window it reviewed), else
+  today (a PLANNED review, or a CANCELLED one, which was never held). Figures count only records the caller can see
+  and whose standards overlap the review's; an internal audit's standards are those of its clauses (its system's when
+  it lists none), and findings follow their audit. INCIDENTS uses the overview's rule, so cancelled NCs are left out
+  of both. `readingsRecorded` counts every reading recorded in the window, whatever its period; on-track reads only
+  periods ended by as-of.
 
 ## Area by area
 
 **Systems and checklist.** `climateDecidedOn` may not be in the future. Only FA, CO and CA change a checklist row's
-owner. APPROVE_NA and REJECT_NA need the row's units: an approver named as the row's owner but outside the system's
+owner. A management system's `status` has no machine (model §4), so a status change is an `UPDATE`; each N/A step
+is a `TRANSITION` whose `after.action` is REQUEST_NA, APPROVE_NA, REJECT_NA or WITHDRAW_NA. APPROVE_NA and REJECT_NA
+need the row's units: an approver named as the row's owner but outside the system's
 units may not decide (README decision 45). REJECT_NA keeps the request and decision; WITHDRAW_NA clears them. `listIsoChecklist` shows an owner outside the
 system's units just their own rows (plan §3.3 named-person exception).
 
@@ -65,7 +75,10 @@ it CLEAN. Maker-checker: nobody who prepared or ever submitted a revision approv
 an ACTIVE document is readable by every member; other revisions follow unit scope.
 
 **Risks and objectives.** Legal links must be live STATUTE obligations. An objective's risk items belong to its own
-system. A reading's period may not start after today or overlap another reading. `closedOn` lies between the creation
+system. With a baseline, an INCREASE objective's target is at or above it and a DECREASE objective's at or below it (a
+target equal to the baseline is a level to hold; MAINTAIN, or no baseline, takes any target), so progress and on-track
+never disagree: the create body checks it and the update route checks the merged objective, else `400 VALIDATION` on
+`target`. A reading's period may not start after today or overlap another reading. `closedOn` lies between the creation
 day and today. A risk `unitId` filter matches only the item's own unit.
 
 **Internal audits.** Lead and auditors (approver or owner) may START, REPORT and CLOSE; when that is not the lead it
@@ -75,10 +88,16 @@ the future.
 
 **Nonconformities.** The NC owner must be an OWNER or CLIENT_ADMIN and its approver an APPROVER or CLIENT_ADMIN
 covering its unit, whether raised by hand, from an internal finding or from an external one. The PATCH route is the
-owner's and a CA's (investigation fields); the reassign route is FA's, CO's and CA's (owner, approver, dates and
-severity, with a reason). Severity changes only while OPEN or ROOT_CAUSE_FOUND. VERIFY_NOT_EFFECTIVE
+owner's and a CA's (investigation fields); the reassign route is FA's, CO's and CA's (owner, approver, dates,
+severity and the incident outcome, with a reason). Severity and outcome change only while OPEN or ROOT_CAUSE_FOUND;
+`lostDays` moves with the outcome on reassign, and alone only on the PATCH while the outcome stays LOST_TIME. A
+finding's NC refuses a severity change, and an NC without incident fields refuses an outcome, `400` in any state.
+VERIFY_EFFECTIVE re-checks the SUBMIT_NO_ACTION rule on an NC submitted with none (the later of SUBMIT and
+SUBMIT_NO_ACTION in its trail), to catch rows changed outside these routes. VERIFY_NOT_EFFECTIVE
 may come before `effectivenessDueOn`; VERIFY_EFFECTIVE waits for it. `effectivenessDueOn` can move but never be cleared
-or set in the past. Severity of an NC raised from a finding is fixed. REOPEN clears `effective`, and back to OPEN also
+or set in the past. Severity of an NC raised from a finding follows the finding's type alone: the finding's MAJOR_NC/MINOR_NC move is
+refused once the NC has left OPEN or ROOT_CAUSE_FOUND (`409 INVALID_TRANSITION`, entity `nonconformity`, action
+`UPDATE`) and for the NC's owner (`403 FORBIDDEN`, whatever the state); the owner's other edits of the finding stand. REOPEN clears `effective`, and back to OPEN also
 clears `effectivenessDueOn`; controls added by a reopened treatment action stay. Actions on a closed subject can be
 cancelled but not completed, edited or reopened.
 

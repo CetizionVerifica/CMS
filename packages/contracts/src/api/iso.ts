@@ -583,22 +583,44 @@ export const ObjectiveQuery = z.strictObject({
   open: QueryBoolean.optional(),
 });
 
-export const ObjectiveCreateBody = z.strictObject({
-  managementSystemId: Id,
-  standards: StandardList,
-  text: Text.max(1000),
-  target: z.number().finite(),
-  unitOfMeasure: Text.max(50),
-  baseline: z.number().finite().nullable().default(null),
-  direction: ObjectiveDirection,
-  readingRule: RecurrenceRule,
-  riskItemIds: ids(100).default([]),
-  ownerId: Id,
-  dueOn: LocalDate,
-});
+/**
+ * With a baseline, an INCREASE target is not below it and a DECREASE target not above it, so progress and on-track
+ * agree; a target equal to the baseline is a level to hold. MAINTAIN, or no baseline, takes any target.
+ */
+function checkObjectiveTarget(
+  o: { baseline?: number | null; target?: number; direction?: string },
+  ctx: z.core.$RefinementCtx,
+): void {
+  if (o.baseline === undefined || o.baseline === null || o.target === undefined) return;
+  if (o.direction === 'INCREASE' && o.target < o.baseline) {
+    issue(ctx, 'target', 'An INCREASE objective has a target at or above its baseline');
+  }
+  if (o.direction === 'DECREASE' && o.target > o.baseline) {
+    issue(ctx, 'target', 'A DECREASE objective has a target at or below its baseline');
+  }
+}
+
+export const ObjectiveCreateBody = z
+  .strictObject({
+    managementSystemId: Id,
+    standards: StandardList,
+    text: Text.max(1000),
+    target: z.number().finite(),
+    unitOfMeasure: Text.max(50),
+    baseline: z.number().finite().nullable().default(null),
+    direction: ObjectiveDirection,
+    readingRule: RecurrenceRule,
+    riskItemIds: ids(100).default([]),
+    ownerId: Id,
+    dueOn: LocalDate,
+  })
+  .superRefine(checkObjectiveTarget);
 export type ObjectiveCreateBody = z.input<typeof ObjectiveCreateBody>;
 
-/** A new owner or a moved `dueOn` needs a reason. */
+/**
+ * A new owner or a moved `dueOn` needs a reason. The merged objective must keep its target on its direction's side of
+ * the baseline (400 VALIDATION on `target`).
+ */
 export const ObjectiveUpdateBody = z
   .strictObject({
     ...versionField,
@@ -847,7 +869,8 @@ export type ExternalFindingCreateBody = z.input<typeof ExternalFindingCreateBody
 
 /**
  * `type` moves only among OBSERVATION, OFI and GOOD_PRACTICE, or between MAJOR_NC and MINOR_NC (the nonconformity's
- * severity follows); any other change is 400 VALIDATION (cancel the nonconformity instead).
+ * severity follows), and that move only while the nonconformity is OPEN or ROOT_CAUSE_FOUND (409 INVALID_TRANSITION
+ * after) and never by its owner (403 FORBIDDEN); any other change is 400 VALIDATION (cancel the nonconformity instead).
  */
 export const FindingUpdateBody = z
   .strictObject({
@@ -1074,12 +1097,14 @@ export const NcRaiseBody = z
   });
 export type NcRaiseBody = z.input<typeof NcRaiseBody>;
 
-/** The incident fields an update may change (the type follows the source and does not change). */
+/**
+ * The incident fields an update may change. The type follows the source and does not change; the outcome changes only
+ * on the reassign route (`NcReassignBody`), and `lostDays` here only while the outcome stays LOST_TIME.
+ */
 const IncidentPatch = z
   .strictObject({
     occurredAt: Incident.shape.occurredAt.optional(),
     location: Text.max(300).optional(),
-    outcome: IncidentOutcome.optional(),
     personCategory: nullable(IncidentPersonCategory),
     lostDays: nullable(z.int().min(1).max(10_000)),
     reportable: z.boolean().optional(),
@@ -1107,7 +1132,7 @@ const ncWorkShape = {
 
 /**
  * Investigation field edits until CLOSED or CANCELLED (`isoNc.work`). A disposition and who authorised it are set no
- * later than ADD_ROOT_CAUSE. Owner, approver, dates and severity change through `NcReassignBody`.
+ * later than ADD_ROOT_CAUSE. Owner, approver, dates, severity and the incident outcome change through `NcReassignBody`.
  */
 export const NcUpdateBody = z
   .strictObject({
@@ -1126,8 +1151,10 @@ export type NcUpdateBody = z.input<typeof NcUpdateBody>;
 /**
  * `isoNc.reassign` (FA, CO, CA), until CLOSED or CANCELLED, always with a reason: a new owner or approver (audited
  * REASSIGN), a moved `dueOn` or `effectivenessDueOn` (DUE_DATE_CHANGE; the effectiveness date moves once PLAN_ACTIONS
- * set it and is never cleared), or a new `severity` (UPDATE), which changes only while OPEN or ROOT_CAUSE_FOUND and
- * never on a nonconformity raised from an audit finding, whose type sets it.
+ * set it and is never cleared), or a new `severity` or incident `outcome` (UPDATE), which SUBMIT_NO_ACTION reads, so
+ * they change only while OPEN or ROOT_CAUSE_FOUND (model §3.10). A nonconformity raised from an audit finding takes
+ * its severity from the finding's type and has no incident (400). `lostDays` comes with an outcome moving to
+ * LOST_TIME and is cleared when it moves from it; while the outcome stays LOST_TIME it changes on the PATCH.
  */
 export const NcReassignBody = z
   .strictObject({
@@ -1137,6 +1164,14 @@ export const NcReassignBody = z
     dueOn: LocalDate.optional(),
     effectivenessDueOn: LocalDate.optional(),
     severity: NcSeverity.optional(),
+    incident: z
+      .strictObject({ outcome: IncidentOutcome, lostDays: IncidentPatch.shape.lostDays })
+      .superRefine((i, ctx) => {
+        if ((i.outcome === 'LOST_TIME') !== (i.lostDays !== undefined && i.lostDays !== null)) {
+          issue(ctx, 'lostDays', 'lostDays is set exactly for LOST_TIME');
+        }
+      })
+      .optional(),
     reason: Reason,
   })
   .superRefine(hasChanges);

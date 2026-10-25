@@ -206,7 +206,7 @@ with sign-off per "How to change a contract".
     `X-Mock-Features` (comma-separated flags, empty = none) replaces the firm's features for one request on every
     route, public ones included (since 1.8.1 sign-in and support verify return them in `Me.account.features`), and
     every gate, so the web mock can play a demo user without the add-on (ISO-7b);
-    a value that is not a list of flags is `400 VALIDATION`. `PUT /__mock/firms/{firmId}/features` now takes
+    a value that is not a list of flags is `400 VALIDATION`, on any route and before the session check. `PUT /__mock/firms/{firmId}/features` now takes
     `{ features, isoCatalogueCopied? }` and answers `{ features, isoCatalogueCopiedAt }` (`404` for an unknown firm,
     `400` for a bad body). Turning `isoManagement` on runs the catalogue copy unless `isoCatalogueCopied` is false,
     which leaves an account that was never copied answering `409 FEATURE_NOT_READY`; false never clears a copy
@@ -243,8 +243,10 @@ with sign-off per "How to change a contract".
     (e) `RaisableNcSource` leaves out `INTERNAL_AUDIT` and `EXTERNAL_AUDIT`: those nonconformities are raised only by
     recording a MAJOR_NC or MINOR_NC finding, in the same transaction, so each has its finding.
     (f) A finding's `type` moves only among OBSERVATION, OFI and GOOD_PRACTICE (GOOD_PRACTICE only while it has no
-    actions that are not cancelled), or between MAJOR_NC and MINOR_NC with the nonconformity's severity following
-    (`409 INVALID_TRANSITION` once that nonconformity is CLOSED or CANCELLED). Other moves are `400 VALIDATION`:
+    actions that are not cancelled), or between MAJOR_NC and MINOR_NC with the nonconformity's severity following,
+    only while that nonconformity is OPEN or ROOT_CAUSE_FOUND (`409 INVALID_TRANSITION` after, the window of (h)) and
+    never by the nonconformity's own owner (`403 FORBIDDEN`), since SUBMIT_NO_ACTION reads the severity (1.8.1).
+    Other moves are `400 VALIDATION`:
     record a new finding instead of turning one into an NC, and cancel the NC instead of turning an NC finding into
     another type. So a finding and its nonconformity never come apart.
     (g) `IsoFile` is the stored form with 11 subject columns and `IsoFileView` the API form with `subject` (decision
@@ -252,12 +254,14 @@ with sign-off per "How to change a contract".
     `IsoAction` has nothing to hide, so it has one form, with `subject: { type, id }` as model §3.12 says the
     contract shows it; M3 maps its five subject columns to that.
     (h) `isoNc.reassign` (FA, CO, CA) is a new action for a nonconformity's owner, approver, `dueOn`,
-    `effectivenessDueOn` and severity, always with a reason (owner and approver audited `REASSIGN`, dates
-    `DUE_DATE_CHANGE`, severity `UPDATE`). The plan's table has no row for it, and `isoNc.work` (CA, OW own) would let
-    an owner reassign their own nonconformity or lower its severity and then skip corrective action. Severity changes
-    only while OPEN or ROOT_CAUSE_FOUND (`409 INVALID_TRANSITION` after, so a closed MAJOR always had its actions) and
-    never on a nonconformity raised from a finding, whose type sets it (`400 VALIDATION`). Since 1.8.1 it has its own
-    route (o).
+    `effectivenessDueOn`, severity and incident outcome, always with a reason (owner and approver audited `REASSIGN`,
+    dates `DUE_DATE_CHANGE`, severity and outcome `UPDATE`). The plan's table had no row for it, and `isoNc.work` (CA,
+    OW own) would let an owner reassign their own nonconformity, or lower its severity or outcome and then skip
+    corrective action. Severity and outcome, which SUBMIT_NO_ACTION reads, change only while OPEN or ROOT_CAUSE_FOUND
+    (`409 INVALID_TRANSITION` after, so a closed MAJOR or LOST_TIME/FATALITY nonconformity always had its actions).
+    Severity never changes here on a nonconformity raised from a finding, whose type sets it (`400 VALIDATION` in any
+    state, checked before the window). `lostDays` moves with the outcome; alone it is the owner's PATCH while the
+    outcome stays LOST_TIME. Since 1.8.1 it has its own route (o).
     (i) The catalogue and overview reads use `isoSystem.read`: the catalogue is the account's reference data and the
     overview spans every resource, so neither has a resource of its own. Every role may read them.
     (j) Views of records with a machine carry `allowedActions` (model §10 does not list them), so the UI shows only
@@ -285,7 +289,10 @@ with sign-off per "How to change a contract".
     event carries it, as `instance.reassign` and `instance.dueDate` do. Each update body lists its fields in
     `reasonWith`: checklist row owner; document owner, approver and review date; risk item owner and review date;
     objective owner and due date; internal audit dates and lead; external audit response date; action owner and due
-    date; review date and chair (replan). Other edits are `UPDATE` with no reason. A date a step sets (RECORD_HELD's
+    date; review date and chair (replan). The rule is checked at the edge, on the body: a body that names one of those
+    fields needs a reason even when the value is unchanged, so a client sends only the fields it changes (PATCH
+    semantics). Other edits are `UPDATE` with no reason, except a severity or incident-outcome change on the reassign
+    route, which carries the reason that route always needs. A date a step sets (RECORD_HELD's
     visit dates, a risk's review date when a treatment action puts a control in place) needs none; its event names
     the step or the action.
     (q) Rules the contract enforces that the model does not list, so M4's `isoTransition` and M16 apply them too:
@@ -294,6 +301,9 @@ with sign-off per "How to change a contract".
     `dueOn` is not before its `reportedOn`; `RiskItem.condition` is required on an ASPECT or HAZARD (model §3.5 says
     only that it applies to them), since an aspect's or hazard's significance depends on it. Stored rows that break
     them do not parse.
+    One more rule is on the bodies only, not the `Objective` record: with a baseline, an objective's target is not
+    below it for INCREASE nor above it for DECREASE (`ObjectiveCreateBody`, and the merged objective on update,
+    `400 VALIDATION` on `target`), so `progressPercent` and `onTrack` agree.
     (r) `IsoEngineApi.objectiveProgress` takes `createdOn: LocalDate` (the objective's `createdAt` as a date in the
     client's time zone, from the engine's date helper) and `{ fyStartMonth }`, not `createdAt`: root rule 4 forbids
     the engine turning a timestamp into a date without a zone, and reading periods follow the client's financial year,

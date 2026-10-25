@@ -1086,6 +1086,33 @@ describe('createIsoObjective', () => {
     }
   });
 
+  it('keeps the target on the direction’s side of the baseline (400 VALIDATION on target)', async () => {
+    const before = firmB(app).iso.objectives.length;
+    for (const extra of [
+      { direction: 'INCREASE', baseline: 10, target: 5 },
+      { direction: 'DECREASE', baseline: 5, target: 10 },
+    ]) {
+      const error = await fails(
+        app,
+        'createIsoObjective',
+        { body: { managementSystemId: all.id, ...OBJECTIVE, ...extra } },
+        'VALIDATION',
+        400,
+      );
+      expect(error.error.details).toMatchObject({ issues: [{ path: ['body', 'target'] }] });
+    }
+    expect(firmB(app).iso.objectives).toHaveLength(before);
+    // A target equal to the baseline is a level to hold; MAINTAIN, or no baseline, takes any target.
+    for (const extra of [
+      { direction: 'INCREASE', baseline: 95, target: 95 },
+      { direction: 'DECREASE', baseline: 0, target: 0 },
+      { direction: 'MAINTAIN', baseline: 10, target: 5 },
+      { direction: 'INCREASE', baseline: null, target: 5 },
+    ]) {
+      expect(await createObjective(all, extra)).toMatchObject({ target: extra.target, version: 1 });
+    }
+  });
+
   it('lets FA, CO and CA add objectives, and an owner only as its owner', async () => {
     await createObjective(all, {}, PERSON.arjun);
     await createObjective(all, {}, PERSON.kabir);
@@ -1121,6 +1148,8 @@ describe('getIsoObjective and listIsoObjectives', () => {
       standards: ['ISO_45001'],
       dueOn: '2025-06-30',
       direction: 'DECREASE',
+      baseline: 12,
+      target: 4,
       text: 'Fewer first-aid cases',
     });
     const done = await createObjective(goals, { dueOn: '2025-02-28' });
@@ -1301,6 +1330,39 @@ describe('updateIsoObjective', () => {
       'STALE_VERSION',
       409,
     );
+  });
+
+  it('keeps the merged target on the direction’s side of the baseline (400 VALIDATION on target)', async () => {
+    // INCREASE from 80 to 95: a lower target, a DECREASE or a baseline above 95 each breaks it, alone.
+    const objective = await createObjective();
+    for (const change of [{ target: 70 }, { direction: 'DECREASE' }, { baseline: 99 }]) {
+      const error = await fails(
+        app,
+        'updateIsoObjective',
+        { params: objParams(objective), body: { version: 1, ...change } },
+        'VALIDATION',
+        400,
+      );
+      expect(error.error.details).toMatchObject({ issues: [{ path: ['body', 'target'] }] });
+    }
+    expect((await getObjective(objective)).version).toBe(1);
+    expect(isoEvents(app, objective.id)).toHaveLength(1);
+    // Changes that keep it: a DECREASE with its new target, MAINTAIN, a cleared baseline, a target equal to it.
+    const lowered = await update(objective, { direction: 'DECREASE', target: 60 });
+    expect(lowered).toMatchObject({ direction: 'DECREASE', baseline: 80, target: 60, version: 2 });
+    await fails(
+      app,
+      'updateIsoObjective',
+      { params: objParams(lowered), body: { version: 2, baseline: 50 } },
+      'VALIDATION',
+      400,
+    );
+    const held = await update(lowered, { direction: 'MAINTAIN', baseline: 10 });
+    expect(held).toMatchObject({ direction: 'MAINTAIN', baseline: 10, target: 60, version: 3 });
+    const unanchored = await update(held, { direction: 'INCREASE', baseline: null });
+    expect(unanchored).toMatchObject({ baseline: null, target: 60, version: 4 });
+    const level = await update(unanchored, { baseline: 60 });
+    expect(level).toMatchObject({ direction: 'INCREASE', baseline: 60, target: 60, version: 5 });
   });
 
   it('lets managers and the owner edit, and no one else', async () => {
