@@ -13,6 +13,7 @@ export {
   runGenerateInstances,
   skipReason,
 } from './generate-instances.js';
+export { ISO_CATALOGUE_SWEEP, runIsoCatalogueSweep } from './iso-catalogue.js';
 export { RELAY_BATCH, RELAY_OUTBOX, runRelayOutbox } from './outbox-relay.js';
 export type * from './ports.js';
 export { ScanInterruptedError, ScanServiceError, ScanTimeoutError } from './ports.js';

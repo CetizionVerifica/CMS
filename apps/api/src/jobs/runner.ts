@@ -5,6 +5,7 @@ import { ACCOUNT_DAILY, runAccountDaily } from './accounts.js';
 import { activeConsumers, CONSUMERS, OutboxEventSchema } from './consumers.js';
 import { runConsultantDigest, CONSULTANT_DIGEST } from './digest.js';
 import { GENERATE_INSTANCES, runGenerateInstances } from './generate-instances.js';
+import { ISO_CATALOGUE_SWEEP, runIsoCatalogueSweep } from './iso-catalogue.js';
 import { RELAY_OUTBOX, runRelayOutbox } from './outbox-relay.js';
 import type { EventBus, JobDeps, JobReport } from './ports.js';
 import { REMINDERS, runReminders } from './reminders.js';
@@ -31,11 +32,11 @@ export interface JobDefinition {
  * generation that follows skips an account it suspended. Generation runs nightly at 01:00 India time. Both catch up
  * once after downtime. Reminders and the digest run every 15 minutes in UTC and decide per client whether its local
  * send time has passed, so each client is served in its own time zone; missed slots are skipped because the next run
- * covers them. The trial reminder runs daily at 10:00 India time and catches up once. The outbox relay runs every
- * minute, and so does the evidence scan. Without a mailer only the account job, generation, the relay and the scan
- * run (`sendsMail: false`); without a scanner the scan does not. Generation, reminders and the digest serve TRIAL
- * and ACTIVE accounts only; the relay and the scan serve every account, so a new account's owner invite still goes
- * out.
+ * covers them. The trial and renewal reminders run daily at 10:00 India time and catch up once. The outbox relay
+ * runs every minute, and so does the evidence scan; the ISO catalogue sweep runs every 10 minutes. Without a mailer
+ * only the account job, generation, the relay, the scan and the sweep run (`sendsMail: false`); without a scanner the
+ * scan does not. Generation, reminders, the digest and the sweep serve TRIAL and ACTIVE accounts only; the relay and
+ * the scan serve every account, so a new account's owner invite still goes out.
  */
 export const JOBS: readonly JobDefinition[] = [
   {
@@ -79,6 +80,13 @@ export const JOBS: readonly JobDefinition[] = [
     run: runConsultantDigest,
   },
   { name: RELAY_OUTBOX, cron: '* * * * *', tz: 'UTC', sendsMail: false, run: runRelayOutbox },
+  {
+    name: ISO_CATALOGUE_SWEEP,
+    cron: '*/10 * * * *',
+    tz: 'UTC',
+    sendsMail: false,
+    run: runIsoCatalogueSweep,
+  },
   {
     name: SCAN_EVIDENCE,
     cron: '* * * * *',
