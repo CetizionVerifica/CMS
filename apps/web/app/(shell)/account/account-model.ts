@@ -1,8 +1,28 @@
 // What the account page shows, as plain data: the plan's limits beside what the account uses, and PlanetPulse support
 // grants in words. Formatting only; the API counts usage and decides each grant's status.
-import type { AccountView, SupportGrant } from '@canopy/contracts';
+import { KNOWN_FEATURES, type AccountView, type SupportGrant } from '@canopy/contracts';
 
 import { isApiError } from '../../../lib/api/client';
+
+export type AddOnRow = {
+  code: string;
+  label: string;
+  description: string;
+  on: boolean;
+};
+
+/**
+ * Every add-on PlanetPulse offers, On or Off from the shell model's features (`Me.account.features`, docs/iso/plan.md
+ * §4.1). Never from `getAccount`, whose demo answer is the same for every account.
+ */
+export function addOnRows(features: readonly string[]): AddOnRow[] {
+  return KNOWN_FEATURES.map(({ code, label, description }) => ({
+    code,
+    label,
+    description,
+    on: features.includes(code),
+  }));
+}
 
 export type UsageRow = {
   label: string;

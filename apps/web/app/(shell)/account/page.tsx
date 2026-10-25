@@ -8,13 +8,13 @@ import { routeByPath, visibleTo } from '../../../lib/routes';
 import { homeHref } from '../../../lib/shell/model';
 import { loadShell } from '../../../lib/shell/server';
 import { redirectIfSignedOut } from '../c/[clientId]/overview/signed-out';
-import { ACCOUNT_STATUS, isClosingRefusal, usageRows } from './account-model';
-import { PlanUsage, SupportAccess } from './AccountView';
+import { ACCOUNT_STATUS, addOnRows, isClosingRefusal, usageRows } from './account-model';
+import { AddOns, PlanUsage, SupportAccess } from './AccountView';
 import { ClientArchives } from './ClientArchives';
 
 export const metadata: Metadata = { title: 'Account' };
 
-// The account's plan and usage, PlanetPulse support access and each client's data, for account admins (ADR M15-0001
+// The account's plan and usage, its add-ons, PlanetPulse support access and each client's data, for account admins (ADR M15-0001
 // decisions 5, 11). A closing account answers only exports, so its page is the downloads alone.
 export default async function AccountPage() {
   const model = await loadShell();
@@ -56,6 +56,8 @@ export default async function AccountPage() {
           trialEndsOn={view.status === 'TRIAL' ? view.trialEndsOn : null}
           usage={usageRows(view)}
         />
+        {/* From the shell model, not getAccount: Me.account.features is the account's own list (docs/iso/plan.md §4.1). */}
+        <AddOns addOns={addOnRows(model.features)} />
         {/* Support is refused a copy of the client's files (ADR M10-0002 §3), so it doesn't see the offer. */}
         {model.notice?.kind === 'support' ? null : (
           <ClientArchives clients={clients} closing={false} />

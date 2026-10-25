@@ -1,9 +1,10 @@
-import { AccountView, SupportGrant } from '@canopy/contracts';
+import { AccountView, KNOWN_FEATURES, SupportGrant } from '@canopy/contracts';
 import { describe, expect, it } from 'vitest';
 
 import { ApiError } from '../../../lib/api/client';
 
 import {
+  addOnRows,
   formatBytes,
   formatInstant,
   grantRows,
@@ -44,6 +45,19 @@ const grant = (over: Partial<SupportGrant>) =>
   });
 
 describe('account model', () => {
+  it('lists every known add-on, On only when the account has it', () => {
+    const on = addOnRows(['isoManagement', 'somethingElse']);
+    expect(on.map((r) => r.code)).toEqual(KNOWN_FEATURES.map((f) => f.code));
+    expect(on[0]).toEqual({
+      code: 'isoManagement',
+      label: 'ISO management systems',
+      description: KNOWN_FEATURES[0]!.description,
+      on: true,
+    });
+    expect(addOnRows([]).every((r) => !r.on)).toBe(true);
+    expect(addOnRows(['somethingElse']).every((r) => !r.on)).toBe(true);
+  });
+
   it('puts each limit beside its usage and flags one at the limit', () => {
     expect(usageRows(view)).toEqual([
       { label: 'Companies', used: '3', limit: '3', atLimit: true },

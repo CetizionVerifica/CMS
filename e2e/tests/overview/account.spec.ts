@@ -3,9 +3,9 @@ import { expect, test } from '@playwright/test';
 import { signIn } from '../shell/helpers.js';
 import { checkSettled } from './settled.js';
 
-// The Account page (M13) against the web app's demo API: the account admin reads the plan beside its usage, lets
-// PlanetPulse support in and ends that access from the keyboard; other roles get the no-access page. Workers share one
-// demo API, so this is the only journey that changes support access.
+// The Account page (M13) against the web app's demo API: the account admin reads the plan beside its usage and the
+// add-ons, lets PlanetPulse support in and ends that access from the keyboard; other roles get the no-access page.
+// Workers share one demo API, so this is the only journey that changes support access.
 test.describe('account', () => {
   test('an account admin lets support in and ends the access', async ({ page }) => {
     await signIn(page, 'admin@demo.test', '/account');
@@ -51,6 +51,30 @@ test.describe('account', () => {
     await admin.getByRole('button', { name: 'Cancel' }).click();
     await expect(admin).toBeHidden();
     await expect(end).toHaveCount(0);
+  });
+
+  test('the add-ons show ISO On for the demo account admin', async ({ page }) => {
+    await signIn(page, 'admin@demo.test', '/account');
+    const addOns = page.getByRole('list', { name: 'Add-ons' });
+    await expect(
+      addOns.getByRole('listitem').filter({ hasText: 'ISO management systems' }),
+    ).toContainText(/On$/);
+    await expect(page.getByText('Your PlanetPulse contact turns add-ons on or off.')).toBeVisible();
+    // Read-only: nothing in the section takes keyboard focus.
+    await expect(addOns.locator('a, button, input, [tabindex]')).toHaveCount(0);
+    await checkSettled(page);
+  });
+
+  test('the add-ons show Off for the company admin, whose account has none', async ({ page }) => {
+    // getAccount's demo answer lists ISO for every account, so the page must read the shell model instead.
+    await signIn(page, 'company@demo.test', '/account');
+    await expect(
+      page
+        .getByRole('list', { name: 'Add-ons' })
+        .getByRole('listitem')
+        .filter({ hasText: 'ISO management systems' }),
+    ).toContainText(/Off$/);
+    await checkSettled(page);
   });
 
   test('the page reads at 375px', async ({ page }) => {

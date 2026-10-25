@@ -1,6 +1,7 @@
 'use client';
-// The account page: the plan's limits beside what the account uses (read-only: PlanetPulse changes plans), and
-// PlanetPulse support access, which only account admins grant and end (ADR M15-0001 decision 11).
+// The account page: the plan's limits beside what the account uses, the add-ons (both read-only: PlanetPulse changes
+// plans and add-ons), and PlanetPulse support access, which only account admins grant and end (ADR M15-0001
+// decision 11).
 import type { SupportGrant } from '@canopy/contracts';
 import { Button, ConfirmDialog, formatDate, Select } from '@canopy/ui';
 import { useRouter } from 'next/navigation';
@@ -14,6 +15,7 @@ import {
   grantSummary,
   planName,
   SUPPORT_LEVEL,
+  type AddOnRow,
   type UsageRow,
 } from './account-model';
 
@@ -85,6 +87,42 @@ export function PlanUsage({
           </tbody>
         </table>
       </div>
+    </section>
+  );
+}
+
+export function AddOns({ addOns }: { addOns: AddOnRow[] }) {
+  return (
+    <section aria-labelledby="addons-heading" className="flex flex-col gap-3">
+      <h2 id="addons-heading" className="text-section text-ink">
+        Add-ons
+      </h2>
+      <p className="text-body text-muted">Your PlanetPulse contact turns add-ons on or off.</p>
+      <ul
+        aria-labelledby="addons-heading"
+        className="flex flex-col rounded-card border border-line bg-surface"
+      >
+        {addOns.map((addOn) => (
+          <li
+            key={addOn.code}
+            className="flex flex-col gap-1 border-b border-line px-4 py-3 last:border-b-0 sm:flex-row sm:items-start sm:justify-between sm:gap-4"
+          >
+            <div className="flex flex-col gap-1">
+              <span className="text-body font-semibold text-ink">{addOn.label}</span>
+              <span className="text-body text-muted">{addOn.description}</span>
+            </div>
+            <span
+              className={
+                addOn.on
+                  ? 'shrink-0 text-body font-semibold text-ink'
+                  : 'shrink-0 text-body text-muted'
+              }
+            >
+              {addOn.on ? 'On' : 'Off'}
+            </span>
+          </li>
+        ))}
+      </ul>
     </section>
   );
 }

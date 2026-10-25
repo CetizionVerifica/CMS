@@ -12,7 +12,8 @@ vi.mock('./actions', () => ({
   revokeSupportAction: (...args: unknown[]) => revokeSupportAction(...args),
 }));
 
-const { PlanUsage, SupportAccess } = await import('./AccountView');
+const { AddOns, PlanUsage, SupportAccess } = await import('./AccountView');
+const { addOnRows } = await import('./account-model');
 
 const ID = '00000000-0000-5000-8000-0000000000a1';
 const live = SupportGrant.parse({
@@ -52,6 +53,28 @@ describe('account page', () => {
     const companies = within(table).getByRole('row', { name: /Companies/ });
     expect(companies.textContent).toContain('At the limit');
     expect(within(table).getByRole('row', { name: /Users/ }).textContent).toContain('No limit');
+  });
+
+  it('shows each add-on On or Off, read-only, with who changes it', () => {
+    const { rerender } = render(<AddOns addOns={addOnRows(['isoManagement'])} />);
+    const list = screen.getByRole('list', { name: 'Add-ons' });
+    const iso = within(list).getByRole('listitem');
+    expect(iso.textContent).toContain('ISO management systems');
+    expect(iso.textContent).toContain('ISO 9001, 14001 and 45001');
+    expect(iso.textContent).toMatch(/On$/);
+    expect(screen.getByText('Your PlanetPulse contact turns add-ons on or off.')).toBeTruthy();
+    expect(screen.queryByRole('button')).toBeNull();
+    expect(screen.queryByRole('switch')).toBeNull();
+    expect(screen.queryByRole('checkbox')).toBeNull();
+
+    rerender(<AddOns addOns={addOnRows(['somethingElse'])} />);
+    expect(
+      within(screen.getByRole('list', { name: 'Add-ons' })).getByRole('listitem').textContent,
+    ).toMatch(/Off$/);
+    rerender(<AddOns addOns={addOnRows([])} />);
+    expect(
+      within(screen.getByRole('list', { name: 'Add-ons' })).getByRole('listitem').textContent,
+    ).toMatch(/Off$/);
   });
 
   it('lets support in read only for 7 days by default, without a confirmation', async () => {
