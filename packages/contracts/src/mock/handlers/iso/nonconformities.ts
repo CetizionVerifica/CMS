@@ -25,7 +25,6 @@ import {
   checkSystemUnits,
   daysFrom,
   forbidden,
-  holdsRole,
   invalid,
   invalidTransition,
   type IsoCtx,
@@ -49,6 +48,7 @@ type Ids =
   | 'raiseIsoNonconformity'
   | 'getIsoNonconformity'
   | 'updateIsoNonconformity'
+  | 'reassignIsoNonconformity'
   | 'addIsoNcRootCause'
   | 'planIsoNcActions'
   | 'submitIsoNcNoAction'
@@ -83,9 +83,8 @@ const LOCKED_NC: readonly Nc['state'][] = ['CLOSED', 'CANCELLED'];
 const OWNER_ROLES: readonly Role[] = ['OWNER', 'CLIENT_ADMIN'];
 /** People who may approve a nonconformity: those `isoNc.verify` lets act. */
 const APPROVER_ROLES: readonly Role[] = ['APPROVER', 'CLIENT_ADMIN'];
-const MANAGERS: readonly Role[] = ['FIRM_ADMIN', 'CONSULTANT', 'CLIENT_ADMIN'];
-/** Fields whose change is a reassignment or due-date change (`isoNc.reassign`, with a reason). */
-const REASSIGN_FIELDS = ['ownerId', 'approverId', 'dueOn', 'effectivenessDueOn'] as const;
+/** States in which `isoNc.reassign` may still change the severity: no later than ROOT_CAUSE_FOUND. */
+const SEVERITY_STATES: readonly Nc['state'][] = ['OPEN', 'ROOT_CAUSE_FOUND'];
 /** What ADD_ROOT_CAUSE needs (model §4.1; the stored shape also needs the method). */
 const ROOT_CAUSE_FIELDS = [
   'containment',
@@ -587,8 +586,48 @@ function backToChange(
 const EDIT_GROUPS: [IsoAuditEvent['action'], (key: string) => boolean][] = [
   ['REASSIGN', (k) => k === 'ownerId' || k === 'approverId'],
   ['DUE_DATE_CHANGE', (k) => k === 'dueOn' || k === 'effectivenessDueOn'],
-  ['UPDATE', (k) => !(REASSIGN_FIELDS as readonly string[]).includes(k)],
+  ['UPDATE', (k) => !['ownerId', 'approverId', 'dueOn', 'effectivenessDueOn'].includes(k)],
 ];
+
+const NOT_RECORDED = '[not recorded]';
+
+/**
+ * Free text that can name people, the description and an incident's location, is noted as changed and never copied
+ * into an audit event (non-negotiable 6), as `raised` leaves it out.
+ */
+function unrecorded(key: string, value: unknown): unknown {
+  if (value === null || value === undefined) return value;
+  if (key === 'description') return NOT_RECORDED;
+  if (key === 'incident') return { ...(value as Record<string, unknown>), location: NOT_RECORDED };
+  return value;
+}
+
+/**
+ * Checks and saves an edit of the nonconformity's fields, one audit event per EDIT_GROUPS group with `reason`
+ * (`isoNc.reassign` always has one); an edit that changes nothing writes nothing.
+ */
+function saveNcEdit(ctx: IsoCtx, actor: Actor, nc: Nc, next: Nc, reason: string | null): NcOut {
+  checkNcChanges(actor, nc, next, ctx.clock.today());
+  const changes = diff(nc, next);
+  const changed = Object.keys(changes.after);
+  if (changed.length === 0) return ncView(ctx, actor, nc);
+  Object.assign(nc, next);
+  touchIso(ctx, nc);
+  for (const [action, belongs] of EDIT_GROUPS) {
+    const group = changed.filter(belongs);
+    if (group.length === 0) continue;
+    isoAudit(ctx, actor, {
+      action,
+      entityType: 'nonconformity',
+      entityId: nc.id,
+      clientId: nc.clientId,
+      before: Object.fromEntries(group.map((k) => [k, unrecorded(k, changes.before[k])])),
+      after: Object.fromEntries(group.map((k) => [k, unrecorded(k, changes.after[k])])),
+      reason,
+    });
+  }
+  return ncView(ctx, actor, nc);
+}
 
 /** The RAISE event's `after`: no description and no incident detail beyond its kind (model §3.11, §8). */
 function raised(nc: Nc): Record<string, unknown> {
@@ -1088,60 +1127,42 @@ export const nonconformitiesHandlers: PartialHandlers<Ids> = {
   },
 
   /**
-   * Field edits until CLOSED or CANCELLED. Investigation fields are `isoNc.work` (CA, or OW as its owner); owner,
-   * approver, `dueOn` and `effectivenessDueOn` are `isoNc.reassign` (FA, CO, CA) with a reason, audited as REASSIGN
-   * and DUE_DATE_CHANGE (model §8).
+   * Investigation field edits until CLOSED or CANCELLED (`isoNc.work`: CA, or OW as its owner), audited as UPDATE with
+   * the description and incident location left out (non-negotiable 6).
    */
   updateIsoNonconformity(ctx) {
     const actor = actorOf(ctx);
-    const firm = actor.firm;
     const nc = requireNc(actor, ctx.params);
-    const reach = ncReach(firm, nc);
-    ctx.authorize(isoScope(actor, reach, { ownerId: nc.ownerId }));
-    const { version, reason, incident, ...fields } = ctx.body;
-    const set = defined(fields);
-    const keys = Object.keys(set);
-    const reassigns = keys.some((k) => (REASSIGN_FIELDS as readonly string[]).includes(k));
-    const works =
-      incident !== undefined ||
-      keys.some((k) => !(REASSIGN_FIELDS as readonly string[]).includes(k));
-    if (reassigns && !holdsRole(actor, nc.clientId, MANAGERS, reach.unitIds)) {
-      forbidden('isoNc.reassign', 'Only a manager changes the owner, approver or dates');
-    }
-    if (
-      works &&
-      !may(actor, 'addIsoNcRootCause', isoScope(actor, reach, { ownerId: nc.ownerId }))
-    ) {
-      forbidden('isoNc.work', "Only the nonconformity's owner or a client admin works on it");
-    }
+    ctx.authorize(isoScope(actor, ncReach(actor.firm, nc), { ownerId: nc.ownerId }));
+    const { version, incident, ...fields } = ctx.body;
     checkIsoVersion(nc, version);
     if (LOCKED_NC.includes(nc.state)) invalidTransition('nonconformity', nc.state, 'UPDATE');
-    const next: Nc = { ...nc, ...set };
+    const next: Nc = { ...nc, ...defined(fields) };
     if (incident !== undefined) {
       if (nc.incident === null)
         invalid('incident', 'Only an INCIDENT or NEAR_MISS has incident fields');
       next.incident = { ...nc.incident, ...defined(incident) };
     }
-    checkNcChanges(actor, nc, next, ctx.clock.today());
-    const changes = diff(nc, next);
-    const changed = Object.keys(changes.after);
-    if (changed.length === 0) return ncView(ctx, actor, nc);
-    Object.assign(nc, next);
-    touchIso(ctx, nc);
-    for (const [action, belongs] of EDIT_GROUPS) {
-      const group = changed.filter(belongs);
-      if (group.length === 0) continue;
-      isoAudit(ctx, actor, {
-        action,
-        entityType: 'nonconformity',
-        entityId: nc.id,
-        clientId: nc.clientId,
-        before: Object.fromEntries(group.map((k) => [k, changes.before[k]])),
-        after: Object.fromEntries(group.map((k) => [k, changes.after[k]])),
-        reason: action === 'UPDATE' ? null : (reason ?? null),
-      });
+    return saveNcEdit(ctx, actor, nc, next, null);
+  },
+
+  /**
+   * `isoNc.reassign` (FA, CO, CA) until CLOSED or CANCELLED, with a reason: owner and approver (REASSIGN), `dueOn` and
+   * `effectivenessDueOn` (DUE_DATE_CHANGE), and severity (UPDATE) while OPEN or ROOT_CAUSE_FOUND, never on a
+   * finding's nonconformity.
+   */
+  reassignIsoNonconformity(ctx) {
+    const actor = actorOf(ctx);
+    const nc = requireNc(actor, ctx.params);
+    ctx.authorize(isoScope(actor, ncReach(actor.firm, nc)));
+    const { version, reason, ...fields } = ctx.body;
+    checkIsoVersion(nc, version);
+    if (LOCKED_NC.includes(nc.state)) invalidTransition('nonconformity', nc.state, 'UPDATE');
+    const next: Nc = { ...nc, ...defined(fields) };
+    if (next.severity !== nc.severity && !SEVERITY_STATES.includes(nc.state)) {
+      invalidTransition('nonconformity', nc.state, 'UPDATE');
     }
-    return ncView(ctx, actor, nc);
+    return saveNcEdit(ctx, actor, nc, next, reason);
   },
 
   /**

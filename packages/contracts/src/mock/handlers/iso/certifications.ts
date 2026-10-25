@@ -300,10 +300,16 @@ function create<T extends { id: string; clientId: string }>(
 }
 
 /**
- * Applies an external audit edit and audits it (model §8): moving the body's response deadline is a due-date change,
- * every other field an UPDATE. Nothing is written when nothing changed.
+ * Applies an external audit edit and audits it (model §8): moving the body's response deadline is a due-date change
+ * with the reason, every other field an UPDATE. Nothing is written when nothing changed.
  */
-function editAudit(ctx: IsoCtx, actor: Actor, audit: Audit, patch: Partial<Audit>): void {
+function editAudit(
+  ctx: IsoCtx,
+  actor: Actor,
+  audit: Audit,
+  patch: Partial<Audit>,
+  reason: string | null,
+): void {
   const changes = diff(audit, { ...audit, ...patch });
   const changed = Object.keys(changes.after);
   if (changed.length === 0) return;
@@ -322,6 +328,7 @@ function editAudit(ctx: IsoCtx, actor: Actor, audit: Audit, patch: Partial<Audit
       clientId: audit.clientId,
       before: Object.fromEntries(keys.map((k) => [k, changes.before[k]])),
       after: Object.fromEntries(keys.map((k) => [k, changes.after[k]])),
+      reason: action === 'UPDATE' ? null : reason,
     });
   }
 }
@@ -557,7 +564,7 @@ export const certificationsHandlers: PartialHandlers<Ids> = {
     const firm = actor.firm;
     const audit = requireAudit(actor, ctx.params.clientId, ctx.params.id);
     ctx.authorize(isoScope(actor, auditReach(firm, audit)));
-    const { version, ...fields } = ctx.body;
+    const { version, reason, ...fields } = ctx.body;
     checkIsoVersion(audit, version);
     if (!EDITABLE.includes(audit.state)) invalidTransition('external_audit', audit.state, 'UPDATE');
     const patch = definedOf(fields) as Partial<Audit>;
@@ -577,7 +584,7 @@ export const certificationsHandlers: PartialHandlers<Ids> = {
     } else {
       checkEnded(merged.endOn, ctx.clock.today());
     }
-    editAudit(ctx, actor, audit, patch);
+    editAudit(ctx, actor, audit, patch, reason ?? null);
     return auditView(actor, audit);
   },
 

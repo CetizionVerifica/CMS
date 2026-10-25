@@ -2,8 +2,8 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Canopy API",
-    "version": "1.8.0",
-    "description": "Generated from @canopy/contracts; do not edit. Conventions: docs/contracts/api-conventions.md. Role permissions per operation are in x-canopy-roles (all, own, limited); a missing role is 403. An operation with x-canopy-feature needs that add-on: 403 FEATURE_NOT_ENABLED without it."
+    "version": "1.8.1",
+    "description": "Generated from @canopy/contracts; do not edit. Conventions: docs/contracts/api-conventions.md. Role permissions per operation are in x-canopy-roles (all, own, limited); a missing role is 403. An operation with x-canopy-feature needs that add-on: 403 FEATURE_NOT_ENABLED without it, and 409 FEATURE_NOT_READY while the account is still being set up for it."
   },
   "servers": [
     {
@@ -9064,6 +9064,26 @@
               }
             }
           },
+          "403": {
+            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "default": {
             "description": "Error envelope (api-conventions.md §4-5); clients branch on error.code.",
             "content": {
@@ -9145,6 +9165,26 @@
               }
             }
           },
+          "403": {
+            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "default": {
             "description": "Error envelope (api-conventions.md §4-5); clients branch on error.code.",
             "content": {
@@ -9213,6 +9253,26 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ListIsoReviewDefsResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
                 }
               }
             }
@@ -9327,6 +9387,26 @@
               }
             }
           },
+          "403": {
+            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "default": {
             "description": "Error envelope (api-conventions.md §4-5); clients branch on error.code.",
             "content": {
@@ -9402,6 +9482,26 @@
               }
             }
           },
+          "403": {
+            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "default": {
             "description": "Error envelope (api-conventions.md §4-5); clients branch on error.code.",
             "content": {
@@ -9467,6 +9567,26 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/CreateIsoSystemResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
                 }
               }
             }
@@ -9554,6 +9674,26 @@
               }
             }
           },
+          "403": {
+            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "default": {
             "description": "Error envelope (api-conventions.md §4-5); clients branch on error.code.",
             "content": {
@@ -9632,6 +9772,26 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/CreateIsoSystemResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
                 }
               }
             }
@@ -9732,6 +9892,26 @@
               }
             }
           },
+          "403": {
+            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "default": {
             "description": "Error envelope (api-conventions.md §4-5); clients branch on error.code.",
             "content": {
@@ -9760,6 +9940,7 @@
           "VIEWER": "all"
         },
         "x-canopy-idempotent": false,
+        "x-canopy-notes": "AP/OW limited to their units (plan §3.3).",
         "x-canopy-feature": "isoManagement"
       },
       "post": {
@@ -9811,6 +9992,26 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/CreateIsoContextItemResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
                 }
               }
             }
@@ -9906,6 +10107,26 @@
               }
             }
           },
+          "403": {
+            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "default": {
             "description": "Error envelope (api-conventions.md §4-5); clients branch on error.code.",
             "content": {
@@ -9993,6 +10214,26 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/CreateIsoContextItemResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
                 }
               }
             }
@@ -10110,6 +10351,26 @@
               }
             }
           },
+          "403": {
+            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "default": {
             "description": "Error envelope (api-conventions.md §4-5); clients branch on error.code.",
             "content": {
@@ -10138,6 +10399,7 @@
           "VIEWER": "all"
         },
         "x-canopy-idempotent": false,
+        "x-canopy-notes": "AP/OW limited to their units (plan §3.3).",
         "x-canopy-feature": "isoManagement"
       }
     },
@@ -10200,6 +10462,26 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/UpdateIsoChecklistRowResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
                 }
               }
             }
@@ -10300,6 +10582,26 @@
               }
             }
           },
+          "403": {
+            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "default": {
             "description": "Error envelope (api-conventions.md §4-5); clients branch on error.code.",
             "content": {
@@ -10392,6 +10694,26 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/UpdateIsoChecklistRowResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
                 }
               }
             }
@@ -10490,6 +10812,26 @@
               }
             }
           },
+          "403": {
+            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "default": {
             "description": "Error envelope (api-conventions.md §4-5); clients branch on error.code.",
             "content": {
@@ -10580,6 +10922,26 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/UpdateIsoChecklistRowResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
                 }
               }
             }
@@ -10754,6 +11116,26 @@
               }
             }
           },
+          "403": {
+            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "default": {
             "description": "Error envelope (api-conventions.md §4-5); clients branch on error.code.",
             "content": {
@@ -10829,6 +11211,26 @@
               }
             }
           },
+          "403": {
+            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "default": {
             "description": "Error envelope (api-conventions.md §4-5); clients branch on error.code.",
             "content": {
@@ -10896,6 +11298,26 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/CreateIsoDocumentResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
                 }
               }
             }
@@ -10979,6 +11401,26 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/CreateIsoDocumentResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
                 }
               }
             }
@@ -11070,6 +11512,26 @@
               }
             }
           },
+          "403": {
+            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "default": {
             "description": "Error envelope (api-conventions.md §4-5); clients branch on error.code.",
             "content": {
@@ -11154,6 +11616,26 @@
               }
             }
           },
+          "403": {
+            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "default": {
             "description": "Error envelope (api-conventions.md §4-5); clients branch on error.code.",
             "content": {
@@ -11222,6 +11704,26 @@
               }
             }
           },
+          "403": {
+            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "default": {
             "description": "Error envelope (api-conventions.md §4-5); clients branch on error.code.",
             "content": {
@@ -11250,6 +11752,7 @@
           "VIEWER": "all"
         },
         "x-canopy-idempotent": false,
+        "x-canopy-notes": "AP/OW limited to their units (plan §3.3).",
         "x-canopy-feature": "isoManagement"
       },
       "post": {
@@ -11301,6 +11804,26 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/DraftIsoRevisionResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
                 }
               }
             }
@@ -11394,6 +11917,26 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/DraftIsoRevisionResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
                 }
               }
             }
@@ -11494,6 +12037,26 @@
               }
             }
           },
+          "403": {
+            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "default": {
             "description": "Error envelope (api-conventions.md §4-5); clients branch on error.code.",
             "content": {
@@ -11586,6 +12149,26 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/DraftIsoRevisionResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
                 }
               }
             }
@@ -11684,6 +12267,26 @@
               }
             }
           },
+          "403": {
+            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "default": {
             "description": "Error envelope (api-conventions.md §4-5); clients branch on error.code.",
             "content": {
@@ -11773,6 +12376,26 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/DraftIsoRevisionResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
                 }
               }
             }
@@ -11948,6 +12571,26 @@
               }
             }
           },
+          "403": {
+            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "default": {
             "description": "Error envelope (api-conventions.md §4-5); clients branch on error.code.",
             "content": {
@@ -12023,6 +12666,26 @@
               }
             }
           },
+          "403": {
+            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "default": {
             "description": "Error envelope (api-conventions.md §4-5); clients branch on error.code.",
             "content": {
@@ -12090,6 +12753,26 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/CreateIsoRiskResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
                 }
               }
             }
@@ -12177,6 +12860,26 @@
               }
             }
           },
+          "403": {
+            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "default": {
             "description": "Error envelope (api-conventions.md §4-5); clients branch on error.code.",
             "content": {
@@ -12257,6 +12960,26 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/CreateIsoRiskResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
                 }
               }
             }
@@ -12348,6 +13071,26 @@
               }
             }
           },
+          "403": {
+            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "default": {
             "description": "Error envelope (api-conventions.md §4-5); clients branch on error.code.",
             "content": {
@@ -12432,6 +13175,26 @@
               }
             }
           },
+          "403": {
+            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "default": {
             "description": "Error envelope (api-conventions.md §4-5); clients branch on error.code.",
             "content": {
@@ -12501,6 +13264,26 @@
               }
             }
           },
+          "403": {
+            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "default": {
             "description": "Error envelope (api-conventions.md §4-5); clients branch on error.code.",
             "content": {
@@ -12529,6 +13312,7 @@
           "VIEWER": "all"
         },
         "x-canopy-idempotent": false,
+        "x-canopy-notes": "AP/OW limited to their units (plan §3.3).",
         "x-canopy-feature": "isoManagement"
       },
       "post": {
@@ -12580,6 +13364,26 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/CreateIsoRiskControlResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
                 }
               }
             }
@@ -12677,6 +13481,26 @@
               }
             }
           },
+          "403": {
+            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "default": {
             "description": "Error envelope (api-conventions.md §4-5); clients branch on error.code.",
             "content": {
@@ -12766,6 +13590,26 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/CreateIsoRiskControlResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
                 }
               }
             }
@@ -12914,6 +13758,26 @@
               }
             }
           },
+          "403": {
+            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "default": {
             "description": "Error envelope (api-conventions.md §4-5); clients branch on error.code.",
             "content": {
@@ -12989,6 +13853,26 @@
               }
             }
           },
+          "403": {
+            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "default": {
             "description": "Error envelope (api-conventions.md §4-5); clients branch on error.code.",
             "content": {
@@ -13056,6 +13940,26 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/CreateIsoObjectiveResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
                 }
               }
             }
@@ -13139,6 +14043,26 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/CreateIsoObjectiveResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
                 }
               }
             }
@@ -13230,6 +14154,26 @@
               }
             }
           },
+          "403": {
+            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "default": {
             "description": "Error envelope (api-conventions.md §4-5); clients branch on error.code.",
             "content": {
@@ -13301,6 +14245,26 @@
               }
             }
           },
+          "403": {
+            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "default": {
             "description": "Error envelope (api-conventions.md §4-5); clients branch on error.code.",
             "content": {
@@ -13329,6 +14293,7 @@
           "VIEWER": "all"
         },
         "x-canopy-idempotent": false,
+        "x-canopy-notes": "AP/OW limited to their units (plan §3.3).",
         "x-canopy-feature": "isoManagement"
       },
       "post": {
@@ -13380,6 +14345,26 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/CreateIsoReadingResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
                 }
               }
             }
@@ -13473,6 +14458,26 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/CreateIsoReadingResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
                 }
               }
             }
@@ -13585,6 +14590,26 @@
               }
             }
           },
+          "403": {
+            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "default": {
             "description": "Error envelope (api-conventions.md §4-5); clients branch on error.code.",
             "content": {
@@ -13656,6 +14681,26 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/CreateIsoAuditProgrammeResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
                 }
               }
             }
@@ -13738,6 +14783,26 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/CreateIsoAuditProgrammeResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
                 }
               }
             }
@@ -13913,6 +14978,26 @@
               }
             }
           },
+          "403": {
+            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "default": {
             "description": "Error envelope (api-conventions.md §4-5); clients branch on error.code.",
             "content": {
@@ -13988,6 +15073,26 @@
               }
             }
           },
+          "403": {
+            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "default": {
             "description": "Error envelope (api-conventions.md §4-5); clients branch on error.code.",
             "content": {
@@ -14053,6 +15158,26 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/CreateIsoInternalAuditResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
                 }
               }
             }
@@ -14140,6 +15265,26 @@
               }
             }
           },
+          "403": {
+            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "default": {
             "description": "Error envelope (api-conventions.md §4-5); clients branch on error.code.",
             "content": {
@@ -14221,6 +15366,26 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/CreateIsoInternalAuditResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
                 }
               }
             }
@@ -14313,6 +15478,26 @@
               }
             }
           },
+          "403": {
+            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "default": {
             "description": "Error envelope (api-conventions.md §4-5); clients branch on error.code.",
             "content": {
@@ -14397,6 +15582,26 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/CreateIsoInternalAuditResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
                 }
               }
             }
@@ -14489,6 +15694,26 @@
               }
             }
           },
+          "403": {
+            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "default": {
             "description": "Error envelope (api-conventions.md §4-5); clients branch on error.code.",
             "content": {
@@ -14558,6 +15783,26 @@
               }
             }
           },
+          "403": {
+            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "default": {
             "description": "Error envelope (api-conventions.md §4-5); clients branch on error.code.",
             "content": {
@@ -14586,6 +15831,7 @@
           "VIEWER": "all"
         },
         "x-canopy-idempotent": false,
+        "x-canopy-notes": "AP/OW limited to their units (plan §3.3).",
         "x-canopy-feature": "isoManagement"
       },
       "post": {
@@ -14637,6 +15883,26 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/CreateIsoAuditChecklistItemResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
                 }
               }
             }
@@ -14735,6 +16001,26 @@
               }
             }
           },
+          "403": {
+            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "default": {
             "description": "Error envelope (api-conventions.md §4-5); clients branch on error.code.",
             "content": {
@@ -14807,6 +16093,26 @@
               }
             }
           },
+          "403": {
+            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "default": {
             "description": "Error envelope (api-conventions.md §4-5); clients branch on error.code.",
             "content": {
@@ -14835,6 +16141,7 @@
           "VIEWER": "all"
         },
         "x-canopy-idempotent": false,
+        "x-canopy-notes": "AP/OW limited to their units (plan §3.3).",
         "x-canopy-feature": "isoManagement"
       },
       "post": {
@@ -14886,6 +16193,26 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/CreateIsoInternalFindingResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
                 }
               }
             }
@@ -14980,6 +16307,26 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/CreateIsoInternalFindingResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
                 }
               }
             }
@@ -15093,6 +16440,26 @@
               }
             }
           },
+          "403": {
+            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "default": {
             "description": "Error envelope (api-conventions.md §4-5); clients branch on error.code.",
             "content": {
@@ -15164,6 +16531,26 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/CreateIsoCertificationResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
                 }
               }
             }
@@ -15246,6 +16633,26 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/CreateIsoCertificationResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
                 }
               }
             }
@@ -15385,6 +16792,26 @@
               }
             }
           },
+          "403": {
+            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "default": {
             "description": "Error envelope (api-conventions.md §4-5); clients branch on error.code.",
             "content": {
@@ -15460,6 +16887,26 @@
               }
             }
           },
+          "403": {
+            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "default": {
             "description": "Error envelope (api-conventions.md §4-5); clients branch on error.code.",
             "content": {
@@ -15525,6 +16972,26 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/CreateIsoExternalAuditResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
                 }
               }
             }
@@ -15608,6 +17075,26 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/CreateIsoExternalAuditResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
                 }
               }
             }
@@ -15697,6 +17184,26 @@
               }
             }
           },
+          "403": {
+            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "default": {
             "description": "Error envelope (api-conventions.md §4-5); clients branch on error.code.",
             "content": {
@@ -15778,6 +17285,26 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/CreateIsoExternalAuditResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
                 }
               }
             }
@@ -15867,6 +17394,26 @@
               }
             }
           },
+          "403": {
+            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "default": {
             "description": "Error envelope (api-conventions.md §4-5); clients branch on error.code.",
             "content": {
@@ -15952,6 +17499,26 @@
               }
             }
           },
+          "403": {
+            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "default": {
             "description": "Error envelope (api-conventions.md §4-5); clients branch on error.code.",
             "content": {
@@ -16021,6 +17588,26 @@
               }
             }
           },
+          "403": {
+            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "default": {
             "description": "Error envelope (api-conventions.md §4-5); clients branch on error.code.",
             "content": {
@@ -16049,6 +17636,7 @@
           "VIEWER": "all"
         },
         "x-canopy-idempotent": false,
+        "x-canopy-notes": "AP/OW limited to their units (plan §3.3).",
         "x-canopy-feature": "isoManagement"
       },
       "post": {
@@ -16100,6 +17688,26 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/CreateIsoInternalFindingResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
                 }
               }
             }
@@ -16191,6 +17799,26 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/CreateIsoInternalFindingResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
                 }
               }
             }
@@ -16399,6 +18027,26 @@
               }
             }
           },
+          "403": {
+            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "default": {
             "description": "Error envelope (api-conventions.md §4-5); clients branch on error.code.",
             "content": {
@@ -16477,6 +18125,26 @@
               }
             }
           },
+          "403": {
+            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "default": {
             "description": "Error envelope (api-conventions.md §4-5); clients branch on error.code.",
             "content": {
@@ -16548,6 +18216,26 @@
               }
             }
           },
+          "403": {
+            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "default": {
             "description": "Error envelope (api-conventions.md §4-5); clients branch on error.code.",
             "content": {
@@ -16580,7 +18268,7 @@
       },
       "patch": {
         "operationId": "updateIsoNonconformity",
-        "summary": "Investigation fields (isoNc.work); owner, approver or dates (isoNc.reassign), with a reason.",
+        "summary": "Investigation fields, until CLOSED or CANCELLED.",
         "tags": ["M16"],
         "parameters": [
           {
@@ -16617,7 +18305,7 @@
         },
         "responses": {
           "200": {
-            "description": "Investigation fields (isoNc.work); owner, approver or dates (isoNc.reassign), with a reason.",
+            "description": "Investigation fields, until CLOSED or CANCELLED.",
             "headers": {
               "X-Request-Id": {
                 "$ref": "#/components/headers/RequestId"
@@ -16627,6 +18315,26 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/RaiseIsoNonconformityResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
                 }
               }
             }
@@ -16649,15 +18357,118 @@
         ],
         "x-canopy-module": "M16",
         "x-canopy-auth": "action",
-        "x-canopy-actions": ["isoNc.work", "isoNc.reassign"],
+        "x-canopy-actions": ["isoNc.work"],
         "x-canopy-roles": {
-          "FIRM_ADMIN": "all",
-          "CONSULTANT": "all",
           "CLIENT_ADMIN": "all",
           "OWNER": "own"
         },
         "x-canopy-idempotent": false,
-        "x-canopy-notes": "OW only as its owner, never for owner, approver or dates. FA and CO only for owner, approver, dueOn or effectivenessDueOn (isoNc.reassign), with a reason.",
+        "x-canopy-notes": "OW only as its owner.",
+        "x-canopy-feature": "isoManagement"
+      }
+    },
+    "/clients/{clientId}/iso/nonconformities/{id}/reassign": {
+      "post": {
+        "operationId": "reassignIsoNonconformity",
+        "summary": "Owner, approver, due dates or severity, with a reason; severity only while OPEN or ROOT_CAUSE_FOUND.",
+        "tags": ["M16"],
+        "parameters": [
+          {
+            "name": "clientId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          },
+          {
+            "$ref": "#/components/parameters/CsrfToken"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReassignIsoNonconformityBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Owner, approver, due dates or severity, with a reason; severity only while OPEN or ROOT_CAUSE_FOUND.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RaiseIsoNonconformityResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error envelope (api-conventions.md §4-5); clients branch on error.code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-canopy-module": "M16",
+        "x-canopy-auth": "action",
+        "x-canopy-actions": ["isoNc.reassign"],
+        "x-canopy-roles": {
+          "FIRM_ADMIN": "all",
+          "CONSULTANT": "all",
+          "CLIENT_ADMIN": "all"
+        },
+        "x-canopy-idempotent": true,
         "x-canopy-feature": "isoManagement"
       }
     },
@@ -16714,6 +18525,26 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/RaiseIsoNonconformityResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
                 }
               }
             }
@@ -16802,6 +18633,26 @@
               }
             }
           },
+          "403": {
+            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "default": {
             "description": "Error envelope (api-conventions.md §4-5); clients branch on error.code.",
             "content": {
@@ -16882,6 +18733,26 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/RaiseIsoNonconformityResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
                 }
               }
             }
@@ -16970,6 +18841,26 @@
               }
             }
           },
+          "403": {
+            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "default": {
             "description": "Error envelope (api-conventions.md §4-5); clients branch on error.code.",
             "content": {
@@ -17050,6 +18941,26 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/RaiseIsoNonconformityResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
                 }
               }
             }
@@ -17139,6 +19050,26 @@
               }
             }
           },
+          "403": {
+            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "default": {
             "description": "Error envelope (api-conventions.md §4-5); clients branch on error.code.",
             "content": {
@@ -17224,6 +19155,26 @@
               }
             }
           },
+          "403": {
+            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "default": {
             "description": "Error envelope (api-conventions.md §4-5); clients branch on error.code.",
             "content": {
@@ -17304,6 +19255,26 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/RaiseIsoNonconformityResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
                 }
               }
             }
@@ -17492,6 +19463,26 @@
               }
             }
           },
+          "403": {
+            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "default": {
             "description": "Error envelope (api-conventions.md §4-5); clients branch on error.code.",
             "content": {
@@ -17567,6 +19558,26 @@
               }
             }
           },
+          "403": {
+            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "default": {
             "description": "Error envelope (api-conventions.md §4-5); clients branch on error.code.",
             "content": {
@@ -17634,6 +19645,26 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/CreateIsoActionResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
                 }
               }
             }
@@ -17717,6 +19748,26 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/CreateIsoActionResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
                 }
               }
             }
@@ -17808,6 +19859,26 @@
               }
             }
           },
+          "403": {
+            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "default": {
             "description": "Error envelope (api-conventions.md §4-5); clients branch on error.code.",
             "content": {
@@ -17893,6 +19964,26 @@
               }
             }
           },
+          "403": {
+            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "default": {
             "description": "Error envelope (api-conventions.md §4-5); clients branch on error.code.",
             "content": {
@@ -17974,6 +20065,26 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/CreateIsoActionResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
                 }
               }
             }
@@ -18112,6 +20223,26 @@
               }
             }
           },
+          "403": {
+            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "default": {
             "description": "Error envelope (api-conventions.md §4-5); clients branch on error.code.",
             "content": {
@@ -18190,6 +20321,26 @@
               }
             }
           },
+          "403": {
+            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "default": {
             "description": "Error envelope (api-conventions.md §4-5); clients branch on error.code.",
             "content": {
@@ -18259,6 +20410,26 @@
               }
             }
           },
+          "403": {
+            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "default": {
             "description": "Error envelope (api-conventions.md §4-5); clients branch on error.code.",
             "content": {
@@ -18291,7 +20462,7 @@
       },
       "patch": {
         "operationId": "updateIsoManagementReview",
-        "summary": "Attendees and minutes (isoReview.write); standards, date or chair while PLANNED (isoReview.plan).",
+        "summary": "Attendees and minutes, until CLOSED or CANCELLED.",
         "tags": ["M16"],
         "parameters": [
           {
@@ -18328,7 +20499,7 @@
         },
         "responses": {
           "200": {
-            "description": "Attendees and minutes (isoReview.write); standards, date or chair while PLANNED (isoReview.plan).",
+            "description": "Attendees and minutes, until CLOSED or CANCELLED.",
             "headers": {
               "X-Request-Id": {
                 "$ref": "#/components/headers/RequestId"
@@ -18338,6 +20509,26 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/PlanIsoManagementReviewResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
                 }
               }
             }
@@ -18360,7 +20551,7 @@
         ],
         "x-canopy-module": "M16",
         "x-canopy-auth": "action",
-        "x-canopy-actions": ["isoReview.write", "isoReview.plan"],
+        "x-canopy-actions": ["isoReview.write"],
         "x-canopy-roles": {
           "FIRM_ADMIN": "all",
           "CONSULTANT": "all",
@@ -18369,7 +20560,112 @@
           "OWNER": "own"
         },
         "x-canopy-idempotent": false,
-        "x-canopy-notes": "AP/OW only as its chair, and never for standards, date or chair.",
+        "x-canopy-notes": "AP/OW only as its chair.",
+        "x-canopy-feature": "isoManagement"
+      }
+    },
+    "/clients/{clientId}/iso/management-reviews/{id}/replan": {
+      "post": {
+        "operationId": "replanIsoManagementReview",
+        "summary": "Standards, date or chair while PLANNED; a new date or chair needs a reason.",
+        "tags": ["M16"],
+        "parameters": [
+          {
+            "name": "clientId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          },
+          {
+            "$ref": "#/components/parameters/CsrfToken"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReplanIsoManagementReviewBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Standards, date or chair while PLANNED; a new date or chair needs a reason.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlanIsoManagementReviewResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error envelope (api-conventions.md §4-5); clients branch on error.code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "x-canopy-module": "M16",
+        "x-canopy-auth": "action",
+        "x-canopy-actions": ["isoReview.plan"],
+        "x-canopy-roles": {
+          "FIRM_ADMIN": "all",
+          "CONSULTANT": "all",
+          "CLIENT_ADMIN": "all"
+        },
+        "x-canopy-idempotent": true,
         "x-canopy-feature": "isoManagement"
       }
     },
@@ -18426,6 +20722,26 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/PlanIsoManagementReviewResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
                 }
               }
             }
@@ -18511,6 +20827,26 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/PlanIsoManagementReviewResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
                 }
               }
             }
@@ -18603,6 +20939,26 @@
               }
             }
           },
+          "403": {
+            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "default": {
             "description": "Error envelope (api-conventions.md §4-5); clients branch on error.code.",
             "content": {
@@ -18675,6 +21031,26 @@
               }
             }
           },
+          "403": {
+            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "default": {
             "description": "Error envelope (api-conventions.md §4-5); clients branch on error.code.",
             "content": {
@@ -18703,6 +21079,7 @@
           "VIEWER": "all"
         },
         "x-canopy-idempotent": false,
+        "x-canopy-notes": "AP/OW limited to their units (plan §3.3).",
         "x-canopy-feature": "isoManagement"
       }
     },
@@ -18765,6 +21142,26 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/UpdateIsoReviewInputResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
                 }
               }
             }
@@ -18841,6 +21238,26 @@
               }
             }
           },
+          "403": {
+            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "default": {
             "description": "Error envelope (api-conventions.md §4-5); clients branch on error.code.",
             "content": {
@@ -18869,6 +21286,7 @@
           "VIEWER": "all"
         },
         "x-canopy-idempotent": false,
+        "x-canopy-notes": "AP/OW limited to their units (plan §3.3).",
         "x-canopy-feature": "isoManagement"
       }
     },
@@ -18931,6 +21349,26 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/UpdateIsoReviewOutputResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
                 }
               }
             }
@@ -19011,6 +21449,26 @@
               }
             }
           },
+          "403": {
+            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "default": {
             "description": "Error envelope (api-conventions.md §4-5); clients branch on error.code.",
             "content": {
@@ -19083,6 +21541,26 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ConfirmIsoFileResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
                 }
               }
             }
@@ -19187,6 +21665,26 @@
               }
             }
           },
+          "403": {
+            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "default": {
             "description": "Error envelope (api-conventions.md §4-5); clients branch on error.code.",
             "content": {
@@ -19215,7 +21713,7 @@
           "VIEWER": "all"
         },
         "x-canopy-idempotent": false,
-        "x-canopy-notes": "Whoever may read the subject.",
+        "x-canopy-notes": "Whoever may read the subject. AP/OW limited to their units (plan §3.3).",
         "x-canopy-feature": "isoManagement"
       }
     },
@@ -19256,6 +21754,26 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/SignedUrl"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
                 }
               }
             }
@@ -19346,6 +21864,26 @@
               }
             }
           },
+          "403": {
+            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "default": {
             "description": "Error envelope (api-conventions.md §4-5); clients branch on error.code.",
             "content": {
@@ -19425,6 +21963,26 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/GetIsoOverviewResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
                 }
               }
             }
@@ -30952,6 +33510,39 @@
         ],
         "additionalProperties": false
       },
+      "ReassignIsoNonconformityBody": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "ownerId": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "approverId": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "dueOn": {
+            "$ref": "#/components/schemas/LocalDate"
+          },
+          "effectivenessDueOn": {
+            "$ref": "#/components/schemas/LocalDate"
+          },
+          "severity": {
+            "type": "string",
+            "enum": ["MAJOR", "MINOR"]
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000
+          }
+        },
+        "required": ["version", "reason"],
+        "additionalProperties": false
+      },
       "RecordIsoExternalAuditHeldBody": {
         "type": "object",
         "properties": {
@@ -31281,6 +33872,38 @@
           }
         },
         "required": ["version", "reason"],
+        "additionalProperties": false
+      },
+      "ReplanIsoManagementReviewBody": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "standards": {
+            "minItems": 1,
+            "maxItems": 3,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": ["ISO_9001", "ISO_14001", "ISO_45001"]
+            }
+          },
+          "plannedOn": {
+            "$ref": "#/components/schemas/LocalDate"
+          },
+          "chairId": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000
+          }
+        },
+        "required": ["version"],
         "additionalProperties": false
       },
       "ReportIsoInternalAuditBody": {
@@ -32353,6 +34976,11 @@
                 "type": "null"
               }
             ]
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000
           }
         },
         "required": ["version"],
@@ -32654,6 +35282,11 @@
                 "type": "null"
               }
             ]
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000
           }
         },
         "required": ["version"],
@@ -32730,6 +35363,11 @@
                 "type": "null"
               }
             ]
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000
           }
         },
         "required": ["version"],
@@ -32859,21 +35497,6 @@
             "minimum": 1,
             "maximum": 9007199254740991
           },
-          "standards": {
-            "minItems": 1,
-            "maxItems": 3,
-            "type": "array",
-            "items": {
-              "type": "string",
-              "enum": ["ISO_9001", "ISO_14001", "ISO_45001"]
-            }
-          },
-          "plannedOn": {
-            "$ref": "#/components/schemas/LocalDate"
-          },
-          "chairId": {
-            "$ref": "#/components/schemas/Id"
-          },
           "attendeeIds": {
             "maxItems": 100,
             "type": "array",
@@ -32892,11 +35515,6 @@
                 "type": "null"
               }
             ]
-          },
-          "reason": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 2000
           }
         },
         "required": ["version"],
@@ -32914,10 +35532,6 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 4000
-          },
-          "severity": {
-            "type": "string",
-            "enum": ["MAJOR", "MINOR"]
           },
           "standards": {
             "minItems": 1,
@@ -33156,30 +35770,6 @@
               }
             },
             "additionalProperties": false
-          },
-          "ownerId": {
-            "$ref": "#/components/schemas/Id"
-          },
-          "approverId": {
-            "$ref": "#/components/schemas/Id"
-          },
-          "dueOn": {
-            "$ref": "#/components/schemas/LocalDate"
-          },
-          "effectivenessDueOn": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/LocalDate"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "reason": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 2000
           }
         },
         "required": ["version"],
@@ -33816,6 +36406,11 @@
                 "type": "null"
               }
             ]
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000
           }
         },
         "required": ["version"],

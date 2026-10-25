@@ -11,13 +11,14 @@ README decisions 42-51. M4 owns every formula marked "stand-in".
   `409 INVALID_TRANSITION { entity, from, action }`. A write on a record locked by its parent (an obsolete
   document, a closed objective, a closed or cancelled NC or review) names the parent's entity and state with action
   `UPDATE`; an archived parent shows its state as `ARCHIVED`.
-- **Reasons.** A moved date or a reassignment without a reason, like a missing cancel or N/A reason, is
-  `422 REASON_REQUIRED` (api-conventions.md §5).
+- **Reasons.** A field edit audited as `REASSIGN` or `DUE_DATE_CHANGE` without a reason, like a missing cancel or N/A
+  reason, is `422 REASON_REQUIRED` (api-conventions.md §5, README decision 51 p), and the event carries the reason.
 - **Audit actions.** Owner, lead, chair and approver changes are `REASSIGN`; date moves are `DUE_DATE_CHANGE`; other
   field edits are `UPDATE`; machine steps are `TRANSITION` with `after.action`. A step taken by someone other than the
   person who normally takes it (a client admin or manager as delegate) has `after.delegated: true`. Every checklist row
   a new system makes writes its own `CREATE`. The scan writes no event (M9 owns it). Incident and NC descriptions are
-  never copied into audit events (non-negotiable 6).
+  never copied into audit events (non-negotiable 6): an edit of an NC's description or an incident's location shows
+  `[not recorded]` on both sides.
 - **File scans.** A confirmed file is `PENDING` and becomes `CLEAN` (or `INFECTED` for an "eicar" name) on the next
   read of its subject's files or download URL, or when a step relies on it: a revision's SUBMIT or RECORD_EDITION, an
   external audit's RECORD_HELD.
@@ -41,7 +42,8 @@ README decisions 42-51. M4 owns every formula marked "stand-in".
   and cancelled audits include only audits the caller can see; the uncovered lists use all of them.
 - **Overview**: the 12-month window is (as-of − 12 months, as-of]. NC overdue = past `dueOn`, not CLOSED or
   CANCELLED; effectiveness overdue likewise on `effectivenessDueOn`. Certificates expiring = `expiresOn` within
-  [as-of, as-of + 90 days]. Incidents leave out cancelled NCs and list every type and outcome, zeros included. The
+  [as-of, as-of + 90 days]. A finding counts for whoever can see its audit (an external one: its system), never by
+  its own unit, as the finding lists do. Incidents leave out cancelled NCs and list every type and outcome, zeros included. The
   POLICY gate accepts a link to clause 5.2 or a 5.2.x sub-clause. Objectives without a plan ignore CANCELLED actions.
 - **NC status** is OVERDUE when the earliest of `dueOn` (before AWAITING_VERIFICATION) and its OPEN actions' due
   dates is before today.
@@ -52,7 +54,8 @@ README decisions 42-51. M4 owns every formula marked "stand-in".
 ## Area by area
 
 **Systems and checklist.** `climateDecidedOn` may not be in the future. Only FA, CO and CA change a checklist row's
-owner. REJECT_NA keeps the request and decision; WITHDRAW_NA clears them. `listIsoChecklist` shows an owner outside the
+owner. APPROVE_NA and REJECT_NA need the row's units: an approver named as the row's owner but outside the system's
+units may not decide (README decision 45). REJECT_NA keeps the request and decision; WITHDRAW_NA clears them. `listIsoChecklist` shows an owner outside the
 system's units just their own rows (plan §3.3 named-person exception).
 
 **Documents.** Revision labels are unique per document, ignoring case (`409 DUPLICATE`). REVIEW needs a future
@@ -71,8 +74,9 @@ must be for the audit's clauses and units; a unit with rows or findings cannot b
 the future.
 
 **Nonconformities.** The NC owner must be an OWNER or CLIENT_ADMIN and its approver an APPROVER or CLIENT_ADMIN
-covering its unit, whether raised by hand, from an internal finding or from an external one. The PATCH route admits FA
-and CO for owner, approver and dates only (`isoNc.reassign`), and OW only for investigation fields. VERIFY_NOT_EFFECTIVE
+covering its unit, whether raised by hand, from an internal finding or from an external one. The PATCH route is the
+owner's and a CA's (investigation fields); the reassign route is FA's, CO's and CA's (owner, approver, dates and
+severity, with a reason). Severity changes only while OPEN or ROOT_CAUSE_FOUND. VERIFY_NOT_EFFECTIVE
 may come before `effectivenessDueOn`; VERIFY_EFFECTIVE waits for it. `effectivenessDueOn` can move but never be cleared
 or set in the past. Severity of an NC raised from a finding is fixed. REOPEN clears `effective`, and back to OPEN also
 clears `effectivenessDueOn`; controls added by a reopened treatment action stay. Actions on a closed subject can be
@@ -83,8 +87,9 @@ cancelled but not completed, edited or reopened.
 NC; CLOSE from HELD needs no finding that raised one, and a recommendation. An external NC's unit is the system's only
 unit, else none.
 
-**Management reviews and files.** A CANCELLED review is locked like a CLOSED one. Changing standards while PLANNED
-archives the rows of keys no longer wanted and adds rows for new keys. A HELD review keeps every input's notes. Only
+**Management reviews and files.** A CANCELLED review is locked like a CLOSED one. The chair (or FA, CO, CA) edits
+attendees and minutes until it is CLOSED or CANCELLED; replanning is FA's, CO's and CA's, only while PLANNED. Changing
+standards while PLANNED archives the rows of keys no longer wanted and adds rows for new keys. A HELD review keeps every input's notes. Only
 the person who asked for an upload ticket confirms it. FA and CO read but do not add or remove files on an NC. The
 incident restriction on downloads covers files on the incident NC's actions too.
 

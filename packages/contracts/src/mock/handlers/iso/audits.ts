@@ -621,7 +621,7 @@ export const auditsHandlers: PartialHandlers<Ids> = {
         clientId: audit.clientId,
         before: Object.fromEntries(inGroup.map((k) => [k, before[k]])),
         after: Object.fromEntries(inGroup.map((k) => [k, audit[k]])),
-        reason: action === 'DUE_DATE_CHANGE' ? (reason ?? null) : null,
+        reason: action === 'UPDATE' ? null : (reason ?? null),
       });
     }
     return auditView(actor, audit);

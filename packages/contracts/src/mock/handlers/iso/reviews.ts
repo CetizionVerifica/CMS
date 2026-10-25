@@ -73,6 +73,7 @@ type Ids =
   | 'planIsoManagementReview'
   | 'getIsoManagementReview'
   | 'updateIsoManagementReview'
+  | 'replanIsoManagementReview'
   | 'cancelIsoManagementReview'
   | 'recordIsoManagementReviewHeld'
   | 'closeIsoManagementReview'
@@ -115,10 +116,9 @@ const FINAL: readonly Review['state'][] = ['CLOSED', 'CANCELLED'];
 /** Reviews that were held: their `heldOn` counts (model §5.2, §5.4). */
 const HELD: readonly Review['state'][] = ['HELD', 'CLOSED'];
 /** The fields only `isoReview.plan` changes, and only while PLANNED (ManagementReviewUpdateBody). */
-const PLAN_FIELDS = ['standards', 'plannedOn', 'chairId'] as const;
 /**
- * Audit groups of a review edit (model §8): moving its date is a due-date change (with the reason), a new chair a
- * reassignment, and its standards (with the input and output rows that follow them), attendees and minutes an UPDATE.
+ * Audit groups of a review edit (model §8): moving its date is a due-date change and a new chair a reassignment, each
+ * with the reason, and its standards (with the input and output rows that follow them), attendees and minutes an UPDATE.
  */
 const EDIT_GROUPS: [IsoAuditEvent['action'], (keyof Review)[]][] = [
   ['DUE_DATE_CHANGE', ['plannedOn']],
@@ -904,6 +904,53 @@ function moveReview(
   });
 }
 
+/**
+ * Checks and saves a review edit, one audit event per EDIT_GROUPS group: the date and chair with `reason`, the rest
+ * (with the input and output rows that follow new standards) as UPDATE. An edit that changes nothing writes nothing.
+ */
+function saveReviewEdit(
+  ctx: IsoCtx,
+  actor: Actor,
+  review: Review,
+  fields: Partial<Pick<Review, 'standards' | 'plannedOn' | 'chairId' | 'attendeeIds' | 'minutes'>>,
+  reason: string | null,
+): ReviewOut {
+  checkReviewPeople(actor, review.clientId, fields);
+  if (review.state === 'HELD' && fields.attendeeIds?.length === 0) {
+    invalid('attendeeIds', 'A held review keeps the people who attended it');
+  }
+  const defined = Object.fromEntries(
+    Object.entries(fields).filter(([, v]) => v !== undefined),
+  ) as Partial<Review>;
+  const changed = (Object.keys(defined) as (keyof Review)[]).filter(
+    (k) => JSON.stringify(review[k]) !== JSON.stringify(defined[k]),
+  );
+  if (changed.length === 0) return reviewView(actor, review);
+  const before = Object.fromEntries(changed.map((k) => [k, review[k]]));
+  Object.assign(review, defined);
+  touchIso(ctx, review);
+  const rows = changed.includes('standards')
+    ? syncRows(ctx, actor, review, systemOf(actor.firm, review))
+    : {};
+  for (const [action, keys] of EDIT_GROUPS) {
+    const inGroup = changed.filter((k) => keys.includes(k));
+    if (inGroup.length === 0) continue;
+    isoAudit(ctx, actor, {
+      action,
+      entityType: 'management_review',
+      entityId: review.id,
+      clientId: review.clientId,
+      before: Object.fromEntries(inGroup.map((k) => [k, before[k]])),
+      after: {
+        ...Object.fromEntries(inGroup.map((k) => [k, review[k]])),
+        ...(action === 'UPDATE' ? rows : {}),
+      },
+      reason: action === 'UPDATE' ? null : reason,
+    });
+  }
+  return reviewView(actor, review);
+}
+
 /** Notes, decisions and edits are taken until the review is CLOSED or CANCELLED (model §1.8). */
 function requireNotFinal(review: Review): void {
   if (FINAL.includes(review.state)) invalidTransition('management_review', review.state, 'UPDATE');
@@ -1249,68 +1296,37 @@ export const reviewsHandlers: PartialHandlers<Ids> = {
     return reviewView(actor, review);
   },
 
-  /**
-   * Until CLOSED or CANCELLED: attendees and minutes (`isoReview.write`: a manager or the chair); standards, date and
-   * chair only while PLANNED and only with `isoReview.plan`. Changing the standards adds and archives input and output
-   * rows to match; moving the date is a due-date change with the body's reason, a new chair a reassignment.
-   */
+  /** Until CLOSED or CANCELLED: attendees and minutes (`isoReview.write`: a manager or the chair), audited as UPDATE. */
   updateIsoManagementReview(ctx) {
+    const actor = actorOf(ctx);
+    const review = requireReview(actor, ctx.params.clientId, ctx.params.id);
+    ctx.authorize(selfScope(actor, reviewReach(actor.firm, review), [review.chairId]));
+    const { version, ...fields } = ctx.body;
+    checkIsoVersion(review, version);
+    requireNotFinal(review);
+    return saveReviewEdit(ctx, actor, review, fields, null);
+  },
+
+  /**
+   * `isoReview.plan` (FA, CO, CA) while PLANNED: standards, date and chair. Changing the standards adds and archives
+   * input and output rows to match; a new date is a due-date change and a new chair a reassignment, with the reason.
+   */
+  replanIsoManagementReview(ctx) {
     const actor = actorOf(ctx);
     const firm = actor.firm;
     const review = requireReview(actor, ctx.params.clientId, ctx.params.id);
-    const reach = reviewReach(firm, review);
-    ctx.authorize(selfScope(actor, reach, [review.chairId]));
+    ctx.authorize(isoScope(actor, reviewReach(firm, review)));
     const { version, reason, ...body } = ctx.body;
+    checkIsoVersion(review, version);
+    if (review.state !== 'PLANNED') invalidTransition('management_review', review.state, 'UPDATE');
     const fields = {
       ...body,
       ...(body.standards === undefined ? {} : { standards: inCodeOrder(body.standards) }),
     };
-    const planning = PLAN_FIELDS.some((k) => fields[k] !== undefined);
-    if (planning && !plansReview(actor, review, reach)) {
-      forbidden(
-        'isoReview.plan',
-        'Only a client admin, consultant or account admin changes the standards, date or chair',
-      );
+    if (fields.standards !== undefined) {
+      checkStandards(firm, systemOf(firm, review), fields.standards);
     }
-    checkIsoVersion(review, version);
-    requireNotFinal(review);
-    if (planning && review.state !== 'PLANNED') {
-      invalidTransition('management_review', review.state, 'UPDATE');
-    }
-    const system = systemOf(firm, review);
-    if (fields.standards !== undefined) checkStandards(firm, system, fields.standards);
-    checkReviewPeople(actor, review.clientId, fields);
-    if (review.state === 'HELD' && fields.attendeeIds?.length === 0) {
-      invalid('attendeeIds', 'A held review keeps the people who attended it');
-    }
-    const defined = Object.fromEntries(
-      Object.entries(fields).filter(([, v]) => v !== undefined),
-    ) as Partial<Review>;
-    const changed = (Object.keys(defined) as (keyof Review)[]).filter(
-      (k) => JSON.stringify(review[k]) !== JSON.stringify(defined[k]),
-    );
-    if (changed.length === 0) return reviewView(actor, review);
-    const before = Object.fromEntries(changed.map((k) => [k, review[k]]));
-    Object.assign(review, defined);
-    touchIso(ctx, review);
-    const rows = changed.includes('standards') ? syncRows(ctx, actor, review, system) : {};
-    for (const [action, keys] of EDIT_GROUPS) {
-      const inGroup = changed.filter((k) => keys.includes(k));
-      if (inGroup.length === 0) continue;
-      isoAudit(ctx, actor, {
-        action,
-        entityType: 'management_review',
-        entityId: review.id,
-        clientId: review.clientId,
-        before: Object.fromEntries(inGroup.map((k) => [k, before[k]])),
-        after: {
-          ...Object.fromEntries(inGroup.map((k) => [k, review[k]])),
-          ...(action === 'UPDATE' ? rows : {}),
-        },
-        reason: action === 'DUE_DATE_CHANGE' ? (reason ?? null) : null,
-      });
-    }
-    return reviewView(actor, review);
+    return saveReviewEdit(ctx, actor, review, fields, reason ?? null);
   },
 
   /** CANCEL (client admin; an account admin or consultant as delegate): PLANNED → CANCELLED, with a reason. */

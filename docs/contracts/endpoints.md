@@ -197,7 +197,7 @@ and an ISO route answers `409 FEATURE_NOT_READY` until the account's ISO catalog
 ## 10. M16 · ISO add-on (`apps/api/src/modules/iso`)
 
 ISO 9001, 14001 and 45001 management systems for a client (ADR M16-0001 and M16-0002, `docs/iso/plan.md`,
-`docs/iso/model.md`). The 117 routes are `ISO_ENDPOINTS` (`packages/contracts/src/api/iso-endpoints.ts`), all M16's and
+`docs/iso/model.md`). The 119 routes are `ISO_ENDPOINTS` (`packages/contracts/src/api/iso-endpoints.ts`), all M16's and
 all under `/clients/{clientId}/iso/`; bodies, queries and views are in `src/api/iso.ts`, types in domain-model.md §10.
 
 **The switch.** Every route here carries `feature: 'isoManagement'` (`x-canopy-feature` in the OpenAPI document).
@@ -210,9 +210,11 @@ With it, every route answers `409 FEATURE_NOT_READY` `{ feature }` until the acc
 as implemented. **own** means the person named in that role on the record: its owner (a checklist row's owner, a
 document's, risk item's, objective's or nonconformity's owner, an action's subject's owner), its approver (a
 document's or nonconformity's approver, an action's subject's approver), the lead auditor or an auditor of an internal
-audit, or the chair of a management review; M16 builds each `Resource` per action (plan §3.2). FA, CO and CA may take a
-step whose usual taker is the record's owner, row owner, lead auditor or chair, audited with `delegated: true`; FA and
-CO never take an approver's step, and only the record's approver or a CA as delegate does. Nobody takes a checker step
+audit, or the chair of a management review; M16 builds each `Resource` per action (plan §3.2). Every route has exactly
+one action, so a route's roles are its action's roles. Where the action table grants them the action, FA, CO and CA may
+take a step whose usual taker is the record's owner, row owner, lead auditor or chair, audited with `delegated: true`.
+FA and CO take no nonconformity owner's step (`isoNc.work`) and complete no action (`isoAction.complete`); FA and CO
+never take an approver's step, and only the record's approver or a CA as delegate does. Nobody takes a checker step
 (APPROVE, APPROVE_NA, VERIFY_EFFECTIVE, VERIFY_NOT_EFFECTIVE) on a record where they took a maker step since its last
 RAISE, REOPEN, VERIFY_NOT_EFFECTIVE or DRAFT_REVISION: `403 FORBIDDEN` (model §4).
 
@@ -232,8 +234,10 @@ allow is `409 INVALID_TRANSITION` with `{ entity, from, action }`: the ISO entit
 N/A state) and the model §4 action, or `UPDATE` for a field edit, list change or new child row on a locked record
 (model §1.8, §6). A failed guard is `400 VALIDATION` naming the fields; a missing reason is `422 REASON_REQUIRED`. A
 person named on a record must hold a live role in its client covering its unit, else `400 VALIDATION` (model §1.5).
-Moving a planned or due date, or changing an owner or approver, needs a `reason` and is audited as `DUE_DATE_CHANGE` or
-`REASSIGN`. Every create, edit, state change, list change and file add, remove or download writes an `AuditEvent` with
+A field edit audited as `REASSIGN` (an owner, approver, lead auditor or chair) or `DUE_DATE_CHANGE` (a planned, due,
+review or response date) needs a `reason`, and the event carries it (README decision 51 p); the body fields that take
+one are listed in `src/api/iso.ts` per body. A date or owner a step sets itself (RECORD_HELD's dates, a risk's review
+date when a treatment action puts a control in place) needs none. Every create, edit, state change, list change and file add, remove or download writes an `AuditEvent` with
 the model §8 entity type (`ISO_ENTITY_TYPES`, staged: no route writes one before ISO-1b joins them to `EntityType`).
 Views of records with a machine carry `allowedActions`, the steps the signed-in person may take now. Machine steps
 honour `Idempotency-Key` (api-conventions.md §2), RAISE and PLAN included, and so do a risk item's REVIEW and closing an
@@ -265,7 +269,7 @@ on the URL.
 | GET | `/clients/{clientId}/iso/systems/{id}/context` (kind, climateRelated, includeArchived) | `isoSystem.read` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | issues and interested parties (4.1, 4.2); AP/OW limited to their units (plan §3.3) |
 | POST | `/clients/{clientId}/iso/systems/{id}/context` | `isoSystem.write` | ✓ | ✓ | ✓ | | | | `201` |
 | PATCH | `/clients/{clientId}/iso/systems/{id}/context/{itemId}` | `isoSystem.write` | ✓ | ✓ | ✓ | | | | |
-| POST | `/clients/{clientId}/iso/systems/{id}/context/{itemId}/archive` `{ reason }` | `isoSystem.write` | ✓ | ✓ | ✓ | | | | |
+| POST | `/clients/{clientId}/iso/systems/{id}/context/{itemId}/archive` `{ version, reason }` | `isoSystem.write` | ✓ | ✓ | ✓ | | | | |
 
 ### Clause checklist
 | Method | Path | Action | FA | CO | CA | AP | OW | VI | Notes |
@@ -301,13 +305,13 @@ on the URL.
 | POST | `/clients/{clientId}/iso/risks` | `isoRisk.write` | ✓ | ✓ | ✓ | | own | | `201`; the engine's rating and significance are stored with it; OW only as its owner, for their units |
 | GET | `/clients/{clientId}/iso/risks/{id}` | `isoRisk.read` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | |
 | PATCH | `/clients/{clientId}/iso/risks/{id}` | `isoRisk.write` | ✓ | ✓ | ✓ | | own | | change or re-rate (not `kind`); rating and significance recomputed; OW only as its owner |
-| POST | `/clients/{clientId}/iso/risks/{id}/archive` `{ reason }` | `isoRisk.write` | ✓ | ✓ | ✓ | | own | | its actions can no longer be reopened |
+| POST | `/clients/{clientId}/iso/risks/{id}/archive` `{ version, reason }` | `isoRisk.write` | ✓ | ✓ | ✓ | | own | | its actions can no longer be reopened |
 | POST | `/clients/{clientId}/iso/risks/{id}/review` `{ version, nextReviewDueOn, note? }` | `isoRisk.write` | ✓ | ✓ | ✓ | | own | | REVIEW: stands as rated; sets the next review date |
 | PUT | `/clients/{clientId}/iso/risks/{id}/significance` `{ version, significantOverride, reason }` | `isoRisk.override` | ✓ | ✓ | ✓ | | | | set or clear the override; audited |
 | GET | `/clients/{clientId}/iso/risks/{id}/controls` | `isoRisk.read` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | controls in place; AP/OW limited to their units (plan §3.3) |
 | POST | `/clients/{clientId}/iso/risks/{id}/controls` | `isoRisk.write` | ✓ | ✓ | ✓ | | own | | `201`; `hierarchy` required on a HAZARD; planned controls are treatment actions |
 | PATCH | `/clients/{clientId}/iso/risks/{id}/controls/{controlId}` | `isoRisk.write` | ✓ | ✓ | ✓ | | own | | OW only as the item owner |
-| POST | `/clients/{clientId}/iso/risks/{id}/controls/{controlId}/archive` `{ reason }` | `isoRisk.write` | ✓ | ✓ | ✓ | | own | | a control no longer in place |
+| POST | `/clients/{clientId}/iso/risks/{id}/controls/{controlId}/archive` `{ version, reason }` | `isoRisk.write` | ✓ | ✓ | ✓ | | own | | a control no longer in place |
 
 ### Objectives
 | Method | Path | Action | FA | CO | CA | AP | OW | VI | Notes |
@@ -366,7 +370,8 @@ on the URL.
 | GET | `/clients/{clientId}/iso/nonconformities` (managementSystemId, q, unitId, state, source, severity, standard, ownerId, approverId, incident, overdue) | `isoNc.read` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | newest first, with timing; AP/OW limited to their units (plan §3.3) |
 | POST | `/clients/{clientId}/iso/nonconformities` | `isoNc.raise` | ✓ | ✓ | ✓ | ✓ | ✓ | | `201`; RAISE a nonconformity, incident or near miss for a unit the actor can see; not with an audit source (those come from findings) |
 | GET | `/clients/{clientId}/iso/nonconformities/{id}` | `isoNc.read` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | with its timing, the finding that raised it and the actions on offer |
-| PATCH | `/clients/{clientId}/iso/nonconformities/{id}` | `isoNc.work` / `isoNc.reassign` | ✓ | ✓ | ✓ | | own | | until CLOSED or CANCELLED; investigation fields need `isoNc.work` (CA, or OW only as its owner); owner, approver, `dueOn` and `effectivenessDueOn` need `isoNc.reassign` (FA, CO, CA) and a reason |
+| PATCH | `/clients/{clientId}/iso/nonconformities/{id}` | `isoNc.work` | | | ✓ | | own | | until CLOSED or CANCELLED: the investigation fields (`NcUpdateBody`: description, unit, standards, clauses, source instance, incident details, containment, correction, disposition, root cause, risk and system changes); OW only as its owner |
+| POST | `/clients/{clientId}/iso/nonconformities/{id}/reassign` `{ version, ownerId?, approverId?, dueOn?, effectivenessDueOn?, severity?, reason }` | `isoNc.reassign` | ✓ | ✓ | ✓ | | | | until CLOSED or CANCELLED, with a reason; severity only while OPEN or ROOT_CAUSE_FOUND (else `409 INVALID_TRANSITION`) and never on a nonconformity raised from a finding |
 | POST | `/clients/{clientId}/iso/nonconformities/{id}/root-cause` | `isoNc.work` | | | ✓ | | own | | ADD_ROOT_CAUSE: containment, correction, root cause and similar occurrences |
 | POST | `/clients/{clientId}/iso/nonconformities/{id}/plan-actions` `{ version, effectivenessDueOn }` | `isoNc.work` | | | ✓ | | own | | PLAN_ACTIONS: at least one OPEN action |
 | POST | `/clients/{clientId}/iso/nonconformities/{id}/submit-no-action` | `isoNc.work` | | | ✓ | | own | | SUBMIT_NO_ACTION for a minor case, with the reason, risk review and system change |
@@ -393,7 +398,8 @@ on the URL.
 | GET | `/clients/{clientId}/iso/management-reviews` (managementSystemId, q, state, from, to) | `isoReview.read` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | by planned date; AP/OW limited to their units (plan §3.3) |
 | POST | `/clients/{clientId}/iso/management-reviews` | `isoReview.plan` | ✓ | ✓ | ✓ | | | | `201`; PLAN: its input and output rows come with it |
 | GET | `/clients/{clientId}/iso/management-reviews/{id}` | `isoReview.read` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | with the actions on offer |
-| PATCH | `/clients/{clientId}/iso/management-reviews/{id}` | `isoReview.write` / `isoReview.plan` | ✓ | ✓ | ✓ | own | own | | attendees and minutes (`isoReview.write`); standards, date or chair while PLANNED (`isoReview.plan`, moving the date needs a reason); AP/OW only as its chair, and never for standards, date or chair |
+| PATCH | `/clients/{clientId}/iso/management-reviews/{id}` `{ version, attendeeIds?, minutes? }` | `isoReview.write` | ✓ | ✓ | ✓ | own | own | | attendees and minutes until CLOSED or CANCELLED; AP/OW only as its chair |
+| POST | `/clients/{clientId}/iso/management-reviews/{id}/replan` `{ version, standards?, plannedOn?, chairId?, reason? }` | `isoReview.plan` | ✓ | ✓ | ✓ | | | | while PLANNED; a new date or chair needs a reason; changing standards adds and archives input and output rows |
 | POST | `/clients/{clientId}/iso/management-reviews/{id}/cancel` `{ version, reason }` | `isoReview.plan` | ✓ | ✓ | ✓ | | | | CANCEL a PLANNED review |
 | POST | `/clients/{clientId}/iso/management-reviews/{id}/held` `{ version, heldOn, attendeeIds?, minutes? }` | `isoReview.write` | ✓ | ✓ | ✓ | own | own | | RECORD_HELD: notes on every input; AP/OW only as its chair |
 | POST | `/clients/{clientId}/iso/management-reviews/{id}/close` | `isoReview.write` | ✓ | ✓ | ✓ | own | own | | CLOSE: a decision on every output, every review action DONE or CANCELLED |
@@ -433,7 +439,7 @@ ISO-4b adds one `POLICY` row per action. "own" is the person named in that role 
 | `isoCertification.write` | ✓ | ✓ | ✓ | | | | certificates, external audits and their findings |
 | `isoNc.raise` | ✓ | ✓ | ✓ | ✓ | ✓ | | RAISE, for a unit the actor can see |
 | `isoNc.work` | | | ✓ | | own | | investigation fields, ADD_ROOT_CAUSE, PLAN_ACTIONS, SUBMIT, SUBMIT_NO_ACTION (own = NC owner) |
-| `isoNc.reassign` | ✓ | ✓ | ✓ | | | | a nonconformity's owner, approver, `dueOn` and `effectivenessDueOn`, with a reason (new in ISO-1, README decision 51 h). The PATCH route admits FA and CO for these fields only |
+| `isoNc.reassign` | ✓ | ✓ | ✓ | | | | a nonconformity's owner, approver, `dueOn`, `effectivenessDueOn` and severity, with a reason (README decision 51 h, o) |
 | `isoNc.verify` | | | ✓ | own | | | VERIFY_EFFECTIVE, VERIFY_NOT_EFFECTIVE (own = NC approver) |
 | `isoNc.cancel` | | | ✓ | own | | | CANCEL |
 | `isoNc.reopen` | | | ✓ | | | | REOPEN |
@@ -441,8 +447,8 @@ ISO-4b adds one `POLICY` row per action. "own" is the person named in that role 
 | `isoAction.complete` | | | ✓ | | own | | COMPLETE (own = action owner) |
 | `isoAction.cancel` | | | ✓ | own | | | CANCEL (own = approver of the subject; findings, reviews, risk items and objectives have none, so only CA) |
 | `isoAction.reopen` | | | ✓ | | | | REOPEN |
-| `isoReview.plan` | ✓ | ✓ | ✓ | | | | PLAN, CANCEL, and a PLANNED review's standards, date and chair |
-| `isoReview.write` | ✓ | ✓ | ✓ | own | own | | attendees, minutes, inputs, RECORD_HELD, outputs, CLOSE (own = chair) |
+| `isoReview.plan` | ✓ | ✓ | ✓ | | | | PLAN, CANCEL, and replanning a PLANNED review's standards, date and chair |
+| `isoReview.write` | ✓ | ✓ | ✓ | own | own | | attendees and minutes, inputs, RECORD_HELD, outputs, CLOSE (own = chair) |
 | `isoFile.write` | ✓ | ✓ | ✓ | own | own | | upload, confirm, remove: whoever may write the subject |
 
 ## 9. M15 · Operator API (`/api/platform/v1`, `apps/api/src/platform`)

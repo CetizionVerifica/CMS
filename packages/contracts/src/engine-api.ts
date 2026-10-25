@@ -165,9 +165,14 @@ export interface IsoEngineApi {
     readings: Pick<ObjectiveReading, 'periodStart' | 'periodEnd' | 'value'>[],
     objective: Pick<
       Objective,
-      'id' | 'target' | 'baseline' | 'direction' | 'readingRule' | 'dueOn' | 'createdAt'
-    >,
+      'id' | 'target' | 'baseline' | 'direction' | 'readingRule' | 'dueOn'
+    > & {
+      /** The objective's `createdAt` as a date in the client's time zone, from the engine's date helper. */
+      createdOn: LocalDate;
+    },
     asOf: LocalDate,
+    /** Reading periods follow the client's financial year (`readingRule`, as `generateInstances`). */
+    cal: Pick<EngineCalendar, 'fyStartMonth'>,
   ): ObjectiveProgress;
   auditProgrammeCoverage(
     audits: Pick<InternalAudit, 'id' | 'state' | 'unitIds'>[],

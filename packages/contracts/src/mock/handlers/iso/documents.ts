@@ -366,7 +366,10 @@ function putInForce(
   });
 }
 
-/** Audit groups of a document edit: a change of people is a reassignment, of `reviewDueOn` a due-date change (§8). */
+/**
+ * Audit groups of a document edit: a change of people is a reassignment, of `reviewDueOn` a due-date change (§8), each
+ * with the body's reason.
+ */
 const EDIT_GROUPS: [IsoAuditEvent['action'], string[]][] = [
   ['REASSIGN', ['ownerId', 'approverId']],
   ['DUE_DATE_CHANGE', ['reviewDueOn']],
@@ -473,7 +476,7 @@ export const documentsHandlers: PartialHandlers<Ids> = {
     const actor = actorOf(ctx);
     const doc = requireDocument(actor, ctx.params.clientId, ctx.params.id);
     authorizeStep(ctx, actor, doc, 'owner');
-    const { version, ...fields } = ctx.body;
+    const { version, reason, ...fields } = ctx.body;
     checkIsoVersion(doc, version);
     requireActive(doc, 'UPDATE');
     checkTypeFields(doc.type, fields);
@@ -503,6 +506,7 @@ export const documentsHandlers: PartialHandlers<Ids> = {
         clientId: doc.clientId,
         before: Object.fromEntries(inGroup.map((k) => [k, changes.before[k]])),
         after: Object.fromEntries(inGroup.map((k) => [k, changes.after[k]])),
+        reason: action === 'UPDATE' ? null : (reason ?? null),
       });
     }
     return documentView(ctx, actor, doc);

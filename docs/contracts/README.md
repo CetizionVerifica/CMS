@@ -5,7 +5,7 @@ source of truth wherever it exists. Shipped in code so far: domain types, enums,
 schemas for every endpoint with role permissions (`packages/contracts/src/api`), the generated OpenAPI 3.1 spec
 ([openapi.json](openapi.json)), typed JSON fixtures for firms A and B (`packages/contracts/fixtures`) and a mock
 API server that serves every endpoint from those fixtures (`@canopy/contracts/mock`). Since 1.8.0 that includes the
-ISO add-on (M16): its records, engine interface, 117 routes, catalogue and firm B's ISO fixture.
+ISO add-on (M16): its records, engine interface, 119 routes (1.8.1), catalogue and firm B's ISO fixture.
 
 | File | What it fixes | Main readers |
 |---|---|---|
@@ -158,11 +158,12 @@ with sign-off per "How to change a contract".
     reads and writes this shape. The catalogue's activities carry their references in it too.
 44. ISO roles and actions (plan §3.2 as implemented, endpoints.md §10). Each ISO resource has a `<resource>.read`
     action and the write actions of the plan's table, so M5 adds one `POLICY` row per action and no wildcard. All
-    117 routes are M16's and carry `feature: 'isoManagement'` (`x-canopy-feature` in OpenAPI). ISO routes use only
-    `all` and `own` access. "own" is the person named in that role on the record (owner, approver, lead auditor or
+    119 routes (117 in 1.8.0; 1.8.1 split two, decision 51 o) are M16's and carry `feature: 'isoManagement'`
+    (`x-canopy-feature` in OpenAPI). Every route has exactly one action. ISO routes use only `all` and `own` access. "own" is the person named in that role on the record (owner, approver, lead auditor or
     auditor, chair); where "own" names someone other than an owner or approver, M16 sets both `ownerId` and
-    `approverId` to the actor when the actor is one of them. FA, CO and CA may take a step the named person normally
-    takes, audited with `delegated: true`; FA and CO never take an approver's step; nobody takes a checker step on a
+    `approverId` to the actor when the actor is one of them. Where the action table grants them the action, FA, CO
+    and CA may take a step the named person normally takes, audited with `delegated: true`; FA and CO take no
+    nonconformity owner's step and complete no action, and never take an approver's step; nobody takes a checker step on a
     record where they took a maker step since its last RAISE, REOPEN, VERIFY_NOT_EFFECTIVE or DRAFT_REVISION (`403
     FORBIDDEN`). Views of records with a machine carry `allowedActions` for the signed-in person. The changes to the
     plan's table are in decision 51.
@@ -174,6 +175,9 @@ with sign-off per "How to change a contract".
     lists, overview counts and exports leave the record out. `can()` checks the unit part through the new optional
     `Resource.unitIds` (non-empty, distinct): when present, a unit-scoped membership needs one of those units. The
     stub's `inScope` does this now and M5's does in ISO-4b; the named-person exception stays the provider's check.
+    That exception widens what a person sees and their `own` grants, never an `all` grant: an N/A decision
+    (`isoChecklist.decideNa`, no `own` row) needs the row's units even when the approver is the row's owner. A system
+    whose `unitIds` is empty covers every unit, so its records leave `Resource.unitIds` out rather than send `[]`.
 46. The ISO feature gate. Every ISO route answers `403 FEATURE_NOT_ENABLED { feature }` without the add-on, reads and
     files included, and `409 FEATURE_NOT_READY { feature }` while the account has it but its catalogue copy is not
     recorded (`Account.isoCatalogueCopiedAt` null, plan §4.3). `FEATURE_NOT_READY` is a new code: the request is
@@ -199,8 +203,9 @@ with sign-off per "How to change a contract".
     CLEAN-only downloads, 5-minute URLs and the audit actions are the evidence ones, on the subject's entity type.
     Files of an incident nonconformity and its actions download only for the people model §6 names.
 49. The mock serves every ISO route and enforces the gate as the real API does.
-    `X-Mock-Features` (comma-separated flags, empty = none) replaces the firm's features for one request,
-    `Me.account.features` and every gate included, so the web mock can play a demo user without the add-on (ISO-7b);
+    `X-Mock-Features` (comma-separated flags, empty = none) replaces the firm's features for one request on every
+    route, public ones included (since 1.8.1 sign-in and support verify return them in `Me.account.features`), and
+    every gate, so the web mock can play a demo user without the add-on (ISO-7b);
     a value that is not a list of flags is `400 VALIDATION`. `PUT /__mock/firms/{firmId}/features` now takes
     `{ features, isoCatalogueCopied? }` and answers `{ features, isoCatalogueCopiedAt }` (`404` for an unknown firm,
     `400` for a bad body). Turning `isoManagement` on runs the catalogue copy unless `isoCatalogueCopied` is false,
@@ -246,10 +251,13 @@ with sign-off per "How to change a contract".
     48), because the file row holds a `storageKey` the API never returns, as `Evidence` and `EvidenceView`.
     `IsoAction` has nothing to hide, so it has one form, with `subject: { type, id }` as model §3.12 says the
     contract shows it; M3 maps its five subject columns to that.
-    (h) `isoNc.reassign` (FA, CO, CA) is a new action for a nonconformity's owner, approver, `dueOn` and
-    `effectivenessDueOn`, with a reason (audited `REASSIGN` or `DUE_DATE_CHANGE`). The plan's table has no row for it,
-    and `isoNc.work` (CA, OW own) would let an owner reassign their own nonconformity. The PATCH route lists FA, CO,
-    CA and OW (own): FA and CO may change only these fields, and OW only the investigation fields.
+    (h) `isoNc.reassign` (FA, CO, CA) is a new action for a nonconformity's owner, approver, `dueOn`,
+    `effectivenessDueOn` and severity, always with a reason (owner and approver audited `REASSIGN`, dates
+    `DUE_DATE_CHANGE`, severity `UPDATE`). The plan's table has no row for it, and `isoNc.work` (CA, OW own) would let
+    an owner reassign their own nonconformity or lower its severity and then skip corrective action. Severity changes
+    only while OPEN or ROOT_CAUSE_FOUND (`409 INVALID_TRANSITION` after, so a closed MAJOR always had its actions) and
+    never on a nonconformity raised from a finding, whose type sets it (`400 VALIDATION`). Since 1.8.1 it has its own
+    route (o).
     (i) The catalogue and overview reads use `isoSystem.read`: the catalogue is the account's reference data and the
     overview spans every resource, so neither has a resource of its own. Every role may read them.
     (j) Views of records with a machine carry `allowedActions` (model §10 does not list them), so the UI shows only
@@ -257,8 +265,36 @@ with sign-off per "How to change a contract".
     (k) `nonconformityStatus`, `actionStatus`, `managementReviewDue` and `reviewDue` take `{ dueSoonDays }`, which
     model §5.2 leaves out, so DUE_SOON means the same as on the register (`FirmSettings.dueSoonDays`).
     (l) The ISO overview route is M16's, as plan v2 (ISO-8c) has it; an earlier draft of ISO-1 gave it to M10.
-    (m) `DocumentRevision.approvedById` is null for a recorded edition of an EXTERNAL document, while `approvedAt` is
-    still set: the issuer approved it, not a person in the client.
+    (m) `DocumentRevision.approvedById` may be null on an APPROVED or SUPERSEDED revision, with `approvedAt` still
+    set. The revision does not carry its document's type, so the schema cannot tell a recorded edition of an EXTERNAL
+    document (issued and approved by its issuer, not a person in the client: null) from an internal revision (always
+    the approver). That rule is the provider's: RECORD_EDITION leaves it null and APPROVE always sets it, as the mock
+    does; M3 may check it across the two tables.
     (n) `ExportCreateBody.kind` stays `ExportKind` rather than taking `IsoExportKind` too, so it refuses the ISO kinds
     until ISO-1b joins them. Its filter check already goes through `exportFilterQuery(kind)`, which
     picks `ISO_EXPORT_FILTERS[kind]` for an ISO kind, so ISO-1b changes no schema there.
+    (o) 1.8.1 (ISO-1a): every route has one action. The stub `can()` grants an action to every role of any route that
+    lists it, and the generic gate checks `actions[0]`, so the two-action routes of 1.8.0 leaked rights: an NC owner
+    got `isoNc.reassign`, FA and CO `isoNc.work`, a chair `isoReview.plan`. The NC PATCH is now `isoNc.work` only
+    (CA, OW own: the investigation fields) and `POST /nonconformities/{id}/reassign` is `isoNc.reassign` (FA, CO, CA).
+    The review PATCH is `isoReview.write` only (attendees and minutes, AP/OW as chair) and
+    `POST /management-reviews/{id}/replan` is `isoReview.plan` (FA, CO, CA: standards, date and chair while PLANNED).
+    119 routes.
+    (p) The reason rule (1.8.1). Every field edit audited as `REASSIGN` (owner, approver, lead auditor, chair) or
+    `DUE_DATE_CHANGE` (a planned, due, review or response date) needs a `reason`, else `422 REASON_REQUIRED`, and the
+    event carries it, as `instance.reassign` and `instance.dueDate` do. Each update body lists its fields in
+    `reasonWith`: checklist row owner; document owner, approver and review date; risk item owner and review date;
+    objective owner and due date; internal audit dates and lead; external audit response date; action owner and due
+    date; review date and chair (replan). Other edits are `UPDATE` with no reason. A date a step sets (RECORD_HELD's
+    visit dates, a risk's review date when a treatment action puts a control in place) needs none; its event names
+    the step or the action.
+    (q) Rules the contract enforces that the model does not list, so M4's `isoTransition` and M16 apply them too:
+    `Nonconformity.rootCauseMethod` is required from ROOT_CAUSE_FOUND on, so ADD_ROOT_CAUSE needs it beside model
+    §4.1's four fields; an internal audit's lead auditor is not listed again in `auditorIds`; a nonconformity's
+    `dueOn` is not before its `reportedOn`; `RiskItem.condition` is required on an ASPECT or HAZARD (model §3.5 says
+    only that it applies to them), since an aspect's or hazard's significance depends on it. Stored rows that break
+    them do not parse.
+    (r) `IsoEngineApi.objectiveProgress` takes `createdOn: LocalDate` (the objective's `createdAt` as a date in the
+    client's time zone, from the engine's date helper) and `{ fyStartMonth }`, not `createdAt`: root rule 4 forbids
+    the engine turning a timestamp into a date without a zone, and reading periods follow the client's financial year,
+    as `generateInstances` does.

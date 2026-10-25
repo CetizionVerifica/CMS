@@ -35,7 +35,9 @@ export const Resource = z.strictObject({
   /**
    * A record that spans several units (an ISO management system, internal audit or certificate, or a record that takes
    * its management system's units; docs/iso/plan.md §3.3). When present, a unit-scoped membership needs at least one of
-   * them. Optional: absent means the record has no unit list.
+   * them. Absent means the record has no unit list. A system whose `unitIds` is empty covers every unit of the client
+   * (model §3.1): leave the field out then, never send `[]` (refused, which would fail closed). A record that takes
+   * its system's units passes the system's list, or leaves the field out when that list is empty.
    */
   unitIds: z
     .array(Id)

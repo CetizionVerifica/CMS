@@ -105,7 +105,7 @@ function signIn(
   const session = ctx.store.openSession(firm.data.firm.id, person.id, false, ctx.clock.now());
   if (mfaPassed) session.mfaSatisfied = true;
   ctx.setSession(session);
-  return me(firm, person, session, ctx.clock);
+  return me(firm, person, session, ctx.clock, ctx.features ?? firm.features);
 }
 
 function findInvite(store: MockStore, token: string, now: string) {

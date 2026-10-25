@@ -129,8 +129,16 @@ function headerFeatures(request: FastifyRequest): string[] | undefined {
   return [...new Set(parsed.data)].sort();
 }
 
-/** The signed-in actor from the session cookie, or from `X-Mock-Person` (person id or email; tests and scripts). */
-function resolveActor(store: MockStore, request: FastifyRequest, clock: Clock): Actor | null {
+/**
+ * The signed-in actor from the session cookie, or from `X-Mock-Person` (person id or email; tests and scripts), with
+ * `features` (from `X-Mock-Features`) in place of the firm's when sent.
+ */
+function resolveActor(
+  store: MockStore,
+  request: FastifyRequest,
+  clock: Clock,
+  features: string[] | undefined,
+): Actor | null {
   const now = clock.now();
   const asPerson = header(request, 'x-mock-person');
   let session: Session | undefined;
@@ -153,7 +161,7 @@ function resolveActor(store: MockStore, request: FastifyRequest, clock: Clock): 
   const firm = store.firm(session.firmId);
   const person = firm.data.people.find((p) => p.id === session.personId && p.archivedAt === null);
   if (person === undefined || person.status === 'DISABLED') return null;
-  return actorFor(firm, session, person, now, headerFeatures(request) ?? firm.features);
+  return actorFor(firm, session, person, now, features ?? firm.features);
 }
 
 function sendError(reply: FastifyReply, requestId: string, error: MockError): FastifyReply {
@@ -219,7 +227,9 @@ export function createMockServer(
       url,
       handler: async (request, reply) => {
         const requestId = (request as FastifyRequest & { requestId: string }).requestId;
-        const actor = ep.auth === 'public' ? null : resolveActor(store, request, clock);
+        // Read on every route, public ones too, so a sign-in answers with the same features as /me.
+        const features = headerFeatures(request);
+        const actor = ep.auth === 'public' ? null : resolveActor(store, request, clock, features);
         if (ep.auth !== 'public') {
           if (actor === null) throw new MockError('UNAUTHENTICATED', 'Sign in to continue');
           if (!actor.session.mfaSatisfied && !BEFORE_MFA.has(id)) {
@@ -272,6 +282,7 @@ export function createMockServer(
           clock,
           requestId,
           actor,
+          ...(features === undefined ? {} : { features }),
           params: (params?.data ?? {}) as Record<string, string>,
           query: query?.data as never,
           body: body?.data as never,

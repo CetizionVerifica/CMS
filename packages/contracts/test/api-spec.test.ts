@@ -54,6 +54,23 @@ describe('OpenAPI document', () => {
     expect(operationIds.sort()).toEqual(endpoints.map(([id]) => id).sort());
   });
 
+  it('documents the add-on gate (403 FEATURE_NOT_ENABLED, 409 FEATURE_NOT_READY) on every add-on operation', () => {
+    for (const [id, ep] of endpoints) {
+      const op = doc.paths[ep.path]?.[ep.method.toLowerCase()] as {
+        responses: Record<string, { description: string }>;
+      };
+      const codes = Object.keys(op.responses).filter((code) => code !== 'default');
+      if (ep.feature === undefined) {
+        expect(codes, id).toEqual([String(ep.status)]);
+      } else {
+        expect(codes.sort(), id).toEqual([String(ep.status), '403', '409'].sort());
+        expect(op.responses['403']!.description, id).toContain('FEATURE_NOT_ENABLED');
+        expect(op.responses['409']!.description, id).toContain('FEATURE_NOT_READY');
+      }
+    }
+    expect(doc.info.description).toContain('409 FEATURE_NOT_READY');
+  });
+
   it('asks for the CSRF token on every signed-in write and Idempotency-Key where honoured', () => {
     for (const [, ep] of endpoints) {
       const op = doc.paths[ep.path]?.[ep.method.toLowerCase()] as { parameters?: unknown[] };

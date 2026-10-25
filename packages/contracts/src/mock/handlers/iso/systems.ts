@@ -182,6 +182,7 @@ function patchWithEvents<
   patch: Partial<T>,
   entityType: IsoEntity,
   split: Partial<Record<string, AuditAction>> = {},
+  reason: string | null = null,
 ): T {
   checkIsoVersion(row, version);
   const defined = Object.fromEntries(
@@ -209,6 +210,7 @@ function patchWithEvents<
       clientId: row.clientId,
       before: pick(changes.before, fields),
       after: pick(changes.after, fields),
+      reason: action === 'UPDATE' ? null : reason,
     });
   }
   return row;
@@ -242,6 +244,15 @@ function requireRow(firm: FirmState, system: System, rowId: string): Assessment 
   return row;
 }
 
+/**
+ * The scope for an N/A decision: the row's units, with no named-person exception. `isoChecklist.decideNa` has no
+ * `own` grant, so being the row's owner widens nothing (plan §3.3).
+ */
+const decideScope = (reach: IsoReach): Scope => ({
+  clientId: reach.clientId,
+  ...(reach.unitIds.length === 0 ? {} : { unitIds: reach.unitIds }),
+});
+
 /** Whether the endpoints.md role check would let the actor call `id` for `scope`. */
 function may(actor: Actor, id: EndpointId, scope: Scope): boolean {
   try {
@@ -269,7 +280,7 @@ function naActions(
   if (
     row.naState === 'REQUESTED' &&
     row.naRequestedById !== actor.person.id &&
-    may(actor, 'approveIsoClauseNa', isoScope(actor, reach))
+    may(actor, 'approveIsoClauseNa', decideScope(reach))
   ) {
     actions.push('APPROVE_NA', 'REJECT_NA');
   }
@@ -334,7 +345,10 @@ function naTransition(
   });
 }
 
-/** Loads the row a checklist route names and runs the role check for it (`own` = the row's owner). */
+/**
+ * Loads the row a checklist route names and runs the role check for it: `own` scopes to the row's owner, otherwise it
+ * is an N/A decision (`decideScope`).
+ */
 function checklistRow(
   ctx: {
     params: Record<string, string>;
@@ -346,7 +360,7 @@ function checklistRow(
   const system = requireSystem(actor.firm, ctx.params.clientId!, ctx.params.id!);
   const row = requireRow(actor.firm, system, ctx.params.rowId!);
   const reach = rowReach(actor.firm, row);
-  ctx.authorize(isoScope(actor, reach, own ? { ownerId: row.ownerId } : {}));
+  ctx.authorize(own ? isoScope(actor, reach, { ownerId: row.ownerId }) : decideScope(reach));
   return { system, row, reach };
 }
 
@@ -691,9 +705,9 @@ function systemOverview(actor: Actor, system: System, asOf: string): SystemOverv
       const audit = f.internalAuditId === null ? undefined : auditById.get(f.internalAuditId);
       return [
         f.id,
+        // A finding takes its audit's reach, never its own unit (README decision 45).
         reach({
           clientId,
-          unitId: f.unitId,
           unitIds: audit?.unitIds ?? [],
           systemId,
           people: audit === undefined ? [] : auditPeople(audit),
@@ -1107,7 +1121,7 @@ export const systemsHandlers: PartialHandlers<Ids> = {
   updateIsoChecklistRow(ctx) {
     const actor = actorOf(ctx);
     const { system, row } = checklistRow(ctx, actor, true);
-    const { version, ...patch } = ctx.body;
+    const { version, reason, ...patch } = ctx.body;
     checkIsoVersion(row, version);
     if (patch.status !== undefined) {
       if (row.naState === 'REQUESTED' || row.naState === 'APPROVED') {
@@ -1134,9 +1148,16 @@ export const systemsHandlers: PartialHandlers<Ids> = {
       }
       if (patch.ownerId !== null) checkIsoPerson(actor, row.clientId, patch.ownerId, 'ownerId');
     }
-    patchWithEvents(ctx, actor, row, version, patch, 'clause_assessment', {
-      ownerId: 'REASSIGN',
-    });
+    patchWithEvents(
+      ctx,
+      actor,
+      row,
+      version,
+      patch,
+      'clause_assessment',
+      { ownerId: 'REASSIGN' },
+      reason ?? null,
+    );
     return rowView(actor, row);
   },
 
