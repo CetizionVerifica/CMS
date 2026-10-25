@@ -163,5 +163,5 @@ spells out the rule. `AccountSummary` (so `Me.account` and `GET /account`) gains
 `FEATURE_NOT_ENABLED` (403, details `{ feature }`) for any route of an add-on the account lacks, reads included.
 `ActKind` (`STATUTE`, `STANDARD`) and optional `Act.kind`, a STANDARD act being CENTRAL; optional
 `Obligation.clauseRefs`, unique `ClauseNumber`s such as "7.1.5". `ISO_ENTITY_TYPES` stages the ISO audit entity
-types; they join `EntityType` once M3 stores them (README decision 41). The mock lists each firm's features (firm A
-has `isoManagement`, firm B none) and `PUT /__mock/firms/{firmId}/features` changes them. No route shape changes.
+types; they join `EntityType` once M3 stores them (README decision 41). The mock lists each firm's features (firm B
+has `isoManagement`, firm A none) and `PUT /__mock/firms/{firmId}/features` changes them. No route shape changes.

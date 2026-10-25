@@ -48,14 +48,14 @@ export interface FirmState {
 }
 
 /**
- * Features each fixture firm starts with: firm A (Demo Advisory) has the ISO add-on and firm B does not, so a client
- * can be built and tested both ways (README decision 41).
+ * Features each fixture firm starts with: firm B (Second Ledger Consulting), whose people cover every role, has the ISO
+ * add-on and firm A does not, so a client can be built and tested both ways (README decision 41).
  */
 export const MOCK_FEATURES: Readonly<
   Record<'firm-a.sample' | 'firm-b.synthetic', readonly string[]>
 > = {
-  'firm-a.sample': ['isoManagement'],
-  'firm-b.synthetic': [],
+  'firm-a.sample': [],
+  'firm-b.synthetic': ['isoManagement'],
 };
 
 /** How long a mock session reports it lasts. */

@@ -133,5 +133,5 @@ with sign-off per "How to change a contract".
     state code rather than a new jurisdiction, and the library's create and update bodies take no `kind`: only the ISO
     catalogue (M6, as code) creates STANDARD acts. The ISO entity types are staged in `ISO_ENTITY_TYPES` and join
     `EntityType` in a later bump, after M3's migration and the audit page's words, as `account` did (decision 39).
-    The mock gives firm A (Demo Advisory) `isoManagement` and firm B none, and
+    The mock gives firm B (Second Ledger Consulting, whose people cover every role) `isoManagement` and firm A none, and
     `PUT /__mock/firms/{firmId}/features` `{ features }` stands in for the console's switches until the next reset.

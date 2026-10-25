@@ -1370,45 +1370,33 @@ describe('mock server', () => {
     expect(bad.statusCode).toBe(400);
   });
 
-  it("lists the account's features, which firm A starts with and the console stand-in switches", async () => {
-    const firmA = app.store.firms[0]!.data.firm.id;
-    const admin = app.store.firms[0]!.data.people.find(
+  it("lists the account's features, which firm B starts with and the console stand-in switches", async () => {
+    const firmB = app.store.firms[1]!.data.firm.id;
+    const firmAAdmin = app.store.firms[0]!.data.people.find(
       (p) => p.email === 'admin@demo-advisory.example',
     )!.id;
     const featuresOf = async (as: string) =>
       (await ok<{ account?: { features?: string[] } }>(app, 'getMe', { as })).account?.features;
-    expect(await featuresOf(admin)).toEqual(['isoManagement']);
+    expect(await featuresOf(PERSON.meera)).toEqual(['isoManagement']);
     expect(
-      (await ok<{ entitlements: { features: string[] } }>(app, 'getAccount', { as: admin }))
-        .entitlements.features,
+      (await ok<{ entitlements: { features: string[] } }>(app, 'getAccount')).entitlements.features,
     ).toEqual(['isoManagement']);
-    expect(await featuresOf(PERSON.meera)).toEqual([]);
+    expect(await featuresOf(firmAAdmin)).toEqual([]);
 
-    const off = await app.inject({
-      method: 'PUT',
-      url: `/__mock/firms/${firmA}/features`,
-      headers: { 'content-type': 'application/json' },
-      payload: JSON.stringify({ features: [] }),
-    });
-    expect(off.statusCode).toBe(200);
-    expect(await featuresOf(admin)).toEqual([]);
-    const bad = await app.inject({
-      method: 'PUT',
-      url: `/__mock/firms/${firmA}/features`,
-      headers: { 'content-type': 'application/json' },
-      payload: JSON.stringify({ features: ['Not a flag'] }),
-    });
-    expect(bad.statusCode).toBe(400);
-    const missing = await app.inject({
-      method: 'PUT',
-      url: `/__mock/firms/${PERSON.meera}/features`,
-      headers: { 'content-type': 'application/json' },
-      payload: JSON.stringify({ features: [] }),
-    });
-    expect(missing.statusCode).toBe(404);
+    const put = (firmId: string, payload: unknown) =>
+      app.inject({
+        method: 'PUT',
+        url: `/__mock/firms/${firmId}/features`,
+        headers: { 'content-type': 'application/json' },
+        payload: JSON.stringify(payload),
+      });
+    expect((await put(firmB, { features: [] })).statusCode).toBe(200);
+    expect(await featuresOf(PERSON.meera)).toEqual([]);
+    expect((await put(firmB, { features: ['Not a flag'] })).statusCode).toBe(400);
+    expect((await put(PERSON.meera, { features: [] })).statusCode).toBe(404);
 
     await app.inject({ method: 'POST', url: '/__mock/reset' });
-    expect(await featuresOf(admin)).toEqual(['isoManagement']);
+    expect(await featuresOf(PERSON.meera)).toEqual(['isoManagement']);
   });
 
   it('resets to the fixtures', async () => {
@@ -1438,7 +1426,7 @@ describe('mock server', () => {
       kind: 'CONSULTANCY',
       status: 'ACTIVE',
       trialEndsOn: null,
-      features: [],
+      features: ['isoManagement'],
     });
 
     const first = await ok<{ id: string; supportPersonId: string; endsAt: string }>(
