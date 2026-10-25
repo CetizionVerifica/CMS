@@ -107,11 +107,11 @@ export const accountHandlers: PartialHandlers<
       kind: d.firm.kind ?? 'CONSULTANCY',
       status: d.firm.status ?? 'ACTIVE',
       trialEndsOn: d.firm.trialEndsOn ?? null,
-      features: [...actor.firm.features],
+      features: [...actor.features],
       entitlements: {
         planCode: d.firm.planCode ?? 'CONSULTANCY',
         limits: { companies: null, units: null, users: null, storageBytes: null },
-        features: [...actor.firm.features],
+        features: [...actor.features],
       },
       usage: {
         companies: live(d.companies),
@@ -234,6 +234,6 @@ export const accountHandlers: PartialHandlers<
     session.expiresAt = cap < grant.endsAt ? cap : grant.endsAt;
     session.capped = true;
     ctx.setSession(session);
-    return me(firm, person, session, ctx.clock);
+    return me(firm, person, session, ctx.clock, ctx.features ?? firm.features);
   },
 };

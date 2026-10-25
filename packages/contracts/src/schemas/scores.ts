@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import {
+  ActivitySource,
   BreakdownBy,
   Criticality,
   DerivedStatus,
@@ -73,6 +74,11 @@ export const DueThisWeekFilter = z
     dueFrom: LocalDate,
     dueTo: LocalDate,
     workflowState: z.array(WorkflowState).min(1),
+    /**
+     * `LAW` while the account has the ISO add-on, so the link lists the statutory items the count is made of
+     * (docs/iso/plan.md §4.6). Absent otherwise.
+     */
+    source: ActivitySource.optional(),
   })
   .refine((f) => f.dueFrom <= f.dueTo, {
     path: ['dueTo'],

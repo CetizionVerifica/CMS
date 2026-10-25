@@ -98,9 +98,13 @@ describe('mock server', () => {
   });
   afterAll(async () => {
     await app.close();
-    // Every endpoint in the table has a handler and was called with a valid request ("serves every endpoint").
+    // Every endpoint in the table has a handler, and every core endpoint was called with a valid request ("serves
+    // every endpoint"). The add-on endpoints (`feature` set) are called in their own suites (iso-*.test.ts).
     expect(Object.keys(HANDLERS).sort()).toEqual(Object.keys(ENDPOINTS).sort());
-    expect([...called].sort()).toEqual(Object.keys(ENDPOINTS).sort());
+    const core = (Object.keys(ENDPOINTS) as (keyof typeof ENDPOINTS)[]).filter(
+      (id) => !('feature' in ENDPOINTS[id]),
+    );
+    expect([...called].sort()).toEqual(core.sort());
   });
 
   it('signs in with a password, a magic link or an invite, and checks MFA and CSRF', async () => {
@@ -1256,17 +1260,25 @@ describe('mock server', () => {
       items: { clientId: string; dueThisWeek: number; dueThisWeekFilter: unknown }[];
     }>(app, 'portfolio', { as: PERSON.arjun });
     expect(portfolio.items.map((r) => r.clientId)).toEqual([NORTHWIND]);
-    // The filter lists exactly the items counted as due this week.
+    // The filter lists exactly the items counted as due this week. Firm B has the ISO add-on on, so the statutory
+    // count and its filter keep to legal instances (source LAW).
     const week = portfolio.items[0]!;
     expect(week.dueThisWeekFilter).toEqual({
       dueFrom: TODAY,
       dueTo: '2024-11-21',
       workflowState: ['OPEN', 'SENT_BACK'],
+      source: 'LAW',
     });
     const filtered = await ok<{ items: unknown[] }>(app, 'listInstances', {
       as: PERSON.arjun,
       params: { clientId: NORTHWIND },
-      query: { dueFrom: TODAY, dueTo: '2024-11-21', workflowState: 'OPEN,SENT_BACK', limit: '200' },
+      query: {
+        dueFrom: TODAY,
+        dueTo: '2024-11-21',
+        workflowState: 'OPEN,SENT_BACK',
+        source: 'LAW',
+        limit: '200',
+      },
     });
     expect(filtered.items).toHaveLength(week.dueThisWeek);
     const overview = await ok<{ myTasks: { ownerId: string }[] }>(app, 'clientOverview', {
@@ -1620,6 +1632,76 @@ describe('mock server', () => {
       (e) => e.reason === 'Support access revoked' && e.after?.['supportGrantId'] === next.id,
     );
     expect(revoked.length).toBeGreaterThan(0);
+  });
+
+  it('answers a sign-in with the X-Mock-Features account features, for that request only', async () => {
+    type Signed = { account: { features: string[] } };
+    const kabir = { email: 'kabir.shah@northwind.example', password: 'correct horse battery' };
+    // Firm B has isoManagement on; an empty header means no features.
+    const without = await call(app, 'login', {
+      as: null,
+      body: kabir,
+      headers: { 'x-mock-features': '' },
+    });
+    expect(without.status).toBe(200);
+    expect((without.json as Signed).account.features).toEqual([]);
+    const plain = await call(app, 'login', { as: null, body: kabir });
+    expect(plain.status).toBe(200);
+    expect((plain.json as Signed).account.features).toEqual(['isoManagement']);
+    // The session keeps the firm's features: the header applies to the request it is sent on.
+    const cookie = String(without.headers['set-cookie']).split(';')[0]!;
+    const me = await ok<Signed>(app, 'getMe', { as: null, headers: { cookie } });
+    expect(me.account.features).toEqual(['isoManagement']);
+    const bad = await fails(
+      app,
+      'login',
+      { as: null, body: kabir, headers: { 'x-mock-features': 'Not A Flag' } },
+      'VALIDATION',
+      400,
+    );
+    expect(bad.error.details).toEqual({
+      issues: [{ path: ['headers', 'x-mock-features'], message: 'Expected camelCase flags' }],
+    });
+
+    // A magic link signs in the same way.
+    await ok(app, 'requestMagicLink', {
+      as: null,
+      body: { email: 'nisha.patil@northwind.example' },
+    });
+    const link = await ok<Signed>(app, 'verifyMagicLink', {
+      as: null,
+      body: { token: firstToken(app, 'MAGIC_LINK', 'nisha.patil@northwind.example') },
+      headers: { 'x-mock-features': '' },
+    });
+    expect(link.account.features).toEqual([]);
+
+    // So does the console's support session.
+    const grant = await ok<{ id: string }>(app, 'createSupportGrant', {
+      body: { level: 'READ_ONLY', days: 1 },
+    });
+    const open = async () => {
+      const r = await app.inject({ method: 'POST', url: `/__mock/support-sessions/${grant.id}` });
+      return (JSON.parse(r.body) as { token: string }).token;
+    };
+    const support = await ok<Signed>(app, 'verifySupportSession', {
+      as: null,
+      body: { token: await open() },
+      headers: { 'x-mock-features': '' },
+    });
+    expect(support.account.features).toEqual([]);
+    const supportPlain = await ok<Signed>(app, 'verifySupportSession', {
+      as: null,
+      body: { token: await open() },
+    });
+    expect(supportPlain.account.features).toEqual(['isoManagement']);
+    await fails(
+      app,
+      'verifySupportSession',
+      { as: null, body: { token: await open() }, headers: { 'x-mock-features': 'Not A Flag' } },
+      'VALIDATION',
+      400,
+    );
+    await ok(app, 'revokeSupportGrant', { params: { id: grant.id } });
   });
 });
 

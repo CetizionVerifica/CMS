@@ -1,26 +1,64 @@
 import {
+  AspectControlType,
+  ChecklistResult,
+  ControlHierarchy,
+  FindingType,
+  IncidentOutcome,
+  IncidentPersonCategory,
+  IncidentType,
+  InternalAuditState,
+  IsoActionState,
+  LifeCycleStage,
+  ManagementReviewState,
+  NcDisposition,
+  NcSeverity,
+  NcSource,
+  NcState,
+  ObjectiveDirection,
+  ObjectiveOutcome,
+  OperatingCondition,
+  PersonsExposed,
+  RiskKind,
+  RootCauseMethod,
   AccountKind,
   AccountStatus,
   ActKind,
   Applicability,
   AuditAction,
   AuditActorKind,
+  AuditRecommendation,
   CanopyField,
+  ClauseNaState,
+  ClauseStatus,
   CommentKind,
+  ContextItemKind,
   Criticality,
+  DocumentStatus,
+  DocumentType,
   EntityType,
   ExportKind,
+  ExternalAuditState,
+  ExternalAuditType,
   ImportBatchStatus,
   ImportIssueType,
   ImportRowOutcome,
+  ISO_ENTITY_TYPES,
+  ISO_EXPORT_KINDS,
+  ISO_NOTIFICATION_KINDS,
+  IsoStandardCode,
   IssueDecision,
   IssueSeverity,
   JobStatus,
   Jurisdiction,
+  ManagementSystemStatus,
   NotificationKind,
   ObligationDomain,
   OperatorAuditAction,
   PersonStatus,
+  ReviewInputKey,
+  ReviewInputSource,
+  ReviewOutputKey,
+  RevisionState,
   Role,
   RuleStatus,
   ScanStatus,
@@ -62,9 +100,11 @@ export const auditActorKindEnum = pgEnum(
   'audit_actor_kind',
   values([...new Set([...AuditActorKind.options, 'OPERATOR'] as const)]),
 );
+// The ISO add-on's entity types, reminder kinds and export kinds (docs/iso/model.md §7-9) are staged the same way:
+// the database stores them (migration 0038) before contracts 1.8.0's ISO_* constants join their enums (ISO-1b).
 export const entityTypeEnum = pgEnum(
   'entity_type',
-  values([...new Set([...EntityType.options, 'account'] as const)]),
+  values([...new Set([...EntityType.options, 'account', ...ISO_ENTITY_TYPES] as const)]),
 );
 export const importBatchStatusEnum = pgEnum(
   'import_batch_status',
@@ -90,6 +130,7 @@ export const notificationKindEnum = pgEnum(
       'TRIAL_ENDING',
       'RENEWAL_DUE',
       'MFA_ENROLLED',
+      ...ISO_NOTIFICATION_KINDS,
     ] as const),
   ]),
 );
@@ -97,7 +138,7 @@ export const notificationKindEnum = pgEnum(
 // M15-0001 decision 4) arrives in the database before the contracts list it, as OPERATOR did above.
 export const exportKindEnum = pgEnum(
   'export_kind',
-  values([...new Set([...ExportKind.options, 'CLIENT_ARCHIVE_ZIP'] as const)]),
+  values([...new Set([...ExportKind.options, 'CLIENT_ARCHIVE_ZIP', ...ISO_EXPORT_KINDS] as const)]),
 );
 export const jobStatusEnum = pgEnum('job_status', values(JobStatus.options));
 
@@ -112,3 +153,82 @@ export const operatorAuditActionEnum = pgEnum(
   'operator_audit_action',
   values(OperatorAuditAction.options),
 );
+
+// The ISO add-on (docs/iso/model.md §2-3.9, migration 0040).
+export const isoStandardCodeEnum = pgEnum('iso_standard_code', values(IsoStandardCode.options));
+export const reviewInputKeyEnum = pgEnum('review_input_key', values(ReviewInputKey.options));
+export const reviewOutputKeyEnum = pgEnum('review_output_key', values(ReviewOutputKey.options));
+export const reviewInputSourceEnum = pgEnum(
+  'review_input_source',
+  values(ReviewInputSource.options),
+);
+export const managementSystemStatusEnum = pgEnum(
+  'management_system_status',
+  values(ManagementSystemStatus.options),
+);
+export const contextItemKindEnum = pgEnum('context_item_kind', values(ContextItemKind.options));
+export const clauseStatusEnum = pgEnum('clause_status', values(ClauseStatus.options));
+export const clauseNaStateEnum = pgEnum('clause_na_state', values(ClauseNaState.options));
+export const documentTypeEnum = pgEnum('document_type', values(DocumentType.options));
+export const documentStatusEnum = pgEnum('document_status', values(DocumentStatus.options));
+export const revisionStateEnum = pgEnum('revision_state', values(RevisionState.options));
+export const externalAuditTypeEnum = pgEnum(
+  'external_audit_type',
+  values(ExternalAuditType.options),
+);
+export const auditRecommendationEnum = pgEnum(
+  'audit_recommendation',
+  values(AuditRecommendation.options),
+);
+export const externalAuditStateEnum = pgEnum(
+  'external_audit_state',
+  values(ExternalAuditState.options),
+);
+
+// The ISO add-on, part 2 (docs/iso/model.md §1.4, §3.5-3.13, migration 0041).
+export const aspectControlTypeEnum = pgEnum(
+  'aspect_control_type',
+  values(AspectControlType.options),
+);
+export const checklistResultEnum = pgEnum('checklist_result', values(ChecklistResult.options));
+export const controlHierarchyEnum = pgEnum('control_hierarchy', values(ControlHierarchy.options));
+export const findingTypeEnum = pgEnum('finding_type', values(FindingType.options));
+export const incidentOutcomeEnum = pgEnum('incident_outcome', values(IncidentOutcome.options));
+export const incidentPersonCategoryEnum = pgEnum(
+  'incident_person_category',
+  values(IncidentPersonCategory.options),
+);
+export const incidentTypeEnum = pgEnum('incident_type', values(IncidentType.options));
+export const internalAuditStateEnum = pgEnum(
+  'internal_audit_state',
+  values(InternalAuditState.options),
+);
+export const isoActionStateEnum = pgEnum('iso_action_state', values(IsoActionState.options));
+export const lifeCycleStageEnum = pgEnum('life_cycle_stage', values(LifeCycleStage.options));
+export const managementReviewStateEnum = pgEnum(
+  'management_review_state',
+  values(ManagementReviewState.options),
+);
+export const ncDispositionEnum = pgEnum('nc_disposition', values(NcDisposition.options));
+export const ncSeverityEnum = pgEnum('nc_severity', values(NcSeverity.options));
+export const ncSourceEnum = pgEnum('nc_source', values(NcSource.options));
+export const ncStateEnum = pgEnum('nc_state', values(NcState.options));
+export const objectiveDirectionEnum = pgEnum(
+  'objective_direction',
+  values(ObjectiveDirection.options),
+);
+export const objectiveOutcomeEnum = pgEnum('objective_outcome', values(ObjectiveOutcome.options));
+export const operatingConditionEnum = pgEnum(
+  'operating_condition',
+  values(OperatingCondition.options),
+);
+export const personsExposedEnum = pgEnum('persons_exposed', values(PersonsExposed.options));
+export const riskKindEnum = pgEnum('risk_kind', values(RiskKind.options));
+export const rootCauseMethodEnum = pgEnum('root_cause_method', values(RootCauseMethod.options));
+// Roles on the ISO join tables (model §1.4). The contracts have none: they list each role as its own id list.
+export const internalAuditRoleEnum = pgEnum('internal_audit_role', [
+  'AUDITOR',
+  'AUDITEE',
+  'REPORTED_TO',
+]);
+export const nonconformityRiskRoleEnum = pgEnum('nonconformity_risk_role', ['RELATED', 'UPDATED']);

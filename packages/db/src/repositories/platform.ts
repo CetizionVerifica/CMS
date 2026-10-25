@@ -679,6 +679,17 @@ export const accountJobs = {
     return rows[0]!.marked;
   },
   /**
+   * Records that M6 is copying the ISO catalogue (docs/iso/plan.md §4.3). Call it first, in the copy's transaction: a
+   * concurrent second copy waits on the firm row and gets false, and a failed copy rolls the mark back. Set once, while
+   * the account is TRIAL or ACTIVE; needs the account's system context. True when it set it.
+   */
+  async markIsoCatalogueCopied(tx: TenantTx): Promise<boolean> {
+    const { rows } = await tx
+      .execute<{ marked: boolean }>(sql`SELECT app_mark_iso_catalogue_copied() AS marked`)
+      .catch(rethrow);
+    return rows[0]!.marked;
+  },
+  /**
    * The last day of the context's account's latest recorded subscription, paid or not (the one that ends last), or
    * null when it has none. Any tenant context of the account; a date only, never the amount or invoice.
    */

@@ -2,6 +2,7 @@ import { z } from 'zod';
 import {
   ActKind,
   Criticality,
+  IsoStandardCode,
   Jurisdiction,
   ObligationDomain,
   RuleStatus,
@@ -130,6 +131,10 @@ export const InferredRule = z.strictObject({
 });
 export type InferredRule = z.infer<typeof InferredRule>;
 
+/** One clause of one standard, as an activity names it in `Obligation.clauseRefs`. */
+export const ClauseRef = z.strictObject({ standard: IsoStandardCode, clauseNumber: ClauseNumber });
+export type ClauseRef = z.infer<typeof ClauseRef>;
+
 /** A form or log sheet. `fileName` set with `templateFileId` null means "file not attached". */
 export const TemplateRef = z
   .strictObject({
@@ -170,15 +175,17 @@ export const Obligation = z
     /** Bumped on every published change. */
     libraryVersion: z.int().min(1),
     /**
-     * Clause numbers of the standard this activity serves, for obligations under a STANDARD act (ADR M16-0001), e.g.
-     * `["7.1.5"]` for calibration. Optional until M3 stores it: a reader treats a missing list as empty.
+     * The clauses an activity under a STANDARD act serves (docs/iso/catalogue.md §2), e.g. calibration names
+     * `{ standard: 'ISO_9001', clauseNumber: '7.1.5' }` and the 9.1.1 clauses of 14001 and 45001. Never bare numbers:
+     * 9001 8.2 and 14001 8.2 are different clauses. Optional until M3 stores it: a reader treats a missing list as empty.
      */
-    clauseRefs: z.array(ClauseNumber).max(20).optional(),
+    clauseRefs: z.array(ClauseRef).max(20).optional(),
   })
   .superRefine(checkJurisdiction)
   .superRefine((o, ctx) => {
-    if (o.clauseRefs !== undefined && new Set(o.clauseRefs).size !== o.clauseRefs.length) {
-      ctx.addIssue({ code: 'custom', path: ['clauseRefs'], message: 'Clause numbers repeat' });
+    const keys = (o.clauseRefs ?? []).map((ref) => `${ref.standard} ${ref.clauseNumber}`);
+    if (new Set(keys).size !== keys.length) {
+      ctx.addIssue({ code: 'custom', path: ['clauseRefs'], message: 'Clause references repeat' });
     }
   });
 export type Obligation = z.infer<typeof Obligation>;

@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Canopy platform operator API",
-    "version": "1.7.0",
+    "version": "1.8.1",
     "description": "Generated from @canopy/contracts; do not edit. The operator console API (ADR M15-0001). Every route except sign-in needs the operator session; there are no roles. Conventions as in docs/contracts/api-conventions.md."
   },
   "servers": [
@@ -1757,6 +1757,16 @@
               }
             ]
           },
+          "isoCatalogueCopiedAt": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Instant"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "onboardedAt": {
             "anyOf": [
               {
@@ -2176,6 +2186,32 @@
                 "properties": {
                   "code": {
                     "type": "string",
+                    "const": "FEATURE_NOT_READY"
+                  },
+                  "message": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "details": {
+                    "type": "object",
+                    "properties": {
+                      "feature": {
+                        "type": "string",
+                        "pattern": "^[a-z][a-zA-Z0-9]{1,39}$"
+                      }
+                    },
+                    "required": ["feature"],
+                    "additionalProperties": false
+                  }
+                },
+                "required": ["code", "message"],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "code": {
+                    "type": "string",
                     "const": "NOT_FOUND"
                   },
                   "message": {
@@ -2278,6 +2314,44 @@
                           }
                         },
                         "required": ["from", "to"],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "entity": {
+                            "type": "string",
+                            "enum": [
+                              "management_system",
+                              "certification",
+                              "external_audit",
+                              "context_item",
+                              "clause_assessment",
+                              "controlled_document",
+                              "document_revision",
+                              "risk_item",
+                              "risk_control",
+                              "objective",
+                              "objective_reading",
+                              "audit_programme",
+                              "internal_audit",
+                              "audit_checklist_item",
+                              "audit_finding",
+                              "nonconformity",
+                              "iso_action",
+                              "management_review"
+                            ]
+                          },
+                          "from": {
+                            "type": "string",
+                            "pattern": "^[A-Z][A-Z0-9_]*$"
+                          },
+                          "action": {
+                            "type": "string",
+                            "pattern": "^[A-Z][A-Z0-9_]*$"
+                          }
+                        },
+                        "required": ["entity", "from", "action"],
                         "additionalProperties": false
                       }
                     ]

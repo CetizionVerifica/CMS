@@ -165,3 +165,63 @@ spells out the rule. `AccountSummary` (so `Me.account` and `GET /account`) gains
 `Obligation.clauseRefs`, unique `ClauseNumber`s such as "7.1.5". `ISO_ENTITY_TYPES` stages the ISO audit entity
 types; they join `EntityType` once M3 stores them (README decision 41). The mock lists each firm's features (firm B
 has `isoManagement`, firm A none) and `PUT /__mock/firms/{firmId}/features` changes them. No route shape changes.
+
+## 1.8.0 · 2026-10-25
+For the ISO management systems add-on (ADR M16-0002, `docs/iso/packages.md` ISO-1); additive. Shapes for every
+record of `docs/iso/model.md` v2 (`src/schemas/iso.ts`): the account's catalogue copy (`IsoStandard`, `IsoClause`,
+`IsoReviewInputDef`, `IsoReviewOutputDef`), management systems, context items, the clause checklist, controlled
+documents and revisions, risk items and controls, objectives and readings, audit programmes, internal audits and
+checklist items, certifications, external audits, findings, nonconformities with incident fields, one `IsoAction`
+for every subject, management reviews with inputs and outputs, and `IsoFile` (stored) with `IsoFileView` (API), plus
+the state and action enums of the eight machines. Engine results in `src/schemas/iso-results.ts` and the separate
+`IsoEngineApi` with `IsoMachine` and `IsoTransitionResult` in `src/engine-api.ts`; ISO reminder shapes,
+`ISO_NOTIFICATION_DEDUPE_KEY` and `ISO_REMINDER_SCHEDULE` in `src/defaults.ts`. `EngineApi` and
+`PlannedNotification` do not change. 117 routes in `ISO_ENDPOINTS` (`src/api/iso-endpoints.ts`, bodies, queries and
+views in `src/api/iso.ts`), all M16's, all with `feature: 'isoManagement'` (`x-canopy-feature` in OpenAPI), with the
+plan §3.2 actions and the new `isoNc.reassign` (endpoints.md §10). New error code `FEATURE_NOT_READY` (409, details
+`{ feature }`) until an account's ISO catalogue copy is recorded; `INVALID_TRANSITION` details gain
+`{ entity, from, action }`. `ISO_ENTITY_TYPES` is replaced by the v2 list of 18 (`iso_action` replaces
+`corrective_action` and `review_action`; `external_audit`, `risk_control` and `audit_checklist_item` are new), and
+`ISO_NOTIFICATION_KINDS` and `ISO_EXPORT_KINDS` are staged beside it; none joins its contract enum until ISO-1b.
+`Obligation.clauseRefs` is reshaped to `ClauseRef { standard, clauseNumber }[]` (unique per standard and number, at
+most 20, still optional). New optional or defaulted fields: `Resource.unitIds` (the stub `can()` needs an overlap
+when it is present), `DueThisWeekFilter.source`, `Account.isoCatalogueCopiedAt` and `FirmSettings.isoRisk`
+(`DEFAULT_ISO_RISK_RULE`). `ActivitySource` (`LAW`, `ISO`) as `source` on the register filters (so the register
+export too), `MyQueueQuery`, `CalendarQuery` and `EvidenceVaultQuery`. `ExportCreateBody` still refuses ISO export
+kinds; its filter check picks `ISO_EXPORT_FILTERS` for them once they join. New event `account.features_changed
+{ accountId, added, removed }` (events.md "Accounts", producer M15, consumer M9). Fixtures: `iso.catalogue.json`
+(201 clauses, 137 assessable, 41 review inputs and 18 outputs, 4 STANDARD acts, 1 category, 13 activities) with
+`isoCatalogueRows`, `isoCatalogueId` and `isoClauseId`, and `firm-b.iso.json` (Northwind Foods Group's integrated
+management system and 7 STANDARD assignments with 34 instances; fixtures.md §8). The mock serves every ISO route, gates
+them (403 without the feature, 409 before the copy), honours `X-Mock-Features` per request and `isoCatalogueCopied` on
+`PUT /__mock/firms/{firmId}/features`, applies the off switch and `source` on core routes, and counts STATUTE acts only
+in every statutory figure; `iso-mock.md` lists the rules it picked where the model is silent. README decisions 42-51,
+including the departures from the model and plan.
+
+## 1.8.1 · 2026-10-25
+ISO-1a: the fixes from the 1.8.0 audit, before M16 builds the nonconformity and management review routes. Nothing
+provides or calls an ISO route yet, so the shapes that narrow do not break a module. Every ISO route now has one
+action (README decision 51 o): `PATCH /nonconformities/{id}` is `isoNc.work` (CA, OW own) with the investigation
+fields only, and the new `POST /nonconformities/{id}/reassign` (`NcReassignBody`) is `isoNc.reassign` (FA, CO, CA)
+for owner, approver, `dueOn`, `effectivenessDueOn`, severity and the incident outcome (with `lostDays` when it moves
+to or from LOST_TIME), always with a reason; severity and outcome change only while OPEN or ROOT_CAUSE_FOUND, and
+severity never on a finding's nonconformity. A finding's MAJOR_NC/MINOR_NC move follows the same window and is
+refused to the nonconformity's owner (403). `PATCH /management-reviews/{id}` is `isoReview.write`
+(attendees and minutes) and the new `POST /management-reviews/{id}/replan` (`ManagementReviewReplanBody`) is
+`isoReview.plan` for standards, date and chair while PLANNED. Both new routes honour `Idempotency-Key`. 119 routes. The reason rule (decision 51 p): every
+field edit audited as `REASSIGN` or `DUE_DATE_CHANGE` needs a reason, so `ClauseAssessmentUpdateBody`,
+`DocumentUpdateBody`, `RiskItemUpdateBody`, `ObjectiveUpdateBody`, `InternalAuditUpdateBody` and
+`ExternalAuditUpdateBody` take one where they did not or require it for more fields. `IsoEngineApi.objectiveProgress`
+takes `createdOn: LocalDate` and `{ fyStartMonth }` (decision 51 r). The overdue-system `ISO_MANAGEMENT_REVIEW_DUE`
+rule sends from the first overdue day (`offsetDays: [1]` after `nextDueOn`). The OpenAPI document gives every
+`x-canopy-feature` operation its 403 `FEATURE_NOT_ENABLED` and 409 `FEATURE_NOT_READY` responses, and the 11 ISO
+child lists carry the unit-scope note. Decision 51 also declares the stored rules the model does not list (q) and
+rewords (m). The mock: NC audit events no longer copy the description or incident location; N/A decisions need the
+row's units even for an approver who owns the row; the ISO overview scopes findings by their audit; and
+`X-Mock-Features` applies on every route, so sign-in and support verify return its features. `ObjectiveCreateBody` and
+`PATCH /objectives/{id}` refuse a target on the wrong side of the baseline for INCREASE or DECREASE. The mock also
+leaves finding descriptions out of audit events, refuses an edit that would make a no-action nonconformity need
+action, names the step on clause N/A events, audits a system's status as an UPDATE, and measures a held review's
+figures as the records stood on its `heldOn`, from their audit trail, with a window that never runs backwards
+(`iso-mock.md`). Tests pin the catalogue to its generator (201 clauses, 137 assessable) and the
+`objectiveProgress` stand-in at a client-local day boundary.

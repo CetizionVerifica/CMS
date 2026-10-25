@@ -24,8 +24,15 @@ import { authHandlers } from './handlers/auth.js';
 import { dashboardHandlers } from './handlers/dashboards.js';
 import { entityHandlers } from './handlers/entities.js';
 import { importHandlers } from './handlers/imports.js';
+import { isoHandlers } from './handlers/iso/index.js';
 import { workHandlers } from './handlers/work.js';
-import { activeMemberships, isFirmRole, MockStore, type Session } from './store.js';
+import {
+  activeMemberships,
+  copyIsoCatalogue,
+  isFirmRole,
+  MockStore,
+  type Session,
+} from './store.js';
 
 export const MOCK_BASE_PATH = '/api/v1';
 
@@ -37,6 +44,7 @@ export const HANDLERS: Handlers = {
   ...importHandlers,
   ...dashboardHandlers,
   ...accountHandlers,
+  ...isoHandlers,
 };
 
 export interface MockServerOptions {
@@ -65,7 +73,7 @@ function header(request: FastifyRequest, name: string): string | undefined {
 
 /**
  * Body rejections that api-conventions.md §5 gives their own code, as the real API answers them: a missing or blank
- * `reason` is 422 REASON_REQUIRED, a file over the limit is 413 FILE_TOO_LARGE, and a file type not allowed is 415
+ * `reason`, or none with a change that needs one (an ISO moved date or reassignment), is 422 REASON_REQUIRED, a file over the limit is 413 FILE_TOO_LARGE, and a file type not allowed is 415
  * UNSUPPORTED_FILE. Anything else is 400 VALIDATION.
  */
 function bodyError(error: z.ZodError, id: EndpointId): MockError | undefined {
@@ -82,7 +90,9 @@ function bodyError(error: z.ZodError, id: EndpointId): MockError | undefined {
   }
   if (
     error.issues.some(
-      (i) => top(i) === 'reason' && (i.code === 'too_small' || i.code === 'invalid_type'),
+      (i) =>
+        top(i) === 'reason' &&
+        (i.code === 'too_small' || i.code === 'invalid_type' || i.code === 'custom'),
     )
   ) {
     return new MockError('REASON_REQUIRED', 'A reason is required');
@@ -99,8 +109,36 @@ function validation(error: z.ZodError, prefix: string): MockError {
   });
 }
 
-/** The signed-in actor from the session cookie, or from `X-Mock-Person` (person id or email; tests and scripts). */
-function resolveActor(store: MockStore, request: FastifyRequest, clock: Clock): Actor | null {
+/**
+ * `X-Mock-Features`: the account's features for this request instead of the firm's (comma-separated; empty means
+ * none), so the web mock can play a demo user without an add-on (ISO-7b). Undefined when the header is absent.
+ */
+function headerFeatures(request: FastifyRequest): string[] | undefined {
+  const value = header(request, 'x-mock-features');
+  if (value === undefined) return undefined;
+  const flags = value
+    .split(',')
+    .map((f) => f.trim())
+    .filter((f) => f !== '');
+  const parsed = z.array(FeatureFlag).max(50).safeParse(flags);
+  if (!parsed.success) {
+    throw new MockError('VALIDATION', 'X-Mock-Features is not a list of feature flags', {
+      issues: [{ path: ['headers', 'x-mock-features'], message: 'Expected camelCase flags' }],
+    });
+  }
+  return [...new Set(parsed.data)].sort();
+}
+
+/**
+ * The signed-in actor from the session cookie, or from `X-Mock-Person` (person id or email; tests and scripts), with
+ * `features` (from `X-Mock-Features`) in place of the firm's when sent.
+ */
+function resolveActor(
+  store: MockStore,
+  request: FastifyRequest,
+  clock: Clock,
+  features: string[] | undefined,
+): Actor | null {
   const now = clock.now();
   const asPerson = header(request, 'x-mock-person');
   let session: Session | undefined;
@@ -123,7 +161,7 @@ function resolveActor(store: MockStore, request: FastifyRequest, clock: Clock): 
   const firm = store.firm(session.firmId);
   const person = firm.data.people.find((p) => p.id === session.personId && p.archivedAt === null);
   if (person === undefined || person.status === 'DISABLED') return null;
-  return actorFor(firm, session, person, now);
+  return actorFor(firm, session, person, now, features ?? firm.features);
 }
 
 function sendError(reply: FastifyReply, requestId: string, error: MockError): FastifyReply {
@@ -189,7 +227,9 @@ export function createMockServer(
       url,
       handler: async (request, reply) => {
         const requestId = (request as FastifyRequest & { requestId: string }).requestId;
-        const actor = ep.auth === 'public' ? null : resolveActor(store, request, clock);
+        // Read on every route, public ones too, so a sign-in answers with the same features as /me.
+        const features = headerFeatures(request);
+        const actor = ep.auth === 'public' ? null : resolveActor(store, request, clock, features);
         if (ep.auth !== 'public') {
           if (actor === null) throw new MockError('UNAUTHENTICATED', 'Sign in to continue');
           if (!actor.session.mfaSatisfied && !BEFORE_MFA.has(id)) {
@@ -205,6 +245,20 @@ export function createMockServer(
             throw new MockError('FORBIDDEN', 'Missing or wrong CSRF token', {
               action: ep.actions[0] ?? 'session.csrf',
             });
+          }
+          // An add-on's routes, reads included: 403 without the feature (docs/iso/plan.md §4.4), and 409 until the
+          // ISO catalogue copy is recorded (§4.3).
+          if (ep.feature !== undefined) {
+            if (!actor.features.includes(ep.feature)) {
+              throw new MockError('FEATURE_NOT_ENABLED', 'This add-on is not turned on', {
+                feature: ep.feature,
+              });
+            }
+            if (ep.feature === 'isoManagement' && actor.firm.isoCatalogueCopiedAt === null) {
+              throw new MockError('FEATURE_NOT_READY', 'This add-on is being set up', {
+                feature: ep.feature,
+              });
+            }
           }
         }
 
@@ -228,6 +282,7 @@ export function createMockServer(
           clock,
           requestId,
           actor,
+          ...(features === undefined ? {} : { features }),
           params: (params?.data ?? {}) as Record<string, string>,
           query: query?.data as never,
           body: body?.data as never,
@@ -285,18 +340,31 @@ export function createMockServer(
       return reply.code(201).send({ token });
     },
   );
-  /** Stands in for the console's add-on switches: sets the firm's features until the next reset. */
+  /**
+   * Stands in for the console's add-on switches: sets the firm's features until the next reset. Turning
+   * `isoManagement` on runs the ISO catalogue copy (docs/iso/plan.md §4.3) unless `isoCatalogueCopied` is false, which
+   * leaves the copy unrecorded so `/iso` routes answer 409 FEATURE_NOT_READY.
+   */
   app.put<{ Params: { firmId: string }; Body: unknown }>(
     '/__mock/firms/:firmId/features',
     async (request, reply) => {
       const firm = store.firms.find((f) => f.data.firm.id === request.params.firmId);
       if (firm === undefined) return reply.code(404).send();
       const body = z
-        .strictObject({ features: z.array(FeatureFlag).max(50) })
+        .strictObject({
+          features: z.array(FeatureFlag).max(50),
+          isoCatalogueCopied: z.boolean().optional(),
+        })
         .safeParse(request.body);
       if (!body.success) return reply.code(400).send();
       firm.features = [...new Set(body.data.features)].sort();
-      return reply.code(200).send({ features: firm.features });
+      if (firm.features.includes('isoManagement') && body.data.isoCatalogueCopied !== false) {
+        copyIsoCatalogue(firm, clock.now(), store.token('req'));
+      }
+      return reply.code(200).send({
+        features: firm.features,
+        isoCatalogueCopiedAt: firm.isoCatalogueCopiedAt,
+      });
     },
   );
   app.post('/__mock/reset', async (_request, reply) => {

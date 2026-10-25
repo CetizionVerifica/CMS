@@ -1,9 +1,16 @@
 import { z } from 'zod';
-import { BreakdownBy, ExportKind } from '../enums.js';
+import {
+  ActivitySource,
+  BreakdownBy,
+  ExportKind,
+  ISO_EXPORT_KINDS,
+  type IsoExportKind,
+} from '../enums.js';
 import { FyLabel, Id, LocalDate } from '../primitives.js';
 import { InstanceRow } from '../schemas/work.js';
 import { ScoreResult } from '../schemas/scores.js';
 import { asOfQueryShape, checkPeriod, csv } from './common.js';
+import { ISO_EXPORT_FILTERS } from './iso.js';
 import { RegisterFilterQuery } from './workflow.js';
 
 /**
@@ -38,7 +45,13 @@ export const BreakdownQuery = z
 
 /** A calendar month or week view; the provider may cap the range length. */
 export const CalendarQuery = z
-  .strictObject({ ...asOfQueryShape, from: LocalDate, to: LocalDate, unitId: csv(Id).optional() })
+  .strictObject({
+    ...asOfQueryShape,
+    from: LocalDate,
+    to: LocalDate,
+    unitId: csv(Id).optional(),
+    source: ActivitySource.optional(),
+  })
   .refine((query) => query.to >= query.from, { path: ['to'], message: 'to is before from' });
 
 export const ClientOverview = z.strictObject({
@@ -55,27 +68,32 @@ export type CalendarDay = z.infer<typeof CalendarDay>;
 
 export const REPORT_KINDS = ['act-wise', 'department-wise', 'overdue'] as const;
 
+/** The query an export's `filters` must parse as: the register's, or an ISO list's for the ISO kinds. */
+function exportFilterQuery(kind: string): z.ZodType {
+  return (ISO_EXPORT_KINDS as readonly string[]).includes(kind)
+    ? ISO_EXPORT_FILTERS[kind as IsoExportKind]
+    : RegisterFilterQuery;
+}
+
 /**
- * `POST /clients/{clientId}/exports`. `filters` is a register query string (api-conventions.md §3) without the
- * leading "?", so an export matches the view it was started from.
+ * `POST /clients/{clientId}/exports`. `filters` is a query string without the leading "?", so an export matches the
+ * view it was started from: the register's (api-conventions.md §3), or for the ISO kinds (staged, `ISO_EXPORT_KINDS`)
+ * the ISO list's in `ISO_EXPORT_FILTERS`.
  */
 export const ExportCreateBody = z
   .strictObject({
     kind: ExportKind,
-    filters: z
-      .string()
-      .max(4000)
-      .default('')
-      .superRefine((filters, ctx) => {
-        const parsed = RegisterFilterQuery.safeParse(
-          Object.fromEntries(new URLSearchParams(filters)),
-        );
-        for (const issue of parsed.error?.issues ?? []) {
-          ctx.addIssue({ code: 'custom', path: issue.path, message: issue.message });
-        }
-      }),
+    filters: z.string().max(4000).default(''),
     unitId: Id.optional(),
     fy: FyLabel.optional(),
+  })
+  .superRefine((body, ctx) => {
+    const parsed = exportFilterQuery(body.kind).safeParse(
+      Object.fromEntries(new URLSearchParams(body.filters)),
+    );
+    for (const issue of parsed.error?.issues ?? []) {
+      ctx.addIssue({ code: 'custom', path: ['filters', ...issue.path], message: issue.message });
+    }
   })
   .superRefine((body, ctx) => {
     // The account export is the client's whole register, so it takes no scope (endpoints.md §6).

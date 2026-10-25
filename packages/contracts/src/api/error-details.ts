@@ -4,6 +4,7 @@ import {
   AccountStatus,
   InstanceAction,
   ImportBatchStatus,
+  IsoEntityType,
   PlanLimitKey,
   ScanStatus,
   WorkflowState,
@@ -36,12 +37,23 @@ export const ERROR_DETAILS = {
   }),
   /** The route belongs to an add-on the account does not have (ADR M16-0001 decision 3); reads answer it too. */
   FEATURE_NOT_ENABLED: z.strictObject({ feature: FeatureFlag }),
+  /** The add-on is on but its data is still being set up (the ISO catalogue copy, docs/iso/plan.md §4.3). */
+  FEATURE_NOT_READY: z.strictObject({ feature: FeatureFlag }),
   NOT_FOUND: null,
   STALE_VERSION: z.strictObject({ currentVersion: z.int().min(1) }),
-  /** An instance action, or (operator routes) an account status move. */
+  /**
+   * An instance action, (operator routes) an account status move, or an ISO action: `entity` names the record, `from`
+   * its state (or N/A state) and `action` the machine action of docs/iso/model.md §4, or `UPDATE` for a field edit or a
+   * new child row on a locked record (model §1.8).
+   */
   INVALID_TRANSITION: z.union([
     z.strictObject({ from: WorkflowState, action: InstanceAction }),
     z.strictObject({ from: AccountStatus, to: AccountStatus }),
+    z.strictObject({
+      entity: IsoEntityType,
+      from: z.string().regex(/^[A-Z][A-Z0-9_]*$/),
+      action: z.string().regex(/^[A-Z][A-Z0-9_]*$/),
+    }),
   ]),
   DUPLICATE: z.strictObject({ field: z.string().min(1), existingId: Id }),
   IMPORT_STATE: z.strictObject({

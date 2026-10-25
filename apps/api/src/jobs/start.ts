@@ -1,7 +1,15 @@
 import type { Database } from '@canopy/db';
 import { s3SettingsFromEnv } from '../s3-env.js';
 import { clamAvConfigFromEnv, clamAvScanner } from './clamav-scanner.js';
-import type { Clock, JobDeps, LibraryCopier, LoginTokenIssuer, Mailer, Scanner } from './ports.js';
+import type {
+  Clock,
+  IsoCatalogueCopier,
+  JobDeps,
+  LibraryCopier,
+  LoginTokenIssuer,
+  Mailer,
+  Scanner,
+} from './ports.js';
 import { postgresJobStore } from './postgres-store.js';
 import { startJobRunner, type JobRunner, type JobRunnerOptions } from './runner.js';
 import { s3EvidenceObjects } from './s3-objects.js';
@@ -15,6 +23,8 @@ export interface JobsFromEnvOptions extends Omit<JobRunnerOptions, 'mail'> {
   scanner?: Scanner;
   /** M6's `copyMasterLibrary` on the API's database. Without it, a new account's library is not copied. */
   copyLibrary?: LibraryCopier;
+  /** M6's `copyIsoCatalogue` on the API's database. Without it, an account whose ISO add-on comes on is not copied. */
+  copyIsoCatalogue?: IsoCatalogueCopier;
   /** Defaults to the system clock; tests pass a fixed one. */
   clock?: Clock;
 }
@@ -38,7 +48,7 @@ export async function startJobsFromEnv(
   env: Record<string, string | undefined>,
   options: JobsFromEnvOptions,
 ): Promise<JobRunner> {
-  const { db, clock, issueLoginToken, copyLibrary, scanner, ...given } = options;
+  const { db, clock, issueLoginToken, copyLibrary, copyIsoCatalogue, scanner, ...given } = options;
   // pg-boss runs as its own login, never the tenant one (ADR M9-0001 decision 16).
   const runnerOptions = {
     ...given,
@@ -49,6 +59,7 @@ export async function startJobsFromEnv(
     clock: clock ?? (() => new Date().toISOString()),
     ...(issueLoginToken && { issueLoginToken }),
     ...(copyLibrary && { copyLibrary }),
+    ...(copyIsoCatalogue && { copyIsoCatalogue }),
     ...scanningFromEnv(env, scanner),
   };
   const mail = mailConfigFromEnv(env);

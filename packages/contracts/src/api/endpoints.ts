@@ -1,6 +1,5 @@
 import { z } from 'zod';
-import { type Role } from '../enums.js';
-import { Id, PlanCode } from '../primitives.js';
+import { PlanCode } from '../primitives.js';
 import { DryRunReport, ImportBatch, ImportRow, MappingTemplate } from '../schemas/import.js';
 import { Act, Category, GeneratedPeriod, Obligation } from '../schemas/library.js';
 import { Breakdown, ExportJob, PortfolioRow, ScoreResult } from '../schemas/scores.js';
@@ -31,6 +30,8 @@ import {
   UsageSnapshot,
 } from '../schemas/accounts.js';
 import * as acct from './accounts.js';
+import { type Endpoint, endpoint } from './endpoint-def.js';
+import { ISO_ENDPOINTS } from './iso-endpoints.js';
 import * as auth from './auth.js';
 import {
   ArchiveBody,
@@ -54,112 +55,19 @@ import * as work from './workflow.js';
  * The OpenAPI spec and the mock server are generated from this table; providers implement it exactly.
  */
 
-export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH';
-export type ProviderModule = 'M5' | 'M6' | 'M7' | 'M8' | 'M10' | 'M15';
-
-/**
- * How a role may call an endpoint: `all` within its scope (endpoints.md §1), `own` only on instances where it is the
- * owner (OWNER) or approver (APPROVER), `limited` with the restriction in `notes`. A missing role is 403 FORBIDDEN.
- */
-export type Access = 'all' | 'own' | 'limited';
-
-export interface Endpoint {
-  module: ProviderModule;
-  method: HttpMethod;
-  /** OpenAPI-style template under /api/v1, e.g. `/instances/{id}/submit`. */
-  path: string;
-  summary: string;
-  /** `public`: no session. `session`: any signed-in person. `action`: `can()` with `actions`. */
-  auth: 'public' | 'session' | 'action';
-  /** `can()` action names; the first is checked, a second applies to part of the body (see summary). */
-  actions: readonly string[];
-  roles: Partial<Record<Role, Access>>;
-  params: z.ZodObject | null;
-  query: z.ZodType | null;
-  body: z.ZodType | null;
-  status: 200 | 201 | 202 | 204;
-  response: z.ZodType;
-  /** Honours the `Idempotency-Key` header for 24 hours (api-conventions.md §2). */
-  idempotent: boolean;
-  notes?: string;
-}
-
-const ROLE_CODES = {
-  FA: 'FIRM_ADMIN',
-  CO: 'CONSULTANT',
-  CA: 'CLIENT_ADMIN',
-  AP: 'APPROVER',
-  OW: 'OWNER',
-  VI: 'VIEWER',
-} as const satisfies Record<string, Role>;
-
-/** `'FA CO CA AP:own'` → `{ FIRM_ADMIN: 'all', ..., APPROVER: 'own' }`, mirroring the endpoints.md tables. */
-function roles(spec: string): Partial<Record<Role, Access>> {
-  const result: Partial<Record<Role, Access>> = {};
-  for (const token of spec.split(' ')) {
-    const [code, access = 'all'] = token.split(':') as [keyof typeof ROLE_CODES, Access?];
-    result[ROLE_CODES[code]] = access;
-  }
-  return result;
-}
+export type {
+  Access,
+  Endpoint,
+  HttpMethod,
+  ProviderModule,
+  TypedEndpoint,
+} from './endpoint-def.js';
 
 const EVERYONE = 'FA CO CA AP OW VI';
 const ENTITY_READERS = EVERYONE;
 const ENTITY_WRITERS = 'FA CO CA';
 const LIBRARY_WRITERS = 'FA CO';
 const IMPORTERS = 'FA CO';
-
-/** Path params from the template: every `{name}` is an Id unless `overrides` says otherwise. */
-function paramsFor(path: string, overrides: Record<string, z.ZodType> = {}): z.ZodObject | null {
-  const names = [...path.matchAll(/\{(\w+)\}/g)].map((match) => match[1] as string);
-  if (names.length === 0) return null;
-  return z.strictObject(Object.fromEntries(names.map((name) => [name, overrides[name] ?? Id])));
-}
-
-interface EndpointInput {
-  module: ProviderModule;
-  method: HttpMethod;
-  path: string;
-  summary: string;
-  action?: string | readonly string[];
-  /** Defaults to `action` when an action is given. */
-  auth?: 'public' | 'session';
-  roles?: string;
-  paramOverrides?: Record<string, z.ZodType>;
-  query?: z.ZodType;
-  body?: z.ZodType;
-  status?: 200 | 201 | 202 | 204;
-  response: z.ZodType;
-  idempotent?: boolean;
-  notes?: string;
-}
-
-/** An endpoint that keeps its schema types, so clients and the mock server get typed bodies and responses. */
-export type TypedEndpoint<I extends EndpointInput> = Endpoint & {
-  query: I['query'] extends z.ZodType ? I['query'] : null;
-  body: I['body'] extends z.ZodType ? I['body'] : null;
-  response: I['response'];
-};
-
-function endpoint<const I extends EndpointInput>(input: I): TypedEndpoint<I> {
-  const actions = input.action === undefined ? [] : [input.action].flat();
-  return {
-    module: input.module,
-    method: input.method,
-    path: input.path,
-    summary: input.summary,
-    auth: actions.length > 0 ? 'action' : (input.auth ?? 'session'),
-    actions,
-    roles: input.roles === undefined ? {} : roles(input.roles),
-    params: paramsFor(input.path, input.paramOverrides),
-    query: input.query ?? null,
-    body: input.body ?? null,
-    status: input.status ?? 200,
-    response: input.response,
-    idempotent: input.idempotent ?? false,
-    ...(input.notes === undefined ? {} : { notes: input.notes }),
-  } as unknown as TypedEndpoint<I>;
-}
 
 const M5 = 'M5';
 const M6 = 'M6';
@@ -1375,6 +1283,9 @@ export const ENDPOINTS = {
     roles: 'FA CO CA AP VI',
     response: SignedUrl,
   }),
+
+  // ---------- M16 · ISO add-on (feature isoManagement) ----------
+  ...ISO_ENDPOINTS,
 } satisfies Record<string, Endpoint>;
 
 export type EndpointId = keyof typeof ENDPOINTS;

@@ -149,6 +149,13 @@ export type LibraryCopier = (
 ) => Promise<{ copied: boolean; categories: number; acts: number; obligations: number }>;
 
 /**
+ * M6's `copyIsoCatalogue` (ISO-9): copies the ISO catalogue into an account in its own system context, marking the copy
+ * first in the same transaction (docs/iso/plan.md §4.3). `copied` is false when the account lacks `isoManagement`, was
+ * already copied, or is not in TRIAL or ACTIVE (the marker sets nothing then).
+ */
+export type IsoCatalogueCopier = (accountId: Id, requestId: string) => Promise<{ copied: boolean }>;
+
+/**
  * Dedupe key of the send log. Scheduled sends are unique per instance, kind, send date and recipient (digests:
  * recipient, kind, date). Event-driven sends carry the domain event's id and are unique per event and recipient
  * whatever the date (events.md §4 rule 4, `EVENT_NOTIFICATION_DEDUPE_KEY`; ADR M9-0001 §13), so a second send-back on the same day is its own email.
@@ -211,6 +218,12 @@ export interface FirmTx {
   firmSettings(): Promise<FirmSettings>;
   /** The account's status. The jobs that act for users serve TRIAL and ACTIVE accounts only (ADR M15-0001 decision 4). */
   accountStatus(): Promise<AccountStatus>;
+  /**
+   * The account's effective features (M3's `account.features`) and when the ISO catalogue was copied into it, or null
+   * before (`account.isoCatalogueCopiedAt`). The ISO jobs skip an account whose copy is not recorded (docs/iso/plan.md
+   * §4.3).
+   */
+  accountFeatures(): Promise<{ features: string[]; isoCatalogueCopiedAt: string | null }>;
   /**
    * Ends the trial when its last day is before `now`'s date in the account's time zone: SUSPENDED, with the
    * account's audit row, account.status_changed (actor SYSTEM, `job`) and the operator entry, all written by M3's
@@ -401,6 +414,8 @@ export interface JobDeps {
   evidenceObjects?: EvidenceObjects;
   /** Needed by the `account.created` consumer, which throws without it. */
   copyLibrary?: LibraryCopier;
+  /** Needed by the ISO catalogue copy (consumer and sweep), which throws without it when an account needs a copy. */
+  copyIsoCatalogue?: IsoCatalogueCopier;
 }
 
 /** What every job returns, for logs and tests. Counts only; no names or addresses. */

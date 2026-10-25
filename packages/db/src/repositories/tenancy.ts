@@ -34,6 +34,7 @@ const firmEntity = entity<Firm>({
   omit: [
     'onboardedAt',
     'libraryCopiedAt',
+    'isoCatalogueCopiedAt',
     'deletionRequestedAt',
     'statusBeforeDeletion',
     'profile',

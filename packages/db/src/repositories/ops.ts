@@ -3,11 +3,14 @@ import {
   ExportJob,
   Id,
   Instant,
+  IsoEntityType,
+  IsoNotificationKind,
+  ISO_NOTIFICATION_KINDS,
   LocalDate,
   NotificationKind,
   type JobStatus,
 } from '@canopy/contracts';
-import { and, asc, eq, gt, inArray, isNull, lt, sql } from 'drizzle-orm';
+import { and, asc, eq, gt, inArray, isNotNull, isNull, lt, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import type { TenantTx } from '../database.js';
 import { DbError, rethrow, validate } from '../errors.js';
@@ -131,8 +134,14 @@ export const exportJobs = {
   },
 };
 
-const isAccountKind = (kind: NotificationKind) =>
-  (ACCOUNT_NOTIFICATION_KINDS as readonly NotificationKind[]).includes(kind);
+const isAccountKind = (kind: SendKind) =>
+  (ACCOUNT_NOTIFICATION_KINDS as readonly SendKind[]).includes(kind);
+const isIsoKind = (kind: SendKind) =>
+  (ISO_NOTIFICATION_KINDS as readonly SendKind[]).includes(kind);
+
+// The ISO reminder kinds are stored before they join NotificationKind (ISO-1b), as the enums.ts unions are.
+const SendKind = z.union([NotificationKind, IsoNotificationKind]);
+type SendKind = z.infer<typeof SendKind>;
 
 export const NotificationSend = z
   .strictObject({
@@ -143,7 +152,7 @@ export const NotificationSend = z
     clientId: Id.nullable(),
     instanceId: Id.nullable(),
     recipientId: Id,
-    kind: NotificationKind,
+    kind: SendKind,
     sendDate: LocalDate,
     /**
      * Set for an event-driven send (the domain event's id): the send is then keyed on event and
@@ -151,6 +160,12 @@ export const NotificationSend = z
      * scheduled sends, keyed on instance, kind, date and recipient.
      */
     eventId: Id.nullable().optional(),
+    /**
+     * The ISO record a scheduled ISO reminder (an `ISO_NOTIFICATION_KINDS` kind) is about, both or neither: the send
+     * is then keyed on subject, kind, date and recipient (`ISO_NOTIFICATION_DEDUPE_KEY`). Never with an instance.
+     */
+    isoSubjectType: IsoEntityType.nullable().optional(),
+    isoSubjectId: Id.nullable().optional(),
   })
   .refine(
     (n) =>
@@ -161,8 +176,55 @@ export const NotificationSend = z
         'A send without a client names no instance, and answers an event or is about the account',
       path: ['clientId'],
     },
+  )
+  .refine(
+    (n) => {
+      const subject = n.isoSubjectId != null;
+      if (subject !== (n.isoSubjectType != null) || subject !== isIsoKind(n.kind)) return false;
+      return !subject || (n.instanceId === null && n.eventId == null && n.clientId !== null);
+    },
+    {
+      message:
+        'An ISO reminder names its ISO subject (type and id) and one client, with no instance or event; other sends name no ISO subject',
+      path: ['isoSubjectId'],
+    },
   );
 export type NotificationSend = z.input<typeof NotificationSend>;
+
+/** A scheduled ISO reminder's send-log key (`ISO_NOTIFICATION_DEDUPE_KEY`), as `listDoneIso` returns it. */
+export type IsoSendKey = NotificationSend & {
+  clientId: string;
+  instanceId: null;
+  isoSubjectType: IsoEntityType;
+  isoSubjectId: string;
+  kind: IsoNotificationKind;
+};
+
+/** Scheduled send-log rows of one client and date with an outcome, with or without an ISO subject. */
+function doneScheduled(tx: TenantTx, clientId: string, sendDate: string, iso: boolean) {
+  const t = s.notificationSend;
+  return tx
+    .select({
+      instanceId: t.instanceId,
+      isoSubjectType: t.isoSubjectType,
+      isoSubjectId: t.isoSubjectId,
+      recipientId: t.recipientId,
+      kind: t.kind,
+      sendDate: t.sendDate,
+    })
+    .from(t)
+    .where(
+      and(
+        eq(t.clientId, clientId),
+        isNull(t.eventId),
+        iso ? isNotNull(t.isoSubjectId) : isNull(t.isoSubjectId),
+        eq(t.sendDate, validate(LocalDate, sendDate)),
+        sql`(${t.sentAt} is not null or ${t.failureCode} is not null)`,
+      ),
+    )
+    .orderBy(asc(t.id))
+    .catch(rethrow);
+}
 
 /**
  * NEW: this call created the send-log row. PENDING: a row exists with no outcome (an earlier run crashed
@@ -174,7 +236,11 @@ export type ClaimResult = 'NEW' | 'PENDING' | 'DONE';
 export const SendFailureCode = z.enum(['NO_EMAIL', 'NOT_ACTIVE']);
 export type SendFailureCode = z.infer<typeof SendFailureCode>;
 
-/** The send-log row for a key: per instance, kind, date and recipient; digests have no instance. */
+/**
+ * The send-log row for a key: per instance, or per ISO subject, with kind, date and recipient; digests and account
+ * sends have neither. Instance, digest and account keys match only rows with no ISO subject, so one ISO send never
+ * touches another subject's row.
+ */
 function sendKey(n: NotificationSend) {
   if (n.eventId) {
     return and(
@@ -190,6 +256,12 @@ function sendKey(n: NotificationSend) {
     n.instanceId === null
       ? isNull(s.notificationSend.instanceId)
       : eq(s.notificationSend.instanceId, n.instanceId),
+    n.isoSubjectId == null
+      ? isNull(s.notificationSend.isoSubjectId)
+      : and(
+          eq(s.notificationSend.isoSubjectType, n.isoSubjectType!),
+          eq(s.notificationSend.isoSubjectId, n.isoSubjectId),
+        ),
   );
 }
 
@@ -199,7 +271,12 @@ export const notificationSends = {
     const n = validate(NotificationSend, send);
     const created = await tx
       .insert(s.notificationSend)
-      .values({ ...n, eventId: n.eventId ?? null })
+      .values({
+        ...n,
+        eventId: n.eventId ?? null,
+        isoSubjectType: n.isoSubjectType ?? null,
+        isoSubjectId: n.isoSubjectId ?? null,
+      })
       .onConflictDoNothing()
       .returning({ id: s.notificationSend.id })
       .catch(rethrow);
@@ -236,8 +313,8 @@ export const notificationSends = {
       .catch(rethrow);
   },
   /**
-   * Recipients whose digest (no instance) for this date has an outcome, across the firm's clients.
-   * Scheduled sends only, as in `listDone`; event-driven sends are keyed by event.
+   * Recipients whose consultant digest for this date has an outcome, across the firm's clients. Scheduled sends
+   * only, as in `listDone`; event-driven sends are keyed by event, and an ISO reminder is never that day's digest.
    */
   async listDoneDigests(tx: TenantTx, sendDate: string): Promise<string[]> {
     const t = s.notificationSend;
@@ -248,6 +325,8 @@ export const notificationSends = {
         and(
           isNull(t.instanceId),
           isNull(t.eventId),
+          isNull(t.isoSubjectId),
+          eq(t.kind, 'CONSULTANT_DIGEST'),
           eq(t.sendDate, validate(LocalDate, sendDate)),
           sql`(${t.sentAt} is not null or ${t.failureCode} is not null)`,
         ),
@@ -256,32 +335,36 @@ export const notificationSends = {
       .catch(rethrow);
     return rows.map((r) => r.id);
   },
-  /** Scheduled send-log rows of one client for one date with an outcome (sent or failed). */
+  /**
+   * Scheduled send-log rows of one client for one date with an outcome (sent or failed), instance and digest sends
+   * only: ISO reminders are in `listDoneIso`, so M9's statutory reminder keys keep `NotificationKind`.
+   */
   async listDone(
     tx: TenantTx,
     clientId: string,
     sendDate: string,
-  ): Promise<(NotificationSend & { clientId: string })[]> {
-    const t = s.notificationSend;
-    const rows = await tx
-      .select({
-        instanceId: t.instanceId,
-        recipientId: t.recipientId,
-        kind: t.kind,
-        sendDate: t.sendDate,
-      })
-      .from(t)
-      .where(
-        and(
-          eq(t.clientId, clientId),
-          isNull(t.eventId),
-          eq(t.sendDate, validate(LocalDate, sendDate)),
-          sql`(${t.sentAt} is not null or ${t.failureCode} is not null)`,
-        ),
-      )
-      .orderBy(asc(t.id))
-      .catch(rethrow);
-    return rows.map((r) => ({ ...r, clientId, kind: NotificationKind.parse(r.kind) }));
+  ): Promise<(NotificationSend & { clientId: string; kind: NotificationKind })[]> {
+    const rows = await doneScheduled(tx, clientId, sendDate, false);
+    return rows.map(({ instanceId, recipientId, kind, sendDate }) => ({
+      clientId,
+      instanceId,
+      recipientId,
+      kind: NotificationKind.parse(kind),
+      sendDate,
+    }));
+  },
+  /** The same for ISO reminders: one client's ISO sends for one date with an outcome, each with its ISO subject. */
+  async listDoneIso(tx: TenantTx, clientId: string, sendDate: string): Promise<IsoSendKey[]> {
+    const rows = await doneScheduled(tx, clientId, sendDate, true);
+    return rows.map(({ isoSubjectType, isoSubjectId, recipientId, kind, sendDate }) => ({
+      clientId,
+      instanceId: null,
+      isoSubjectType: IsoEntityType.parse(isoSubjectType),
+      isoSubjectId: isoSubjectId!,
+      recipientId,
+      kind: IsoNotificationKind.parse(kind),
+      sendDate,
+    }));
   },
 };
 

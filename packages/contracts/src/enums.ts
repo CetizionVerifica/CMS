@@ -47,6 +47,17 @@ export type Jurisdiction = z.infer<typeof Jurisdiction>;
 export const ActKind = z.enum(['STATUTE', 'STANDARD']);
 export type ActKind = z.infer<typeof ActKind>;
 
+/**
+ * Which acts a register, queue, vault or calendar shows (docs/iso/plan.md §4.6): `LAW` = STATUTE acts, `ISO` = STANDARD
+ * acts. Absent = both. Only meaningful while the account has the ISO add-on; without it STANDARD acts are left out anyway.
+ */
+export const ActivitySource = z.enum(['LAW', 'ISO']);
+export type ActivitySource = z.infer<typeof ActivitySource>;
+
+/** The management-system standards the ISO add-on covers (ADR M16-0001). Editions are data (`IsoStandard.edition`). */
+export const IsoStandardCode = z.enum(['ISO_9001', 'ISO_14001', 'ISO_45001']);
+export type IsoStandardCode = z.infer<typeof IsoStandardCode>;
+
 export const Applicability = z.enum(['APPLICABLE', 'NOT_APPLICABLE', 'TO_ASSESS']);
 export type Applicability = z.infer<typeof Applicability>;
 
@@ -142,27 +153,30 @@ export const EntityType = z.enum([
 export type EntityType = z.infer<typeof EntityType>;
 
 /**
- * Entity types the ISO add-on's audit events name (docs/iso/plan.md §3). Staged: they join `EntityType` in a later bump,
- * once M3 stores them in the `entity_type` Postgres enum and the audit trail page (M13) has words for them, as
- * `account` did (README decision 39). Nothing writes them before the ISO API (M16).
+ * Entity types the ISO add-on's audit events name (docs/iso/model.md §8). Staged: they join `EntityType` in a later bump
+ * (ISO-1b), once M3 stores them in the `entity_type` Postgres enum and the audit trail page (M13) has words for them, as
+ * `account` did (README decision 39). Nothing writes them before the ISO API (M16). ISO files are audited on their
+ * subject, so there is no `iso_file` type; review inputs, outputs and list changes are UPDATEs on the record they belong to.
  */
 export const ISO_ENTITY_TYPES = [
   'management_system',
   'certification',
+  'external_audit',
   'context_item',
   'clause_assessment',
   'controlled_document',
   'document_revision',
   'risk_item',
+  'risk_control',
   'objective',
   'objective_reading',
   'audit_programme',
   'internal_audit',
+  'audit_checklist_item',
   'audit_finding',
   'nonconformity',
-  'corrective_action',
+  'iso_action',
   'management_review',
-  'review_action',
 ] as const;
 export const IsoEntityType = z.enum(ISO_ENTITY_TYPES);
 export type IsoEntityType = z.infer<typeof IsoEntityType>;
@@ -270,6 +284,25 @@ export const NotificationKind = z.enum([
 ]);
 export type NotificationKind = z.infer<typeof NotificationKind>;
 
+/**
+ * ISO reminder kinds (docs/iso/model.md §7). Staged like `ISO_ENTITY_TYPES`: M3 stores them in the
+ * `notification_kind` Postgres enum first, then they join `NotificationKind` (ISO-1b). Each is scheduled and keyed on
+ * its ISO subject (`ISO_NOTIFICATION_DEDUPE_KEY`), never on an instance.
+ */
+export const ISO_NOTIFICATION_KINDS = [
+  'ISO_ACTION_DUE',
+  'ISO_ACTION_OVERDUE',
+  'ISO_REVIEW_DUE',
+  'ISO_AUDIT_STARTING',
+  'ISO_CERTIFICATE_EXPIRING',
+  'ISO_SURVEILLANCE_DUE',
+  'ISO_EXTERNAL_RESPONSE_DUE',
+  'ISO_MANAGEMENT_REVIEW_DUE',
+  'ISO_EFFECTIVENESS_DUE',
+] as const;
+export const IsoNotificationKind = z.enum(ISO_NOTIFICATION_KINDS);
+export type IsoNotificationKind = z.infer<typeof IsoNotificationKind>;
+
 export const ExportKind = z.enum([
   'REGISTER_XLSX',
   'CERTIFICATE_PDF',
@@ -284,6 +317,20 @@ export const ExportKind = z.enum([
   'CLIENT_ARCHIVE_ZIP',
 ]);
 export type ExportKind = z.infer<typeof ExportKind>;
+
+/**
+ * ISO export kinds (docs/iso/model.md §9). Staged like `ISO_ENTITY_TYPES`: M3 stores them in the `export_kind` Postgres
+ * enum and M10 gives its export switch a default branch (ISO-11e) before they join `ExportKind` (ISO-1b). Until then
+ * `ExportCreateBody` refuses them; once joined, it checks their filters against the ISO list queries.
+ */
+export const ISO_EXPORT_KINDS = [
+  'ISO_NC_LOG_XLSX',
+  'ISO_RISK_REGISTER_XLSX',
+  'ISO_AUDIT_REPORT_PDF',
+  'ISO_REVIEW_PACK_PDF',
+] as const;
+export const IsoExportKind = z.enum(ISO_EXPORT_KINDS);
+export type IsoExportKind = z.infer<typeof IsoExportKind>;
 
 /** Status of export and import jobs. */
 export const JobStatus = z.enum(['QUEUED', 'RUNNING', 'DONE', 'FAILED']);

@@ -1,5 +1,11 @@
 import { randomUUID } from 'node:crypto';
-import type { Membership, RequestContext, Resource, Role } from '@canopy/contracts';
+import {
+  ENDPOINTS,
+  type Membership,
+  type RequestContext,
+  type Resource,
+  type Role,
+} from '@canopy/contracts';
 import { describe, expect, it } from 'vitest';
 import { POLICY, can, canGrantRole, ruleFor } from './policy.js';
 import { membership, type MembershipInput } from './testing.js';
@@ -56,6 +62,43 @@ const MATRIX: Record<string, readonly [Cell, Cell, Cell, Cell, Cell, Cell]> = {
   'report.read': ['✓', '✓', '✓', '✓', '', '✓'],
   'export.create': ['✓', '✓', '✓', '✓', '', '✓'],
   'export.read': ['✓', '✓', '✓', '✓', '', '✓'],
+  // §10 The ISO add-on: the action table (docs/iso/plan.md §3.2).
+  'isoSystem.read': ['✓', '✓', '✓', '✓', '✓', '✓'],
+  'isoSystem.write': ['✓', '✓', '✓', '', '', ''],
+  'isoChecklist.read': ['✓', '✓', '✓', '✓', '✓', '✓'],
+  'isoChecklist.write': ['✓', '✓', '✓', '', 'own', ''],
+  'isoChecklist.requestNa': ['✓', '✓', '✓', '', 'own', ''],
+  'isoChecklist.decideNa': ['', '', '✓', '✓', '', ''],
+  'isoDocument.read': ['✓', '✓', '✓', '✓', '✓', '✓'],
+  'isoDocument.write': ['✓', '✓', '✓', '', 'own', ''],
+  'isoDocument.approve': ['', '', '✓', 'own', '', ''],
+  'isoRisk.read': ['✓', '✓', '✓', '✓', '✓', '✓'],
+  'isoRisk.write': ['✓', '✓', '✓', '', 'own', ''],
+  'isoRisk.override': ['✓', '✓', '✓', '', '', ''],
+  'isoObjective.read': ['✓', '✓', '✓', '✓', '✓', '✓'],
+  'isoObjective.write': ['✓', '✓', '✓', '', 'own', ''],
+  'isoAudit.read': ['✓', '✓', '✓', '✓', '✓', '✓'],
+  'isoAudit.plan': ['✓', '✓', '✓', '', '', ''],
+  'isoAudit.conduct': ['✓', '✓', '✓', 'own', 'own', ''],
+  'isoCertification.read': ['✓', '✓', '✓', '✓', '✓', '✓'],
+  'isoCertification.write': ['✓', '✓', '✓', '', '', ''],
+  'isoNc.read': ['✓', '✓', '✓', '✓', '✓', '✓'],
+  'isoNc.raise': ['✓', '✓', '✓', '✓', '✓', ''],
+  'isoNc.work': ['', '', '✓', '', 'own', ''],
+  'isoNc.reassign': ['✓', '✓', '✓', '', '', ''],
+  'isoNc.verify': ['', '', '✓', 'own', '', ''],
+  'isoNc.cancel': ['', '', '✓', 'own', '', ''],
+  'isoNc.reopen': ['', '', '✓', '', '', ''],
+  'isoAction.read': ['✓', '✓', '✓', '✓', '✓', '✓'],
+  'isoAction.write': ['✓', '✓', '✓', '', 'own', ''],
+  'isoAction.complete': ['', '', '✓', '', 'own', ''],
+  'isoAction.cancel': ['', '', '✓', 'own', '', ''],
+  'isoAction.reopen': ['', '', '✓', '', '', ''],
+  'isoReview.read': ['✓', '✓', '✓', '✓', '✓', '✓'],
+  'isoReview.plan': ['✓', '✓', '✓', '', '', ''],
+  'isoReview.write': ['✓', '✓', '✓', 'own', 'own', ''],
+  'isoFile.read': ['✓', '✓', '✓', '✓', '✓', '✓'],
+  'isoFile.write': ['✓', '✓', '✓', 'own', 'own', ''],
 };
 
 const CLIENT = randomUUID();
@@ -101,6 +144,28 @@ function instance(overrides: Partial<Resource> = {}): Resource {
 describe('POLICY', () => {
   it('has exactly the actions of the endpoints.md role matrix', () => {
     expect(Object.keys(POLICY).sort()).toEqual(Object.keys(MATRIX).sort());
+  });
+
+  const isoEndpoints = Object.entries(ENDPOINTS).filter(([, ep]) => ep.feature === 'isoManagement');
+
+  it('has a row, and no wildcard, for every action an ISO route lists', () => {
+    const actions = new Set(isoEndpoints.flatMap(([, ep]) => ep.actions));
+    expect([...actions].sort()).toEqual(
+      Object.keys(MATRIX)
+        .filter((a) => a.startsWith('iso'))
+        .sort(),
+    );
+    expect(Object.keys(POLICY).filter((a) => a.startsWith('iso') && a.endsWith('.*'))).toEqual([]);
+  });
+
+  it.each(isoEndpoints)('grants %s exactly the roles its contract lists', (_, ep) => {
+    // One action per ISO route (contracts 1.8.1), so the route's roles are its action's grants.
+    expect(ep.actions).toHaveLength(1);
+    const grants = POLICY[ep.actions[0]!]!.grants;
+    const expected = Object.fromEntries(
+      Object.entries(ep.roles).map(([role, access]) => [role, access === 'own' ? 'own' : 'all']),
+    );
+    expect(grants).toEqual(expected);
   });
 });
 
@@ -175,6 +240,39 @@ describe('can() scope', () => {
     // Own instances in another unit are still out of scope.
     const own = { ownerId: ACTOR, approverId: ACTOR, unitId: OTHER_UNIT };
     expect(can(ctx, 'comment.write', instance(own))).toBe(false);
+  });
+
+  it.each(['APPROVER', 'OWNER'] as const)(
+    'gives %s a record over several units only when one is theirs',
+    (role) => {
+      const ctx = ctxFor([scoped(role, { unitIds: [UNIT] })]);
+      const system = (unitIds: string[]): Resource => ({
+        type: 'instance',
+        clientId: CLIENT,
+        unitIds,
+      });
+      expect(can(ctx, 'isoSystem.read', system([OTHER_UNIT, UNIT]))).toBe(true);
+      expect(can(ctx, 'isoSystem.read', system([OTHER_UNIT]))).toBe(false);
+      // A record without a unit list (a system over every unit) is not limited.
+      expect(can(ctx, 'isoSystem.read', { type: 'instance', clientId: CLIENT })).toBe(true);
+      // Own records outside the actor's units stay out of scope: M16 checks named people itself.
+      const own = { ...system([OTHER_UNIT]), ownerId: ACTOR, approverId: ACTOR };
+      expect(can(ctx, 'isoReview.write', own)).toBe(false);
+      expect(can(ctx, 'isoReview.write', { ...own, unitIds: [UNIT] })).toBe(true);
+      // A record with both a unit and a unit list needs both to qualify.
+      expect(can(ctx, 'isoNc.raise', { ...system([UNIT]), unitId: OTHER_UNIT })).toBe(false);
+      expect(can(ctx, 'isoNc.raise', { ...system([OTHER_UNIT]), unitId: UNIT })).toBe(false);
+      expect(can(ctx, 'isoNc.raise', { ...system([UNIT]), unitId: UNIT })).toBe(true);
+      // A membership over every unit sees every list.
+      expect(can(ctxFor([scoped(role)]), 'isoSystem.read', system([OTHER_UNIT]))).toBe(true);
+    },
+  );
+
+  it('does not limit firm staff or a client admin to a record’s units', () => {
+    const resource: Resource = { type: 'instance', clientId: CLIENT, unitIds: [OTHER_UNIT] };
+    for (const role of ['FIRM_ADMIN', 'CONSULTANT', 'CLIENT_ADMIN'] as const) {
+      expect(can(ctxFor([scoped(role)]), 'isoSystem.write', resource)).toBe(true);
+    }
   });
 
   it('does not limit a client admin to units', () => {

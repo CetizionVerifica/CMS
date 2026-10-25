@@ -46,7 +46,10 @@ same name whatever its origin, and creates only what is missing. M8's import mat
 Staff may edit a copied STANDARD obligation's rule, description, criticality, forms and log sheets like any library
 row (the rule lives on the obligation, so a change applies to the whole account), and may add their own activities
 under a STANDARD act. Nobody may change an act's kind, move an obligation between a STATUTE and a STANDARD act, or
-merge acts of different kinds (M6 answers `400 VALIDATION`, ISO-9b).
+merge acts of different kinds (M6 answers `400 VALIDATION`, ISO-9b). Nobody may edit, archive or merge a STANDARD act
+either: its values above are fixed, and the copy finds it by name (`400 VALIDATION`, ISO-9b). `clauseRefs` belong to
+obligations under a STANDARD act: M6 refuses a non-empty list on a STATUTE obligation (`400 VALIDATION`) and on any
+obligation while the add-on is off (`403 FEATURE_NOT_ENABLED`).
 
 ## 3. Recurring activity catalogue (minimum for v1)
 
@@ -91,7 +94,8 @@ A failed instance (a drill that went wrong, an instrument out of calibration) is
   checklist row and count in readiness, so nothing is counted twice.
 - **`exclusionAllowed`** is true only for ISO 9001 clauses that 9001 4.3 lets an organisation determine not
   applicable, where that does not affect the conformity of products and services. The starting list: 7.1.5.2,
-  8.3 and its sub-clauses (8.3.1 to 8.3.6), 8.5.3 and 8.5.5. ISO-9's thread confirms it against the standard and
+  the sub-clauses of 8.3 (8.3.1 to 8.3.6; 8.3 itself has sub-clauses, so it is not assessable, and the database refuses
+  `exclusionAllowed` on a clause that is not), 8.5.3 and 8.5.5. ISO-9's thread confirms it against the standard and
   records the final list in its M6 ADR. It is never true for clauses 4 to 7.1.4, 9 or 10, and never true for any
   ISO 14001 or ISO 45001 clause: clause 1 of each allows no exclusion.
 - **Climate change (Amd 1:2024).** The 4.1 summary of each standard says, in our words, that the organisation decides
@@ -135,6 +139,11 @@ One key per input or output; a key shared by several standards appears once in a
 | `INTEGRATION` | Better integration with other business processes | | 9.3 | 9.3 |
 | `STRATEGIC_DIRECTION` | Implications for the organisation's strategic direction | | 9.3 | 9.3 |
 | `WORKER_COMMUNICATION` | Outputs communicated to workers and their representatives | | | 9.3 |
+
+Each standard has one input or output definition per key, with at most one item: the database holds the key unique
+per standard and the item to one letter and an optional digit (ISO-2d). Where a cell above names two items (two
+45001 cells), the definition keeps the first and its title covers both. ISO-9 confirms the items against the standard
+and records them in its ADR.
 
 ## 6. Editions
 

@@ -9,6 +9,8 @@ import {
   populateAuth,
   populateFirm,
   populateIdempotency,
+  populateIso,
+  populateIso2,
   populateSupport,
   type PopulatedFirm,
 } from './support/populate.js';
@@ -35,6 +37,10 @@ beforeAll(async () => {
   await populateIdempotency(t.db, b, 'b');
   await populateSupport(t.db, a, 'a');
   await populateSupport(t.db, b, 'b');
+  await populateIso(t.db, a, 'a');
+  await populateIso(t.db, b, 'b');
+  await populateIso2(t.db, a, 'a');
+  await populateIso2(t.db, b, 'b');
 }, 60_000);
 
 afterAll(async () => {
@@ -400,6 +406,10 @@ describe('references cannot cross firms', () => {
     ['compliance_instance', 'approver_id', 'person'],
     ['evidence', 'uploaded_by_id', 'person'],
     ['export_job', 'requested_by_id', 'person'],
+    ['iso_clause', 'standard_id', 'iso_standard'],
+    ['clause_assessment', 'clause_id', 'iso_clause'],
+    ['certification', 'standard_id', 'iso_standard'],
+    ['controlled_document', 'approver_id', 'person'],
   ];
 
   it.each(cases)('%s.%s cannot point at firm A’s %s', async (table, column, parent) => {
