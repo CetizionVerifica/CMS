@@ -17,7 +17,22 @@ Next.js App Router, TypeScript, Tailwind with the Canopy preset from `packages/u
 /c/[clientId]/setup/{entities,people,departments,reminders}
 /c/[clientId]/import                        upload → map → review → dry run → commit
 /library/{acts,obligations}                 firm-wide library
+/account                                    the account page (add-ons shown On or Off)
+/c/[clientId]/iso/overview                  ISO add-on (M17; only with `isoManagement`, docs/iso/plan.md)
+/c/[clientId]/iso/checklist                 clause checklist per management system
+/c/[clientId]/iso/documents[/documentId]    controlled documents and revisions
+/c/[clientId]/iso/risks                     risk register (?kind=RISK|OPPORTUNITY|ASPECT|HAZARD)
+/c/[clientId]/iso/objectives
+/c/[clientId]/iso/actions                   ISO actions (?subject=, ?owner=), linked from the overview, no sidebar entry
+/c/[clientId]/iso/audits[/auditId]          audit programme and internal audits
+/c/[clientId]/iso/nonconformities[/ncId]
+/c/[clientId]/iso/management-reviews[/reviewId]
+/c/[clientId]/iso/certification             certificates and external audits
 ```
+The ISO routes are hidden when the account lacks `isoManagement`: the sidebar group is absent and a direct URL shows
+`FeatureNotEnabled` (M11's pattern; M17's `iso/layout.tsx` gates its pages the same way). While the ISO catalogue is
+being copied the API answers `409 FEATURE_NOT_READY` and the pages say it is being set up. The register, approvals,
+calendar and evidence pages show a Source filter (Law, ISO) only when the account has the add-on.
 The client switcher changes `[clientId]` and keeps the rest of the path. The period picker writes `?fy=2022-23&q=Q3` and every page respects it.
 
 Route groups (they don't change URLs): `/login` and `/invite/[token]` live in `app/(auth)`, which has no shell. Every

@@ -23,7 +23,7 @@ No code is written until Shyam says to start a wave.
 | 3 | M10 Dashboards & reports API · M13 Web overview, import, setup, reports | M4 + M7 merged |
 | 4 | M14 Integration, QA & hardening | All modules merged |
 | 5 | M15 Platform operator | M5, M6 and M9 merged |
-| I0-I3 | ISO add-on: M16 ISO API · M17 ISO web, plus ISO packages in M0, M3, M4, M5, M6, M7, M9, M10, M11, M13, M14, M15 | Plan merged; order in `docs/iso/plan.md` §7 |
+| I0-I7 | ISO add-on: M16 ISO API · M17 ISO web, plus ISO packages in M0, M3, M4, M5, M6, M7, M8, M9, M10, M11, M12, M13, M14, M15 and one `Tooling:` package | Plan v2 merged; each package by its Needs in `docs/iso/plan.md` §6 |
 
 Up to 5 threads run at once in waves 1 and 2.
 
@@ -33,6 +33,10 @@ stub auth through the M0 contract, as the table allows, instead of waiting for M
 M11, as the diagram and "Uses" say (it builds on the mock API, not M3); M8 needs only M0, because its parse, map and
 clean steps start alongside M4 and its commit step is added after M3 merges. "M0 merged" means M0's first PR (v1
 domain types, enums and Zod schemas). The coordinator keeps to the 5-thread cap when starting what the planner lists.
+The ISO add-on is the exception: plan-wave gates modules, not packages, and lists M16 and M17 as soon as their `needs`
+are merged, so M16, M17 and the ISO packages in other modules start by the Needs column of `docs/iso/plan.md` §6, one
+thread per module at a time. For M16 and M17, `needs` names the direct prerequisites; the other modules in their Uses
+column come with those (M5 and M6 need M3, M7 needs M3 and M4, M3 needs M0; M11 needs M0 and M2; M14 needs M13).
 
 ```
 M0 ─┬─ M3 ─┬─ M5 ─┬─ M6 ───────────┐
@@ -65,8 +69,8 @@ M1 underpins all (repo, CI)
 | M13 | Web overview, import, setup, reports | `apps/web/app/(shell)/portfolio`, `apps/web/app/(shell)/c/[clientId]/{overview,import,setup,reports,audit}`, `apps/web/app/(shell)/library` | M0 mock, M2, M11 | Portfolio, client overview, import wizard, setup screens, reports, library screens |
 | M14 | Integration, QA & hardening | `e2e/`, `docs/security`, perf scripts | everything | E2E suite, isolation and security review, accessibility audit, load test, pilot runbook |
 | M15 | Platform operator | `apps/api/src/platform`, `apps/operator` | M0, M3, M5, M6, M9 | Operator console and API for company accounts: the operator creates an account and its first admin, and renews, suspends or closes it |
-| M16 | ISO API | `apps/api/src/modules/iso`, `docs/iso` | M0, M3, M4, M5 | ISO add-on endpoints: management systems, clause checklist, documents, risk registers, objectives, internal audits, management reviews, nonconformities and corrective actions, certification |
-| M17 | ISO web | `apps/web/app/(shell)/c/[clientId]/iso`, `e2e/tests/iso` | M0 mock, M2, M11 | ISO add-on screens |
+| M16 | ISO API | `apps/api/src/modules/iso`, `docs/iso` | M0, M3, M4, M5 (`requireFeature`, ISO `can()` rows), M6 (ISO catalogue copy), M7 (`IsoFiles` port) | ISO add-on endpoints: management systems, clause checklist, documents, risk registers, objectives, internal and external audits, management reviews, nonconformities, actions on NCs, risk items, objectives, audit findings and management reviews, certification, ISO files, ISO overview |
+| M17 | ISO web | `apps/web/app/(shell)/c/[clientId]/iso`, `e2e/tests/iso` | M0 mock, M2, M11 (shell, `FeatureNotEnabled`), M13 (audit trail words for ISO records), M14 (owns `e2e/`, which holds `e2e/tests/iso/`), M15 (the console switch) | ISO add-on screens |
 
 ---
 
@@ -156,15 +160,19 @@ Each brief is what a thread receives. Read root `CLAUDE.md` and the listed area 
 - **Accept:** all suites green on the integrated build; no P0/P1 findings open; pilot client imported from their own register.
 
 ### ISO add-on (M16, M17 and ISO packages in other modules)
-- **Read:** `docs/iso/plan.md` (scope, data model, on/off behaviour, work packages ISO-0 to ISO-14, acceptance) and
-  ADR M16-0001, then the area CLAUDE.md for the paths the package changes.
+- **Read:** `docs/iso/plan.md` (v2: scope, roles, on/off behaviour, staging rules, package table, acceptance), the
+  package's own brief in `docs/iso/packages.md`, the parts of `docs/iso/model.md` and `docs/iso/catalogue.md` the brief
+  names, ADRs M16-0001 and M16-0002, then the area CLAUDE.md for the paths the package changes.
 - **Goal:** companies manage ISO 9001, 14001 and 45001 as one optional add-on (`isoManagement`) that the operator
-  switches on or off per account in the console. Off hides and blocks, never deletes.
-- **How it runs:** each work package in plan §7 is one thread briefed as the module that owns its paths, titled
-  `M<n>: ISO ...`. M16 and M17 are new modules for the ISO API and screens. Contracts first (ISO-0, ISO-1), then
-  database, engine, auth, console, shell and screens in parallel, then API, library, jobs and reports, then the
-  integrated journey and wiring. ISO packages in M5, M9 and M10 wait for the launch-hardening PR of that module.
-- **Accept:** plan §8, plus the root definition of done.
+  switches on or off per account in the console. Off hides and refuses, never deletes.
+- **How it runs:** each package (ISO-0 to ISO-16, with letter suffixes) belongs to exactly one module and is one
+  thread, titled `M<n>: ISO ...`; ISO-14 is a `Tooling: ISO ...` PR, because no module owns `apps/api/src/wiring.ts`.
+  A package starts when every package in its Needs column has merged, whatever plan-wave prints, and only one thread
+  per module runs at a time. Database-backed enum values go database first (M3), then audit words (M13), then the
+  contract enums (M0); new error codes reach M5's messages before the contracts. Every ISO package merges `main` before it
+  is marked ready. Plan changes go through
+  `Tooling:` PRs from the ISO planning thread; module threads report drift to the coordinator.
+- **Accept:** plan §7, plus the root definition of done.
 
 ---
 
