@@ -195,4 +195,5 @@ kinds; its filter check picks `ISO_EXPORT_FILTERS` for them once they join. New 
 management system and 7 STANDARD assignments with 34 instances; fixtures.md §8). The mock serves every ISO route, gates
 them (403 without the feature, 409 before the copy), honours `X-Mock-Features` per request and `isoCatalogueCopied` on
 `PUT /__mock/firms/{firmId}/features`, applies the off switch and `source` on core routes, and counts STATUTE acts only
-in every statutory figure. README decisions 42-51, including the departures from the model and plan.
+in every statutory figure; `iso-mock.md` lists the rules it picked where the model is silent. README decisions 42-51,
+including the departures from the model and plan.

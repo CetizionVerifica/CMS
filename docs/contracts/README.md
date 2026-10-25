@@ -15,6 +15,7 @@ ISO add-on (M16): its records, engine interface, 117 routes, catalogue and firm 
 | [openapi.json](openapi.json) | OpenAPI 3.1, generated from the endpoint table in code; do not edit | M5-M13, the mock server |
 | [events.md](events.md) | Domain event envelope and catalogue with payloads | M9, M10 and every producer |
 | [fixtures.md](fixtures.md) | Fixture files, golden counts and scores recomputed from the sample, firm B spec, the ISO catalogue and firm B's ISO data | M3, M4, M8, M10, M12-M14, M16, M17 |
+| [iso-mock.md](iso-mock.md) | Rules the ISO mock picked where `docs/iso/model.md` is silent, for M16, M4 and M17 to keep or replace | M4, M16, M17 |
 | [CHANGELOG.md](CHANGELOG.md) | Contract versions | everyone |
 
 ## Status
@@ -209,9 +210,12 @@ with sign-off per "How to change a contract".
     `CREATE` audit event per act, category and obligation it adds; the fixture load writes none. ISO audit events
     are kept apart from the register's while their entity types are staged (decision 42), so the client audit trail
     does not list them before ISO-1b; a delegated step has `delegated: true` in `after`. ISO statuses and figures come
-    from the mock's test double (`src/mock/iso/derive.ts`), as decision 35 says for instances. As in decision 37, a
-    confirmed ISO file is PENDING and is CLEAN on the next read of its subject's files or of a download URL, and a
+    from the mock's test double (`src/mock/iso/derive.ts`), as decision 35 says for instances; one rule each for
+    objective progress, certification cycles and programme coverage serves every screen that shows them. As in
+    decision 37, a confirmed ISO file is PENDING and is CLEAN on the next read of its subject's files or of a download
+    URL, or when a step relies on it (SUBMIT or RECORD_EDITION of a revision, RECORD_HELD of an external audit), and a
     name containing "eicar" comes back INFECTED. Core routes apply the off switch and `source` (decisions 46-47).
+    Where the model leaves a rule open the mock picks one; `iso-mock.md` lists those picks for M16, M4 and M17.
 50. ISO fixtures (fixtures.md §8). `iso.catalogue.json` holds the catalogue without ids. `isoCatalogueRows(firmId, at)`
     turns it into one account's rows with UUIDv5 ids of `<firmId>:<key>` in `ISO_CATALOGUE_NAMESPACE`
     (`isoCatalogueId`, `isoClauseId`), so two accounts' copies never share an id and every load gives the same ones.
