@@ -763,6 +763,7 @@ describe('updateIsoExternalAudit', () => {
         leadAuditorName: 'B. Auditor',
         standardIds: [std('ISO_9001'), std('ISO_14001')],
         responseDueOn: '2024-12-31',
+        reason: 'The body set its deadline',
       },
       PERSON.kabir,
     );
@@ -779,6 +780,7 @@ describe('updateIsoExternalAudit', () => {
         action: 'DUE_DATE_CHANGE',
         before: { responseDueOn: null },
         after: { responseDueOn: '2024-12-31' },
+        reason: 'The body set its deadline',
       }),
       expect.objectContaining({
         action: 'UPDATE',
@@ -792,6 +794,7 @@ describe('updateIsoExternalAudit', () => {
           type: 'SPECIAL',
           leadAuditorName: 'B. Auditor',
         },
+        reason: null,
       }),
     ]);
     const moved = await updateAudit(edited, { startOn: '2024-11-05' });
@@ -799,6 +802,7 @@ describe('updateIsoExternalAudit', () => {
     expect(lastEvent(audit.id)).toMatchObject({
       action: 'UPDATE',
       after: { startOn: '2024-11-05' },
+      reason: null,
     });
     const same = await updateAudit(moved, { body: BODY });
     expect(same.version).toBe(3);
@@ -821,7 +825,7 @@ describe('updateIsoExternalAudit', () => {
     await fails(
       app,
       'updateIsoExternalAudit',
-      request({ responseDueOn: '2024-11-05' }),
+      request({ responseDueOn: '2024-11-05', reason: 'The body asked for it' }),
       'VALIDATION',
       400,
     );
@@ -876,6 +880,66 @@ describe('updateIsoExternalAudit', () => {
       standardIds: [std('ISO_9001'), std('ISO_45001')],
     });
     expect(widened.standardIds).toHaveLength(2);
+  });
+
+  it('needs a reason to move the response deadline, none for the visit dates (decision 51 p)', async () => {
+    const audit = await createAudit();
+    const version = () => firmB(app).iso.externalAudits.find((a) => a.id === audit.id)!.version;
+    const request = (body: Record<string, unknown>) => ({
+      as: PERSON.kabir,
+      params: params(audit),
+      body: { version: version(), ...body },
+    });
+    // Setting the deadline and clearing it are both due-date changes.
+    for (const [from, to] of [
+      [null, '2024-12-31'],
+      ['2024-12-31', null],
+    ] as const) {
+      const count = isoEvents(app, audit.id).length;
+      await fails(
+        app,
+        'updateIsoExternalAudit',
+        request({ responseDueOn: to }),
+        'REASON_REQUIRED',
+        422,
+      );
+      await fails(
+        app,
+        'updateIsoExternalAudit',
+        request({ responseDueOn: to, reason: '  ' }),
+        'REASON_REQUIRED',
+        422,
+      );
+      expect(isoEvents(app, audit.id)).toHaveLength(count);
+      const reason = to === null ? 'The body withdrew its deadline' : 'The body set its deadline';
+      const changed = await ok<Audit>(
+        app,
+        'updateIsoExternalAudit',
+        request({ responseDueOn: to, reason }),
+      );
+      expect(changed.responseDueOn).toBe(to);
+      expect(isoEvents(app, audit.id)).toHaveLength(count + 1);
+      expect(lastEvent(audit.id)).toMatchObject({
+        action: 'DUE_DATE_CHANGE',
+        actorId: PERSON.kabir,
+        before: { responseDueOn: from },
+        after: { responseDueOn: to },
+        reason,
+      });
+    }
+    // The visit's own dates are an UPDATE and need no reason.
+    const moved = await ok<Audit>(
+      app,
+      'updateIsoExternalAudit',
+      request({ startOn: '2024-11-05', endOn: '2024-11-07' }),
+    );
+    expect(moved).toMatchObject({ startOn: '2024-11-05', endOn: '2024-11-07' });
+    expect(lastEvent(audit.id)).toMatchObject({
+      action: 'UPDATE',
+      before: { startOn: '2024-11-04', endOn: '2024-11-06' },
+      after: { startOn: '2024-11-05', endOn: '2024-11-07' },
+      reason: null,
+    });
   });
 
   it('refuses a stale version, a CLOSED or CANCELLED audit, and readers', async () => {

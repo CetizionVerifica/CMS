@@ -127,6 +127,13 @@ const update = (review: { id: string; version: number }, body: object, as = PERS
     body: { version: review.version, ...body },
   });
 
+const replan = (review: { id: string; version: number }, body: object, as = PERSON.kabir) =>
+  ok<ReviewView>(app, 'replanIsoManagementReview', {
+    as,
+    params: { id: review.id },
+    body: { version: review.version, ...body },
+  });
+
 async function inputs(id: string, as = PERSON.kabir, clientId = NORTHWIND) {
   return (
     await ok<{ items: InputView[] }>(app, 'listIsoReviewInputs', { as, params: { id, clientId } })
@@ -797,6 +804,7 @@ describe('editing a management review', () => {
       actorId: PERSON.sameer,
       before: { attendeeIds: [PERSON.divya], minutes: null },
       after: { attendeeIds: [PERSON.divya, PERSON.rohan], minutes: 'Agenda sent' },
+      reason: null,
     });
     // Nothing changed: no new version, no event.
     const count = isoEvents(app, review.id).length;
@@ -805,35 +813,79 @@ describe('editing a management review', () => {
     expect(isoEvents(app, review.id)).toHaveLength(count);
   });
 
-  it('keeps the standards, date and chair for isoReview.plan', async () => {
-    const review = await plan(seedSystem(app).id);
-    const refused = await fails(
-      app,
-      'updateIsoManagementReview',
-      {
-        as: PERSON.sameer,
+  it('lets an approver who chairs it, and every manager, change attendees and minutes', async () => {
+    // Nisha approves for Pune only; chairing a review of a Bengaluru system still lets her write it.
+    const review = await plan(seedSystem(app, { unitIds: [BENGALURU] }).id, {
+      chairId: PERSON.nisha,
+      attendeeIds: [],
+    });
+    let current = await update(
+      review,
+      { attendeeIds: [PERSON.nisha, ISHAAN], minutes: 'Agenda sent' },
+      PERSON.nisha,
+    );
+    expect(current).toMatchObject({
+      version: review.version + 1,
+      attendeeIds: [PERSON.nisha, ISHAAN],
+      minutes: 'Agenda sent',
+    });
+    expect(lastEvent(review.id)).toMatchObject({
+      action: 'UPDATE',
+      actorId: PERSON.nisha,
+      after: { attendeeIds: [PERSON.nisha, ISHAAN], minutes: 'Agenda sent' },
+      reason: null,
+    });
+    for (const as of [PERSON.meera, PERSON.arjun, PERSON.kabir]) {
+      const result = await call(app, 'updateIsoManagementReview', {
+        as,
         params: { id: review.id },
-        body: { version: review.version, plannedOn: '2024-12-20', reason: 'Clash' },
-      },
-      'FORBIDDEN',
-      403,
-    );
-    expect(refused.error.details).toEqual({ action: 'isoReview.plan' });
-    // An attendee is not the chair; a reviewer outside the review's units does not see it.
-    await fails(
-      app,
-      'updateIsoManagementReview',
-      { as: PERSON.divya, params: { id: review.id }, body: { version: 1, minutes: 'x' } },
-      'FORBIDDEN',
-      403,
-    );
-    await fails(
-      app,
-      'updateIsoManagementReview',
-      { as: PERSON.vikram, params: { id: review.id }, body: { version: 1, minutes: 'x' } },
-      'FORBIDDEN',
-      403,
-    );
+        body: { version: current.version, minutes: `Minutes by ${as}` },
+      });
+      expect(result.status, JSON.stringify(result.json)).toBe(200);
+      current = result.json as ReviewView;
+      expect(lastEvent(review.id)).toMatchObject({ action: 'UPDATE', actorId: as });
+    }
+  });
+
+  it('takes no standards, date or chair, and refuses approvers and owners who do not chair it', async () => {
+    const review = await plan(seedSystem(app).id);
+    // Standards, date and chair change through replanIsoManagementReview: the body takes none of them, from anyone.
+    for (const as of [PERSON.kabir, PERSON.sameer]) {
+      for (const [field, body] of [
+        ['plannedOn', { plannedOn: '2024-12-20', reason: 'Clash' }],
+        ['chairId', { chairId: PERSON.divya, reason: 'Handover' }],
+        ['standards', { standards: ['ISO_9001'], minutes: 'Agenda sent' }],
+      ] as const) {
+        const refused = await fails(
+          app,
+          'updateIsoManagementReview',
+          { as, params: { id: review.id }, body: { version: review.version, ...body } },
+          'VALIDATION',
+          400,
+        );
+        expect(JSON.stringify(refused.error.details)).toContain(field);
+      }
+    }
+    expect(stored(review.id)).toMatchObject({
+      version: review.version,
+      standards: [...ALL],
+      plannedOn: '2024-12-01',
+      chairId: PERSON.sameer,
+      minutes: null,
+    });
+    expect(isoEvents(app, review.id)).toHaveLength(1);
+    // An attendee is not the chair; approvers and owners of its units who do not chair it, and viewers, may not write.
+    for (const as of [PERSON.divya, PERSON.nisha, PERSON.rohan, PERSON.vikram]) {
+      const refused = await fails(
+        app,
+        'updateIsoManagementReview',
+        { as, params: { id: review.id }, body: { version: review.version, minutes: 'x' } },
+        'FORBIDDEN',
+        403,
+      );
+      expect(refused.error.details).toEqual({ action: 'isoReview.write' });
+    }
+    // An owner outside the review's units does not see it.
     const blr = await plan(seedSystem(app, { unitIds: [BENGALURU] }).id, { attendeeIds: [] });
     await fails(
       app,
@@ -844,114 +896,15 @@ describe('editing a management review', () => {
     );
   });
 
-  it('audits a new date as a due-date change with its reason and a new chair as a reassignment', async () => {
+  it('refuses people outside the client and a stale version', async () => {
     const review = await plan(seedSystem(app).id);
     await fails(
       app,
       'updateIsoManagementReview',
-      { params: { id: review.id }, body: { version: review.version, plannedOn: '2024-12-20' } },
-      'REASON_REQUIRED',
-      422,
-    );
-    const moved = await update(review, {
-      plannedOn: '2024-12-20',
-      chairId: PERSON.divya,
-      reason: 'Plant shutdown',
-    });
-    expect(moved).toMatchObject({ plannedOn: '2024-12-20', chairId: PERSON.divya });
-    const events = isoEvents(app, review.id).slice(-2);
-    expect(events[0]).toMatchObject({
-      action: 'DUE_DATE_CHANGE',
-      before: { plannedOn: '2024-12-01' },
-      after: { plannedOn: '2024-12-20' },
-      reason: 'Plant shutdown',
-    });
-    expect(events[1]).toMatchObject({
-      action: 'REASSIGN',
-      before: { chairId: PERSON.sameer },
-      after: { chairId: PERSON.divya },
-      reason: null,
-    });
-    // The new chair (an approver) now writes it; the old one no longer does.
-    expect((await getReview(review.id, PERSON.divya)).allowedActions).toEqual(['RECORD_HELD']);
-    await fails(
-      app,
-      'updateIsoManagementReview',
-      { as: PERSON.sameer, params: { id: review.id }, body: { version: 2, minutes: 'x' } },
-      'FORBIDDEN',
-      403,
-    );
-  });
-
-  it('adds and archives input and output rows when its standards change', async () => {
-    const review = await plan(seedSystem(app).id);
-    const before = await inputs(review.id);
-    const previousRow = byKey(before, 'PREVIOUS_ACTIONS');
-    let current = await update(review, { standards: ['ISO_9001', 'ISO_14001'] });
-    expect(lastEvent(review.id)).toMatchObject({
-      action: 'UPDATE',
-      before: { standards: [...ALL] },
-      after: {
-        standards: ['ISO_9001', 'ISO_14001'],
-        inputKeysRemoved: ['INCIDENTS', 'WORKER_CONSULTATION'],
-        outputKeysRemoved: ['WORKER_COMMUNICATION'],
-      },
-    });
-    expect((await inputs(review.id)).map((i) => i.key)).not.toContain('INCIDENTS');
-    const archived = firm().iso.reviewInputs.filter(
-      (i) => i.managementReviewId === review.id && i.archivedAt !== null,
-    );
-    expect(archived).toHaveLength(2);
-    // Dropping 9001 keeps the shared rows and points them at the 14001 definition.
-    current = await update(current, { standards: ['ISO_14001'] });
-    const after = await inputs(review.id);
-    const kept = byKey(after, 'PREVIOUS_ACTIONS');
-    expect(kept.id).toBe(previousRow.id);
-    expect(kept.inputDefId).not.toBe(previousRow.inputDefId);
-    expect(kept.clauseRefs).toEqual([{ standard: 'ISO_14001', clauseNumber: '9.3', item: 'a' }]);
-    expect(after.map((i) => i.key)).not.toContain('RISK_ACTIONS');
-    // The same set in another order is no change.
-    const count = isoEvents(app, review.id).length;
-    current = await update(current, { standards: ['ISO_14001'] });
-    expect(isoEvents(app, review.id)).toHaveLength(count);
-    // Adding a standard back makes new rows.
-    current = await update(current, { standards: ['ISO_45001', 'ISO_14001'] });
-    expect(lastEvent(review.id).after).toMatchObject({
-      standards: ['ISO_14001', 'ISO_45001'],
-      inputKeysAdded: ['INCIDENTS', 'WORKER_CONSULTATION'],
-      outputKeysAdded: ['WORKER_COMMUNICATION'],
-    });
-    const incidents = byKey(await inputs(review.id), 'INCIDENTS');
-    expect(archived.map((i) => i.id)).not.toContain(incidents.id);
-    await fails(
-      app,
-      'updateIsoManagementReview',
-      {
-        params: { id: review.id },
-        body: { version: current.version, standards: ['ISO_9001'], attendeeIds: [PERSON.joseph] },
-      },
+      { params: { id: review.id }, body: { version: review.version, attendeeIds: [PERSON.priya] } },
       'VALIDATION',
       400,
     );
-  });
-
-  it('refuses standards outside the system, people outside the client and a stale version', async () => {
-    const review = await plan(seedSystem(app, { standards: ['ISO_9001'] }).id, {
-      standards: ['ISO_9001'],
-    });
-    for (const body of [
-      { standards: ['ISO_14001'] },
-      { chairId: PERSON.vikram },
-      { attendeeIds: [PERSON.priya] },
-    ]) {
-      await fails(
-        app,
-        'updateIsoManagementReview',
-        { params: { id: review.id }, body: { version: review.version, ...body } },
-        'VALIDATION',
-        400,
-      );
-    }
     await fails(
       app,
       'updateIsoManagementReview',
@@ -961,25 +914,10 @@ describe('editing a management review', () => {
     );
   });
 
-  it('takes only attendees and minutes once held, and nothing once closed or cancelled', async () => {
+  it('takes attendees and minutes once held, and nothing once closed or cancelled', async () => {
     const review = await plan(seedSystem(app).id);
     await noteAll(review.id);
     const held = await hold(review.id);
-    const locked = await fails(
-      app,
-      'updateIsoManagementReview',
-      {
-        params: { id: review.id },
-        body: { version: held.version, plannedOn: '2025-01-05', reason: 'Late' },
-      },
-      'INVALID_TRANSITION',
-      409,
-    );
-    expect(locked.error.details).toEqual({
-      entity: 'management_review',
-      from: 'HELD',
-      action: 'UPDATE',
-    });
     await fails(
       app,
       'updateIsoManagementReview',
@@ -990,13 +928,18 @@ describe('editing a management review', () => {
     const edited = await update(held, { minutes: 'Signed minutes' }, PERSON.sameer);
     expect(edited.minutes).toBe('Signed minutes');
     stored(review.id).state = 'CLOSED';
-    await fails(
+    const closed = await fails(
       app,
       'updateIsoManagementReview',
       { params: { id: review.id }, body: { version: edited.version, minutes: 'Late edit' } },
       'INVALID_TRANSITION',
       409,
     );
+    expect(closed.error.details).toEqual({
+      entity: 'management_review',
+      from: 'CLOSED',
+      action: 'UPDATE',
+    });
     const cancelled = await plan(seedSystem(app).id);
     await ok(app, 'cancelIsoManagementReview', {
       params: { id: cancelled.id },
@@ -1009,6 +952,343 @@ describe('editing a management review', () => {
       'INVALID_TRANSITION',
       409,
     );
+  });
+});
+
+describe('replanning a management review', () => {
+  it('lets an account admin, consultant or client admin replan it', async () => {
+    const system = seedSystem(app);
+    for (const as of [PERSON.meera, PERSON.arjun, PERSON.kabir]) {
+      const review = await plan(system.id);
+      const result = await call(app, 'replanIsoManagementReview', {
+        as,
+        params: { id: review.id },
+        body: {
+          version: review.version,
+          plannedOn: '2024-12-20',
+          chairId: PERSON.divya,
+          reason: 'Plant shutdown',
+        },
+      });
+      expect(result.status, JSON.stringify(result.json)).toBe(200);
+      expect(result.json).toMatchObject({
+        version: review.version + 1,
+        plannedOn: '2024-12-20',
+        chairId: PERSON.divya,
+        state: 'PLANNED',
+      });
+      expect(
+        isoEvents(app, review.id)
+          .slice(-2)
+          .map((e) => [e.action, e.actorId]),
+      ).toEqual([
+        ['DUE_DATE_CHANGE', as],
+        ['REASSIGN', as],
+      ]);
+    }
+  });
+
+  it('refuses the chair as approver or owner, other approvers and owners, and viewers', async () => {
+    const system = seedSystem(app);
+    const byOwner = await plan(system.id); // chaired by Sameer, an owner; Divya attends
+    const byApprover = await plan(system.id, { chairId: PERSON.divya, attendeeIds: [] });
+    const moved = (review: ReviewView) => ({
+      version: review.version,
+      plannedOn: '2024-12-20',
+      reason: 'Clash',
+    });
+    for (const [review, as] of [
+      [byOwner, PERSON.sameer],
+      [byApprover, PERSON.divya],
+      [byOwner, PERSON.divya],
+      [byOwner, PERSON.nisha],
+      [byOwner, PERSON.rohan],
+      [byOwner, PERSON.vikram],
+    ] as const) {
+      const refused = await fails(
+        app,
+        'replanIsoManagementReview',
+        { as, params: { id: review.id }, body: moved(review) },
+        'FORBIDDEN',
+        403,
+      );
+      expect(refused.error.details).toEqual({ action: 'isoReview.plan' });
+    }
+    // Standards alone are a manager's step too.
+    await fails(
+      app,
+      'replanIsoManagementReview',
+      {
+        as: PERSON.sameer,
+        params: { id: byOwner.id },
+        body: { version: byOwner.version, standards: ['ISO_9001'] },
+      },
+      'FORBIDDEN',
+      403,
+    );
+    await fails(
+      app,
+      'replanIsoManagementReview',
+      { as: PERSON.leela, params: { id: byOwner.id }, body: moved(byOwner) },
+      'NOT_FOUND',
+      404,
+    );
+    const blr = await plan(seedSystem(app, { unitIds: [BENGALURU] }).id, { attendeeIds: [] });
+    await fails(
+      app,
+      'replanIsoManagementReview',
+      { as: PERSON.rohan, params: { id: blr.id }, body: moved(blr) },
+      'NOT_FOUND',
+      404,
+    );
+    for (const review of [byOwner, byApprover]) {
+      expect(stored(review.id)).toMatchObject({
+        version: review.version,
+        plannedOn: '2024-12-01',
+        standards: [...ALL],
+      });
+      expect(isoEvents(app, review.id)).toHaveLength(1);
+    }
+  });
+
+  it('needs a reason for a new date or chair, and none for new standards', async () => {
+    const review = await plan(seedSystem(app).id);
+    for (const change of [
+      { plannedOn: '2024-12-20' },
+      { chairId: PERSON.divya },
+      { plannedOn: '2024-12-20', standards: ['ISO_9001'] },
+      { chairId: PERSON.divya, reason: '   ' },
+    ]) {
+      await fails(
+        app,
+        'replanIsoManagementReview',
+        { params: { id: review.id }, body: { version: review.version, ...change } },
+        'REASON_REQUIRED',
+        422,
+      );
+    }
+    expect(isoEvents(app, review.id)).toHaveLength(1);
+    const current = await replan(review, { standards: ['ISO_9001', 'ISO_14001'] });
+    expect(current).toMatchObject({
+      version: review.version + 1,
+      standards: ['ISO_9001', 'ISO_14001'],
+    });
+    expect(lastEvent(review.id)).toMatchObject({
+      action: 'UPDATE',
+      before: { standards: [...ALL] },
+      after: { standards: ['ISO_9001', 'ISO_14001'] },
+      reason: null,
+    });
+    // A reason given with standards alone is not recorded: the change is an UPDATE.
+    const narrowed = await replan(current, { standards: ['ISO_9001'], reason: 'Narrowed' });
+    expect(narrowed.standards).toEqual(['ISO_9001']);
+    expect(lastEvent(review.id)).toMatchObject({ action: 'UPDATE', reason: null });
+    expect(isoEvents(app, review.id)).toHaveLength(3);
+  });
+
+  it('audits a new date as a due-date change and a new chair as a reassignment, each with its reason', async () => {
+    const review = await plan(seedSystem(app).id);
+    const moved = await replan(review, {
+      plannedOn: '2024-12-20',
+      chairId: PERSON.divya,
+      standards: ['ISO_9001', 'ISO_14001'],
+      reason: 'Plant shutdown',
+    });
+    expect(moved).toMatchObject({
+      version: review.version + 1,
+      plannedOn: '2024-12-20',
+      chairId: PERSON.divya,
+      standards: ['ISO_9001', 'ISO_14001'],
+    });
+    const events = isoEvents(app, review.id).slice(1);
+    expect(events).toHaveLength(3);
+    expect(events[0]).toMatchObject({
+      action: 'DUE_DATE_CHANGE',
+      entityType: 'management_review',
+      actorId: PERSON.kabir,
+      before: { plannedOn: '2024-12-01' },
+      after: { plannedOn: '2024-12-20' },
+      reason: 'Plant shutdown',
+    });
+    expect(events[1]).toMatchObject({
+      action: 'REASSIGN',
+      before: { chairId: PERSON.sameer },
+      after: { chairId: PERSON.divya },
+      reason: 'Plant shutdown',
+    });
+    expect(events[2]).toMatchObject({
+      action: 'UPDATE',
+      before: { standards: [...ALL] },
+      after: { standards: ['ISO_9001', 'ISO_14001'] },
+      reason: null,
+    });
+    expect(Object.keys(events[0]!.before!)).toEqual(['plannedOn']);
+    expect(Object.keys(events[1]!.before!)).toEqual(['chairId']);
+    // A date alone writes one event; the same date again writes none and keeps the version.
+    const later = await replan(moved, { plannedOn: '2024-12-27', reason: 'Auditor away' });
+    expect(isoEvents(app, review.id).slice(4)).toMatchObject([
+      { action: 'DUE_DATE_CHANGE', after: { plannedOn: '2024-12-27' }, reason: 'Auditor away' },
+    ]);
+    const same = await replan(later, { plannedOn: '2024-12-27', reason: 'Auditor away' });
+    expect(same.version).toBe(later.version);
+    expect(isoEvents(app, review.id)).toHaveLength(5);
+    // The new chair (an approver) now writes it; the old one no longer does.
+    expect((await getReview(review.id, PERSON.divya)).allowedActions).toEqual(['RECORD_HELD']);
+    await update(later, { minutes: 'Agenda sent' }, PERSON.divya);
+    await fails(
+      app,
+      'updateIsoManagementReview',
+      {
+        as: PERSON.sameer,
+        params: { id: review.id },
+        body: { version: later.version + 1, minutes: 'x' },
+      },
+      'FORBIDDEN',
+      403,
+    );
+  });
+
+  it('adds and archives input and output rows when its standards change', async () => {
+    const review = await plan(seedSystem(app).id);
+    const before = await inputs(review.id);
+    const previousRow = byKey(before, 'PREVIOUS_ACTIONS');
+    let current = await replan(review, { standards: ['ISO_9001', 'ISO_14001'] });
+    expect(lastEvent(review.id)).toMatchObject({
+      action: 'UPDATE',
+      before: { standards: [...ALL] },
+      after: {
+        standards: ['ISO_9001', 'ISO_14001'],
+        inputKeysRemoved: ['INCIDENTS', 'WORKER_CONSULTATION'],
+        outputKeysRemoved: ['WORKER_COMMUNICATION'],
+      },
+      reason: null,
+    });
+    expect((await inputs(review.id)).map((i) => i.key)).not.toContain('INCIDENTS');
+    const archived = firm().iso.reviewInputs.filter(
+      (i) => i.managementReviewId === review.id && i.archivedAt !== null,
+    );
+    expect(archived).toHaveLength(2);
+    // Dropping 9001 keeps the shared rows and points them at the 14001 definition.
+    current = await replan(current, { standards: ['ISO_14001'] });
+    const after = await inputs(review.id);
+    const kept = byKey(after, 'PREVIOUS_ACTIONS');
+    expect(kept.id).toBe(previousRow.id);
+    expect(kept.inputDefId).not.toBe(previousRow.inputDefId);
+    expect(kept.clauseRefs).toEqual([{ standard: 'ISO_14001', clauseNumber: '9.3', item: 'a' }]);
+    expect(after.map((i) => i.key)).not.toContain('RISK_ACTIONS');
+    // The same set in another order is no change.
+    const count = isoEvents(app, review.id).length;
+    current = await replan(current, { standards: ['ISO_14001'] });
+    expect(isoEvents(app, review.id)).toHaveLength(count);
+    // Adding a standard back makes new rows.
+    current = await replan(current, { standards: ['ISO_45001', 'ISO_14001'] });
+    expect(lastEvent(review.id).after).toMatchObject({
+      standards: ['ISO_14001', 'ISO_45001'],
+      inputKeysAdded: ['INCIDENTS', 'WORKER_CONSULTATION'],
+      outputKeysAdded: ['WORKER_COMMUNICATION'],
+    });
+    const incidents = byKey(await inputs(review.id), 'INCIDENTS');
+    expect(archived.map((i) => i.id)).not.toContain(incidents.id);
+    // A refused replan changes neither the standards nor the rows.
+    const rows = (await inputs(review.id)).length;
+    await fails(
+      app,
+      'replanIsoManagementReview',
+      {
+        params: { id: review.id },
+        body: {
+          version: current.version,
+          standards: ['ISO_9001'],
+          chairId: PERSON.joseph,
+          reason: 'Handover',
+        },
+      },
+      'VALIDATION',
+      400,
+    );
+    expect(stored(review.id).standards).toEqual(['ISO_14001', 'ISO_45001']);
+    expect(await inputs(review.id)).toHaveLength(rows);
+  });
+
+  it('refuses standards outside the system, people outside the client and a stale version', async () => {
+    const review = await plan(seedSystem(app, { standards: ['ISO_9001'] }).id, {
+      standards: ['ISO_9001'],
+    });
+    for (const body of [
+      { standards: ['ISO_14001'] },
+      { chairId: PERSON.vikram, reason: 'Handover' },
+      { chairId: PERSON.priya, reason: 'Handover' },
+      { chairId: PERSON.gita, reason: 'Handover' },
+    ]) {
+      await fails(
+        app,
+        'replanIsoManagementReview',
+        { params: { id: review.id }, body: { version: review.version, ...body } },
+        'VALIDATION',
+        400,
+      );
+    }
+    await fails(
+      app,
+      'replanIsoManagementReview',
+      {
+        params: { id: review.id },
+        body: { version: review.version + 1, plannedOn: '2024-12-20', reason: 'Clash' },
+      },
+      'STALE_VERSION',
+      409,
+    );
+    expect(isoEvents(app, review.id)).toHaveLength(1);
+  });
+
+  it('replans only while planned', async () => {
+    const review = await plan(seedSystem(app).id);
+    await noteAll(review.id);
+    const held = await hold(review.id);
+    for (const body of [
+      { plannedOn: '2025-01-05', reason: 'Late' },
+      { chairId: PERSON.divya, reason: 'Handover' },
+      { standards: ['ISO_9001'] },
+    ]) {
+      const locked = await fails(
+        app,
+        'replanIsoManagementReview',
+        { params: { id: review.id }, body: { version: held.version, ...body } },
+        'INVALID_TRANSITION',
+        409,
+      );
+      expect(locked.error.details).toEqual({
+        entity: 'management_review',
+        from: 'HELD',
+        action: 'UPDATE',
+      });
+    }
+    stored(review.id).state = 'CLOSED';
+    const closed = await fails(
+      app,
+      'replanIsoManagementReview',
+      {
+        params: { id: review.id },
+        body: { version: held.version, plannedOn: '2025-01-05', reason: 'Late' },
+      },
+      'INVALID_TRANSITION',
+      409,
+    );
+    expect(closed.error.details).toMatchObject({ from: 'CLOSED' });
+    const cancelled = await plan(seedSystem(app).id);
+    await ok(app, 'cancelIsoManagementReview', {
+      params: { id: cancelled.id },
+      body: { version: cancelled.version, reason: 'Merged' },
+    });
+    const gone = await fails(
+      app,
+      'replanIsoManagementReview',
+      { params: { id: cancelled.id }, body: { version: 2, standards: ['ISO_9001'] } },
+      'INVALID_TRANSITION',
+      409,
+    );
+    expect(gone.error.details).toMatchObject({ from: 'CANCELLED' });
+    expect(stored(review.id)).toMatchObject({ plannedOn: '2024-12-01', chairId: PERSON.sameer });
   });
 });
 

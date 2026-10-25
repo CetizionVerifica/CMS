@@ -1633,6 +1633,76 @@ describe('mock server', () => {
     );
     expect(revoked.length).toBeGreaterThan(0);
   });
+
+  it('answers a sign-in with the X-Mock-Features account features, for that request only', async () => {
+    type Signed = { account: { features: string[] } };
+    const kabir = { email: 'kabir.shah@northwind.example', password: 'correct horse battery' };
+    // Firm B has isoManagement on; an empty header means no features.
+    const without = await call(app, 'login', {
+      as: null,
+      body: kabir,
+      headers: { 'x-mock-features': '' },
+    });
+    expect(without.status).toBe(200);
+    expect((without.json as Signed).account.features).toEqual([]);
+    const plain = await call(app, 'login', { as: null, body: kabir });
+    expect(plain.status).toBe(200);
+    expect((plain.json as Signed).account.features).toEqual(['isoManagement']);
+    // The session keeps the firm's features: the header applies to the request it is sent on.
+    const cookie = String(without.headers['set-cookie']).split(';')[0]!;
+    const me = await ok<Signed>(app, 'getMe', { as: null, headers: { cookie } });
+    expect(me.account.features).toEqual(['isoManagement']);
+    const bad = await fails(
+      app,
+      'login',
+      { as: null, body: kabir, headers: { 'x-mock-features': 'Not A Flag' } },
+      'VALIDATION',
+      400,
+    );
+    expect(bad.error.details).toEqual({
+      issues: [{ path: ['headers', 'x-mock-features'], message: 'Expected camelCase flags' }],
+    });
+
+    // A magic link signs in the same way.
+    await ok(app, 'requestMagicLink', {
+      as: null,
+      body: { email: 'nisha.patil@northwind.example' },
+    });
+    const link = await ok<Signed>(app, 'verifyMagicLink', {
+      as: null,
+      body: { token: firstToken(app, 'MAGIC_LINK', 'nisha.patil@northwind.example') },
+      headers: { 'x-mock-features': '' },
+    });
+    expect(link.account.features).toEqual([]);
+
+    // So does the console's support session.
+    const grant = await ok<{ id: string }>(app, 'createSupportGrant', {
+      body: { level: 'READ_ONLY', days: 1 },
+    });
+    const open = async () => {
+      const r = await app.inject({ method: 'POST', url: `/__mock/support-sessions/${grant.id}` });
+      return (JSON.parse(r.body) as { token: string }).token;
+    };
+    const support = await ok<Signed>(app, 'verifySupportSession', {
+      as: null,
+      body: { token: await open() },
+      headers: { 'x-mock-features': '' },
+    });
+    expect(support.account.features).toEqual([]);
+    const supportPlain = await ok<Signed>(app, 'verifySupportSession', {
+      as: null,
+      body: { token: await open() },
+    });
+    expect(supportPlain.account.features).toEqual(['isoManagement']);
+    await fails(
+      app,
+      'verifySupportSession',
+      { as: null, body: { token: await open() }, headers: { 'x-mock-features': 'Not A Flag' } },
+      'VALIDATION',
+      400,
+    );
+    await ok(app, 'revokeSupportGrant', { params: { id: grant.id } });
+  });
 });
 
 describe('mock server golden numbers (fixtures.md §4)', () => {

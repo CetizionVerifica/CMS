@@ -555,17 +555,25 @@ describe('planning an internal audit', () => {
     // Moving a date needs a reason.
     expect((await edit({ plannedEnd: addDays(TODAY, 12) })).status).toBe(422);
 
-    // A new lead is a reassignment; the lists are an UPDATE on the audit.
-    expect((await edit({ leadAuditorId: PERSON.divya, auditeeIds: [PERSON.sameer] })).status).toBe(
-      200,
-    );
+    // A new lead is a reassignment, with its reason; the lists are an UPDATE on the audit.
+    const relead = await edit({
+      leadAuditorId: PERSON.divya,
+      auditeeIds: [PERSON.sameer],
+      reason: 'Sameer is now audited',
+    });
+    expect(relead.status).toBe(200);
     const [lead, lists] = isoEvents(app, a.id).slice(-2);
     expect(lead).toMatchObject({
       action: 'REASSIGN',
       before: { leadAuditorId: PERSON.sameer },
       after: { leadAuditorId: PERSON.divya },
+      reason: 'Sameer is now audited',
     });
-    expect(lists).toMatchObject({ action: 'UPDATE', after: { auditeeIds: [PERSON.sameer] } });
+    expect(lists).toMatchObject({
+      action: 'UPDATE',
+      after: { auditeeIds: [PERSON.sameer] },
+      reason: null,
+    });
 
     // Nothing changed: no event, no new version.
     const count = isoEvents(app, a.id).length;
@@ -595,6 +603,59 @@ describe('planning an internal audit', () => {
     expect(
       (await edit({ clauseIds: [C('4.1')], unitIds: [PUNE, BENGALURU] }, PERSON.meera)).status,
     ).toBe(200);
+  });
+
+  it('needs a reason to move a planned date or change the lead, and records it (decision 51 p)', async () => {
+    const a = await createAudit();
+    const version = () => firmB(app).iso.internalAudits.find((r) => r.id === a.id)!.version;
+    const changes: [Record<string, unknown>, 'DUE_DATE_CHANGE' | 'REASSIGN'][] = [
+      [{ plannedStart: addDays(TODAY, 6) }, 'DUE_DATE_CHANGE'],
+      [{ plannedEnd: addDays(TODAY, 9) }, 'DUE_DATE_CHANGE'],
+      [{ leadAuditorId: PERSON.divya }, 'REASSIGN'],
+    ];
+    for (const [change, action] of changes) {
+      const count = isoEvents(app, a.id).length;
+      for (const reason of [undefined, '   ']) {
+        await fails(
+          app,
+          'updateIsoInternalAudit',
+          {
+            as: PERSON.kabir,
+            params: at(a),
+            body: { version: version(), ...change, ...(reason === undefined ? {} : { reason }) },
+          },
+          'REASON_REQUIRED',
+          422,
+        );
+      }
+      // Refused: nothing changed and nothing was audited.
+      expect(isoEvents(app, a.id)).toHaveLength(count);
+      const reason = `Agreed with the plant: ${Object.keys(change)[0]}`;
+      await ok<Audit>(app, 'updateIsoInternalAudit', {
+        as: PERSON.kabir,
+        params: at(a),
+        body: { version: version(), ...change, reason },
+      });
+      expect(isoEvents(app, a.id)).toHaveLength(count + 1);
+      expect(lastEvent(a.id)).toMatchObject({ action, after: change, reason });
+    }
+    // Other fields need none, and their UPDATE carries none even when one is sent.
+    await ok<Audit>(app, 'updateIsoInternalAudit', {
+      as: PERSON.kabir,
+      params: at(a),
+      body: { version: version(), title: 'Pune plant audit, renamed' },
+    });
+    expect(lastEvent(a.id)).toMatchObject({ action: 'UPDATE', reason: null });
+    await ok<Audit>(app, 'updateIsoInternalAudit', {
+      as: PERSON.kabir,
+      params: at(a),
+      body: { version: version(), reportedToIds: [PERSON.divya], reason: 'Divya chairs reviews' },
+    });
+    expect(lastEvent(a.id)).toMatchObject({
+      action: 'UPDATE',
+      after: { reportedToIds: [PERSON.divya] },
+      reason: null,
+    });
   });
 
   it('allows edits while IN_PROGRESS and locks them once REPORTED', async () => {

@@ -3,7 +3,6 @@
 // COMPLETE, CANCEL and REOPEN, the treatment-action control rule (§3.5), unit scope (plan §3.3), the role matrix (plan
 // §3.2) and the audit trail (model §8).
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { ENDPOINTS } from '../src/api/endpoints.js';
 import type { IsoActionView, NonconformityView } from '../src/api/iso.js';
 import { addDays } from '../src/mock/iso/common.js';
 import type { IsoRow } from '../src/mock/store.js';
@@ -761,89 +760,73 @@ describe('updateIsoNonconformity', () => {
     }
   });
 
-  it('treats owner, approver and dates as a reassignment or due-date change with a reason', async () => {
-    const { nc } = await planned();
+  it('keeps FA and CO off it (isoNc.work), and lets an OW edit only the nonconformity they own', async () => {
+    const nc = await raise({ ownerId: PERSON.rohan });
+    for (const as of [PERSON.meera, PERSON.arjun]) {
+      for (const body of [{ containment: 'Held the batch' }, { description: 'Wrong batch code' }]) {
+        await fails(app, 'updateIsoNonconformity', onNc(nc, body, as), 'FORBIDDEN', 403);
+      }
+    }
+    // sameer owns work at every unit, but not this nonconformity.
+    await fails(
+      app,
+      'updateIsoNonconformity',
+      onNc(nc, { containment: 'Held the batch' }, PERSON.sameer),
+      'FORBIDDEN',
+      403,
+    );
+    expect(ncRow(nc.id).version).toBe(nc.version);
     const out = await ncStep(
       'updateIsoNonconformity',
       nc,
-      {
-        ownerId: PERSON.rohan,
-        dueOn: addDays(TODAY, 40),
-        reason: 'Line 2 moved to the night shift',
-      },
-      PERSON.kabir,
+      { containment: 'Held the batch', correction: 'Relabelled' },
+      PERSON.rohan,
     );
-    expect(out).toMatchObject({ ownerId: PERSON.rohan, dueOn: addDays(TODAY, 40) });
-    const events = isoEvents(app, nc.id).slice(-2);
-    expect(events.map((e) => e.action)).toEqual(['REASSIGN', 'DUE_DATE_CHANGE']);
-    expect(events[0]).toMatchObject({
-      before: { ownerId: PERSON.sameer },
-      after: { ownerId: PERSON.rohan },
-      reason: 'Line 2 moved to the night shift',
+    expect(out).toMatchObject({
+      containment: 'Held the batch',
+      correction: 'Relabelled',
+      version: nc.version + 1,
     });
-    await ncStep(
-      'updateIsoNonconformity',
-      nc,
-      { effectivenessDueOn: addDays(TODAY, 5), reason: 'Wait for the next run' },
-      PERSON.kabir,
-    );
     expect(lastEvent(nc.id)).toMatchObject({
-      action: 'DUE_DATE_CHANGE',
-      after: { effectivenessDueOn: addDays(TODAY, 5) },
+      action: 'UPDATE',
+      actorId: PERSON.rohan,
+      reason: null,
+      after: { containment: 'Held the batch', correction: 'Relabelled' },
     });
-    // A consultant or firm admin may move dates and reassign (isoNc.reassign), but not work on it.
-    await ncStep(
-      'updateIsoNonconformity',
-      nc,
-      { dueOn: addDays(TODAY, 45), reason: 'Audit week' },
-      PERSON.arjun,
-    );
-    expect(lastEvent(nc.id)).toMatchObject({
-      action: 'DUE_DATE_CHANGE',
-      actorId: PERSON.arjun,
-      after: { dueOn: addDays(TODAY, 45) },
-    });
-    await fails(
-      app,
-      'updateIsoNonconformity',
-      onNc(nc, { dueOn: addDays(TODAY, 46), correction: 'x', reason: 'Both' }, PERSON.meera),
-      'FORBIDDEN',
-      403,
-    );
-    // The owner may not reassign; a reason is needed.
-    await fails(
-      app,
-      'updateIsoNonconformity',
-      onNc(nc, { dueOn: addDays(TODAY, 50), reason: 'Later' }, PERSON.rohan),
-      'FORBIDDEN',
-      403,
-    );
-    const noReason = await call(
-      app,
-      'updateIsoNonconformity',
-      onNc(nc, { dueOn: addDays(TODAY, 50) }, PERSON.kabir),
-    );
-    expect(noReason.status).toBe(422);
-    // The effectiveness date moves but is not cleared or put in the past.
-    for (const effectivenessDueOn of [null, addDays(TODAY, -1)]) {
-      await fails(
+  });
+
+  it('refuses owner, approver, dates, severity and a reason in its body: they go through reassign', async () => {
+    const nc = await raise();
+    const trail = isoEvents(app, nc.id).length;
+    for (const [key, value] of [
+      ['ownerId', PERSON.rohan],
+      ['approverId', PERSON.nisha],
+      ['dueOn', addDays(TODAY, 40)],
+      ['effectivenessDueOn', addDays(TODAY, 40)],
+      ['severity', 'MAJOR'],
+      ['reason', 'Line 2 moved to the night shift'],
+    ] as const) {
+      const refused = await fails(
         app,
         'updateIsoNonconformity',
-        onNc(nc, { effectivenessDueOn, reason: 'x' }, PERSON.kabir),
+        onNc(nc, { correction: 'Relabelled', [key]: value }, PERSON.kabir),
         'VALIDATION',
         400,
       );
+      expect(refused.error.details!.issues).toContainEqual({
+        path: ['body'],
+        message: expect.stringContaining(`"${key}"`),
+      });
     }
-  });
-
-  it('lets FA and CO reassign as far as the endpoint table allows them', async () => {
-    const nc = await raise();
-    const request = onNc(nc, { approverId: PERSON.nisha, reason: 'Pune approver' }, PERSON.meera);
-    if (ENDPOINTS.updateIsoNonconformity.roles.FIRM_ADMIN === undefined) {
-      await fails(app, 'updateIsoNonconformity', request, 'FORBIDDEN', 403);
-    } else {
-      expect((await ok<Nc>(app, 'updateIsoNonconformity', request)).approverId).toBe(PERSON.nisha);
-    }
+    expect(isoEvents(app, nc.id)).toHaveLength(trail);
+    expect(ncRow(nc.id)).toMatchObject({
+      ownerId: PERSON.sameer,
+      approverId: PERSON.divya,
+      dueOn: NC.dueOn,
+      severity: 'MINOR',
+      correction: null,
+      version: nc.version,
+    });
   });
 
   it('checks the edited fields', async () => {
@@ -867,9 +850,6 @@ describe('updateIsoNonconformity', () => {
     });
     const bad: Record<string, unknown>[] = [
       { unitId: BENGALURU }, // the owner (Pune only) does not cover Bengaluru
-      { ownerId: PERSON.divya, reason: 'x' }, // not an owner role
-      { approverId: PERSON.rohan, reason: 'x' }, // owner and approver are one person
-      { dueOn: addDays(TODAY, -1), reason: 'x' }, // before reportedOn
       { disposition: 'SEGREGATION' }, // no authoriser
       { standards: ['ISO_27001'] }, // not a standard at all
       { standards: ['ISO_14001'], clauseIds: [clause('ISO_9001', '8.7')] }, // clause of a dropped standard
@@ -878,7 +858,6 @@ describe('updateIsoNonconformity', () => {
       { relatedRiskItemIds: [seedId()] },
       { changedDocumentIds: [seedId()] },
       { incident: { location: 'Dock 3' } }, // not an incident
-      { effectivenessDueOn: addDays(TODAY, 5), reason: 'x' }, // PLAN_ACTIONS sets it
     ];
     for (const body of bad) {
       await fails(app, 'updateIsoNonconformity', onNc(nc, body, PERSON.kabir), 'VALIDATION', 400);
@@ -892,11 +871,15 @@ describe('updateIsoNonconformity', () => {
         dispositionAuthorisedById: PERSON.kabir,
         sourceInstanceId: puneInstance,
         changedDocumentIds: [doc.id],
-        severity: 'MAJOR',
       },
       PERSON.kabir,
     );
-    expect(out).toMatchObject({ disposition: 'SEGREGATION', severity: 'MAJOR' });
+    expect(out).toMatchObject({
+      standards: ['ISO_9001', 'ISO_14001'],
+      disposition: 'SEGREGATION',
+      changedDocumentIds: [doc.id],
+      severity: 'MINOR',
+    });
     // After ADD_ROOT_CAUSE the disposition is fixed, and the root cause cannot be cleared.
     await ncStep('addIsoNcRootCause', nc, ROOT_CAUSE, PERSON.rohan);
     await fails(
@@ -942,17 +925,7 @@ describe('updateIsoNonconformity', () => {
     await fails(app, 'updateIsoNonconformity', onNc(nc, { unitId: BENGALURU }), 'VALIDATION', 400);
   });
 
-  it('refuses a severity change on a finding nonconformity, a stale version, and a closed or cancelled one', async () => {
-    const audit = seedExternalAudit();
-    const fromFinding = seedNc({ source: 'EXTERNAL_AUDIT' });
-    seedFinding({ external: audit.id }, { type: 'MINOR_NC', nonconformityId: fromFinding.id });
-    await fails(
-      app,
-      'updateIsoNonconformity',
-      onNc(fromFinding, { severity: 'MAJOR' }),
-      'VALIDATION',
-      400,
-    );
+  it('refuses a stale version, and a closed or cancelled nonconformity', async () => {
     const nc = await raise();
     await fails(
       app,
@@ -982,6 +955,380 @@ describe('updateIsoNonconformity', () => {
       'INVALID_TRANSITION',
       409,
     );
+  });
+});
+
+describe('reassignIsoNonconformity', () => {
+  const REASON = 'Line 2 moved to the night shift';
+
+  it('lets FA, CO and CA reassign, and refuses its owner, its approver and a viewer', async () => {
+    const nc = await raise();
+    for (const [as, change] of [
+      [PERSON.meera, { approverId: PERSON.nisha }],
+      [PERSON.arjun, { dueOn: addDays(TODAY, 45) }],
+      [PERSON.kabir, { ownerId: PERSON.rohan }],
+    ] as const) {
+      const out = await call(
+        app,
+        'reassignIsoNonconformity',
+        onNc(nc, { ...change, reason: REASON }, as),
+      );
+      expect(out.status, JSON.stringify(out.json)).toBe(200);
+      expect(out.json).toMatchObject(change);
+      expect(lastEvent(nc.id)).toMatchObject({ actorId: as, reason: REASON });
+    }
+    const version = ncRow(nc.id).version;
+    // rohan now owns it (OW), nisha approves it (AP); sameer owned it before; vikram only reads.
+    for (const as of [PERSON.rohan, PERSON.nisha, PERSON.sameer, PERSON.divya, PERSON.vikram]) {
+      await fails(
+        app,
+        'reassignIsoNonconformity',
+        onNc(nc, { dueOn: addDays(TODAY, 50), reason: REASON }, as),
+        'FORBIDDEN',
+        403,
+      );
+    }
+    // Another client's consultant does not see it.
+    await fails(
+      app,
+      'reassignIsoNonconformity',
+      onNc(nc, { dueOn: addDays(TODAY, 50), reason: REASON }, PERSON.leela),
+      'NOT_FOUND',
+      404,
+    );
+    expect(ncRow(nc.id)).toMatchObject({ version, dueOn: addDays(TODAY, 45) });
+  });
+
+  it('audits owner and approver as REASSIGN, due dates as DUE_DATE_CHANGE and severity as UPDATE, each with the reason', async () => {
+    const nc = await raise();
+    const out = await ok<Nc>(
+      app,
+      'reassignIsoNonconformity',
+      onNc(
+        nc,
+        {
+          ownerId: PERSON.rohan,
+          approverId: PERSON.nisha,
+          dueOn: addDays(TODAY, 40),
+          severity: 'MAJOR',
+          reason: REASON,
+        },
+        PERSON.kabir,
+      ),
+    );
+    expect(out).toMatchObject({
+      ownerId: PERSON.rohan,
+      approverId: PERSON.nisha,
+      dueOn: addDays(TODAY, 40),
+      severity: 'MAJOR',
+      state: 'OPEN',
+      version: nc.version + 1,
+    });
+    expect(isoEvents(app, nc.id).slice(-3)).toMatchObject([
+      {
+        action: 'REASSIGN',
+        entityType: 'nonconformity',
+        actorId: PERSON.kabir,
+        before: { ownerId: PERSON.sameer, approverId: PERSON.divya },
+        after: { ownerId: PERSON.rohan, approverId: PERSON.nisha },
+        reason: REASON,
+      },
+      {
+        action: 'DUE_DATE_CHANGE',
+        before: { dueOn: NC.dueOn },
+        after: { dueOn: addDays(TODAY, 40) },
+        reason: REASON,
+      },
+      {
+        action: 'UPDATE',
+        before: { severity: 'MINOR' },
+        after: { severity: 'MAJOR' },
+        reason: REASON,
+      },
+    ]);
+    // The same values again change nothing and write nothing.
+    const trail = isoEvents(app, nc.id).length;
+    const again = await ok<Nc>(
+      app,
+      'reassignIsoNonconformity',
+      onNc(nc, { ownerId: PERSON.rohan, reason: REASON }, PERSON.kabir),
+    );
+    expect(again.version).toBe(out.version);
+    expect(isoEvents(app, nc.id)).toHaveLength(trail);
+  });
+
+  it('moves the effectiveness date once PLAN_ACTIONS set it, never clearing it or putting it in the past', async () => {
+    const open = await raise();
+    await fails(
+      app,
+      'reassignIsoNonconformity',
+      onNc(open, { effectivenessDueOn: addDays(TODAY, 5), reason: REASON }, PERSON.kabir),
+      'VALIDATION',
+      400,
+    );
+    const { nc } = await planned();
+    const out = await ok<Nc>(
+      app,
+      'reassignIsoNonconformity',
+      onNc(
+        nc,
+        { effectivenessDueOn: addDays(TODAY, 5), reason: 'Wait for the next run' },
+        PERSON.arjun,
+      ),
+    );
+    expect(out).toMatchObject({ state: 'ACTIONS_PLANNED', effectivenessDueOn: addDays(TODAY, 5) });
+    expect(lastEvent(nc.id)).toMatchObject({
+      action: 'DUE_DATE_CHANGE',
+      actorId: PERSON.arjun,
+      before: { effectivenessDueOn: TODAY },
+      after: { effectivenessDueOn: addDays(TODAY, 5) },
+      reason: 'Wait for the next run',
+    });
+    for (const effectivenessDueOn of [null, addDays(TODAY, -1)]) {
+      await fails(
+        app,
+        'reassignIsoNonconformity',
+        onNc(nc, { effectivenessDueOn, reason: REASON }, PERSON.kabir),
+        'VALIDATION',
+        400,
+      );
+    }
+  });
+
+  it('needs a reason and a change, takes no investigation fields, and checks the people and dates', async () => {
+    const nc = await raise();
+    for (const reason of [{}, { reason: '' }, { reason: '   ' }]) {
+      await fails(
+        app,
+        'reassignIsoNonconformity',
+        onNc(nc, { dueOn: addDays(TODAY, 40), ...reason }, PERSON.kabir),
+        'REASON_REQUIRED',
+        422,
+      );
+    }
+    const empty = await fails(
+      app,
+      'reassignIsoNonconformity',
+      onNc(nc, { reason: REASON }, PERSON.kabir),
+      'VALIDATION',
+      400,
+    );
+    expect(empty.error.details!.issues).toEqual([{ path: ['body'], message: 'Nothing to update' }]);
+    const bad: Record<string, unknown>[] = [
+      { correction: 'Relabelled' }, // an investigation field: PATCH
+      { description: 'Wrong batch code' },
+      { ownerId: PERSON.divya }, // not an owner role
+      { ownerId: PERSON.gita }, // disabled
+      { ownerId: PERSON.joseph }, // another client's owner
+      { approverId: PERSON.sameer }, // owner and approver are one person
+      { approverId: PERSON.rohan }, // not an approver role
+      { dueOn: addDays(TODAY, -1) }, // before reportedOn
+    ];
+    for (const body of bad) {
+      await fails(
+        app,
+        'reassignIsoNonconformity',
+        onNc(nc, { ...body, reason: REASON }, PERSON.kabir),
+        'VALIDATION',
+        400,
+      );
+    }
+    expect(isoEvents(app, nc.id).map((e) => e.action)).toEqual(['CREATE']);
+    expect(ncRow(nc.id).version).toBe(nc.version);
+  });
+
+  it('refuses a stale version, and a closed or cancelled nonconformity', async () => {
+    const nc = await raise();
+    await fails(
+      app,
+      'reassignIsoNonconformity',
+      {
+        as: PERSON.kabir,
+        params: params(nc),
+        body: { version: nc.version + 5, dueOn: addDays(TODAY, 40), reason: REASON },
+      },
+      'STALE_VERSION',
+      409,
+    );
+    const { nc: done } = await closed();
+    const refused = await fails(
+      app,
+      'reassignIsoNonconformity',
+      onNc(done, { dueOn: addDays(TODAY, 60), reason: REASON }, PERSON.kabir),
+      'INVALID_TRANSITION',
+      409,
+    );
+    expect(refused.error.details).toEqual({
+      entity: 'nonconformity',
+      from: 'CLOSED',
+      action: 'UPDATE',
+    });
+    await ncStep('cancelIsoNc', nc, { reason: 'Raised twice' }, PERSON.divya);
+    const cancelled = await fails(
+      app,
+      'reassignIsoNonconformity',
+      onNc(nc, { ownerId: PERSON.rohan, reason: REASON }, PERSON.kabir),
+      'INVALID_TRANSITION',
+      409,
+    );
+    expect(cancelled.error.details).toEqual({
+      entity: 'nonconformity',
+      from: 'CANCELLED',
+      action: 'UPDATE',
+    });
+  });
+
+  it('changes the severity only while OPEN or ROOT_CAUSE_FOUND', async () => {
+    const open = await raise();
+    const raised = await ok<Nc>(
+      app,
+      'reassignIsoNonconformity',
+      onNc(open, { severity: 'MAJOR', reason: 'The customer returned the batch' }, PERSON.meera),
+    );
+    expect(raised).toMatchObject({ state: 'OPEN', severity: 'MAJOR' });
+    expect(lastEvent(open.id)).toMatchObject({
+      action: 'UPDATE',
+      actorId: PERSON.meera,
+      before: { severity: 'MINOR' },
+      after: { severity: 'MAJOR' },
+    });
+    const found = await raise({ severity: 'MAJOR' });
+    await ncStep('addIsoNcRootCause', found, ROOT_CAUSE);
+    const lowered = await ok<Nc>(
+      app,
+      'reassignIsoNonconformity',
+      onNc(found, { severity: 'MINOR', reason: 'One carton only' }, PERSON.arjun),
+    );
+    expect(lowered).toMatchObject({ state: 'ROOT_CAUSE_FOUND', severity: 'MINOR' });
+    expect(lastEvent(found.id)).toMatchObject({
+      action: 'UPDATE',
+      before: { severity: 'MAJOR' },
+      after: { severity: 'MINOR' },
+    });
+    const { nc: plannedNc } = await planned();
+    const { nc: awaiting } = await submitted();
+    for (const [nc, from] of [
+      [plannedNc, 'ACTIONS_PLANNED'],
+      [awaiting, 'AWAITING_VERIFICATION'],
+    ] as const) {
+      const refused = await fails(
+        app,
+        'reassignIsoNonconformity',
+        onNc(nc, { severity: 'MAJOR', reason: REASON }, PERSON.kabir),
+        'INVALID_TRANSITION',
+        409,
+      );
+      expect(refused.error.details).toEqual({ entity: 'nonconformity', from, action: 'UPDATE' });
+      expect(ncRow(nc.id).severity).toBe('MINOR');
+    }
+    // The severity it already has, sent with a new date, is no change of severity.
+    const moved = await ok<Nc>(
+      app,
+      'reassignIsoNonconformity',
+      onNc(
+        plannedNc,
+        { severity: 'MINOR', dueOn: addDays(TODAY, 50), reason: 'Audit week' },
+        PERSON.kabir,
+      ),
+    );
+    expect(moved).toMatchObject({ severity: 'MINOR', dueOn: addDays(TODAY, 50) });
+    expect(lastEvent(plannedNc.id)).toMatchObject({
+      action: 'DUE_DATE_CHANGE',
+      reason: 'Audit week',
+    });
+  });
+
+  it("never changes the severity of a finding's nonconformity, whose type sets it", async () => {
+    const audit = seedExternalAudit();
+    const fromFinding = seedNc({ source: 'EXTERNAL_AUDIT' });
+    seedFinding({ external: audit.id }, { type: 'MINOR_NC', nonconformityId: fromFinding.id });
+    const refused = await fails(
+      app,
+      'reassignIsoNonconformity',
+      onNc(fromFinding, { severity: 'MAJOR', reason: REASON }, PERSON.kabir),
+      'VALIDATION',
+      400,
+    );
+    expect(refused.error.details!.issues).toEqual([
+      { path: ['body', 'severity'], message: expect.stringContaining('finding') },
+    ]);
+    expect(ncRow(fromFinding.id).severity).toBe('MINOR');
+    // Its people and dates still move.
+    const out = await ok<Nc>(
+      app,
+      'reassignIsoNonconformity',
+      onNc(fromFinding, { dueOn: addDays(TODAY, 25), reason: REASON }, PERSON.kabir),
+    );
+    expect(out).toMatchObject({ severity: 'MINOR', dueOn: addDays(TODAY, 25) });
+  });
+
+  it('answers a repeat with the same Idempotency-Key from the first answer', async () => {
+    const nc = await raise();
+    const request = {
+      ...onNc(nc, { dueOn: addDays(TODAY, 33), reason: REASON }, PERSON.kabir),
+      headers: { 'idempotency-key': seedId() },
+    };
+    const first = await call(app, 'reassignIsoNonconformity', request);
+    const again = await call(app, 'reassignIsoNonconformity', request);
+    expect(first.status).toBe(200);
+    expect(again).toMatchObject({ status: 200, json: first.json });
+    expect(isoEvents(app, nc.id).map((e) => e.action)).toEqual(['CREATE', 'DUE_DATE_CHANGE']);
+  });
+});
+
+describe('the nonconformity audit trail', () => {
+  it('notes a description edit as changed without copying the text (non-negotiable 6)', async () => {
+    const nc = await raise();
+    const text = 'Cartons on line 2 labelled with the night shift batch code';
+    const out = await ncStep('updateIsoNonconformity', nc, {
+      description: text,
+      containment: 'Held the batch',
+    });
+    expect(out.description).toBe(text);
+    expect(lastEvent(nc.id)).toMatchObject({
+      action: 'UPDATE',
+      reason: null,
+      before: { description: '[not recorded]', containment: null },
+      after: { description: '[not recorded]', containment: 'Held the batch' },
+    });
+    const trail = JSON.stringify(isoEvents(app, nc.id));
+    expect(trail).not.toContain(text);
+    expect(trail).not.toContain(NC.description);
+  });
+
+  it("notes an incident's location edit as changed without copying the place", async () => {
+    const nc = await raise({
+      source: 'INCIDENT',
+      standards: ['ISO_45001'],
+      incident: { ...INCIDENT, location: 'Dock 2, bay 4' },
+    });
+    await ncStep('updateIsoNonconformity', nc, {
+      incident: { location: 'Cold store ramp', outcome: 'MEDICAL_TREATMENT' },
+    });
+    expect(lastEvent(nc.id)).toMatchObject({
+      action: 'UPDATE',
+      reason: null,
+      before: {
+        incident: { type: 'INJURY', outcome: 'FIRST_AID', location: '[not recorded]' },
+      },
+      after: {
+        incident: { type: 'INJURY', outcome: 'MEDICAL_TREATMENT', location: '[not recorded]' },
+      },
+    });
+    // A move of the location alone is still noted.
+    const trail = isoEvents(app, nc.id).length;
+    await ncStep('updateIsoNonconformity', nc, { incident: { location: 'Loading bay' } });
+    expect(isoEvents(app, nc.id)).toHaveLength(trail + 1);
+    expect(lastEvent(nc.id)).toMatchObject({
+      action: 'UPDATE',
+      before: { incident: { location: '[not recorded]' } },
+      after: { incident: { location: '[not recorded]' } },
+    });
+    expect((await getNc(nc)).incident?.location).toBe('Loading bay');
+    const text = JSON.stringify(isoEvents(app, nc.id));
+    for (const place of ['Dock 2, bay 4', 'Cold store ramp', 'Loading bay']) {
+      expect(text).not.toContain(place);
+    }
   });
 });
 
@@ -1203,7 +1550,7 @@ describe('VERIFY_EFFECTIVE and VERIFY_NOT_EFFECTIVE', () => {
       400,
     );
     await ncStep(
-      'updateIsoNonconformity',
+      'reassignIsoNonconformity',
       nc,
       { effectivenessDueOn: TODAY, reason: 'Checked early on the audit' },
       PERSON.kabir,
