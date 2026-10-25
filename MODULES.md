@@ -23,6 +23,7 @@ No code is written until Shyam says to start a wave.
 | 3 | M10 Dashboards & reports API · M13 Web overview, import, setup, reports | M4 + M7 merged |
 | 4 | M14 Integration, QA & hardening | All modules merged |
 | 5 | M15 Platform operator | M5, M6 and M9 merged |
+| I0-I3 | ISO add-on: M16 ISO API · M17 ISO web, plus ISO packages in M0, M3, M4, M5, M6, M7, M9, M10, M11, M13, M14, M15 | Plan merged; order in `docs/iso/plan.md` §7 |
 
 Up to 5 threads run at once in waves 1 and 2.
 
@@ -64,6 +65,8 @@ M1 underpins all (repo, CI)
 | M13 | Web overview, import, setup, reports | `apps/web/app/(shell)/portfolio`, `apps/web/app/(shell)/c/[clientId]/{overview,import,setup,reports,audit}`, `apps/web/app/(shell)/library` | M0 mock, M2, M11 | Portfolio, client overview, import wizard, setup screens, reports, library screens |
 | M14 | Integration, QA & hardening | `e2e/`, `docs/security`, perf scripts | everything | E2E suite, isolation and security review, accessibility audit, load test, pilot runbook |
 | M15 | Platform operator | `apps/api/src/platform`, `apps/operator` | M0, M3, M5, M6, M9 | Operator console and API for company accounts: the operator creates an account and its first admin, and renews, suspends or closes it |
+| M16 | ISO API | `apps/api/src/modules/iso`, `docs/iso` | M0, M3, M4, M5 | ISO add-on endpoints: management systems, clause checklist, documents, risk registers, objectives, internal audits, management reviews, nonconformities and corrective actions, certification |
+| M17 | ISO web | `apps/web/app/(shell)/c/[clientId]/iso`, `e2e/tests/iso` | M0 mock, M2, M11 | ISO add-on screens |
 
 ---
 
@@ -151,6 +154,17 @@ Each brief is what a thread receives. Read root `CLAUDE.md` and the listed area 
 ### M14 · Integration, QA & hardening
 - **Deliver:** switch web from mock to real API; full Playwright suite on seeded data; cross-tenant penetration checks; security review (auth, uploads, signed URLs, logging of personal data); WCAG 2.2 AA audit; load test at 10,000 instances per client; backup and restore drill; pilot onboarding runbook.
 - **Accept:** all suites green on the integrated build; no P0/P1 findings open; pilot client imported from their own register.
+
+### ISO add-on (M16, M17 and ISO packages in other modules)
+- **Read:** `docs/iso/plan.md` (scope, data model, on/off behaviour, work packages ISO-0 to ISO-14, acceptance) and
+  ADR M16-0001, then the area CLAUDE.md for the paths the package changes.
+- **Goal:** companies manage ISO 9001, 14001 and 45001 as one optional add-on (`isoManagement`) that the operator
+  switches on or off per account in the console. Off hides and blocks, never deletes.
+- **How it runs:** each work package in plan §7 is one thread briefed as the module that owns its paths, titled
+  `M<n>: ISO ...`. M16 and M17 are new modules for the ISO API and screens. Contracts first (ISO-0, ISO-1), then
+  database, engine, auth, console, shell and screens in parallel, then API, library, jobs and reports, then the
+  integrated journey and wiring. ISO packages in M5, M9 and M10 wait for the launch-hardening PR of that module.
+- **Accept:** plan §8, plus the root definition of done.
 
 ---
 

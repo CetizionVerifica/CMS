@@ -23,6 +23,11 @@ reuses the same obligation/instance engine.
 - Dashboards: consultant portfolio across clients, client overview, compliance calendar, approvals inbox.
 - Email reminders and escalations.
 
+### Add-ons (operator switches them on per account)
+- **ISO management systems** (ISO 9001, 14001, 45001): clause checklists, documents, risk registers, objectives,
+  internal audits, management reviews, nonconformities and corrective actions, certification. Plan:
+  [docs/iso/plan.md](docs/iso/plan.md), ADR M16-0001. Modules M16 (API) and M17 (web) in `MODULES.md`.
+
 ### Later (not v1)
 ESG/BRSR module, regulatory-change feed, penalty tracking, mobile app, SSO/SAML, client self-serve billing,
 AI-assisted applicability. Keep the data model open for these but do not build them.
