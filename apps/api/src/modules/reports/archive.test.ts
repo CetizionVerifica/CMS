@@ -117,7 +117,7 @@ describe('the client archive', () => {
   });
 
   it('is for account admins only, takes no filters, and never for a support session', async () => {
-    for (const role of ['CONSULTANT', 'CLIENT_ADMIN', 'APPROVER', 'VIEWER'] as const) {
+    for (const role of ['CONSULTANT', 'CLIENT_ADMIN', 'APPROVER', 'OWNER', 'VIEWER'] as const) {
       const res = await w.app.inject({
         method: 'POST',
         url: `/api/v1/clients/${w.clientId}/exports`,
@@ -192,6 +192,50 @@ describe('archive parts', () => {
     const long = safeFileName(`${'x'.repeat(200)}.pdf`);
     expect(long).toHaveLength(150);
     expect(long.endsWith('.pdf')).toBe(true);
+    // Control characters become underscores; a long name with no short extension is cut at 150.
+    expect(safeFileName('a\u0000b\u001fc\u007f.pdf')).toBe('a_b_c_.pdf');
+    expect(safeFileName('y'.repeat(200))).toBe('y'.repeat(150));
+    expect(safeFileName(`${'z'.repeat(200)}.averylongextension`)).toBe('z'.repeat(150));
+  });
+
+  it('files evidence of an unknown item under other/ and keeps index cells inert', async () => {
+    const file = (fileName: string, body: string) => ({
+      id: randomUUID(),
+      instanceId: randomUUID(),
+      fileName,
+      sizeBytes: body.length,
+      sha256: sha(body),
+      uploadedAt: '2026-10-01T00:00:00.000Z',
+      storageKey: `evidence/${fileName}`,
+    });
+    const known = file('known.pdf', 'k');
+    const archive = clientArchive({
+      clientName: 'Kestrel Metals Group',
+      register: new Uint8Array([1]),
+      evidence: [file('orphan.pdf', 'o'), known],
+      withheld: 0,
+      instances: new Map([
+        [
+          known.instanceId,
+          { dueDate: '2026-11-15', title: '=HYPERLINK("x")', unitName: 'Riverbend, "North"' },
+        ],
+      ]),
+      open: async (key) => Readable.from([Buffer.from(key)]),
+      generatedAt: '2026-10-12T00:00:00.000Z',
+    });
+    const chunks: Buffer[] = [];
+    for await (const chunk of archive) chunks.push(chunk as Buffer);
+    const zip = await JSZip.loadAsync(Buffer.concat(chunks));
+    expect(zip.file('evidence/other/orphan.pdf')).not.toBeNull();
+    const index = (await zip.file('evidence/index.csv')!.async('string')).trim().split('\r\n');
+    // An unknown item leaves its columns empty.
+    expect(index[1]).toMatch(/^other\/orphan\.pdf,,,,2026-10-01T00:00:00\.000Z,1,/);
+    // A formula is prefixed with ' and a cell with a comma or quote is quoted.
+    expect(index[2]).toContain(`,"'=HYPERLINK(""x"")","Riverbend, ""North""",2026-11-15,`);
+    const readme = await zip.file('README.txt')!.async('string');
+    expect(readme).toContain('Evidence files included: 2.');
+    expect(readme).not.toContain('Left out');
+    expect(readme).not.toContain('Not found');
   });
 
   it('fails the stream when a file cannot be read', async () => {
@@ -221,6 +265,35 @@ describe('archive parts', () => {
         for await (const _ of archive) void _;
       })(),
     ).rejects.toThrow('storage down');
+  });
+
+  it('fails the stream with a plain error when the read throws something that is not an Error', async () => {
+    const archive = clientArchive({
+      clientName: 'Kestrel Metals Group',
+      register: new Uint8Array([1]),
+      evidence: [
+        {
+          id: randomUUID(),
+          instanceId: randomUUID(),
+          fileName: 'a.pdf',
+          sizeBytes: 1,
+          sha256: sha('a'),
+          uploadedAt: '2026-10-01T00:00:00.000Z',
+          storageKey: 'evidence/a',
+        },
+      ],
+      withheld: 0,
+      instances: new Map(),
+      open: async () => {
+        throw 'storage down';
+      },
+      generatedAt: '2026-10-12T00:00:00.000Z',
+    });
+    await expect(
+      (async () => {
+        for await (const _ of archive) void _;
+      })(),
+    ).rejects.toThrow(/^archive$/);
   });
 
   it('cuts a stream into parts of the given size', async () => {
