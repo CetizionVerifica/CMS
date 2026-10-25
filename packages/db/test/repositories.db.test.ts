@@ -1040,6 +1040,135 @@ describe('audit and outbox', () => {
     ).toBe(0);
   });
 
+  it('keys an ISO reminder on its subject, apart from the instance, digest and other ISO sends', async () => {
+    const actionA = '01920000-0000-7000-8000-0000000150a1';
+    const actionB = '01920000-0000-7000-8000-0000000150a2';
+    const iso = {
+      clientId: world.clientId,
+      instanceId: null,
+      recipientId: world.ownerId,
+      kind: 'ISO_ACTION_DUE' as const,
+      sendDate: '2022-09-01' as never,
+      isoSubjectType: 'iso_action' as const,
+      isoSubjectId: actionA,
+    };
+    const other = { ...iso, isoSubjectId: actionB };
+    // Two ISO subjects due the same day for one recipient are two rows.
+    expect(await inA((tx) => r.notificationSends.claim(tx, iso))).toBe('NEW');
+    expect(await inA((tx) => r.notificationSends.claim(tx, other))).toBe('NEW');
+    // Marking one leaves the other PENDING, and claim reports each row's own state.
+    await inA((tx) => r.notificationSends.markSent(tx, iso, '2022-09-01T04:00:00.000Z'));
+    expect(await inA((tx) => r.notificationSends.claim(tx, iso))).toBe('DONE');
+    expect(await inA((tx) => r.notificationSends.claim(tx, other))).toBe('PENDING');
+    // The same id under another entity type is another subject.
+    expect(
+      await inA((tx) =>
+        r.notificationSends.claim(tx, {
+          ...iso,
+          kind: 'ISO_REVIEW_DUE',
+          isoSubjectType: 'risk_item',
+        }),
+      ),
+    ).toBe('NEW');
+    expect(
+      await inA((tx) =>
+        r.notificationSends.claim(tx, {
+          ...iso,
+          kind: 'ISO_REVIEW_DUE',
+          isoSubjectType: 'controlled_document',
+        }),
+      ),
+    ).toBe('NEW');
+    // A digest for the same recipient and day does not collide with the ISO rows, and the ISO rows' outcomes never
+    // mark it.
+    const digest = {
+      clientId: world.clientId,
+      instanceId: null,
+      recipientId: world.ownerId,
+      kind: 'CONSULTANT_DIGEST' as const,
+      sendDate: '2022-09-01' as never,
+    };
+    expect(await inA((tx) => r.notificationSends.claim(tx, digest))).toBe('NEW');
+    await inA((tx) => r.notificationSends.markFailed(tx, other, 'NO_EMAIL'));
+    expect(await inA((tx) => r.notificationSends.claim(tx, digest))).toBe('PENDING');
+    // An ISO send to that consultant on digest day is not the day's digest.
+    expect(await inA((tx) => r.notificationSends.listDoneDigests(tx, '2022-09-01'))).toEqual([]);
+    // listDone keeps the statutory keys; listDoneIso returns each ISO send with its subject.
+    expect(
+      await inA((tx) => r.notificationSends.listDone(tx, world.clientId, '2022-09-01')),
+    ).toEqual([]);
+    expect(
+      await inA((tx) => r.notificationSends.listDoneIso(tx, world.clientId, '2022-09-01')),
+    ).toEqual([
+      { ...iso, sendDate: '2022-09-01' },
+      { ...other, sendDate: '2022-09-01' },
+    ]);
+    await inA((tx) => r.notificationSends.markSent(tx, digest, '2022-09-01T05:00:00.000Z'));
+    expect(await inA((tx) => r.notificationSends.listDoneDigests(tx, '2022-09-01'))).toEqual([
+      world.ownerId,
+    ]);
+    expect(
+      (await inA((tx) => r.notificationSends.listDone(tx, world.clientId, '2022-09-01'))).map(
+        (k) => k.kind,
+      ),
+    ).toEqual(['CONSULTANT_DIGEST']);
+    // Firm B sees none of firm A's ISO sends.
+    expect(
+      await inB((tx) => r.notificationSends.listDoneIso(tx, world.clientId, '2022-09-01')),
+    ).toEqual([]);
+
+    // An ISO reminder names its subject, type and id, one client and no instance or event; no other send names one.
+    const [first] = await inA((tx) => r.instances.forAssignment(tx, world.assignmentId));
+    for (const bad of [
+      { ...iso, isoSubjectType: null },
+      { ...iso, isoSubjectId: undefined },
+      { ...iso, instanceId: first!.id },
+      { ...iso, eventId: '01920000-0000-7000-8000-00000000e150' },
+      { ...iso, clientId: null },
+      { ...iso, isoSubjectType: 'firm' as never },
+      { ...iso, isoSubjectId: null, isoSubjectType: null },
+      { ...digest, isoSubjectType: 'iso_action' as const, isoSubjectId: actionA },
+    ]) {
+      expect(await code(inA((tx) => r.notificationSends.claim(tx, bad)))).toBe('VALIDATION');
+    }
+    // The database holds the same rules.
+    const insert = (cols: string, values: string, params: unknown[]) =>
+      t.ownerQuery(
+        `INSERT INTO notification_send (firm_id, client_id, recipient_id, send_date, ${cols})
+         VALUES ($1, $2, $3, '2022-09-02', ${values})`,
+        [firmA, world.clientId, world.ownerId, ...params],
+      );
+    for (const [cols, values, params] of [
+      // both an instance and an ISO subject
+      [
+        'instance_id, kind, iso_subject_type, iso_subject_id',
+        "$4, 'ISO_ACTION_DUE', 'iso_action', $5",
+        [first!.id, actionA],
+      ],
+      // an ISO subject without its type
+      ['kind, iso_subject_id', "'ISO_ACTION_DUE', $4", [actionA]],
+      // an ISO kind without a subject
+      ['kind', "'ISO_ACTION_DUE'", []],
+      // a statutory kind with an ISO subject
+      [
+        'kind, iso_subject_type, iso_subject_id',
+        "'CONSULTANT_DIGEST', 'iso_action', $4",
+        [actionA],
+      ],
+    ] as const) {
+      await expect(insert(cols, values, [...params])).rejects.toThrow(
+        /notification_send_iso_subject_check/,
+      );
+    }
+    await expect(
+      t.ownerQuery(
+        `INSERT INTO notification_send (firm_id, recipient_id, kind, send_date, iso_subject_type, iso_subject_id)
+         VALUES ($1, $2, 'ISO_ACTION_DUE', '2022-09-02', 'iso_action', $3)`,
+        [firmA, world.ownerId, actionA],
+      ),
+    ).rejects.toThrow(/notification_send_(client|iso_subject)_check/);
+  });
+
   it('export jobs keep the storage key out of the contract shape', async () => {
     const job = await inA((tx) =>
       r.exportJobs.create(tx, {
