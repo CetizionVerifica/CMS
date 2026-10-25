@@ -318,6 +318,73 @@ test.describe.serial('company accounts and the operator console', () => {
     await ospreyAdmin.dispose();
   });
 
+  test('a closing account offers its admin only each client’s download, and cancelling reopens it', async ({
+    browser,
+  }) => {
+    // Sessions of the account's, open before the request.
+    const firmAdmin = await apiAs('ospreyFirmAdmin');
+    const clientAdmin = await apiAs('ospreyAdmin');
+    await operator.goto(`/accounts/${FIRM_B}`);
+    await expect(operator.getByRole('heading', { name: SECOND_LEDGER, level: 1 })).toBeVisible();
+    await operator.getByRole('button', { name: 'Delete account' }).click();
+    const drawer = operator.getByRole('dialog', { name: `Delete ${SECOND_LEDGER}` });
+    await drawer.getByLabel(`Type “${SECOND_LEDGER}” to confirm`).fill(SECOND_LEDGER);
+    await drawer.getByLabel('Reason').fill('Customer asked to close (integrated journey).');
+    await expectNoA11yViolations(operator);
+    await drawer.getByRole('button', { name: 'Request deletion' }).click();
+    await expect(
+      operator.getByText(`${SECOND_LEDGER} will be deleted after 30 days unless you cancel.`, {
+        exact: true,
+      }),
+    ).toBeVisible();
+
+    // The account admin's page is the downloads alone (ADR M15-0001 decision 5): no plan, no support access.
+    const admin = await pageAs(browser, 'ospreyFirmAdmin');
+    await admin.goto('/account');
+    await expect(
+      admin.getByRole('heading', { name: 'Download your data', level: 2 }),
+    ).toBeVisible();
+    await expect(
+      admin.getByText(/^This account is closing\. Download each client’s data/),
+    ).toBeVisible();
+    await expect(
+      admin.getByRole('heading', { name: 'PlanetPulse support access', level: 2 }),
+    ).toHaveCount(0);
+    await expect(admin.getByRole('region', { name: 'Plan limits and usage' })).toHaveCount(0);
+    for (const width of [375, 1280]) {
+      await admin.setViewportSize({ width, height: 800 });
+      await checkPage(admin);
+    }
+    // The archive builds on the real API and storage, then downloads through its 5-minute link.
+    const download = admin.waitForEvent('download');
+    await admin.getByRole('button', { name: 'Download archive of Osprey Textiles Group' }).click();
+    expect((await download).url()).toMatch(/X-Amz-Expires=300/);
+    await expect(
+      admin.getByText('The archive of Osprey Textiles Group is downloading.', { exact: true }),
+    ).toBeVisible();
+    await admin.context().close();
+
+    // Everything but the exports is refused meanwhile, to the admin and to everyone else in the account.
+    expect((await firmAdmin.get('/account')).body).toMatchObject({
+      error: { code: 'ACCOUNT_SUSPENDED' },
+    });
+    await firmAdmin.dispose();
+    const closed = await clientAdmin.get('/clients');
+    expect(closed.status).toBeGreaterThanOrEqual(400);
+
+    await operator.getByRole('button', { name: 'Cancel deletion' }).click();
+    const cancel = operator.getByRole('alertdialog', {
+      name: `Cancel the deletion of ${SECOND_LEDGER}?`,
+    });
+    await cancel.getByLabel('Reason').fill('Customer stays (integrated journey).');
+    await cancel.getByRole('button', { name: 'Cancel deletion' }).click();
+    await expect(
+      operator.getByText(`${SECOND_LEDGER} will not be deleted.`, { exact: true }),
+    ).toBeVisible();
+    expect((await clientAdmin.get('/clients')).status).toBe(200);
+    await clientAdmin.dispose();
+  });
+
   test('the operator API answers 404 to an address outside the allowlist, signed in or not', async ({
     browser,
   }) => {
