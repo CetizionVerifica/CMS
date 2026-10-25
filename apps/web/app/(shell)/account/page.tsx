@@ -8,7 +8,7 @@ import { routeByPath, visibleTo } from '../../../lib/routes';
 import { homeHref } from '../../../lib/shell/model';
 import { loadShell } from '../../../lib/shell/server';
 import { redirectIfSignedOut } from '../c/[clientId]/overview/signed-out';
-import { ACCOUNT_STATUS, usageRows } from './account-model';
+import { ACCOUNT_STATUS, isClosingRefusal, usageRows } from './account-model';
 import { PlanUsage, SupportAccess } from './AccountView';
 import { ClientArchives } from './ClientArchives';
 
@@ -22,14 +22,13 @@ export default async function AccountPage() {
     return <NoPermission what="account" backHref={homeHref(model)} backLabel="Go to home" />;
   }
   const clients = model.clients.map(({ id, name }) => ({ id, name }));
-  if (model.notice?.kind === 'closing') {
-    return (
-      <>
-        <PageHeader title="Account" description="Closing" />
-        <ClientArchives clients={clients} closing />
-      </>
-    );
-  }
+  const closingPage = (
+    <>
+      <PageHeader title="Account" description="Closing" />
+      <ClientArchives clients={clients} closing />
+    </>
+  );
+  if (model.notice?.kind === 'closing') return closingPage;
   const api = await serverApi();
   let view: AccountView;
   let grants: SupportGrant[];
@@ -42,6 +41,7 @@ export default async function AccountPage() {
     grants = ENDPOINTS.listSupportGrants.response.parse(support.data).items;
   } catch (error) {
     await redirectIfSignedOut(error);
+    if (isClosingRefusal(error)) return closingPage;
     if (isApiError(error, 'FORBIDDEN', 'ACCESS_EXPIRED')) {
       return <NoPermission what="account" backHref={homeHref(model)} backLabel="Go to home" />;
     }

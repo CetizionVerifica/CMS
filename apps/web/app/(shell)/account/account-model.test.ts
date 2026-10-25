@@ -1,11 +1,14 @@
 import { AccountView, SupportGrant } from '@canopy/contracts';
 import { describe, expect, it } from 'vitest';
 
+import { ApiError } from '../../../lib/api/client';
+
 import {
   formatBytes,
   formatInstant,
   grantRows,
   grantSummary,
+  isClosingRefusal,
   planName,
   usageRows,
 } from './account-model';
@@ -94,5 +97,19 @@ describe('account model', () => {
     expect(grantSummary('READ_ONLY', 1, now, true)).toBe(
       'Read only access for 1 day, until about 25 Oct 2026, 10:30 IST. Support can look at every client, but change nothing. The current access ends now.',
     );
+  });
+});
+
+describe('isClosingRefusal', () => {
+  it('is the API refusing a closing account, and nothing else', () => {
+    const paused = (status: string) =>
+      new ApiError(403, 'ACCOUNT_SUSPENDED', 'Your account is paused.', { status });
+    expect(isClosingRefusal(paused('PENDING_DELETION'))).toBe(true);
+    expect(isClosingRefusal(paused('SUSPENDED'))).toBe(false);
+    expect(isClosingRefusal(new ApiError(403, 'ACCOUNT_SUSPENDED', 'Paused.'))).toBe(false);
+    expect(
+      isClosingRefusal(new ApiError(403, 'FORBIDDEN', 'No.', { status: 'PENDING_DELETION' })),
+    ).toBe(false);
+    expect(isClosingRefusal(new Error('PENDING_DELETION'))).toBe(false);
   });
 });
