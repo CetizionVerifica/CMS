@@ -324,6 +324,76 @@ describe.skipIf(!url)('database AccountStore', () => {
       [fa.personId],
     );
     expect(JSON.stringify(stored)).not.toContain(secret);
+    // F14 mitigation 3: the completed setup, once, tells M9 to email the person.
+    expect(
+      await rows(
+        `SELECT client_id, actor, data FROM domain_event WHERE firm_id = $1 AND type = 'person.mfa_enrolled'`,
+        [seeded.firmId],
+      ),
+    ).toEqual([
+      {
+        client_id: null,
+        actor: { kind: 'PERSON', personId: fa.personId },
+        data: { personId: fa.personId, via: 'SETTINGS' },
+      },
+    ]);
+  });
+
+  it('records person.mfa_enrolled when a firm-role invitee sets up MFA while accepting', async () => {
+    const seeded = await firmWithClient();
+    const fa = await person(seeded, { role: 'FIRM_ADMIN' });
+    const signedIn = await login(fa.email);
+    const headers = sessionHeaders(signedIn);
+    const own = MfaEnrollment.parse(
+      (await app.inject({ method: 'POST', url: '/api/v1/auth/mfa/enroll', headers })).json(),
+    );
+    const ownSecret = new URL(own.otpauthUrl).searchParams.get('secret')!;
+    await app.inject({
+      method: 'POST',
+      url: '/api/v1/auth/mfa/verify',
+      headers,
+      payload: { code: hotp(base32Decode(ownSecret), totpStep(now)) },
+    });
+    const imported = await person(seeded, { email: null });
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/v1/invites',
+      headers,
+      payload: {
+        personId: imported.personId,
+        email: 'new.consultant@example.com',
+        role: 'CONSULTANT',
+        clientId: null,
+        consultantClientIds: [seeded.clientId],
+        unitIds: null,
+        expiresAt: null,
+      },
+    });
+    expect(res.statusCode).toBe(201);
+    const { token } = await service.issueLoginToken({
+      firmId: seeded.firmId,
+      personId: imported.personId,
+      kind: 'INVITE',
+      inviteId: Invite.parse(res.json()).id,
+    });
+    const setup = MfaEnrollment.parse(
+      (await app.inject({ method: 'POST', url: `/api/v1/invites/${token}/mfa/enroll` })).json(),
+    );
+    const secret = new URL(setup.otpauthUrl).searchParams.get('secret')!;
+    const accepted = await app.inject({
+      method: 'POST',
+      url: `/api/v1/invites/${token}/accept`,
+      payload: { password: PASSWORD, mfaCode: hotp(base32Decode(secret), totpStep(now)) },
+    });
+    expect(accepted.statusCode).toBe(200);
+    const enrolled = await rows(
+      `SELECT data FROM domain_event WHERE firm_id = $1 AND type = 'person.mfa_enrolled' ORDER BY id`,
+      [seeded.firmId],
+    );
+    expect(enrolled).toEqual([
+      { data: { personId: fa.personId, via: 'SETTINGS' } },
+      { data: { personId: imported.personId, via: 'INVITE' } },
+    ]);
   });
 
   it('locks a firm admin after ten wrong MFA codes across sign-ins and ends every session', async () => {
@@ -494,6 +564,8 @@ describe.skipIf(!url)('database AccountStore', () => {
     expect(events.map((e) => e.type)).toEqual(
       expect.arrayContaining(['person.invited', 'person.claimed', 'membership.changed']),
     );
+    // An owner sets up no MFA while accepting, so nothing says it did.
+    expect(events.map((e) => e.type)).not.toContain('person.mfa_enrolled');
     const audit = await rows(
       `SELECT action, entity_type FROM audit_event WHERE firm_id = $1 AND entity_id <> $2`,
       [seeded.firmId, ca.personId],

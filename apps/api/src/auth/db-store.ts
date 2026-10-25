@@ -287,6 +287,18 @@ export function createDbAccountStore(db: Database, options: DbAccountStoreOption
       await asFirm(firmId, LOOKUP_REQUEST, (tx) => credentials.saveMfa(tx, personId, record));
     },
 
+    async completeMfa(
+      firmId: string,
+      personId: string,
+      record: MfaRecord,
+      requestId: string,
+    ): Promise<void> {
+      await asFirm(firmId, requestId, async (tx) => {
+        await credentials.saveMfa(tx, personId, record);
+        await mfaEnrolled(tx, personId, 'SETTINGS', requestId);
+      });
+    },
+
     async acceptMfaStep(firmId: string, personId: string, step: number): Promise<boolean> {
       return asFirm(firmId, LOOKUP_REQUEST, (tx) => credentials.acceptMfaStep(tx, personId, step));
     },
@@ -477,7 +489,10 @@ export function createDbAccountStore(db: Database, options: DbAccountStoreOption
           passwordHash: accept.passwordHash,
           now: accept.now.toISOString(),
         });
-        if (accept.mfa !== null) await credentials.saveMfa(tx, person.after.id, accept.mfa);
+        if (accept.mfa !== null) {
+          await credentials.saveMfa(tx, person.after.id, accept.mfa);
+          await mfaEnrolled(tx, person.after.id, 'INVITE', accept.requestId);
+        }
         let after = person.after;
         if (accept.displayName !== null && accept.displayName !== after.displayName) {
           after = await people.update(tx, after.id, after.version, {
@@ -533,6 +548,28 @@ export function createDbAccountStore(db: Database, options: DbAccountStoreOption
 }
 
 /** The units of a client a person's memberships limit them to, or null for all of them. */
+/**
+ * `person.mfa_enrolled` (events.md §3), in the transaction that completed MFA setup, so M9 emails the person
+ * (docs/security/review.md F14 mitigation 3). The person's own action; ids only.
+ */
+async function mfaEnrolled(
+  tx: TenantTx,
+  personId: string,
+  via: 'SETTINGS' | 'INVITE',
+  requestId: string,
+): Promise<void> {
+  const person = await people.require(tx, personId);
+  await domainEvents.enqueue(tx, {
+    type: 'person.mfa_enrolled',
+    clientId: null,
+    actor: { kind: 'PERSON', personId },
+    requestId,
+    aggregate: { type: 'person', id: personId },
+    aggregateVersion: person.version,
+    data: { personId, via },
+  });
+}
+
 function unitScope(held: readonly Membership[], clientId: string): string[] | null {
   const inClient = held.filter((m) => m.clientId === clientId);
   if (inClient.length === 0 || inClient.some((m) => m.unitIds === null)) return null;

@@ -56,6 +56,16 @@ export interface AccountStore extends AuthStore {
   getMfa(firmId: string, personId: string): Promise<MfaRecord | null>;
   saveMfa(firmId: string, personId: string, record: MfaRecord): Promise<void>;
   /**
+   * Saves the record whose first code completed MFA setup, from a signed-in session. Outbox, same transaction:
+   * `person.mfa_enrolled { personId, via: 'SETTINGS' }`, so M9 tells the person (F14 mitigation 3).
+   */
+  completeMfa(
+    firmId: string,
+    personId: string,
+    record: MfaRecord,
+    requestId: string,
+  ): Promise<void>;
+  /**
    * Records `step` as the last accepted TOTP step only if it is later than the stored one, in one statement.
    * False for a replayed code or when a concurrent request won.
    */

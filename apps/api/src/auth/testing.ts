@@ -308,6 +308,11 @@ export class InMemoryAuthStore implements AccountStore {
     this.mfa.set(`${firmId}/${personId}`, record);
   }
 
+  async completeMfa(firmId: string, personId: string, record: MfaRecord): Promise<void> {
+    this.mfa.set(`${firmId}/${personId}`, record);
+    this.outbox.push({ firmId, type: 'person.mfa_enrolled', data: { personId, via: 'SETTINGS' } });
+  }
+
   async acceptMfaStep(firmId: string, personId: string, step: number): Promise<boolean> {
     const key = `${firmId}/${personId}`;
     const record = this.mfa.get(key);
@@ -491,7 +496,14 @@ export class InMemoryAuthStore implements AccountStore {
     const stored = this.person(invite.firmId, invite.personId);
     stored.status = 'ACTIVE';
     stored.passwordHash = accept.passwordHash;
-    if (accept.mfa !== null) this.mfa.set(key, accept.mfa);
+    if (accept.mfa !== null) {
+      this.mfa.set(key, accept.mfa);
+      this.outbox.push({
+        firmId: invite.firmId,
+        type: 'person.mfa_enrolled',
+        data: { personId: invite.personId, via: 'INVITE' },
+      });
+    }
     if (accept.displayName !== null) stored.displayName = accept.displayName;
     const granted = membership({
       firmId: invite.firmId,

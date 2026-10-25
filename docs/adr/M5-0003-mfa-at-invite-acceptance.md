@@ -28,5 +28,7 @@ decision 3), so it had the same gap.
 ## Consequences
 - Contracts 1.6.0: `InvitePreview.mfaRequired`, `InviteAcceptBody.mfaCode` and the enrolment endpoint.
 - The invite page (M11) shows "Get a setup key" and a code field for these invites.
-- Mitigation 3 of F14 is not covered here: email the person whenever MFA is enrolled or reset. It needs an M9
-  message.
+- Mitigation 3 of F14 (email the person whenever MFA is enrolled or reset): M5 writes `person.mfa_enrolled
+  { personId, via }` in the transaction that completes setup, from a session (`SETTINGS`) or while accepting an
+  invite (`INVITE`), and M9 emails the person (`MFA_ENROLLED`, contracts 1.6.1). There is no MFA reset yet; when one
+  is built, the setup that follows it sends the same notice.
