@@ -1,0 +1,2799 @@
+{
+  "version": "2026.1",
+  "standards": [
+    {
+      "code": "ISO_9001",
+      "edition": "2015+A1:2024",
+      "title": "ISO 9001",
+      "topic": "Quality management"
+    },
+    {
+      "code": "ISO_14001",
+      "edition": "2015+A1:2024",
+      "title": "ISO 14001",
+      "topic": "Environmental management"
+    },
+    {
+      "code": "ISO_45001",
+      "edition": "2018+A1:2024",
+      "title": "ISO 45001",
+      "topic": "Occupational health and safety management"
+    }
+  ],
+  "clauses": [
+    {
+      "standard": "ISO_9001",
+      "number": "1",
+      "title": "Scope",
+      "summary": "What the standard covers and who can use it.",
+      "parent": null,
+      "hlsKey": null,
+      "assessable": false,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_9001",
+      "number": "2",
+      "title": "Normative references",
+      "summary": "Other documents the standard relies on.",
+      "parent": null,
+      "hlsKey": null,
+      "assessable": false,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_9001",
+      "number": "3",
+      "title": "Terms and definitions",
+      "summary": "The words the standard uses and what they mean.",
+      "parent": null,
+      "hlsKey": null,
+      "assessable": false,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_9001",
+      "number": "4",
+      "title": "Context of the organization",
+      "summary": "Know the organisation, who it answers to and where the system stops.",
+      "parent": null,
+      "hlsKey": "4",
+      "assessable": false,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_9001",
+      "number": "4.1",
+      "title": "Understanding the organization and its context",
+      "summary": "List the internal and external issues that shape what the system must achieve, and decide whether climate change is one of them.",
+      "parent": "4",
+      "hlsKey": "4.1",
+      "assessable": true,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_9001",
+      "number": "4.2",
+      "title": "Understanding the needs and expectations of interested parties",
+      "summary": "Name the parties that matter and what each expects; some may have climate-related requirements.",
+      "parent": "4",
+      "hlsKey": "4.2",
+      "assessable": true,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_9001",
+      "number": "4.3",
+      "title": "Determining the scope of the quality management system",
+      "summary": "Write down the sites, products and services the system covers, and justify any requirement that does not apply.",
+      "parent": "4",
+      "hlsKey": "4.3",
+      "assessable": true,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_9001",
+      "number": "4.4",
+      "title": "Quality management system and its processes",
+      "summary": "Set up and run the processes the system needs.",
+      "parent": "4",
+      "hlsKey": "4.4",
+      "assessable": false,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_9001",
+      "number": "4.4.1",
+      "title": "Processes of the system",
+      "summary": "Name the processes, their inputs, outputs, order, owners and measures.",
+      "parent": "4.4",
+      "hlsKey": "4.4",
+      "assessable": true,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_9001",
+      "number": "4.4.2",
+      "title": "Documented information on processes",
+      "summary": "Keep what is needed to run the processes and show they ran as planned.",
+      "parent": "4.4",
+      "hlsKey": "4.4",
+      "assessable": true,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_9001",
+      "number": "5",
+      "title": "Leadership",
+      "summary": "Top management leads the system and owns its results.",
+      "parent": null,
+      "hlsKey": "5",
+      "assessable": false,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_9001",
+      "number": "5.1",
+      "title": "Leadership and commitment",
+      "summary": "Top management is accountable for the system and backs it in practice.",
+      "parent": "5",
+      "hlsKey": "5.1",
+      "assessable": false,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_9001",
+      "number": "5.1.1",
+      "title": "General",
+      "summary": "Top management takes part, gives resources and makes the system part of the business.",
+      "parent": "5.1",
+      "hlsKey": "5.1",
+      "assessable": true,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_9001",
+      "number": "5.1.2",
+      "title": "Customer focus",
+      "summary": "Keep customer needs and satisfaction at the centre of decisions.",
+      "parent": "5.1",
+      "hlsKey": "5.1",
+      "assessable": true,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_9001",
+      "number": "5.2",
+      "title": "Policy",
+      "summary": "Keep a quality policy that sets direction.",
+      "parent": "5",
+      "hlsKey": "5.2",
+      "assessable": false,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_9001",
+      "number": "5.2.1",
+      "title": "Establishing the quality policy",
+      "summary": "Write a policy that fits the organisation and commits to improvement.",
+      "parent": "5.2",
+      "hlsKey": "5.2",
+      "assessable": true,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_9001",
+      "number": "5.2.2",
+      "title": "Communicating the quality policy",
+      "summary": "Make the policy available, understood and applied.",
+      "parent": "5.2",
+      "hlsKey": "5.2",
+      "assessable": true,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_9001",
+      "number": "5.3",
+      "title": "Organizational roles, responsibilities and authorities",
+      "summary": "Assign who does what in the system and tell people.",
+      "parent": "5",
+      "hlsKey": "5.3",
+      "assessable": true,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_9001",
+      "number": "6",
+      "title": "Planning",
+      "summary": "Plan how the system deals with risks and reaches its objectives.",
+      "parent": null,
+      "hlsKey": "6",
+      "assessable": false,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_9001",
+      "number": "6.1",
+      "title": "Actions to address risks and opportunities",
+      "summary": "Find what could go wrong or better and plan actions for it.",
+      "parent": "6",
+      "hlsKey": "6.1",
+      "assessable": false,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_9001",
+      "number": "6.1.1",
+      "title": "Determining risks and opportunities",
+      "summary": "Consider the context and parties to find the risks and opportunities to act on.",
+      "parent": "6.1",
+      "hlsKey": "6.1",
+      "assessable": true,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_9001",
+      "number": "6.1.2",
+      "title": "Planning actions",
+      "summary": "Plan proportionate actions and check they work.",
+      "parent": "6.1",
+      "hlsKey": "6.1",
+      "assessable": true,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_9001",
+      "number": "6.2",
+      "title": "Quality objectives and planning to achieve them",
+      "summary": "Set measurable objectives and plan how to reach them.",
+      "parent": "6",
+      "hlsKey": "6.2",
+      "assessable": false,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_9001",
+      "number": "6.2.1",
+      "title": "Setting quality objectives",
+      "summary": "Objectives are consistent with the policy, measurable, monitored and updated.",
+      "parent": "6.2",
+      "hlsKey": "6.2",
+      "assessable": true,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_9001",
+      "number": "6.2.2",
+      "title": "Planning to achieve quality objectives",
+      "summary": "Decide what will be done, by whom, with what, by when and how results are judged.",
+      "parent": "6.2",
+      "hlsKey": "6.2",
+      "assessable": true,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_9001",
+      "number": "6.3",
+      "title": "Planning of changes",
+      "summary": "Change the system in a planned way, keeping it whole.",
+      "parent": "6",
+      "hlsKey": "6",
+      "assessable": true,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_9001",
+      "number": "7",
+      "title": "Support",
+      "summary": "Provide the people, skills, communication and records the system needs.",
+      "parent": null,
+      "hlsKey": "7",
+      "assessable": false,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_9001",
+      "number": "7.1",
+      "title": "Resources",
+      "summary": "Make sure people, infrastructure and tools are in place.",
+      "parent": "7",
+      "hlsKey": "7.1",
+      "assessable": false,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_9001",
+      "number": "7.1.1",
+      "title": "General",
+      "summary": "Decide the resources needed, from inside and outside.",
+      "parent": "7.1",
+      "hlsKey": "7.1",
+      "assessable": true,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_9001",
+      "number": "7.1.2",
+      "title": "People",
+      "summary": "Have the people needed to run the system and its processes.",
+      "parent": "7.1",
+      "hlsKey": "7.1",
+      "assessable": true,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_9001",
+      "number": "7.1.3",
+      "title": "Infrastructure",
+      "summary": "Provide and maintain buildings, equipment, software and transport.",
+      "parent": "7.1",
+      "hlsKey": "7.1",
+      "assessable": true,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_9001",
+      "number": "7.1.4",
+      "title": "Environment for the operation of processes",
+      "summary": "Provide the working conditions processes need.",
+      "parent": "7.1",
+      "hlsKey": "7.1",
+      "assessable": true,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_9001",
+      "number": "7.1.5",
+      "title": "Monitoring and measuring resources",
+      "summary": "Keep measuring equipment fit for use.",
+      "parent": "7.1",
+      "hlsKey": "7.1",
+      "assessable": false,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_9001",
+      "number": "7.1.5.1",
+      "title": "General",
+      "summary": "Use suitable, maintained resources where results are monitored or measured.",
+      "parent": "7.1.5",
+      "hlsKey": "7.1",
+      "assessable": true,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_9001",
+      "number": "7.1.5.2",
+      "title": "Measurement traceability",
+      "summary": "Calibrate or verify equipment where traceability is needed, and act on faults.",
+      "parent": "7.1.5",
+      "hlsKey": "7.1",
+      "assessable": true,
+      "exclusionAllowed": true
+    },
+    {
+      "standard": "ISO_9001",
+      "number": "7.1.6",
+      "title": "Organizational knowledge",
+      "summary": "Keep the know-how processes need and share it.",
+      "parent": "7.1",
+      "hlsKey": "7.1",
+      "assessable": true,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_9001",
+      "number": "7.2",
+      "title": "Competence",
+      "summary": "Decide the skills each role needs, close gaps and keep proof.",
+      "parent": "7",
+      "hlsKey": "7.2",
+      "assessable": true,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_9001",
+      "number": "7.3",
+      "title": "Awareness",
+      "summary": "People know the policy, their part in the system and what slipping would mean.",
+      "parent": "7",
+      "hlsKey": "7.3",
+      "assessable": true,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_9001",
+      "number": "7.4",
+      "title": "Communication",
+      "summary": "Decide what is said, to whom, when and how.",
+      "parent": "7",
+      "hlsKey": "7.4",
+      "assessable": true,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_9001",
+      "number": "7.5",
+      "title": "Documented information",
+      "summary": "Keep the documents and records the system needs.",
+      "parent": "7",
+      "hlsKey": "7.5",
+      "assessable": false,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_9001",
+      "number": "7.5.1",
+      "title": "General",
+      "summary": "Decide which documented information the system needs.",
+      "parent": "7.5",
+      "hlsKey": "7.5",
+      "assessable": true,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_9001",
+      "number": "7.5.2",
+      "title": "Creating and updating",
+      "summary": "Identify, format, review and approve documents.",
+      "parent": "7.5",
+      "hlsKey": "7.5",
+      "assessable": true,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_9001",
+      "number": "7.5.3",
+      "title": "Control of documented information",
+      "summary": "Keep documents available, protected and under change control.",
+      "parent": "7.5",
+      "hlsKey": "7.5",
+      "assessable": false,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_9001",
+      "number": "7.5.3.1",
+      "title": "Availability and protection",
+      "summary": "Documents are where they are needed and protected from misuse or loss.",
+      "parent": "7.5.3",
+      "hlsKey": "7.5",
+      "assessable": true,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_9001",
+      "number": "7.5.3.2",
+      "title": "Distribution, storage and retention",
+      "summary": "Control access, versions, storage, retention and disposal.",
+      "parent": "7.5.3",
+      "hlsKey": "7.5",
+      "assessable": true,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_9001",
+      "number": "8",
+      "title": "Operation",
+      "summary": "Run day-to-day work under the controls the system plans.",
+      "parent": null,
+      "hlsKey": "8",
+      "assessable": false,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_9001",
+      "number": "8.1",
+      "title": "Operational planning and control",
+      "summary": "Plan and control the processes, including changes and outsourced work.",
+      "parent": "8",
+      "hlsKey": "8.1",
+      "assessable": true,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_9001",
+      "number": "8.2",
+      "title": "Requirements for products and services",
+      "summary": "Agree what customers need and confirm it can be met.",
+      "parent": "8",
+      "hlsKey": "8",
+      "assessable": false,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_9001",
+      "number": "8.2.1",
+      "title": "Customer communication",
+      "summary": "Talk with customers about offers, orders, feedback and their property.",
+      "parent": "8.2",
+      "hlsKey": "8",
+      "assessable": true,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_9001",
+      "number": "8.2.2",
+      "title": "Determining the requirements for products and services",
+      "summary": "Define the requirements, legal ones included.",
+      "parent": "8.2",
+      "hlsKey": "8",
+      "assessable": true,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_9001",
+      "number": "8.2.3",
+      "title": "Review of the requirements for products and services",
+      "summary": "Check the organisation can meet what it offers before committing.",
+      "parent": "8.2",
+      "hlsKey": "8",
+      "assessable": false,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_9001",
+      "number": "8.2.3.1",
+      "title": "Conducting the review",
+      "summary": "Review stated, implied and legal requirements before accepting an order.",
+      "parent": "8.2.3",
+      "hlsKey": "8",
+      "assessable": true,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_9001",
+      "number": "8.2.3.2",
+      "title": "Records of the review",
+      "summary": "Keep the results of the review and any new requirements.",
+      "parent": "8.2.3",
+      "hlsKey": "8",
+      "assessable": true,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_9001",
+      "number": "8.2.4",
+      "title": "Changes to requirements for products and services",
+      "summary": "Update records and tell people when requirements change.",
+      "parent": "8.2",
+      "hlsKey": "8",
+      "assessable": true,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_9001",
+      "number": "8.3",
+      "title": "Design and development of products and services",
+      "summary": "Control design work from inputs to verified outputs.",
+      "parent": "8",
+      "hlsKey": "8",
+      "assessable": false,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_9001",
+      "number": "8.3.1",
+      "title": "General",
+      "summary": "Set up a design process where design is needed.",
+      "parent": "8.3",
+      "hlsKey": "8",
+      "assessable": true,
+      "exclusionAllowed": true
+    },
+    {
+      "standard": "ISO_9001",
+      "number": "8.3.2",
+      "title": "Design and development planning",
+      "summary": "Plan stages, reviews, responsibilities and resources.",
+      "parent": "8.3",
+      "hlsKey": "8",
+      "assessable": true,
+      "exclusionAllowed": true
+    },
+    {
+      "standard": "ISO_9001",
+      "number": "8.3.3",
+      "title": "Design and development inputs",
+      "summary": "Gather the requirements a design must meet.",
+      "parent": "8.3",
+      "hlsKey": "8",
+      "assessable": true,
+      "exclusionAllowed": true
+    },
+    {
+      "standard": "ISO_9001",
+      "number": "8.3.4",
+      "title": "Design and development controls",
+      "summary": "Review, verify and validate designs.",
+      "parent": "8.3",
+      "hlsKey": "8",
+      "assessable": true,
+      "exclusionAllowed": true
+    },
+    {
+      "standard": "ISO_9001",
+      "number": "8.3.5",
+      "title": "Design and development outputs",
+      "summary": "Outputs meet the inputs and are fit for later steps.",
+      "parent": "8.3",
+      "hlsKey": "8",
+      "assessable": true,
+      "exclusionAllowed": true
+    },
+    {
+      "standard": "ISO_9001",
+      "number": "8.3.6",
+      "title": "Design and development changes",
+      "summary": "Control and record design changes.",
+      "parent": "8.3",
+      "hlsKey": "8",
+      "assessable": true,
+      "exclusionAllowed": true
+    },
+    {
+      "standard": "ISO_9001",
+      "number": "8.4",
+      "title": "Control of externally provided processes, products and services",
+      "summary": "Choose, check and monitor suppliers and outsourced work.",
+      "parent": "8",
+      "hlsKey": "8",
+      "assessable": false,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_9001",
+      "number": "8.4.1",
+      "title": "General",
+      "summary": "Evaluate, select and re-evaluate external providers.",
+      "parent": "8.4",
+      "hlsKey": "8",
+      "assessable": true,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_9001",
+      "number": "8.4.2",
+      "title": "Type and extent of control",
+      "summary": "Decide how tightly to control what suppliers provide.",
+      "parent": "8.4",
+      "hlsKey": "8",
+      "assessable": true,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_9001",
+      "number": "8.4.3",
+      "title": "Information for external providers",
+      "summary": "Tell suppliers clearly what is needed.",
+      "parent": "8.4",
+      "hlsKey": "8",
+      "assessable": true,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_9001",
+      "number": "8.5",
+      "title": "Production and service provision",
+      "summary": "Make products and deliver services under controlled conditions.",
+      "parent": "8",
+      "hlsKey": "8",
+      "assessable": false,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_9001",
+      "number": "8.5.1",
+      "title": "Control of production and service provision",
+      "summary": "Work to defined conditions, with checks at the right stages.",
+      "parent": "8.5",
+      "hlsKey": "8",
+      "assessable": true,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_9001",
+      "number": "8.5.2",
+      "title": "Identification and traceability",
+      "summary": "Identify outputs and their status, and trace them where needed.",
+      "parent": "8.5",
+      "hlsKey": "8",
+      "assessable": true,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_9001",
+      "number": "8.5.3",
+      "title": "Property belonging to customers or external providers",
+      "summary": "Look after property owned by customers or suppliers.",
+      "parent": "8.5",
+      "hlsKey": "8",
+      "assessable": true,
+      "exclusionAllowed": true
+    },
+    {
+      "standard": "ISO_9001",
+      "number": "8.5.4",
+      "title": "Preservation",
+      "summary": "Keep outputs in good condition through production and delivery.",
+      "parent": "8.5",
+      "hlsKey": "8",
+      "assessable": true,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_9001",
+      "number": "8.5.5",
+      "title": "Post-delivery activities",
+      "summary": "Meet the needs that follow delivery, such as support or warranty.",
+      "parent": "8.5",
+      "hlsKey": "8",
+      "assessable": true,
+      "exclusionAllowed": true
+    },
+    {
+      "standard": "ISO_9001",
+      "number": "8.5.6",
+      "title": "Control of changes",
+      "summary": "Review and control changes in production or service.",
+      "parent": "8.5",
+      "hlsKey": "8",
+      "assessable": true,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_9001",
+      "number": "8.6",
+      "title": "Release of products and services",
+      "summary": "Release only what has passed its checks.",
+      "parent": "8",
+      "hlsKey": "8",
+      "assessable": true,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_9001",
+      "number": "8.7",
+      "title": "Control of nonconforming outputs",
+      "summary": "Stop faulty output reaching the customer.",
+      "parent": "8",
+      "hlsKey": "8",
+      "assessable": false,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_9001",
+      "number": "8.7.1",
+      "title": "Handling nonconforming outputs",
+      "summary": "Identify faulty output and correct, segregate, return or accept it under concession.",
+      "parent": "8.7",
+      "hlsKey": "8",
+      "assessable": true,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_9001",
+      "number": "8.7.2",
+      "title": "Records of nonconforming outputs",
+      "summary": "Record the problem, the action and who decided.",
+      "parent": "8.7",
+      "hlsKey": "8",
+      "assessable": true,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_9001",
+      "number": "9",
+      "title": "Performance evaluation",
+      "summary": "Check how the system performs.",
+      "parent": null,
+      "hlsKey": "9",
+      "assessable": false,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_9001",
+      "number": "9.1",
+      "title": "Monitoring, measurement, analysis and evaluation",
+      "summary": "Decide what to measure, measure it and act on the results.",
+      "parent": "9",
+      "hlsKey": "9.1",
+      "assessable": false,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_9001",
+      "number": "9.1.1",
+      "title": "General",
+      "summary": "Decide what, how and when to monitor and measure.",
+      "parent": "9.1",
+      "hlsKey": "9.1",
+      "assessable": true,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_9001",
+      "number": "9.1.2",
+      "title": "Customer satisfaction",
+      "summary": "Find out how customers see the organisation's performance.",
+      "parent": "9.1",
+      "hlsKey": "9.1",
+      "assessable": true,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_9001",
+      "number": "9.1.3",
+      "title": "Analysis and evaluation",
+      "summary": "Analyse the data to judge performance and find improvements.",
+      "parent": "9.1",
+      "hlsKey": "9.1",
+      "assessable": true,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_9001",
+      "number": "9.2",
+      "title": "Internal audit",
+      "summary": "Audit the system to a plan, with auditors who stay objective.",
+      "parent": "9",
+      "hlsKey": "9.2",
+      "assessable": false,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_9001",
+      "number": "9.2.1",
+      "title": "Purpose of internal audits",
+      "summary": "Check the system meets its own and the standard's requirements and works.",
+      "parent": "9.2",
+      "hlsKey": "9.2",
+      "assessable": true,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_9001",
+      "number": "9.2.2",
+      "title": "Audit programme",
+      "summary": "Plan audits by importance and past results, and report and act on them.",
+      "parent": "9.2",
+      "hlsKey": "9.2",
+      "assessable": true,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_9001",
+      "number": "9.3",
+      "title": "Management review",
+      "summary": "Top management reviews the system at set intervals.",
+      "parent": "9",
+      "hlsKey": "9.3",
+      "assessable": false,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_9001",
+      "number": "9.3.1",
+      "title": "General",
+      "summary": "Hold reviews at planned intervals.",
+      "parent": "9.3",
+      "hlsKey": "9.3",
+      "assessable": true,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_9001",
+      "number": "9.3.2",
+      "title": "Management review inputs",
+      "summary": "What the review looks at.",
+      "parent": "9.3",
+      "hlsKey": "9.3",
+      "assessable": true,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_9001",
+      "number": "9.3.3",
+      "title": "Management review outputs",
+      "summary": "What the review decides, with records.",
+      "parent": "9.3",
+      "hlsKey": "9.3",
+      "assessable": true,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_9001",
+      "number": "10",
+      "title": "Improvement",
+      "summary": "Keep making the system and its results better.",
+      "parent": null,
+      "hlsKey": "10",
+      "assessable": false,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_9001",
+      "number": "10.1",
+      "title": "General",
+      "summary": "Look for chances to improve and act on them.",
+      "parent": "10",
+      "hlsKey": "10.1",
+      "assessable": true,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_9001",
+      "number": "10.2",
+      "title": "Nonconformity and corrective action",
+      "summary": "Contain problems, find their cause and fix it.",
+      "parent": "10",
+      "hlsKey": "10.2",
+      "assessable": false,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_9001",
+      "number": "10.2.1",
+      "title": "Responding to nonconformity",
+      "summary": "React, find the cause, act, check the action worked and update the system.",
+      "parent": "10.2",
+      "hlsKey": "10.2",
+      "assessable": true,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_9001",
+      "number": "10.2.2",
+      "title": "Records of nonconformity",
+      "summary": "Record each problem, the action taken and the result.",
+      "parent": "10.2",
+      "hlsKey": "10.2",
+      "assessable": true,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_9001",
+      "number": "10.3",
+      "title": "Continual improvement",
+      "summary": "Improve how suitable, adequate and effective the system is over time.",
+      "parent": "10",
+      "hlsKey": "10.3",
+      "assessable": true,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_14001",
+      "number": "1",
+      "title": "Scope",
+      "summary": "What the standard covers and who can use it.",
+      "parent": null,
+      "hlsKey": null,
+      "assessable": false,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_14001",
+      "number": "2",
+      "title": "Normative references",
+      "summary": "Other documents the standard relies on.",
+      "parent": null,
+      "hlsKey": null,
+      "assessable": false,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_14001",
+      "number": "3",
+      "title": "Terms and definitions",
+      "summary": "The words the standard uses and what they mean.",
+      "parent": null,
+      "hlsKey": null,
+      "assessable": false,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_14001",
+      "number": "4",
+      "title": "Context of the organization",
+      "summary": "Know the organisation, who it answers to and where the system stops.",
+      "parent": null,
+      "hlsKey": "4",
+      "assessable": false,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_14001",
+      "number": "4.1",
+      "title": "Understanding the organization and its context",
+      "summary": "List the issues, environmental conditions included, that shape the system, and decide whether climate change is one of them.",
+      "parent": "4",
+      "hlsKey": "4.1",
+      "assessable": true,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_14001",
+      "number": "4.2",
+      "title": "Understanding the needs and expectations of interested parties",
+      "summary": "Name the parties that matter, what each expects and which become compliance obligations; some may have climate-related requirements.",
+      "parent": "4",
+      "hlsKey": "4.2",
+      "assessable": true,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_14001",
+      "number": "4.3",
+      "title": "Determining the scope of the environmental management system",
+      "summary": "Write down the boundaries and activities the system covers.",
+      "parent": "4",
+      "hlsKey": "4.3",
+      "assessable": true,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_14001",
+      "number": "4.4",
+      "title": "Environmental management system",
+      "summary": "Set up, run, keep up and improve the system.",
+      "parent": "4",
+      "hlsKey": "4.4",
+      "assessable": true,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_14001",
+      "number": "5",
+      "title": "Leadership",
+      "summary": "Top management leads the system and owns its results.",
+      "parent": null,
+      "hlsKey": "5",
+      "assessable": false,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_14001",
+      "number": "5.1",
+      "title": "Leadership and commitment",
+      "summary": "Top management is accountable for the system and backs it in practice.",
+      "parent": "5",
+      "hlsKey": "5.1",
+      "assessable": true,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_14001",
+      "number": "5.2",
+      "title": "Environmental policy",
+      "summary": "Keep a policy committing to protect the environment, meet obligations and improve.",
+      "parent": "5",
+      "hlsKey": "5.2",
+      "assessable": true,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_14001",
+      "number": "5.3",
+      "title": "Organizational roles, responsibilities and authorities",
+      "summary": "Assign who does what in the system and tell people.",
+      "parent": "5",
+      "hlsKey": "5.3",
+      "assessable": true,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_14001",
+      "number": "6",
+      "title": "Planning",
+      "summary": "Plan how the system deals with aspects, obligations and risks.",
+      "parent": null,
+      "hlsKey": "6",
+      "assessable": false,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_14001",
+      "number": "6.1",
+      "title": "Actions to address risks and opportunities",
+      "summary": "Find what could go wrong or better and plan actions for it.",
+      "parent": "6",
+      "hlsKey": "6.1",
+      "assessable": false,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_14001",
+      "number": "6.1.1",
+      "title": "General",
+      "summary": "Plan the processes for risks, opportunities and emergencies.",
+      "parent": "6.1",
+      "hlsKey": "6.1",
+      "assessable": true,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_14001",
+      "number": "6.1.2",
+      "title": "Environmental aspects",
+      "summary": "List how activities affect the environment over the life cycle and which effects are significant.",
+      "parent": "6.1",
+      "hlsKey": "6.1",
+      "assessable": true,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_14001",
+      "number": "6.1.3",
+      "title": "Compliance obligations",
+      "summary": "Know the environmental laws and other commitments that apply.",
+      "parent": "6.1",
+      "hlsKey": "6.1",
+      "assessable": true,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_14001",
+      "number": "6.1.4",
+      "title": "Planning action",
+      "summary": "Plan actions for significant aspects, obligations and risks.",
+      "parent": "6.1",
+      "hlsKey": "6.1",
+      "assessable": true,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_14001",
+      "number": "6.2",
+      "title": "Environmental objectives and planning to achieve them",
+      "summary": "Set measurable objectives and plan how to reach them.",
+      "parent": "6",
+      "hlsKey": "6.2",
+      "assessable": false,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_14001",
+      "number": "6.2.1",
+      "title": "Environmental objectives",
+      "summary": "Objectives are consistent with the policy, measurable and monitored.",
+      "parent": "6.2",
+      "hlsKey": "6.2",
+      "assessable": true,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_14001",
+      "number": "6.2.2",
+      "title": "Planning actions to achieve environmental objectives",
+      "summary": "Decide what will be done, by whom, by when and how results are judged.",
+      "parent": "6.2",
+      "hlsKey": "6.2",
+      "assessable": true,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_14001",
+      "number": "7",
+      "title": "Support",
+      "summary": "Provide the people, skills, communication and records the system needs.",
+      "parent": null,
+      "hlsKey": "7",
+      "assessable": false,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_14001",
+      "number": "7.1",
+      "title": "Resources",
+      "summary": "Provide the resources the system needs.",
+      "parent": "7",
+      "hlsKey": "7.1",
+      "assessable": true,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_14001",
+      "number": "7.2",
+      "title": "Competence",
+      "summary": "Decide the skills each role needs, close gaps and keep proof.",
+      "parent": "7",
+      "hlsKey": "7.2",
+      "assessable": true,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_14001",
+      "number": "7.3",
+      "title": "Awareness",
+      "summary": "People know the policy, the significant aspects near them and their part.",
+      "parent": "7",
+      "hlsKey": "7.3",
+      "assessable": true,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_14001",
+      "number": "7.4",
+      "title": "Communication",
+      "summary": "Decide what is said, to whom, when and how.",
+      "parent": "7",
+      "hlsKey": "7.4",
+      "assessable": false,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_14001",
+      "number": "7.4.1",
+      "title": "General",
+      "summary": "Plan internal and external communication, obligations included.",
+      "parent": "7.4",
+      "hlsKey": "7.4",
+      "assessable": true,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_14001",
+      "number": "7.4.2",
+      "title": "Internal communication",
+      "summary": "Share system information across levels and let people suggest improvements.",
+      "parent": "7.4",
+      "hlsKey": "7.4",
+      "assessable": true,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_14001",
+      "number": "7.4.3",
+      "title": "External communication",
+      "summary": "Communicate outside as planned and as obligations require.",
+      "parent": "7.4",
+      "hlsKey": "7.4",
+      "assessable": true,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_14001",
+      "number": "7.5",
+      "title": "Documented information",
+      "summary": "Keep the documents and records the system needs.",
+      "parent": "7",
+      "hlsKey": "7.5",
+      "assessable": false,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_14001",
+      "number": "7.5.1",
+      "title": "General",
+      "summary": "Decide which documented information the system needs.",
+      "parent": "7.5",
+      "hlsKey": "7.5",
+      "assessable": true,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_14001",
+      "number": "7.5.2",
+      "title": "Creating and updating",
+      "summary": "Identify, format, review and approve documents.",
+      "parent": "7.5",
+      "hlsKey": "7.5",
+      "assessable": true,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_14001",
+      "number": "7.5.3",
+      "title": "Control of documented information",
+      "summary": "Keep documents available, protected and under change control.",
+      "parent": "7.5",
+      "hlsKey": "7.5",
+      "assessable": true,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_14001",
+      "number": "8",
+      "title": "Operation",
+      "summary": "Run day-to-day work under the controls the system plans.",
+      "parent": null,
+      "hlsKey": "8",
+      "assessable": false,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_14001",
+      "number": "8.1",
+      "title": "Operational planning and control",
+      "summary": "Control processes, changes, outsourcing and life-cycle stages.",
+      "parent": "8",
+      "hlsKey": "8.1",
+      "assessable": true,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_14001",
+      "number": "8.2",
+      "title": "Emergency preparedness and response",
+      "summary": "Prepare for environmental emergencies and test the plans.",
+      "parent": "8",
+      "hlsKey": "8",
+      "assessable": true,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_14001",
+      "number": "9",
+      "title": "Performance evaluation",
+      "summary": "Check how the system performs.",
+      "parent": null,
+      "hlsKey": "9",
+      "assessable": false,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_14001",
+      "number": "9.1",
+      "title": "Monitoring, measurement, analysis and evaluation",
+      "summary": "Decide what to measure, measure it and act on the results.",
+      "parent": "9",
+      "hlsKey": "9.1",
+      "assessable": false,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_14001",
+      "number": "9.1.1",
+      "title": "General",
+      "summary": "Monitor environmental performance with calibrated equipment.",
+      "parent": "9.1",
+      "hlsKey": "9.1",
+      "assessable": true,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_14001",
+      "number": "9.1.2",
+      "title": "Evaluation of compliance",
+      "summary": "Check at set intervals that compliance obligations are met.",
+      "parent": "9.1",
+      "hlsKey": "9.1",
+      "assessable": true,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_14001",
+      "number": "9.2",
+      "title": "Internal audit",
+      "summary": "Audit the system to a plan, with auditors who stay objective.",
+      "parent": "9",
+      "hlsKey": "9.2",
+      "assessable": false,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_14001",
+      "number": "9.2.1",
+      "title": "General",
+      "summary": "Check the system meets its own and the standard's requirements and works.",
+      "parent": "9.2",
+      "hlsKey": "9.2",
+      "assessable": true,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_14001",
+      "number": "9.2.2",
+      "title": "Internal audit programme",
+      "summary": "Plan audits by importance and past results, and report them.",
+      "parent": "9.2",
+      "hlsKey": "9.2",
+      "assessable": true,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_14001",
+      "number": "9.3",
+      "title": "Management review",
+      "summary": "Top management reviews the system at set intervals and decides on changes.",
+      "parent": "9",
+      "hlsKey": "9.3",
+      "assessable": true,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_14001",
+      "number": "10",
+      "title": "Improvement",
+      "summary": "Keep making the system and its results better.",
+      "parent": null,
+      "hlsKey": "10",
+      "assessable": false,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_14001",
+      "number": "10.1",
+      "title": "General",
+      "summary": "Look for chances to improve and act on them.",
+      "parent": "10",
+      "hlsKey": "10.1",
+      "assessable": true,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_14001",
+      "number": "10.2",
+      "title": "Nonconformity and corrective action",
+      "summary": "Contain problems, find their cause and fix it so they do not return.",
+      "parent": "10",
+      "hlsKey": "10.2",
+      "assessable": true,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_14001",
+      "number": "10.3",
+      "title": "Continual improvement",
+      "summary": "Improve the system to improve environmental performance.",
+      "parent": "10",
+      "hlsKey": "10.3",
+      "assessable": true,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_45001",
+      "number": "1",
+      "title": "Scope",
+      "summary": "What the standard covers and who can use it.",
+      "parent": null,
+      "hlsKey": null,
+      "assessable": false,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_45001",
+      "number": "2",
+      "title": "Normative references",
+      "summary": "Other documents the standard relies on.",
+      "parent": null,
+      "hlsKey": null,
+      "assessable": false,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_45001",
+      "number": "3",
+      "title": "Terms and definitions",
+      "summary": "The words the standard uses and what they mean.",
+      "parent": null,
+      "hlsKey": null,
+      "assessable": false,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_45001",
+      "number": "4",
+      "title": "Context of the organization",
+      "summary": "Know the organisation, who it answers to and where the system stops.",
+      "parent": null,
+      "hlsKey": "4",
+      "assessable": false,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_45001",
+      "number": "4.1",
+      "title": "Understanding the organization and its context",
+      "summary": "List the issues that shape the OH&S system, and decide whether climate change is one of them.",
+      "parent": "4",
+      "hlsKey": "4.1",
+      "assessable": true,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_45001",
+      "number": "4.2",
+      "title": "Understanding the needs and expectations of workers and other interested parties",
+      "summary": "Name workers and other parties, what each expects and which become legal or other requirements; some may have climate-related requirements.",
+      "parent": "4",
+      "hlsKey": "4.2",
+      "assessable": true,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_45001",
+      "number": "4.3",
+      "title": "Determining the scope of the OH&S management system",
+      "summary": "Write down the boundaries and activities the system covers.",
+      "parent": "4",
+      "hlsKey": "4.3",
+      "assessable": true,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_45001",
+      "number": "4.4",
+      "title": "OH&S management system",
+      "summary": "Set up, run, keep up and improve the system.",
+      "parent": "4",
+      "hlsKey": "4.4",
+      "assessable": true,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_45001",
+      "number": "5",
+      "title": "Leadership and worker participation",
+      "summary": "Top management leads, and workers take part in, the system.",
+      "parent": null,
+      "hlsKey": "5",
+      "assessable": false,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_45001",
+      "number": "5.1",
+      "title": "Leadership and commitment",
+      "summary": "Top management is accountable for preventing injury and ill health.",
+      "parent": "5",
+      "hlsKey": "5.1",
+      "assessable": true,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_45001",
+      "number": "5.2",
+      "title": "OH&S policy",
+      "summary": "Keep a policy committing to safe and healthy work, legal compliance and consultation.",
+      "parent": "5",
+      "hlsKey": "5.2",
+      "assessable": true,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_45001",
+      "number": "5.3",
+      "title": "Organizational roles, responsibilities and authorities",
+      "summary": "Assign who does what in the system and tell people.",
+      "parent": "5",
+      "hlsKey": "5.3",
+      "assessable": true,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_45001",
+      "number": "5.4",
+      "title": "Consultation and participation of workers",
+      "summary": "Involve workers and their representatives in the OH&S system.",
+      "parent": "5",
+      "hlsKey": "5",
+      "assessable": true,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_45001",
+      "number": "6",
+      "title": "Planning",
+      "summary": "Plan how the system deals with hazards, risks and requirements.",
+      "parent": null,
+      "hlsKey": "6",
+      "assessable": false,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_45001",
+      "number": "6.1",
+      "title": "Actions to address risks and opportunities",
+      "summary": "Find what could go wrong or better and plan actions for it.",
+      "parent": "6",
+      "hlsKey": "6.1",
+      "assessable": false,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_45001",
+      "number": "6.1.1",
+      "title": "General",
+      "summary": "Plan the processes for hazards, risks, opportunities and requirements.",
+      "parent": "6.1",
+      "hlsKey": "6.1",
+      "assessable": true,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_45001",
+      "number": "6.1.2",
+      "title": "Hazard identification and assessment of risks and opportunities",
+      "summary": "Find hazards and rate risks and opportunities.",
+      "parent": "6.1",
+      "hlsKey": "6.1",
+      "assessable": false,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_45001",
+      "number": "6.1.2.1",
+      "title": "Hazard identification",
+      "summary": "Find hazards in routine and non-routine work, emergencies and changes.",
+      "parent": "6.1.2",
+      "hlsKey": "6.1",
+      "assessable": true,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_45001",
+      "number": "6.1.2.2",
+      "title": "Assessment of OH&S risks and other risks to the OH&S management system",
+      "summary": "Rate the risks from the hazards found and to the system itself.",
+      "parent": "6.1.2",
+      "hlsKey": "6.1",
+      "assessable": true,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_45001",
+      "number": "6.1.2.3",
+      "title": "Assessment of OH&S opportunities and other opportunities for the OH&S management system",
+      "summary": "Find chances to make work safer and the system better.",
+      "parent": "6.1.2",
+      "hlsKey": "6.1",
+      "assessable": true,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_45001",
+      "number": "6.1.3",
+      "title": "Determination of legal requirements and other requirements",
+      "summary": "Know the OH&S laws and other commitments that apply.",
+      "parent": "6.1",
+      "hlsKey": "6.1",
+      "assessable": true,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_45001",
+      "number": "6.1.4",
+      "title": "Planning action",
+      "summary": "Plan actions for risks, legal requirements and emergencies.",
+      "parent": "6.1",
+      "hlsKey": "6.1",
+      "assessable": true,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_45001",
+      "number": "6.2",
+      "title": "OH&S objectives and planning to achieve them",
+      "summary": "Set measurable objectives and plan how to reach them.",
+      "parent": "6",
+      "hlsKey": "6.2",
+      "assessable": false,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_45001",
+      "number": "6.2.1",
+      "title": "OH&S objectives",
+      "summary": "Objectives are consistent with the policy, measurable and monitored.",
+      "parent": "6.2",
+      "hlsKey": "6.2",
+      "assessable": true,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_45001",
+      "number": "6.2.2",
+      "title": "Planning to achieve OH&S objectives",
+      "summary": "Decide what will be done, by whom, by when and how results are judged.",
+      "parent": "6.2",
+      "hlsKey": "6.2",
+      "assessable": true,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_45001",
+      "number": "7",
+      "title": "Support",
+      "summary": "Provide the people, skills, communication and records the system needs.",
+      "parent": null,
+      "hlsKey": "7",
+      "assessable": false,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_45001",
+      "number": "7.1",
+      "title": "Resources",
+      "summary": "Provide the resources the system needs.",
+      "parent": "7",
+      "hlsKey": "7.1",
+      "assessable": true,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_45001",
+      "number": "7.2",
+      "title": "Competence",
+      "summary": "Decide the skills each role needs, including spotting hazards, and keep proof.",
+      "parent": "7",
+      "hlsKey": "7.2",
+      "assessable": true,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_45001",
+      "number": "7.3",
+      "title": "Awareness",
+      "summary": "Workers know the policy, the hazards near them and that they may step away from danger.",
+      "parent": "7",
+      "hlsKey": "7.3",
+      "assessable": true,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_45001",
+      "number": "7.4",
+      "title": "Communication",
+      "summary": "Decide what is said, to whom, when and how.",
+      "parent": "7",
+      "hlsKey": "7.4",
+      "assessable": false,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_45001",
+      "number": "7.4.1",
+      "title": "General",
+      "summary": "Plan communication, taking language, culture and disability into account.",
+      "parent": "7.4",
+      "hlsKey": "7.4",
+      "assessable": true,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_45001",
+      "number": "7.4.2",
+      "title": "Internal communication",
+      "summary": "Share system information across levels and let workers suggest improvements.",
+      "parent": "7.4",
+      "hlsKey": "7.4",
+      "assessable": true,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_45001",
+      "number": "7.4.3",
+      "title": "External communication",
+      "summary": "Communicate outside as planned and as requirements demand.",
+      "parent": "7.4",
+      "hlsKey": "7.4",
+      "assessable": true,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_45001",
+      "number": "7.5",
+      "title": "Documented information",
+      "summary": "Keep the documents and records the system needs.",
+      "parent": "7",
+      "hlsKey": "7.5",
+      "assessable": false,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_45001",
+      "number": "7.5.1",
+      "title": "General",
+      "summary": "Decide which documented information the system needs.",
+      "parent": "7.5",
+      "hlsKey": "7.5",
+      "assessable": true,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_45001",
+      "number": "7.5.2",
+      "title": "Creating and updating",
+      "summary": "Identify, format, review and approve documents.",
+      "parent": "7.5",
+      "hlsKey": "7.5",
+      "assessable": true,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_45001",
+      "number": "7.5.3",
+      "title": "Control of documented information",
+      "summary": "Keep documents available, protected and under change control.",
+      "parent": "7.5",
+      "hlsKey": "7.5",
+      "assessable": true,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_45001",
+      "number": "8",
+      "title": "Operation",
+      "summary": "Run day-to-day work under the controls the system plans.",
+      "parent": null,
+      "hlsKey": "8",
+      "assessable": false,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_45001",
+      "number": "8.1",
+      "title": "Operational planning and control",
+      "summary": "Plan and control the processes that affect OH&S.",
+      "parent": "8",
+      "hlsKey": "8.1",
+      "assessable": false,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_45001",
+      "number": "8.1.1",
+      "title": "General",
+      "summary": "Set criteria for processes and adapt work to workers.",
+      "parent": "8.1",
+      "hlsKey": "8.1",
+      "assessable": true,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_45001",
+      "number": "8.1.2",
+      "title": "Eliminating hazards and reducing OH&S risks",
+      "summary": "Remove hazards first, then reduce risk in the order of controls.",
+      "parent": "8.1",
+      "hlsKey": "8.1",
+      "assessable": true,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_45001",
+      "number": "8.1.3",
+      "title": "Management of change",
+      "summary": "Control the OH&S effects of planned changes.",
+      "parent": "8.1",
+      "hlsKey": "8.1",
+      "assessable": true,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_45001",
+      "number": "8.1.4",
+      "title": "Procurement",
+      "summary": "Control OH&S in buying, contractors and outsourcing.",
+      "parent": "8.1",
+      "hlsKey": "8.1",
+      "assessable": false,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_45001",
+      "number": "8.1.4.1",
+      "title": "General",
+      "summary": "Make sure what is bought meets the system's requirements.",
+      "parent": "8.1.4",
+      "hlsKey": "8.1",
+      "assessable": true,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_45001",
+      "number": "8.1.4.2",
+      "title": "Contractors",
+      "summary": "Coordinate with contractors on hazards and risks and check they meet requirements.",
+      "parent": "8.1.4",
+      "hlsKey": "8.1",
+      "assessable": true,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_45001",
+      "number": "8.1.4.3",
+      "title": "Outsourcing",
+      "summary": "Control outsourced functions and processes.",
+      "parent": "8.1.4",
+      "hlsKey": "8.1",
+      "assessable": true,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_45001",
+      "number": "8.2",
+      "title": "Emergency preparedness and response",
+      "summary": "Prepare for emergencies, train people and test the plans.",
+      "parent": "8",
+      "hlsKey": "8",
+      "assessable": true,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_45001",
+      "number": "9",
+      "title": "Performance evaluation",
+      "summary": "Check how the system performs.",
+      "parent": null,
+      "hlsKey": "9",
+      "assessable": false,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_45001",
+      "number": "9.1",
+      "title": "Monitoring, measurement, analysis and performance evaluation",
+      "summary": "Decide what to measure, measure it and act on the results.",
+      "parent": "9",
+      "hlsKey": "9.1",
+      "assessable": false,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_45001",
+      "number": "9.1.1",
+      "title": "General",
+      "summary": "Monitor OH&S performance and controls with calibrated equipment.",
+      "parent": "9.1",
+      "hlsKey": "9.1",
+      "assessable": true,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_45001",
+      "number": "9.1.2",
+      "title": "Evaluation of compliance",
+      "summary": "Check at set intervals that legal and other requirements are met.",
+      "parent": "9.1",
+      "hlsKey": "9.1",
+      "assessable": true,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_45001",
+      "number": "9.2",
+      "title": "Internal audit",
+      "summary": "Audit the system to a plan, with auditors who stay objective.",
+      "parent": "9",
+      "hlsKey": "9.2",
+      "assessable": false,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_45001",
+      "number": "9.2.1",
+      "title": "General",
+      "summary": "Check the system meets its own and the standard's requirements and works.",
+      "parent": "9.2",
+      "hlsKey": "9.2",
+      "assessable": true,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_45001",
+      "number": "9.2.2",
+      "title": "Internal audit programme",
+      "summary": "Plan audits, report them to workers and managers, and act on them.",
+      "parent": "9.2",
+      "hlsKey": "9.2",
+      "assessable": true,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_45001",
+      "number": "9.3",
+      "title": "Management review",
+      "summary": "Top management reviews the system at set intervals and decides on changes.",
+      "parent": "9",
+      "hlsKey": "9.3",
+      "assessable": true,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_45001",
+      "number": "10",
+      "title": "Improvement",
+      "summary": "Keep making the system and its results better.",
+      "parent": null,
+      "hlsKey": "10",
+      "assessable": false,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_45001",
+      "number": "10.1",
+      "title": "General",
+      "summary": "Look for chances to improve and act on them.",
+      "parent": "10",
+      "hlsKey": "10.1",
+      "assessable": true,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_45001",
+      "number": "10.2",
+      "title": "Incident, nonconformity and corrective action",
+      "summary": "Report and investigate incidents and nonconformities, fix causes and check the fix worked.",
+      "parent": "10",
+      "hlsKey": "10.2",
+      "assessable": true,
+      "exclusionAllowed": false
+    },
+    {
+      "standard": "ISO_45001",
+      "number": "10.3",
+      "title": "Continual improvement",
+      "summary": "Improve the system to improve OH&S performance.",
+      "parent": "10",
+      "hlsKey": "10.3",
+      "assessable": true,
+      "exclusionAllowed": false
+    }
+  ],
+  "reviewInputs": [
+    {
+      "standard": "ISO_9001",
+      "key": "PREVIOUS_ACTIONS",
+      "clauseNumber": "9.3.2",
+      "item": "a",
+      "title": "Status of actions from earlier reviews",
+      "source": "PREVIOUS_ACTIONS"
+    },
+    {
+      "standard": "ISO_14001",
+      "key": "PREVIOUS_ACTIONS",
+      "clauseNumber": "9.3",
+      "item": "a",
+      "title": "Status of actions from earlier reviews",
+      "source": "PREVIOUS_ACTIONS"
+    },
+    {
+      "standard": "ISO_45001",
+      "key": "PREVIOUS_ACTIONS",
+      "clauseNumber": "9.3",
+      "item": "a",
+      "title": "Status of actions from earlier reviews",
+      "source": "PREVIOUS_ACTIONS"
+    },
+    {
+      "standard": "ISO_9001",
+      "key": "CONTEXT_CHANGES",
+      "clauseNumber": "9.3.2",
+      "item": "b",
+      "title": "Changes in external and internal issues",
+      "source": "CONTEXT"
+    },
+    {
+      "standard": "ISO_14001",
+      "key": "CONTEXT_CHANGES",
+      "clauseNumber": "9.3",
+      "item": "b1",
+      "title": "Changes in external and internal issues",
+      "source": "CONTEXT"
+    },
+    {
+      "standard": "ISO_45001",
+      "key": "CONTEXT_CHANGES",
+      "clauseNumber": "9.3",
+      "item": "b",
+      "title": "Changes in external and internal issues",
+      "source": "CONTEXT"
+    },
+    {
+      "standard": "ISO_14001",
+      "key": "INTERESTED_PARTIES",
+      "clauseNumber": "9.3",
+      "item": "b2",
+      "title": "Changes in interested parties' needs, compliance obligations, legal and other requirements",
+      "source": "CONTEXT"
+    },
+    {
+      "standard": "ISO_45001",
+      "key": "INTERESTED_PARTIES",
+      "clauseNumber": "9.3",
+      "item": "b1",
+      "title": "Changes in interested parties' needs, compliance obligations, legal and other requirements",
+      "source": "CONTEXT"
+    },
+    {
+      "standard": "ISO_45001",
+      "key": "INTERESTED_PARTIES",
+      "clauseNumber": "9.3",
+      "item": "b2",
+      "title": "Changes in interested parties' needs, compliance obligations, legal and other requirements",
+      "source": "CONTEXT"
+    },
+    {
+      "standard": "ISO_14001",
+      "key": "SIGNIFICANT_ASPECTS",
+      "clauseNumber": "9.3",
+      "item": "b3",
+      "title": "Changes in significant environmental aspects",
+      "source": "RISKS"
+    },
+    {
+      "standard": "ISO_14001",
+      "key": "RISKS_AND_OPPORTUNITIES",
+      "clauseNumber": "9.3",
+      "item": "b4",
+      "title": "Changes in risks and opportunities",
+      "source": "RISKS"
+    },
+    {
+      "standard": "ISO_45001",
+      "key": "RISKS_AND_OPPORTUNITIES",
+      "clauseNumber": "9.3",
+      "item": "b3",
+      "title": "Changes in risks and opportunities",
+      "source": "RISKS"
+    },
+    {
+      "standard": "ISO_45001",
+      "key": "RISKS_AND_OPPORTUNITIES",
+      "clauseNumber": "9.3",
+      "item": "d6",
+      "title": "Changes in risks and opportunities",
+      "source": "RISKS"
+    },
+    {
+      "standard": "ISO_9001",
+      "key": "RISK_ACTIONS",
+      "clauseNumber": "9.3.2",
+      "item": "e",
+      "title": "Effectiveness of actions on risks and opportunities",
+      "source": "RISKS"
+    },
+    {
+      "standard": "ISO_9001",
+      "key": "CUSTOMER_SATISFACTION",
+      "clauseNumber": "9.3.2",
+      "item": "c1",
+      "title": "Customer satisfaction and feedback",
+      "source": "MANUAL"
+    },
+    {
+      "standard": "ISO_9001",
+      "key": "OBJECTIVES",
+      "clauseNumber": "9.3.2",
+      "item": "c2",
+      "title": "How far the policy and objectives were met",
+      "source": "OBJECTIVES"
+    },
+    {
+      "standard": "ISO_14001",
+      "key": "OBJECTIVES",
+      "clauseNumber": "9.3",
+      "item": "c",
+      "title": "How far the policy and objectives were met",
+      "source": "OBJECTIVES"
+    },
+    {
+      "standard": "ISO_45001",
+      "key": "OBJECTIVES",
+      "clauseNumber": "9.3",
+      "item": "c",
+      "title": "How far the policy and objectives were met",
+      "source": "OBJECTIVES"
+    },
+    {
+      "standard": "ISO_9001",
+      "key": "PROCESS_PERFORMANCE",
+      "clauseNumber": "9.3.2",
+      "item": "c3",
+      "title": "Process performance and conformity of products and services",
+      "source": "MANUAL"
+    },
+    {
+      "standard": "ISO_9001",
+      "key": "NONCONFORMITIES",
+      "clauseNumber": "9.3.2",
+      "item": "c4",
+      "title": "Nonconformities and corrective actions",
+      "source": "NONCONFORMITIES"
+    },
+    {
+      "standard": "ISO_14001",
+      "key": "NONCONFORMITIES",
+      "clauseNumber": "9.3",
+      "item": "d1",
+      "title": "Nonconformities and corrective actions",
+      "source": "NONCONFORMITIES"
+    },
+    {
+      "standard": "ISO_45001",
+      "key": "NONCONFORMITIES",
+      "clauseNumber": "9.3",
+      "item": "d1",
+      "title": "Nonconformities and corrective actions",
+      "source": "NONCONFORMITIES"
+    },
+    {
+      "standard": "ISO_45001",
+      "key": "INCIDENTS",
+      "clauseNumber": "9.3",
+      "item": "d1",
+      "title": "Incidents",
+      "source": "INCIDENTS"
+    },
+    {
+      "standard": "ISO_9001",
+      "key": "MONITORING_RESULTS",
+      "clauseNumber": "9.3.2",
+      "item": "c5",
+      "title": "Monitoring and measurement results",
+      "source": "MANUAL"
+    },
+    {
+      "standard": "ISO_14001",
+      "key": "MONITORING_RESULTS",
+      "clauseNumber": "9.3",
+      "item": "d2",
+      "title": "Monitoring and measurement results",
+      "source": "MANUAL"
+    },
+    {
+      "standard": "ISO_45001",
+      "key": "MONITORING_RESULTS",
+      "clauseNumber": "9.3",
+      "item": "d2",
+      "title": "Monitoring and measurement results",
+      "source": "MANUAL"
+    },
+    {
+      "standard": "ISO_14001",
+      "key": "COMPLIANCE_EVALUATION",
+      "clauseNumber": "9.3",
+      "item": "d3",
+      "title": "Fulfilment of compliance obligations, evaluation of compliance",
+      "source": "COMPLIANCE_EVALUATION"
+    },
+    {
+      "standard": "ISO_45001",
+      "key": "COMPLIANCE_EVALUATION",
+      "clauseNumber": "9.3",
+      "item": "d3",
+      "title": "Fulfilment of compliance obligations, evaluation of compliance",
+      "source": "COMPLIANCE_EVALUATION"
+    },
+    {
+      "standard": "ISO_9001",
+      "key": "AUDIT_RESULTS",
+      "clauseNumber": "9.3.2",
+      "item": "c6",
+      "title": "Audit results",
+      "source": "AUDIT_RESULTS"
+    },
+    {
+      "standard": "ISO_14001",
+      "key": "AUDIT_RESULTS",
+      "clauseNumber": "9.3",
+      "item": "d4",
+      "title": "Audit results",
+      "source": "AUDIT_RESULTS"
+    },
+    {
+      "standard": "ISO_45001",
+      "key": "AUDIT_RESULTS",
+      "clauseNumber": "9.3",
+      "item": "d4",
+      "title": "Audit results",
+      "source": "AUDIT_RESULTS"
+    },
+    {
+      "standard": "ISO_9001",
+      "key": "EXTERNAL_PROVIDERS",
+      "clauseNumber": "9.3.2",
+      "item": "c7",
+      "title": "Performance of external providers",
+      "source": "MANUAL"
+    },
+    {
+      "standard": "ISO_45001",
+      "key": "WORKER_CONSULTATION",
+      "clauseNumber": "9.3",
+      "item": "d5",
+      "title": "Consultation and participation of workers",
+      "source": "MANUAL"
+    },
+    {
+      "standard": "ISO_9001",
+      "key": "RESOURCES",
+      "clauseNumber": "9.3.2",
+      "item": "d",
+      "title": "Adequacy of resources",
+      "source": "MANUAL"
+    },
+    {
+      "standard": "ISO_14001",
+      "key": "RESOURCES",
+      "clauseNumber": "9.3",
+      "item": "e",
+      "title": "Adequacy of resources",
+      "source": "MANUAL"
+    },
+    {
+      "standard": "ISO_45001",
+      "key": "RESOURCES",
+      "clauseNumber": "9.3",
+      "item": "e",
+      "title": "Adequacy of resources",
+      "source": "MANUAL"
+    },
+    {
+      "standard": "ISO_14001",
+      "key": "COMMUNICATIONS",
+      "clauseNumber": "9.3",
+      "item": "f",
+      "title": "Relevant communications from interested parties, complaints included",
+      "source": "MANUAL"
+    },
+    {
+      "standard": "ISO_45001",
+      "key": "COMMUNICATIONS",
+      "clauseNumber": "9.3",
+      "item": "f",
+      "title": "Relevant communications from interested parties, complaints included",
+      "source": "MANUAL"
+    },
+    {
+      "standard": "ISO_9001",
+      "key": "IMPROVEMENT_OPPORTUNITIES",
+      "clauseNumber": "9.3.2",
+      "item": "f",
+      "title": "Opportunities for improvement",
+      "source": "MANUAL"
+    },
+    {
+      "standard": "ISO_14001",
+      "key": "IMPROVEMENT_OPPORTUNITIES",
+      "clauseNumber": "9.3",
+      "item": "g",
+      "title": "Opportunities for improvement",
+      "source": "MANUAL"
+    },
+    {
+      "standard": "ISO_45001",
+      "key": "IMPROVEMENT_OPPORTUNITIES",
+      "clauseNumber": "9.3",
+      "item": "g",
+      "title": "Opportunities for improvement",
+      "source": "MANUAL"
+    }
+  ],
+  "reviewOutputs": [
+    {
+      "standard": "ISO_14001",
+      "key": "SUITABILITY",
+      "clauseNumber": "9.3",
+      "item": null,
+      "title": "Conclusions on continuing suitability, adequacy and effectiveness"
+    },
+    {
+      "standard": "ISO_45001",
+      "key": "SUITABILITY",
+      "clauseNumber": "9.3",
+      "item": null,
+      "title": "Conclusions on continuing suitability, adequacy and effectiveness"
+    },
+    {
+      "standard": "ISO_9001",
+      "key": "IMPROVEMENT",
+      "clauseNumber": "9.3.3",
+      "item": "a",
+      "title": "Decisions on improvement opportunities"
+    },
+    {
+      "standard": "ISO_14001",
+      "key": "IMPROVEMENT",
+      "clauseNumber": "9.3",
+      "item": null,
+      "title": "Decisions on improvement opportunities"
+    },
+    {
+      "standard": "ISO_45001",
+      "key": "IMPROVEMENT",
+      "clauseNumber": "9.3",
+      "item": null,
+      "title": "Decisions on improvement opportunities"
+    },
+    {
+      "standard": "ISO_9001",
+      "key": "SYSTEM_CHANGES",
+      "clauseNumber": "9.3.3",
+      "item": "b",
+      "title": "Decisions on changes to the management system"
+    },
+    {
+      "standard": "ISO_14001",
+      "key": "SYSTEM_CHANGES",
+      "clauseNumber": "9.3",
+      "item": null,
+      "title": "Decisions on changes to the management system"
+    },
+    {
+      "standard": "ISO_45001",
+      "key": "SYSTEM_CHANGES",
+      "clauseNumber": "9.3",
+      "item": null,
+      "title": "Decisions on changes to the management system"
+    },
+    {
+      "standard": "ISO_9001",
+      "key": "RESOURCE_NEEDS",
+      "clauseNumber": "9.3.3",
+      "item": "c",
+      "title": "Resources needed"
+    },
+    {
+      "standard": "ISO_14001",
+      "key": "RESOURCE_NEEDS",
+      "clauseNumber": "9.3",
+      "item": null,
+      "title": "Resources needed"
+    },
+    {
+      "standard": "ISO_45001",
+      "key": "RESOURCE_NEEDS",
+      "clauseNumber": "9.3",
+      "item": null,
+      "title": "Resources needed"
+    },
+    {
+      "standard": "ISO_14001",
+      "key": "OBJECTIVES_NOT_MET",
+      "clauseNumber": "9.3",
+      "item": null,
+      "title": "Actions where objectives were not met"
+    },
+    {
+      "standard": "ISO_45001",
+      "key": "OBJECTIVES_NOT_MET",
+      "clauseNumber": "9.3",
+      "item": null,
+      "title": "Actions where objectives were not met"
+    },
+    {
+      "standard": "ISO_14001",
+      "key": "INTEGRATION",
+      "clauseNumber": "9.3",
+      "item": null,
+      "title": "Better integration with other business processes"
+    },
+    {
+      "standard": "ISO_45001",
+      "key": "INTEGRATION",
+      "clauseNumber": "9.3",
+      "item": null,
+      "title": "Better integration with other business processes"
+    },
+    {
+      "standard": "ISO_14001",
+      "key": "STRATEGIC_DIRECTION",
+      "clauseNumber": "9.3",
+      "item": null,
+      "title": "Implications for the organisation's strategic direction"
+    },
+    {
+      "standard": "ISO_45001",
+      "key": "STRATEGIC_DIRECTION",
+      "clauseNumber": "9.3",
+      "item": null,
+      "title": "Implications for the organisation's strategic direction"
+    },
+    {
+      "standard": "ISO_45001",
+      "key": "WORKER_COMMUNICATION",
+      "clauseNumber": "9.3",
+      "item": null,
+      "title": "Outputs communicated to workers and their representatives"
+    }
+  ],
+  "category": "ISO management systems",
+  "acts": [
+    {
+      "key": "ISO_9001",
+      "name": "ISO 9001 quality management",
+      "shortName": "ISO 9001"
+    },
+    {
+      "key": "ISO_14001",
+      "name": "ISO 14001 environmental management",
+      "shortName": "ISO 14001"
+    },
+    {
+      "key": "ISO_45001",
+      "name": "ISO 45001 occupational health and safety management",
+      "shortName": "ISO 45001"
+    },
+    {
+      "key": "IMS",
+      "name": "Integrated management system (ISO 9001, 14001, 45001)",
+      "shortName": "ISO IMS"
+    }
+  ],
+  "activities": [
+    {
+      "key": "CONTEXT-REVIEW",
+      "title": "Review of context and interested parties",
+      "act": "IMS",
+      "rule": {
+        "kind": "ANNUAL",
+        "month": 3,
+        "day": 31
+      },
+      "evidence": "Updated issues and interested-party lists (the ISO context screen).",
+      "clauseRefs": [
+        {
+          "standard": "ISO_9001",
+          "clauseNumber": "4.1"
+        },
+        {
+          "standard": "ISO_9001",
+          "clauseNumber": "4.2"
+        },
+        {
+          "standard": "ISO_14001",
+          "clauseNumber": "4.1"
+        },
+        {
+          "standard": "ISO_14001",
+          "clauseNumber": "4.2"
+        },
+        {
+          "standard": "ISO_45001",
+          "clauseNumber": "4.1"
+        },
+        {
+          "standard": "ISO_45001",
+          "clauseNumber": "4.2"
+        }
+      ]
+    },
+    {
+      "key": "COMPLIANCE-EVALUATION",
+      "title": "Evaluation of compliance",
+      "act": "IMS",
+      "rule": {
+        "kind": "HALF_YEARLY",
+        "anchor": "PERIOD_END",
+        "days": 0
+      },
+      "evidence": "Evaluation record; the statutory score report can be attached.",
+      "clauseRefs": [
+        {
+          "standard": "ISO_14001",
+          "clauseNumber": "9.1.2"
+        },
+        {
+          "standard": "ISO_45001",
+          "clauseNumber": "9.1.2"
+        }
+      ]
+    },
+    {
+      "key": "COMPETENCE-REVIEW",
+      "title": "Competence review: training needs and effectiveness",
+      "act": "IMS",
+      "rule": {
+        "kind": "ANNUAL",
+        "month": 3,
+        "day": 31
+      },
+      "evidence": "Training matrix.",
+      "clauseRefs": [
+        {
+          "standard": "ISO_9001",
+          "clauseNumber": "7.2"
+        },
+        {
+          "standard": "ISO_14001",
+          "clauseNumber": "7.2"
+        },
+        {
+          "standard": "ISO_45001",
+          "clauseNumber": "7.2"
+        }
+      ]
+    },
+    {
+      "key": "AWARENESS",
+      "title": "Awareness and induction",
+      "act": "IMS",
+      "rule": {
+        "kind": "HALF_YEARLY",
+        "anchor": "PERIOD_END",
+        "days": 0
+      },
+      "evidence": "Attendance record.",
+      "clauseRefs": [
+        {
+          "standard": "ISO_9001",
+          "clauseNumber": "7.3"
+        },
+        {
+          "standard": "ISO_14001",
+          "clauseNumber": "7.3"
+        },
+        {
+          "standard": "ISO_45001",
+          "clauseNumber": "7.3"
+        }
+      ]
+    },
+    {
+      "key": "CALIBRATION",
+      "title": "Calibration or verification of monitoring equipment",
+      "act": "IMS",
+      "rule": {
+        "kind": "QUARTERLY",
+        "anchor": "PERIOD_END",
+        "days": 0
+      },
+      "evidence": "Instrument list with calibration status.",
+      "clauseRefs": [
+        {
+          "standard": "ISO_9001",
+          "clauseNumber": "7.1.5"
+        },
+        {
+          "standard": "ISO_14001",
+          "clauseNumber": "9.1.1"
+        },
+        {
+          "standard": "ISO_45001",
+          "clauseNumber": "9.1.1"
+        }
+      ]
+    },
+    {
+      "key": "EXTERNAL-PROVIDERS",
+      "title": "Evaluation and re-evaluation of external providers",
+      "act": "IMS",
+      "rule": {
+        "kind": "ANNUAL",
+        "month": 3,
+        "day": 31
+      },
+      "evidence": "Approved supplier list with ratings.",
+      "clauseRefs": [
+        {
+          "standard": "ISO_9001",
+          "clauseNumber": "8.4.1"
+        },
+        {
+          "standard": "ISO_14001",
+          "clauseNumber": "8.1"
+        },
+        {
+          "standard": "ISO_45001",
+          "clauseNumber": "8.1.4"
+        }
+      ]
+    },
+    {
+      "key": "EMERGENCY-DRILL",
+      "title": "Emergency drill and post-drill evaluation",
+      "act": "IMS",
+      "rule": {
+        "kind": "HALF_YEARLY",
+        "anchor": "PERIOD_END",
+        "days": 0
+      },
+      "evidence": "Drill report. Where a state factory rule already requires a mock drill, assign one of the two, not both.",
+      "clauseRefs": [
+        {
+          "standard": "ISO_14001",
+          "clauseNumber": "8.2"
+        },
+        {
+          "standard": "ISO_45001",
+          "clauseNumber": "8.2"
+        }
+      ]
+    },
+    {
+      "key": "CONTRACTOR-REVIEW",
+      "title": "Contractor OH&S review",
+      "act": "ISO_45001",
+      "rule": {
+        "kind": "QUARTERLY",
+        "anchor": "PERIOD_END",
+        "days": 0
+      },
+      "evidence": "Review record.",
+      "clauseRefs": [
+        {
+          "standard": "ISO_45001",
+          "clauseNumber": "8.1.4.2"
+        }
+      ]
+    },
+    {
+      "key": "WORKPLACE-INSPECTION",
+      "title": "Workplace inspection",
+      "act": "ISO_45001",
+      "rule": {
+        "kind": "MONTHLY",
+        "day": "LAST",
+        "offsetMonths": 0
+      },
+      "evidence": "Inspection record.",
+      "clauseRefs": [
+        {
+          "standard": "ISO_45001",
+          "clauseNumber": "9.1.1"
+        }
+      ]
+    },
+    {
+      "key": "WORKER-CONSULTATION",
+      "title": "Worker consultation and participation",
+      "act": "ISO_45001",
+      "rule": {
+        "kind": "QUARTERLY",
+        "anchor": "PERIOD_END",
+        "days": 0
+      },
+      "evidence": "Committee minutes. Where a state rule already requires a safety committee meeting, assign one of the two.",
+      "clauseRefs": [
+        {
+          "standard": "ISO_45001",
+          "clauseNumber": "5.4"
+        }
+      ]
+    },
+    {
+      "key": "ENV-MONITORING",
+      "title": "Environmental performance monitoring",
+      "act": "ISO_14001",
+      "rule": {
+        "kind": "MONTHLY",
+        "day": "LAST",
+        "offsetMonths": 0
+      },
+      "evidence": "Monitoring data.",
+      "clauseRefs": [
+        {
+          "standard": "ISO_14001",
+          "clauseNumber": "9.1.1"
+        }
+      ]
+    },
+    {
+      "key": "CUSTOMER-SATISFACTION",
+      "title": "Customer satisfaction survey and analysis",
+      "act": "ISO_9001",
+      "rule": {
+        "kind": "ANNUAL",
+        "month": 3,
+        "day": 31
+      },
+      "evidence": "Survey results and analysis.",
+      "clauseRefs": [
+        {
+          "standard": "ISO_9001",
+          "clauseNumber": "9.1.2"
+        }
+      ]
+    },
+    {
+      "key": "DATA-ANALYSIS",
+      "title": "Analysis and evaluation of data",
+      "act": "ISO_9001",
+      "rule": {
+        "kind": "QUARTERLY",
+        "anchor": "PERIOD_END",
+        "days": 0
+      },
+      "evidence": "Analysis record.",
+      "clauseRefs": [
+        {
+          "standard": "ISO_9001",
+          "clauseNumber": "9.1.3"
+        }
+      ]
+    }
+  ]
+}

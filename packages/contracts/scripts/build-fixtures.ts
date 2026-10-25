@@ -5,6 +5,8 @@ import { existsSync, writeFileSync } from 'node:fs';
 import { basename } from 'node:path';
 import { buildFirmA } from './fixtures/firm-a.js';
 import { buildFirmB } from './fixtures/firm-b.js';
+import { buildFirmBIso } from './fixtures/firm-b-iso.js';
+import { buildIsoCatalogue } from './fixtures/iso-catalogue.js';
 import { readFirstSheet } from './fixtures/xlsx.js';
 
 const DEFAULT_XLSX = new URL('../../importer/fixtures/sample-register.xlsx', import.meta.url)
@@ -23,4 +25,7 @@ if (existsSync(xlsx)) {
   console.warn(`${basename(xlsx)} not found; firm A left as committed.`);
 }
 write('firm-b.synthetic.json', buildFirmB());
+// The catalogue first: firm B's ISO data names clauses by `isoClauseId`, which reads it.
+write('iso.catalogue.json', buildIsoCatalogue());
+write('firm-b.iso.json', buildFirmBIso());
 execFileSync('prettier', ['--write', out('').pathname], { stdio: 'inherit' });
