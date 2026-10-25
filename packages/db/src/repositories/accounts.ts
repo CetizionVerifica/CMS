@@ -85,6 +85,19 @@ export const account = {
       },
     });
   },
+  /**
+   * The account's effective features alone ((plan ∪ added) − removed, from app_account()), without the usage counts
+   * `get` reads, for M5's per-request feature check. Read fresh in every transaction, so a console switch applies at once.
+   */
+  async features(tx: TenantTx): Promise<string[]> {
+    const [row] = (
+      await tx
+        .execute<{ features: unknown }>(sql`SELECT features FROM app_account()`)
+        .catch(rethrow)
+    ).rows;
+    if (!row) throw new DbError('NOT_FOUND', 'No account in this context');
+    return validate(z.array(FeatureFlag), row.features);
+  },
   async usage(tx: TenantTx): Promise<AccountUsage> {
     const { rows } = await tx.execute<Record<string, unknown>>(sql`SELECT * FROM app_usage()`);
     return usageOf(rows[0]);

@@ -303,6 +303,17 @@ describe('the app’s own account', () => {
     expect(order).toEqual(['other firm locked', 'first done', 'second locked']);
   });
 
+  it('reads no features without a firm in context', async () => {
+    const error = await t.db
+      .withTenant(systemContext(a.firmId, 'accounts-test'), async (tx) => {
+        await tx.execute(sql`SELECT set_config('app.firm_id', '', true)`);
+        return r.account.features(tx);
+      })
+      .catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(DbError);
+    expect((error as DbError).code).toBe('NOT_FOUND');
+  });
+
   it('refuses lockUsage with no firm in context rather than lock nothing', async () => {
     const error = await t.db
       .withTenant(systemContext(a.firmId, 'accounts-test'), async (tx) => {
@@ -342,6 +353,8 @@ describe('the app’s own account', () => {
     }));
     const features = async () => {
       const tenant = (await inFirm(a.firmId, (tx) => r.account.get(tx))).entitlements.features;
+      // The features-only read (M5's per-request check) agrees with the full account view.
+      expect(await inFirm(a.firmId, (tx) => r.account.features(tx))).toEqual(tenant);
       const operator = (await asOperator((tx) => r.platformAccounts.entitlements(tx, a.firmId)))
         .features;
       return { tenant, operator };
