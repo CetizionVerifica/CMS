@@ -339,11 +339,15 @@ test.describe.serial('company accounts and the operator console', () => {
     ).toBeVisible();
 
     // The account admin's page is the downloads alone (ADR M15-0001 decision 5): no plan, no support access.
+    // The web app keeps each session's `GET /me` for 5 s (lib/api/session-cache.ts), and the admin's session was used
+    // just before: until it refreshes, the page still takes the account as open and its account call is refused.
     const admin = await pageAs(browser, 'ospreyFirmAdmin');
-    await admin.goto('/account');
-    await expect(
-      admin.getByRole('heading', { name: 'Download your data', level: 2 }),
-    ).toBeVisible();
+    await expect(async () => {
+      await admin.goto('/account');
+      await expect(
+        admin.getByRole('heading', { name: 'Download your data', level: 2 }),
+      ).toBeVisible({ timeout: 1_000 });
+    }).toPass({ timeout: 20_000, intervals: [2_000] });
     await expect(
       admin.getByText(/^This account is closing\. Download each client’s data/),
     ).toBeVisible();
