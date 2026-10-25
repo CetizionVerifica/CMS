@@ -416,6 +416,25 @@ describe('the app’s own account', () => {
     });
   });
 
+  it('leaves a malformed flag out of account.features rather than fail every request', async () => {
+    const before = await t.ownerQuery<{ features: string[] }>(
+      'SELECT features FROM platform.account_override WHERE account_id = $1',
+      [a.firmId],
+    );
+    await t.ownerQuery(
+      `INSERT INTO platform.account_override (account_id, features) VALUES ($1, '{bulkExport,"Not a flag"}')
+       ON CONFLICT (account_id) DO UPDATE SET features = excluded.features`,
+      [a.firmId],
+    );
+    const features = await inFirm(a.firmId, (tx) => r.account.features(tx));
+    expect(features).toContain('bulkExport');
+    expect(features).not.toContain('Not a flag');
+    await t.ownerQuery('UPDATE platform.account_override SET features = $2 WHERE account_id = $1', [
+      a.firmId,
+      before.rows[0]?.features ?? [],
+    ]);
+  });
+
   it('app_usage refuses a transaction with no tenant', async () => {
     const result = await failure(
       t.ownerTransaction(async (client) => {

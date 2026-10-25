@@ -84,10 +84,11 @@ export interface ClauseRef {
 }
 
 /**
- * An array of at most 20 `{ standard, clauseNumber }` objects with no other keys, the clause number shaped as the
- * contracts' `ClauseNumber` (the contract checks that no pair repeats).
+ * An array of at most 20 distinct `{ standard, clauseNumber }` objects with no other keys, the standard a string from
+ * the three, the clause number a string shaped as the contracts' `ClauseNumber`. Checked by an IMMUTABLE SQL function
+ * (migration 0037) rather than jsonpath, whose lax mode unwraps nested arrays and array-valued keys.
  */
-const clauseRefsCheck = sql`jsonb_typeof(clause_refs) = 'array' and jsonb_array_length(clause_refs) <= 20 and not jsonb_path_exists(clause_refs, '$[*] ? (@.type() != "object" || !exists(@.standard) || !exists(@.clauseNumber) || exists(@.keyvalue() ? (@.key != "standard" && @.key != "clauseNumber")) || !(@.standard == "ISO_9001" || @.standard == "ISO_14001" || @.standard == "ISO_45001") || @.clauseNumber.type() != "string" || !(@.clauseNumber like_regex "^[1-9][0-9]?([.](0|[1-9][0-9]?)){0,3}$"))')`;
+const clauseRefsCheck = sql`canopy_clause_refs_valid(clause_refs)`;
 
 /** A requirement derived from an Act (Excel: one Compliance ID). `external_ref` is data, never a key. */
 export const obligation = pgTable(
