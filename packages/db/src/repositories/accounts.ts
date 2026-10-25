@@ -128,6 +128,19 @@ export const account = {
       .catch(rethrow);
     return row !== undefined && row.at !== null;
   },
+  /**
+   * When M6 copied the ISO catalogue into the account (`app_mark_iso_catalogue_copied`), or null before. Every ISO route
+   * answers FEATURE_NOT_READY and ISO jobs skip the account until it is set (docs/iso/plan.md §4.3). Any context of the
+   * account, as `libraryCopied`; no usage query.
+   */
+  async isoCatalogueCopiedAt(tx: TenantTx): Promise<string | null> {
+    const [row] = await tx
+      .select({ at: s.firm.isoCatalogueCopiedAt })
+      .from(s.firm)
+      .where(sql`${s.firm.id} = app_firm_id()`)
+      .catch(rethrow);
+    return iso(row?.at ?? null);
+  },
 };
 
 export const SupportGrantRequest = z.strictObject({
@@ -344,6 +357,11 @@ export const AccountRecord = z.strictObject({
   profile: AccountProfile.partial(),
   onboardedAt: Instant.nullable(),
   libraryCopiedAt: Instant.nullable(),
+  /**
+   * When the ISO catalogue copy was recorded (docs/iso/plan.md §4.3), for the console (ISO-5b). Always returned;
+   * optional in the type so callers that build records (M15's tests) compile unchanged.
+   */
+  isoCatalogueCopiedAt: Instant.nullable().optional(),
   deletionRequestedAt: Instant.nullable(),
   statusBeforeDeletion: AccountStatus.nullable(),
   createdAt: Instant,
@@ -361,6 +379,7 @@ const recordColumns = {
   profile: s.firm.profile,
   onboardedAt: s.firm.onboardedAt,
   libraryCopiedAt: s.firm.libraryCopiedAt,
+  isoCatalogueCopiedAt: s.firm.isoCatalogueCopiedAt,
   deletionRequestedAt: s.firm.deletionRequestedAt,
   statusBeforeDeletion: s.firm.statusBeforeDeletion,
   createdAt: s.firm.createdAt,
@@ -374,6 +393,7 @@ function recordOf(r: {
     ...r,
     onboardedAt: iso(r.onboardedAt as Date | null),
     libraryCopiedAt: iso(r.libraryCopiedAt as Date | null),
+    isoCatalogueCopiedAt: iso(r.isoCatalogueCopiedAt as Date | null),
     deletionRequestedAt: iso(r.deletionRequestedAt as Date | null),
     createdAt: (r.createdAt as Date).toISOString(),
   });
@@ -536,11 +556,10 @@ export const platformAccounts = {
       .select({
         planCode: s.firm.planCode,
         limits: sql<PlanLimits>`${s.plan.limits} || coalesce(${s.accountOverride.limits}, '{}'::jsonb)`,
-        // (plan ∪ added) − removed, as app_account() and contracts' effectiveFeatures compute it.
-        features: sql<string[]>`ARRAY(
-          SELECT DISTINCT flag FROM unnest(${s.plan.features} || coalesce(${s.accountOverride.features}, '{}'::text[])) AS flag
-          WHERE flag <> ALL (coalesce(${s.accountOverride.removedFeatures}, '{}'::text[]))
-          ORDER BY 1)`,
+        // (plan ∪ added) − removed, by the same SQL function as app_account() (contracts' effectiveFeatures).
+        features: sql<
+          string[]
+        >`canopy_effective_features(${s.plan.features}, ${s.accountOverride.features}, ${s.accountOverride.removedFeatures})`,
       })
       .from(s.firm)
       .innerJoin(s.plan, eq(s.plan.code, s.firm.planCode))

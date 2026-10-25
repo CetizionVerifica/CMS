@@ -274,6 +274,13 @@
       "when": 1792958177688,
       "tag": "0038_iso_staged_values",
       "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1792961364892,
+      "tag": "0039_iso_library_guards",
+      "breakpoints": true
     }
   ]
 }

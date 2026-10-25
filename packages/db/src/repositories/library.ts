@@ -1,7 +1,6 @@
 import { Act, Category, Obligation } from '@canopy/contracts';
 import { and, arrayContains, eq, isNull, or } from 'drizzle-orm';
 import type { TenantTx } from '../database.js';
-import { DbError } from '../errors.js';
 import * as s from '../schema/index.js';
 import { entity, type PageRequest } from './crud.js';
 
@@ -52,26 +51,10 @@ export const categories = {
 };
 
 /**
- * `clause_refs` holds `{ standard, clauseNumber }` objects (ADR M16-0001), while contracts 1.7.0 types
- * `Obligation.clauseRefs` as bare clause numbers, which cannot say which standard a clause belongs to. Until ISO-1
- * reshapes the contract, the column is left out of reads and a non-empty `clauseRefs` is refused on writes; an empty
- * one is the column default and is dropped.
+ * The recurrence rule is checked with the contract `RecurrenceRule` schema on every read and write. `clauseRefs` is
+ * stored as the contract's `{ standard, clauseNumber }` objects (contracts 1.8.0) and always read back, `[]` when none.
  */
-function obligationRow(input: Record<string, unknown>): Record<string, unknown> {
-  const { clauseRefs, ...row } = input;
-  if (Array.isArray(clauseRefs) && clauseRefs.length > 0) {
-    throw new DbError('VALIDATION', 'clauseRefs needs a standard per clause; not stored yet');
-  }
-  return row;
-}
-
-/** The recurrence rule is checked with the contract `RecurrenceRule` schema on every read and write. */
-const obligationEntity = entity<Obligation>({
-  table: s.obligation,
-  schema: Obligation,
-  omit: ['clauseRefs'],
-  toRow: obligationRow,
-});
+const obligationEntity = entity<Obligation>({ table: s.obligation, schema: Obligation });
 export const obligations = {
   get: obligationEntity.get,
   require: obligationEntity.require,
