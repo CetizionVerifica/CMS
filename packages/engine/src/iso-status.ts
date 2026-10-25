@@ -175,7 +175,19 @@ export const ISO_TRANSITIONS: Readonly<Record<IsoMachine, readonly IsoArrow[]>> 
       action: 'RAISE',
       to: 'OPEN',
       guards: [
-        required('description', 'source', 'severity', 'ownerId', 'approverId'),
+        required(
+          'description',
+          'source',
+          'severity',
+          'ownerId',
+          'approverId',
+          'reportedOn',
+          'dueOn',
+        ),
+        {
+          guard: 'DUE_NOT_BEFORE_REPORTED',
+          check: (f) => when(onOrBefore(f, 'reportedOn', 'dueOn'), ['dueOn']),
+        },
         {
           guard: 'AUDIT_SOURCE_FROM_FINDING',
           check: (f) =>

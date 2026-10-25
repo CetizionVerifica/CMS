@@ -81,8 +81,9 @@ statutory scores stay comparable.
     model §1.8). Otherwise it returns the first failed guard with the fields it names, or the next state. `facts` are
     named after the contract fields plus `asOf` and `<what>Count` counts; a missing fact never satisfies a guard, so
     M16 must gather every fact an arrow reads (listed on the table).
-11. **Guard readings where the model is silent** (the mock's picks, kept): ADD_ROOT_CAUSE also needs `rootCauseMethod`
-    and, when a disposition is set, `dispositionAuthorisedById`; PLAN_ACTIONS needs `effectivenessDueOn` today or
+11. **Guard readings** (plan v2.2 and the mock's picks, kept): RAISE refuses a `dueOn` before `reportedOn` (README
+    decision 51 q); ADD_ROOT_CAUSE needs `rootCauseMethod` and, when a disposition is set,
+    `dispositionAuthorisedById`; PLAN_ACTIONS needs `effectivenessDueOn` today or
     later; VERIFY_NOT_EFFECTIVE and REOPEN back to ACTIONS_PLANNED need it after today; VERIFY_EFFECTIVE waits for
     `effectivenessDueOn`, VERIFY_NOT_EFFECTIVE does not; RAISE refuses the same person as owner and approver and an
     audit source unless raised from a finding; document REVIEW needs `nextReviewDueOn` after today; internal REPORT,
@@ -131,6 +132,14 @@ statutory scores stay comparable.
     iso-mock.md`, "Management review figures"). `since` is the last HELD or CLOSED review covering the input's
     standards, else the system's `createdOn`; a `since` after `asOf` is a `RangeError`. COMPLIANCE_EVALUATION scores
     the STATUTE instances due in the window with `computeScore`; MANUAL has no figures.
+
+### The overview's stand-ins
+19. Kept as the mock reads them: the overview's 12-month window is the gate window of rule 4; a certificate is
+    expiring when `expiresOn` falls within [as-of, as-of + 90 days]; an NC is overdue past `dueOn` while not CLOSED or
+    CANCELLED, and its effectiveness check likewise on `effectivenessDueOn` (rules 13 and 14); POLICY accepts 5.2 or a
+    5.2.x sub-clause and OBJECTIVES ignores CANCELLED actions (rule 5). The overview counts are M16's, built on these
+    functions; the engine adds no overview function of its own. The review figures' `since` is the caller's (model
+    §5.4), so M16 rules on that stand-in.
 
 ## Consequences
 - M16 gathers the facts each arrow reads and maps a GUARD answer to 400 VALIDATION (422 REASON_REQUIRED for `reason`)

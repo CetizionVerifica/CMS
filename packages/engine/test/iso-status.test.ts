@@ -166,6 +166,7 @@ const GOOD: Record<string, unknown> = {
   severity: 'MINOR',
   ownerId: 'owner',
   approverId: 'approver',
+  dueOn: '2026-04-30',
   incident: null,
   fromFinding: false,
   containment: 'Press stopped',
@@ -282,6 +283,11 @@ describe('isoTransition: nonconformity guards (model §4.1)', () => {
       guard('REQUIRED', ['description', 'ownerId']),
     );
   });
+  it('RAISE refuses a dueOn before reportedOn (decision 51 q); the same day is allowed', () => {
+    expect(raise({ dueOn: '2026-03-30' })).toEqual(guard('DUE_NOT_BEFORE_REPORTED', ['dueOn']));
+    expect(raise({ dueOn: asOf })).toEqual({ ok: true, to: 'OPEN' });
+    expect(raise({ dueOn: null })).toEqual(guard('REQUIRED', ['dueOn']));
+  });
   it('RAISE by hand refuses audit sources; a finding may raise them', () => {
     expect(raise({ source: 'INTERNAL_AUDIT' })).toEqual(
       guard('AUDIT_SOURCE_FROM_FINDING', ['source']),
@@ -316,6 +322,9 @@ describe('isoTransition: nonconformity guards (model §4.1)', () => {
     expect(rootCause({ containment: null, similarOccurrences: '' })).toEqual(
       guard('REQUIRED', ['containment', 'similarOccurrences']),
     );
+  });
+  it('ADD_ROOT_CAUSE needs rootCauseMethod (plan v2.2)', () => {
+    expect(rootCause({ rootCauseMethod: null })).toEqual(guard('REQUIRED', ['rootCauseMethod']));
   });
   it('ADD_ROOT_CAUSE needs whoever authorised a disposition', () => {
     expect(rootCause({ disposition: 'CONCESSION' })).toEqual(
