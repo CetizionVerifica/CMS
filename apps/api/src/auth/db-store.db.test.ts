@@ -773,7 +773,22 @@ describe.skipIf(!url)('database AccountStore', () => {
       kind: 'CONSULTANCY',
       status: 'ACTIVE',
       trialEndsOn: null,
+      features: [],
     });
+    expect(await store.accountFeatures?.(seeded.firmId)).toEqual([]);
+    // The console's add-on switch writes the override; the next read sees it, with nothing cached.
+    await owner.query(
+      `INSERT INTO platform.account_override (account_id, features) VALUES ($1, '{isoManagement}')`,
+      [seeded.firmId],
+    );
+    expect(await store.accountFeatures?.(seeded.firmId)).toEqual(['isoManagement']);
+    const withIso = await app.inject({ url: '/api/v1/me', headers: sessionHeaders(res) });
+    expect(Me.parse(withIso.json()).account?.features).toEqual(['isoManagement']);
+    await owner.query(`DELETE FROM platform.account_override WHERE account_id = $1`, [
+      seeded.firmId,
+    ]);
+    expect(await store.accountFeatures?.(seeded.firmId)).toEqual([]);
+    expect(await store.accountFeatures?.(randomUUID())).toEqual([]);
     const client = await owner.connect();
     try {
       await client.query('BEGIN');

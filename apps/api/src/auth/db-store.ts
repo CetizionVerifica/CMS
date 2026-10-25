@@ -213,6 +213,17 @@ export function createDbAccountStore(db: Database, options: DbAccountStoreOption
       });
     },
 
+    // On every add-on request; M3's account read also counts usage, which a features-only read could skip.
+    async accountFeatures(firmId: string) {
+      return asFirm(firmId, LOOKUP_REQUEST, (tx) => accounts.get(tx)).then(
+        (view) => view.entitlements.features,
+        (error: unknown) => {
+          if (error instanceof DbError && error.code === 'NOT_FOUND') return [];
+          throw error;
+        },
+      );
+    },
+
     async libraryCopied(firmId: string) {
       return asFirm(firmId, LOOKUP_REQUEST, (tx) => accounts.libraryCopied(tx));
     },

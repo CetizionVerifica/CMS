@@ -180,6 +180,10 @@ export class InMemoryAuthStore implements AccountStore {
     return this.accounts.get(firmId) ?? accountView(firmId);
   }
 
+  async accountFeatures(firmId: string): Promise<readonly string[]> {
+    return (await this.account(firmId))?.entitlements.features ?? [];
+  }
+
   async libraryCopied(firmId: string): Promise<boolean> {
     return !this.libraryPending.has(firmId);
   }

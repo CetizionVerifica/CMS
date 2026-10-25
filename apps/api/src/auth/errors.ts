@@ -1,12 +1,6 @@
 import { ERROR_HTTP_STATUS, type ErrorCode, type ErrorEnvelope } from '@canopy/contracts';
 
-/**
- * Codes a newer contract adds, given their message here first so the contract PR's every-code test passes when it
- * merges main (contracts 1.7.0, the ISO add-on). Drop this once M5 is on 1.7.0.
- */
-type PendingErrorCode = 'FEATURE_NOT_ENABLED';
-
-const DEFAULT_MESSAGES: Partial<Record<ErrorCode | PendingErrorCode, string>> = {
+const DEFAULT_MESSAGES: Partial<Record<ErrorCode, string>> = {
   VALIDATION: 'The request is not valid.',
   UNAUTHENTICATED: 'Sign in to continue.',
   MFA_REQUIRED: 'Two-step verification is required.',
