@@ -12,8 +12,11 @@ Tenancy and people
 
 Library
 
-- `act` (name, short name, jurisdiction `CENTRAL | STATE`, state code, `aliases text[]`)
-- `obligation` (`external_ref` e.g. "TAX-CL-033-6067-60218", `domain`, `jurisdiction`, title, description, `category_id`, `criticality`, `timeline_type`, `recurrence_rule jsonb` validated by the engine schema, `applicability_text`, `forms jsonb`, `log_sheets jsonb`, `evidence_required`, `rule_status`, `library_version`)
+- `act` (name, short name, jurisdiction `CENTRAL | STATE`, state code, `aliases text[]`, `kind` `STATUTE | STANDARD`;
+  a STANDARD act is CENTRAL, ADR M16-0001)
+- `obligation` (`external_ref` e.g. "TAX-CL-033-6067-60218", `domain`, `jurisdiction`, title, description, `category_id`, `criticality`, `timeline_type`, `recurrence_rule jsonb` validated by the engine schema, `applicability_text`, `forms jsonb`, `log_sheets jsonb`, `evidence_required`, `rule_status`, `library_version`,
+  `clause_refs jsonb` of `{ standard, clauseNumber }` objects, never bare numbers; left out of reads until the contract
+  carries the standard)
 - `category` (name, `aliases text[]`)
 
 Work
@@ -38,7 +41,9 @@ Accounts and the operator (M15)
   month; `AccountProfile` in contracts). The app role may update only `name`, `settings` and `version`.
 - `support_grant` (PlanetPulse support access an account admin grants; tenant table). `person.support` marks the
   support person, who is never a sign-in candidate; `auth_session` and `auth_token` carry `support_grant_id`.
-- Schema `platform` (no `firm_id`, no RLS, no access for `canopy_app`): `plan`, `account_override`, `operator`,
+- Schema `platform` (no `firm_id`, no RLS, no access for `canopy_app`): `plan`, `account_override` (features added
+  and `removed_features`; effective features are (plan ∪ added) − removed in `app_account()` and
+  `platformAccounts.entitlements` alike), `operator`,
   `operator_credential`, `operator_session`, `subscription`, `usage_snapshot`, `operator_audit_event` (append-only for
   every role). ADR M15-0001, M3-0002.
 

@@ -373,7 +373,12 @@ export const plans = {
 };
 
 const overrideOf = (r: typeof s.accountOverride.$inferSelect): AccountOverride =>
-  validate(AccountOverride, { limits: r.limits, features: r.features, note: r.note });
+  validate(AccountOverride, {
+    limits: r.limits,
+    features: r.features,
+    removedFeatures: r.removedFeatures,
+    note: r.note,
+  });
 
 export const accountOverrides = {
   /** The account's override, or null when it has none (the plan applies as is). */
@@ -397,7 +402,13 @@ export const accountOverrides = {
     const id = validate(Id, accountId);
     const o = validate(AccountOverride, override);
     const before = await accountOverrides.get(tx, id);
-    const values = { limits: o.limits, features: o.features, note: o.note };
+    // A missing removedFeatures removes nothing, so a put without it turns every plan feature back on.
+    const values = {
+      limits: o.limits,
+      features: o.features,
+      removedFeatures: o.removedFeatures ?? [],
+      note: o.note,
+    };
     const [row] = await tx
       .insert(s.accountOverride)
       .values({ accountId: id, ...values })

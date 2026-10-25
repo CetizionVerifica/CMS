@@ -1,6 +1,7 @@
 import {
   AccountKind,
   AccountStatus,
+  ActKind,
   Applicability,
   AuditAction,
   AuditActorKind,
@@ -47,6 +48,7 @@ export const criticalityEnum = pgEnum('criticality', values(Criticality.options)
 export const timelineTypeEnum = pgEnum('timeline_type', values(TimelineType.options));
 export const obligationDomainEnum = pgEnum('obligation_domain', values(ObligationDomain.options));
 export const jurisdictionEnum = pgEnum('jurisdiction', values(Jurisdiction.options));
+export const actKindEnum = pgEnum('act_kind', values(ActKind.options));
 export const applicabilityEnum = pgEnum('applicability', values(Applicability.options));
 export const workflowStateEnum = pgEnum('workflow_state', values(WorkflowState.options));
 export const submissionKindEnum = pgEnum('submission_kind', values(SubmissionKind.options));

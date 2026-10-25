@@ -288,7 +288,12 @@ describe('plans and overrides', () => {
       r.accountOverrides.put(tx, a.firmId, { limits: { users: 45 }, features: [], note: null }),
     );
     expect(second.before).toEqual(first.after);
-    expect(second.after).toEqual({ limits: { users: 45 }, features: [], note: null });
+    expect(second.after).toEqual({
+      limits: { users: 45 },
+      features: [],
+      removedFeatures: [],
+      note: null,
+    });
     const entitlements = await asOperator((tx) => r.platformAccounts.entitlements(tx, a.firmId));
     expect(entitlements.limits.users).toBe(45);
     const { rows } = await t.ownerQuery<{ version: number }>(
