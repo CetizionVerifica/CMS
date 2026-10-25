@@ -101,11 +101,70 @@ describe('shell model', () => {
     ]);
     // The account page is for account admins only.
     expect(labels(navSections(['CONSULTANT']))).toEqual([['Firm', ['Portfolio', 'Library']]]);
+    // No account features: the ISO group stays out.
+    expect(labels(navSections(['VIEWER'], 'c1'))).toEqual([
+      ['', ['Overview', 'Register', 'Calendar', 'Evidence']],
+      ['Reporting', ['Reports', 'Audit trail']],
+      ['Firm', ['Library']],
+    ]);
     expect(navSections(['OWNER'], 'c1')[0]!.items[1]).toEqual({
       path: 'register',
       label: 'Register',
       href: '/c/c1/register',
     });
+  });
+
+  it('shows the ISO group only to an account with the ISO add-on, and only on a client', () => {
+    const iso = [
+      'ISO overview',
+      'Checklist',
+      'Documents',
+      'Risks',
+      'Objectives',
+      'Audits',
+      'Nonconformities',
+      'Management reviews',
+      'Certification',
+    ];
+    for (const role of [
+      'FIRM_ADMIN',
+      'CONSULTANT',
+      'CLIENT_ADMIN',
+      'APPROVER',
+      'OWNER',
+      'VIEWER',
+    ] as const) {
+      const on = navSections([role], 'c1', { features: ['isoManagement'] });
+      expect(labels(on)).toContainEqual(['ISO', iso]);
+      expect(labels(on).at(-1)?.[0]).toBe('Firm');
+      const off = navSections([role], 'c1', { features: ['somethingElse'] });
+      expect(off.some((s) => s.label === 'ISO')).toBe(false);
+    }
+    expect(
+      navSections(['OWNER'], 'c1', { features: ['isoManagement'] }).find((s) => s.label === 'ISO')!
+        .items[5],
+    ).toEqual({ path: 'iso/audits', label: 'Audits', href: '/c/c1/iso/audits' });
+    expect(labels(navSections(['CONSULTANT'], undefined, { features: ['isoManagement'] }))).toEqual(
+      [['Firm', ['Portfolio', 'Library']]],
+    );
+  });
+
+  it('reads the account’s features from Me, and a missing account or list as none', async () => {
+    expect(buildShellModel(await meFor('consultant@demo.test')).features).toEqual([
+      'isoManagement',
+    ]);
+    // The demo company account is the one without the add-on.
+    const company = await meFor('company@demo.test');
+    expect(buildShellModel(company).features).toEqual([]);
+    const withoutList = AccountSummary.parse({
+      kind: 'CONSULTANCY',
+      status: 'ACTIVE',
+      trialEndsOn: null,
+    });
+    expect(buildShellModel({ ...company, account: withoutList }).features).toEqual([]);
+    const noAccount: Me = { ...company };
+    delete noAccount.account;
+    expect(buildShellModel(noAccount).features).toEqual([]);
   });
 
   it('words nothing for an active account, and puts a support visit before a closing account or a trial', async () => {

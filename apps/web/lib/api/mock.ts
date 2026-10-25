@@ -3,6 +3,7 @@
 // uses, so the client code is identical either way, and hands every other route to M0's mock server
 // (mock-delegate.ts). People are pseudonyms (fixtures.md §5); nothing here is real data.
 import {
+  DEFAULT_ACCOUNT,
   DEFAULT_CLIENT_SETTINGS,
   type AccountSummary,
   DerivedStatus,
@@ -118,6 +119,17 @@ type MockUser = {
   clientIds?: string[];
 };
 
+/**
+ * The demo consultancy's account, with the ISO add-on on so its screens can be tried. The company admin's account
+ * (MOCK_COMPANY_EMAIL) has no add-ons, so the shell's "not turned on" state can be tried too.
+ */
+const DEMO_ACCOUNT: AccountSummary = {
+  kind: DEFAULT_ACCOUNT.kind,
+  status: DEFAULT_ACCOUNT.status,
+  trialEndsOn: DEFAULT_ACCOUNT.trialEndsOn,
+  features: ['isoManagement'],
+};
+
 function user(
   n: number,
   name: string,
@@ -127,6 +139,7 @@ function user(
 ): MockUser {
   const id = uid(0x200 + n);
   return {
+    account: DEMO_ACCOUNT,
     ...other,
     person: {
       ...base,
@@ -160,7 +173,12 @@ export const MOCK_USERS: MockUser[] = [
   user(6, 'Consultant 03', MOCK_UNENROLLED_EMAIL, [['CONSULTANT', null]]),
   user(7, 'Viewer 01', 'viewer@demo.test', [['VIEWER', MOCK_CLIENTS.demoMetals]]),
   user(8, 'Company Admin 01', MOCK_COMPANY_EMAIL, [['FIRM_ADMIN', null]], {
-    account: { kind: 'ENTERPRISE', status: 'TRIAL', trialEndsOn: LocalDate.parse('2025-01-31') },
+    account: {
+      kind: 'ENTERPRISE',
+      status: 'TRIAL',
+      trialEndsOn: LocalDate.parse('2025-01-31'),
+      features: [],
+    },
     clientIds: [MOCK_CLIENTS.demoMetals],
   }),
 ];
