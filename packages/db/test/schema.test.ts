@@ -79,15 +79,19 @@ describe('schema', () => {
   });
 
   // Values the database stores ahead of the contracts bump that lists them (contracts 1.5.1, then the account
-  // export's bump, then the trial-ending email's, then the renewal and MFA notices').
+  // export's bump, then the trial-ending email's, then the renewal and MFA notices', then the ISO add-on's ISO-1b).
   it.each([
-    [schema.entityTypeEnum, contracts.EntityType, ['account']],
+    [schema.entityTypeEnum, contracts.EntityType, ['account', ...contracts.ISO_ENTITY_TYPES]],
     [schema.auditActorKindEnum, contracts.AuditActorKind, ['OPERATOR']],
-    [schema.exportKindEnum, contracts.ExportKind, ['CLIENT_ARCHIVE_ZIP']],
+    [
+      schema.exportKindEnum,
+      contracts.ExportKind,
+      ['CLIENT_ARCHIVE_ZIP', ...contracts.ISO_EXPORT_KINDS],
+    ],
     [
       schema.notificationKindEnum,
       contracts.NotificationKind,
-      ['TRIAL_ENDING', 'RENEWAL_DUE', 'MFA_ENROLLED'],
+      ['TRIAL_ENDING', 'RENEWAL_DUE', 'MFA_ENROLLED', ...contracts.ISO_NOTIFICATION_KINDS],
     ],
   ] as const)('enum %# matches the contract plus its staged values', (pgEnum, zodEnum, ahead) => {
     expect(pgEnum.enumValues).toEqual([...new Set([...zodEnum.options, ...ahead])]);

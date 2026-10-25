@@ -13,6 +13,9 @@ import {
   ImportBatchStatus,
   ImportIssueType,
   ImportRowOutcome,
+  ISO_ENTITY_TYPES,
+  ISO_EXPORT_KINDS,
+  ISO_NOTIFICATION_KINDS,
   IssueDecision,
   IssueSeverity,
   JobStatus,
@@ -62,9 +65,11 @@ export const auditActorKindEnum = pgEnum(
   'audit_actor_kind',
   values([...new Set([...AuditActorKind.options, 'OPERATOR'] as const)]),
 );
+// The ISO add-on's entity types, reminder kinds and export kinds (docs/iso/model.md §7-9) are staged the same way:
+// the database stores them (migration 0038) before contracts 1.8.0's ISO_* constants join their enums (ISO-1b).
 export const entityTypeEnum = pgEnum(
   'entity_type',
-  values([...new Set([...EntityType.options, 'account'] as const)]),
+  values([...new Set([...EntityType.options, 'account', ...ISO_ENTITY_TYPES] as const)]),
 );
 export const importBatchStatusEnum = pgEnum(
   'import_batch_status',
@@ -90,6 +95,7 @@ export const notificationKindEnum = pgEnum(
       'TRIAL_ENDING',
       'RENEWAL_DUE',
       'MFA_ENROLLED',
+      ...ISO_NOTIFICATION_KINDS,
     ] as const),
   ]),
 );
@@ -97,7 +103,7 @@ export const notificationKindEnum = pgEnum(
 // M15-0001 decision 4) arrives in the database before the contracts list it, as OPERATOR did above.
 export const exportKindEnum = pgEnum(
   'export_kind',
-  values([...new Set([...ExportKind.options, 'CLIENT_ARCHIVE_ZIP'] as const)]),
+  values([...new Set([...ExportKind.options, 'CLIENT_ARCHIVE_ZIP', ...ISO_EXPORT_KINDS] as const)]),
 );
 export const jobStatusEnum = pgEnum('job_status', values(JobStatus.options));
 

@@ -34,7 +34,7 @@ export {
   NotificationSend,
   SendFailureCode,
 } from './ops.js';
-export type { ClaimResult, OutboxEvent } from './ops.js';
+export type { ClaimResult, IsoSendKey, OutboxEvent } from './ops.js';
 export { jobs } from './jobs.js';
 export type {
   ClientRef,

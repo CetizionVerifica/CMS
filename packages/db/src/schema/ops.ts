@@ -20,7 +20,7 @@ import {
   instant,
   optionalClientPolicy,
 } from './columns.js';
-import { exportKindEnum, jobStatusEnum, notificationKindEnum } from './enums.js';
+import { entityTypeEnum, exportKindEnum, jobStatusEnum, notificationKindEnum } from './enums.js';
 import { client, person } from './tenancy.js';
 import { complianceInstance } from './work.js';
 
@@ -99,7 +99,8 @@ export const exportJob = pgTable(
 
 /**
  * One row per notification sent, so reminders are never sent twice: unique per instance, kind and send date,
- * and for digests (no instance) per recipient, kind and send date.
+ * per ISO subject, kind and send date (docs/iso/model.md §7), and for digests (neither) per recipient, kind and send
+ * date.
  */
 export const notificationSend = pgTable(
   'notification_send',
@@ -114,6 +115,12 @@ export const notificationSend = pgTable(
     sendDate: date('send_date', { mode: 'string' }).notNull(),
     /** The domain event an event-driven send answers (e.g. a send-back); null for scheduled sends. */
     eventId: uuid('event_id'),
+    /**
+     * The ISO record a scheduled ISO reminder is about (an ISO entity type and its id), never with an instance. No
+     * foreign key: the subject lives in one of several ISO tables.
+     */
+    isoSubjectType: entityTypeEnum('iso_subject_type'),
+    isoSubjectId: uuid('iso_subject_id'),
     sentAt: instant('sent_at'),
     failureCode: text('failure_code'),
     createdAt: instant('created_at').notNull().defaultNow(),
@@ -143,9 +150,13 @@ export const notificationSend = pgTable(
     uniqueIndex('notification_send_instance_key')
       .on(t.instanceId, t.kind, t.sendDate, t.recipientId)
       .where(sql`instance_id is not null and event_id is null`),
+    // Two ISO records due the same day for one person are two sends (docs/iso/model.md §7).
+    uniqueIndex('notification_send_iso_subject_key')
+      .on(t.firmId, t.isoSubjectType, t.isoSubjectId, t.kind, t.sendDate, t.recipientId)
+      .where(sql`iso_subject_id is not null and event_id is null`),
     uniqueIndex('notification_send_digest_key')
       .on(t.recipientId, t.kind, t.sendDate)
-      .where(sql`instance_id is null and event_id is null`),
+      .where(sql`instance_id is null and event_id is null and iso_subject_id is null`),
     uniqueIndex('notification_send_event_key')
       .on(t.firmId, t.eventId, t.recipientId)
       .where(sql`event_id is not null`),
@@ -156,6 +167,13 @@ export const notificationSend = pgTable(
     check(
       'notification_send_client_check',
       sql`client_id is not null or (instance_id is null and (event_id is not null or kind::text in ('TRIAL_ENDING', 'RENEWAL_DUE')))`,
+    ),
+    // An ISO reminder (an ISO_ kind) names its subject, type and id, and is a scheduled send of one client with no
+    // instance; every other send names no ISO subject. Kinds are compared as text, as above, so 0038's new enum
+    // values and this check apply in one run.
+    check(
+      'notification_send_iso_subject_check',
+      sql`(iso_subject_type is null) = (iso_subject_id is null) and (iso_subject_id is not null) = starts_with(kind::text, 'ISO_') and (iso_subject_id is null or (instance_id is null and event_id is null and client_id is not null))`,
     ),
     // A null client is visible to firm-wide contexts only (app_can_see_client), so client roles never
     // read or write these rows.

@@ -26,7 +26,7 @@ Work
 - `evidence` (instance, storage key, file name, size, mime, sha256, scan status, uploaded by), `comment` (instance, author, body)
 - `audit_event` (append-only: actor, action, entity, entity id, before jsonb, after jsonb, at, request id)
 - `import_batch`, `import_row` (raw row jsonb, mapped jsonb, outcome), `import_issue` (per row/field issue and resolution) and `mapping_template` (saved column mappings per client) for traceable imports
-- `domain_event` (transactional outbox for the event catalogue), `export_job` (Excel/PDF exports), `notification_send` (send log: scheduled sends unique per instance, kind, send date and recipient; event-driven sends, with `event_id`, unique per event and recipient; only these may have a null `client_id`, seen by firm-wide contexts only)
+- `domain_event` (transactional outbox for the event catalogue), `export_job` (Excel/PDF exports), `notification_send` (send log: scheduled sends unique per instance, kind, send date and recipient; ISO reminders, with `iso_subject_type` and `iso_subject_id` and never an instance, unique per subject, kind, send date and recipient; event-driven sends, with `event_id`, unique per event and recipient; only these and account sends may have a null `client_id`, seen by firm-wide contexts only)
 - `idempotency_key` (M7's Idempotency-Key replay: the first response per person and key, until `expires_at`)
 
 Sign-in (M5)
@@ -107,7 +107,8 @@ Decisions and their reasons: `docs/adr/0003-m3-tenant-isolation-in-postgres.md`.
 - Scheduled jobs (M9): `db.listFirmIds()` returns firm ids only (a SECURITY DEFINER function that any app-role
   transaction could call; only jobs use it);
   each firm then runs in `withTenant(systemContext(firmId, ...))` with the `jobs` read models and
-  `notificationSends` (`claim` returns NEW, PENDING or DONE).
+  `notificationSends` (`claim` returns NEW, PENDING or DONE; `listDone` lists instance and digest sends, `listDoneIso`
+  ISO reminders with their subject).
 - In a single-table select, Drizzle leaves columns unqualified, so a correlated subquery inside `sql` binds them to
   the inner table. Use a join or two queries instead.
 - Imports (M8): `importBatches.create` takes an optional `id` (a UUIDv7 from `uuidv7()`, exported here) so an upload
