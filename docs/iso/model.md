@@ -440,6 +440,28 @@ reason (§1.9). The review's PATCH (attendees, minutes) is `isoReview.write`, wh
 | REQUESTED | REJECT_NA | the same | reason | REJECTED (`status` = `statusBeforeNa`) |
 | APPROVED | WITHDRAW_NA | row owner, client admin | reason | NONE (`status` NOT_STARTED) |
 
+### 4.7 Words for states and codes
+
+The ISO screens (M17) and the audit trail page (M13) show a state, or any other value of a contracts ISO enum, in the
+same plain words and never as the code. The words are the code in sentence case with a space for each underscore:
+`ROOT_CAUSE_FOUND` reads "Root cause found", `IN_REVIEW` "In review", `STAGE_1` "Stage 1". The exceptions:
+
+| Values | Words |
+|---|---|
+| `IsoStandardCode` ISO_9001, ISO_14001, ISO_45001 | the standard's `IsoStandard.title`: "ISO 9001", "ISO 14001", "ISO 45001" |
+| `ClauseNaState` NONE, REQUESTED, APPROVED, REJECTED | "No request", "Not applicable requested", "Not applicable approved", "Not applicable refused" |
+| `FindingType` MAJOR_NC, MINOR_NC, OFI | "Major nonconformity", "Minor nonconformity", "Opportunity for improvement" |
+| `ControlHierarchy` PPE | "PPE" |
+| `IsoActionSubjectType` NONCONFORMITY, RISK_ITEM, OBJECTIVE, AUDIT_FINDING, MANAGEMENT_REVIEW | the action's name by its subject (§3.12): "Corrective action", "Treatment action", "Objective plan", "Improvement action", "Review action" |
+| `ReviewInputKey`, `ReviewOutputKey` | the title of the account's review definition (catalogue §5), not words made from the key |
+
+An exception holds for its own enum only: the same code in another enum (APPROVED in `RevisionState`, NONE in
+`IncidentOutcome`) follows the rule, so each map is keyed by enum, not by bare value. Each module keeps its own maps,
+since neither imports the other's code, and tests each one against every value of its contracts enum, so a value
+added later fails a test until it has words. Two kinds of code are not covered here: step names (`NcAction` and the
+other `*Action` enums), verbs that each page words for its buttons and summaries; and entity types (`IsoEntityType`,
+`IsoFileSubjectType`), which keep the audit page's record words (§8, ISO-12a).
+
 ## 5. Engine (M4, pure, explicit dates)
 
 ISO functions go behind a separate `IsoEngineApi` interface in contracts (ISO-1), so adding them never breaks the
