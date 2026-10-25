@@ -1490,31 +1490,106 @@ describe('ISO library columns (ADR M16-0001)', () => {
     ).rejects.toMatchObject({ code: '23514' });
   });
 
-  it('keeps clause references out of obligations until the contract carries their standard', async () => {
-    await inA(async (tx) => {
+  it('reads and writes clause references in the contract shape', async () => {
+    const stored = await inA(async (tx) => {
       const obligation = await r.obligations.require(tx, world.obligationId);
-      expect(obligation).not.toHaveProperty('clauseRefs');
-      // Until the repository maps clause references (ISO-2b), a non-empty clauseRefs is refused, not stored. The cast
-      // keeps this compiling on contracts 1.7.0 (bare numbers) and 1.8.0 ({ standard, clauseNumber } objects).
-      expect(
-        await code(
-          r.obligations.update(tx, obligation.id, obligation.version, {
-            clauseRefs: [{ standard: 'ISO_9001', clauseNumber: '7.1.5' }],
-          } as never),
-        ),
-      ).toBe('VALIDATION');
-      expect(await code(r.obligations.query(tx, { where: { clauseRefs: [] } }))).toBe('VALIDATION');
-      const same = await r.obligations.update(tx, obligation.id, obligation.version, {
-        clauseRefs: [],
-        title: 'Deposit TDS by the 7th',
+      // Stored as [] by default, and always read back.
+      expect(obligation.clauseRefs).toEqual([]);
+      const refs = [
+        { standard: 'ISO_9001' as const, clauseNumber: '7.1.5' },
+        { standard: 'ISO_14001' as const, clauseNumber: '9.1.1' },
+      ];
+      const updated = await r.obligations.update(tx, obligation.id, obligation.version, {
+        clauseRefs: refs,
       });
-      expect(same.title).toBe('Deposit TDS by the 7th');
+      expect(updated.clauseRefs).toEqual(refs);
+      expect((await r.obligations.require(tx, obligation.id)).clauseRefs).toEqual(refs);
+      return updated;
+    });
+    // A repeated pair is refused (the table's check backs the contract's rule).
+    expect(
+      await code(
+        inA((tx) =>
+          r.obligations.update(tx, stored.id, stored.version, {
+            clauseRefs: [stored.clauseRefs![0]!, stored.clauseRefs![0]!],
+          }),
+        ),
+      ),
+    ).toBe('VALIDATION');
+    await inA(async (tx) => {
+      const updated = stored;
+      const cleared = await r.obligations.update(tx, updated.id, updated.version, {
+        clauseRefs: [],
+      });
+      expect(cleared.clauseRefs).toEqual([]);
     });
     const { rows } = await t.ownerQuery<{ clause_refs: unknown }>(
       'SELECT clause_refs FROM obligation WHERE id = $1',
       [world.obligationId],
     );
     expect(rows).toEqual([{ clause_refs: [] }]);
+  });
+
+  it('lets only the system job create a STANDARD act, and never changes an act’s kind', async () => {
+    const consultant: TenantContext = {
+      firmId: firmA,
+      personId: world.approverId,
+      clientIds: [world.clientId],
+      firmStaff: true,
+      requestId: 'repo-test',
+    };
+    const firmAdmin: TenantContext = { ...consultant, clientIds: 'ALL' };
+    const named = { ...standardAct, name: 'Environmental management systems (ISO 14001)' };
+    for (const ctx of [consultant, firmAdmin]) {
+      expect(
+        await code(t.db.withTenant(ctx, (tx) => r.acts.create(tx, { ...named, kind: 'STANDARD' }))),
+      ).toBe('FORBIDDEN');
+      // A STATUTE act is staff work as before, with or without the kind.
+      const statute = await t.db.withTenant(ctx, (tx) =>
+        r.acts.create(tx, {
+          ...named,
+          name: `A firm statute (${ctx.clientIds === 'ALL' ? 1 : 2})`,
+        }),
+      );
+      expect(statute.kind).toBe('STATUTE');
+    }
+    // The system job may, and a STATUTE act may share the STANDARD act's name; two of one kind may not.
+    const standard = await inA((tx) => r.acts.create(tx, { ...named, kind: 'STANDARD' }));
+    const statute = await inA((tx) => r.acts.create(tx, { ...named, kind: 'STATUTE' }));
+    expect([standard.kind, statute.kind]).toEqual(['STANDARD', 'STATUTE']);
+    expect(await code(inA((tx) => r.acts.create(tx, { ...named, kind: 'STANDARD' })))).toBe(
+      'DUPLICATE',
+    );
+    expect(await code(inA((tx) => r.acts.create(tx, named)))).toBe('DUPLICATE');
+    // Archived, the name is free again within its kind.
+    await inA((tx) => r.acts.archive(tx, statute.id, statute.version));
+    await inA((tx) => r.acts.create(tx, named));
+
+    // No context changes the kind, either way: not the system job, not firm staff, not the table owner.
+    for (const [ctx, act, kind] of [
+      [ctxA(), standard, 'STATUTE'],
+      [firmAdmin, standard, 'STATUTE'],
+      [ctxA(), await inA((tx) => r.acts.require(tx, world.actId)), 'STANDARD'],
+    ] as const) {
+      expect(
+        await code(
+          t.db.withTenant(ctx, (tx) => r.acts.update(tx, act.id, act.version, { kind } as never)),
+        ),
+      ).toBe('VALIDATION');
+    }
+    await expect(
+      t.ownerQuery(`UPDATE act SET kind = 'STATUTE' WHERE id = $1`, [standard.id]),
+    ).rejects.toMatchObject({ code: '23514' });
+    // Setting the same kind again is not a change.
+    const same = await inA((tx) =>
+      r.acts.update(tx, standard.id, standard.version, {
+        kind: 'STANDARD',
+        shortName: 'ISO 14001',
+      }),
+    );
+    expect(same).toMatchObject({ kind: 'STANDARD', shortName: 'ISO 14001' });
+    // Firm B cannot see firm A's STANDARD act.
+    expect(await inB((tx) => r.acts.get(tx, standard.id))).toBeNull();
   });
 
   it('stores clause references only as { standard, clauseNumber } objects', async () => {

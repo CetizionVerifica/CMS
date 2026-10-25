@@ -13,10 +13,11 @@ Tenancy and people
 Library
 
 - `act` (name, short name, jurisdiction `CENTRAL | STATE`, state code, `aliases text[]`, `kind` `STATUTE | STANDARD`;
-  a STANDARD act is CENTRAL, ADR M16-0001)
+  a STANDARD act is CENTRAL, ADR M16-0001; the name is unique per firm and kind among non-archived acts; only the
+  system job inserts a STANDARD act, and a trigger refuses any change of kind, whatever the role)
 - `obligation` (`external_ref` e.g. "TAX-CL-033-6067-60218", `domain`, `jurisdiction`, title, description, `category_id`, `criticality`, `timeline_type`, `recurrence_rule jsonb` validated by the engine schema, `applicability_text`, `forms jsonb`, `log_sheets jsonb`, `evidence_required`, `rule_status`, `library_version`,
-  `clause_refs jsonb` of `{ standard, clauseNumber }` objects, never bare numbers; left out of reads until the contract
-  carries the standard)
+  `clause_refs jsonb` of `{ standard, clauseNumber }` objects, never bare numbers, read and written as the contract's
+  `clauseRefs`)
 - `category` (name, `aliases text[]`)
 
 Work
@@ -37,13 +38,14 @@ Sign-in (M5)
 Accounts and the operator (M15)
 
 - `firm` is also the customer account: `kind`, `status`, `plan_code`, `trial_ends_on`, `onboarded_at`,
-  `deletion_requested_at`, `status_before_deletion`, and `profile jsonb` (legal name, GSTIN, time zone, FY start
+  `deletion_requested_at`, `status_before_deletion`, `iso_catalogue_copied_at` (set once by
+  `app_mark_iso_catalogue_copied()`, docs/iso/plan.md §4.3), and `profile jsonb` (legal name, GSTIN, time zone, FY start
   month; `AccountProfile` in contracts). The app role may update only `name`, `settings` and `version`.
 - `support_grant` (PlanetPulse support access an account admin grants; tenant table). `person.support` marks the
   support person, who is never a sign-in candidate; `auth_session` and `auth_token` carry `support_grant_id`.
 - Schema `platform` (no `firm_id`, no RLS, no access for `canopy_app`): `plan`, `account_override` (features added
-  and `removed_features`; effective features are (plan ∪ added) − removed in `app_account()` and
-  `platformAccounts.entitlements` alike), `operator`,
+  and `removed_features`; effective features are (plan ∪ added) − removed, computed only by
+  `canopy_effective_features()`, which `app_account()` and `platformAccounts.entitlements` both call), `operator`,
   `operator_credential`, `operator_session`, `subscription`, `usage_snapshot`, `operator_audit_event` (append-only for
   every role). ADR M15-0001, M3-0002.
 
@@ -90,7 +92,8 @@ Decisions and their reasons: `docs/adr/0003-m3-tenant-isolation-in-postgres.md`.
   `canopy_operator` only (refused if it can become `canopy_app`). `withOperator(requestId, (tx) => ...)` runs as `canopy_operator` with no tenant;
   repositories `platformAccounts` and `platformSupport` take that `OperatorTx`. Every write inside a tenant is a
   `platform_*` function owned by `canopy_platform`, with no exception: the master library copy runs app-side from
-  `account.created`. The app side reads its own account with `account.get` / `account.usage` and
+  `account.created`. The app side reads its own account with `account.get` / `account.usage` (`account.features` and
+  `account.isoCatalogueCopiedAt` for the ISO add-on; M6's ISO copy marks with `accountJobs.markIsoCatalogueCopied`) and
   manages `supportGrants`.
 - Repositories (`src/repositories`, exported from `@canopy/db`): one object per aggregate (`clients`, `units`, `people`,
   `memberships`, `obligations`, `assignments`, `instances`, `evidence`, `comments`, `auditEvents`, `importBatches`,
