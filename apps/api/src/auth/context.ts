@@ -49,6 +49,11 @@ export interface AuthStore {
   loadPrincipal(firmId: string, personId: string): Promise<Principal | null>;
   /** The client's time zone setting, or null when the client is unknown. */
   clientTimeZone(firmId: string, clientId: string): Promise<string | null>;
+  /**
+   * The account's features (`Entitlements.features`: plan ∪ added − removed), read fresh on every call so an operator's
+   * switch takes effect on the next request (ADR M16-0001). A store without it has no features: add-on routes refuse.
+   */
+  accountFeatures?(firmId: string): Promise<readonly string[]>;
 }
 
 /** Memberships that grant access at `now`: not archived and, for viewers, not past `expiresAt`. */

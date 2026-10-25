@@ -655,6 +655,7 @@ export class AuthService {
               kind: account.kind,
               status: account.status,
               trialEndsOn: account.trialEndsOn,
+              features: [...account.entitlements.features],
             },
           }
         : {}),

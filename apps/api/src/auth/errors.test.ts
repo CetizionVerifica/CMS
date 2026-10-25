@@ -27,8 +27,9 @@ describe('ApiError', () => {
   });
 
   it('says when an add-on is not turned on for the account', () => {
-    // FEATURE_NOT_ENABLED arrives with contracts 1.7.0; until then it is not an ErrorCode here.
-    expect(new ApiError('FEATURE_NOT_ENABLED' as ErrorCode).message).toBe(
+    const error = new ApiError('FEATURE_NOT_ENABLED', { feature: 'isoManagement' });
+    expect(error.statusCode).toBe(403);
+    expect(error.message).toBe(
       "This feature isn't turned on for your account. Contact PlanetPulse to add it.",
     );
   });
