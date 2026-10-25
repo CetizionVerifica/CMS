@@ -117,7 +117,8 @@ remind for complied or not-applicable items, and reach the database only through
       the size the upload recorded. A shorter stream is a failed attempt (`TRUNCATED`). INFECTED stands even from
       part of a file.
     - **Deadlines:** each file gets one 5-minute deadline (an `AbortController` passed to the S3 read and the scan).
-      The S3 client also fails a connection that does not open in 10 s or a socket idle for 60 s.
+      The S3 client also fails a connection that does not open in 10 s or storage that has not started answering in
+      60 s (`throwOnRequestTimeout`; without it the SDK only warns). The deadline bounds the transfer itself.
     - **Three kinds of failure** (`ports.ts`):
       - `ScanServiceError`: storage or the scanner cannot be reached, or storage answers 5xx or rejects the
         credentials or bucket. Every file would fail the same way, so the run stops and nothing is counted against the
