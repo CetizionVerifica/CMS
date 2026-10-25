@@ -46,7 +46,10 @@ same name whatever its origin, and creates only what is missing. M8's import mat
 Staff may edit a copied STANDARD obligation's rule, description, criticality, forms and log sheets like any library
 row (the rule lives on the obligation, so a change applies to the whole account), and may add their own activities
 under a STANDARD act. Nobody may change an act's kind, move an obligation between a STATUTE and a STANDARD act, or
-merge acts of different kinds (M6 answers `400 VALIDATION`, ISO-9b).
+merge acts of different kinds (M6 answers `400 VALIDATION`, ISO-9b). Nobody may edit, archive or merge a STANDARD act
+either: its values above are fixed, and the copy finds it by name (`400 VALIDATION`, ISO-9b). `clauseRefs` belong to
+obligations under a STANDARD act: M6 refuses a non-empty list on a STATUTE obligation (`400 VALIDATION`) and on any
+obligation while the add-on is off (`403 FEATURE_NOT_ENABLED`).
 
 ## 3. Recurring activity catalogue (minimum for v1)
 

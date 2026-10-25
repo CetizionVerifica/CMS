@@ -1,12 +1,14 @@
 # ISO management systems add-on: plan (v2)
 
-Status: v2.2, 2026-10-25. Decisions: ADR [M16-0001](../adr/M16-0001-iso-management-systems.md), amended by ADR
+Status: v2.3, 2026-10-25. Decisions: ADR [M16-0001](../adr/M16-0001-iso-management-systems.md), amended by ADR
 [M16-0002](../adr/M16-0002-iso-plan-v2.md). v2 answers the 58 findings of the independent review of v1 (trace at the
 end of [packages.md](packages.md)). v2.1 takes in the departures the ISO contracts (ISO-1, contracts 1.8.0) list in
 `docs/contracts/README.md` decision 51 (a-n), and points the API, engine and screen briefs at the M0 mock's own
 readings in `docs/contracts/iso-mock.md` (trace at the end of [packages.md](packages.md)). v2.2 adds ISO-1a, the M0 patch
 (contracts 1.8.1) that fixes the findings of the ISO-1 audit: one action per route, an NC's severity moved to
-reassignment, and a calendar date for `objectiveProgress`.
+reassignment, and a calendar date for `objectiveProgress`. v2.3 gives ISO states one set of plain words for the
+screens and the audit trail (model §4.7), adds ISO-12d for them, passes notes from the ISO-12a and ISO-2c audits to
+later briefs, and has M6 refuse edits to a STANDARD act and `clauseRefs` outside the add-on (ISO-9b).
 
 Every ISO thread reads, in order: the root `CLAUDE.md`, this file, its own brief in [packages.md](packages.md), the
 parts of [model.md](model.md) and [catalogue.md](catalogue.md) its brief names, then the area `CLAUDE.md` of the paths
@@ -226,8 +228,8 @@ catalogue (catalogue.md §1) into it.
   `account.isoCatalogueCopiedAt(tx)` (ISO-2c), which reads the firm row like `account.libraryCopied`.
 - **Until the copy is recorded** every `/iso` route answers `409 FEATURE_NOT_READY` (ISO-4c's message), ISO screens
   show "ISO management systems is being set up. Try again in a few minutes.", and ISO jobs skip the account. The console
-  shows the copy time and flags an account whose copy is still missing 15 minutes after the feature was turned on
-  (ISO-5b).
+  shows the copy time and flags a TRIAL or ACTIVE account whose copy is still missing 15 minutes after the later of
+  the switch-on and its move into TRIAL or ACTIVE, since the marker sets nothing in other statuses (ISO-5b).
 
 ### 4.4 Turning it off
 
@@ -246,7 +248,10 @@ with their obligations, assignments and instances, the comments, evidence and au
   (`CLIENT_ARCHIVE_ZIP`, the account export one client at a time) always includes ISO data;
 - `act.kind` cannot be used to get round the switch: it is set at insert and a trigger refuses any change, only the
   system-job context may insert a STANDARD act, the library create and update bodies take no `kind`, and M6 refuses
-  merges and obligation moves across kinds (ISO-2c, ISO-9b).
+  merges and obligation moves across kinds (ISO-2c, ISO-9b);
+- M6 also refuses any edit, archive or merge of a STANDARD act, whose values are fixed (catalogue §2), and takes a
+  non-empty `clauseRefs` only on an obligation under a STANDARD act while the add-on is on (ISO-9b). The database
+  allows both to staff (ISO-2c), so the API is where they are refused.
 
 Turning it back on brings everything back as it was. The account purge (ADR M15-0002) removes ISO rows and files like
 any other client data.
@@ -256,7 +261,7 @@ any other client data.
 | Module | Gate when off | Package |
 |---|---|---|
 | M16 | every `/iso` route, files and overview included: 403; `409 FEATURE_NOT_READY` before the copy | ISO-8a-c |
-| M6 | library acts and obligations (list, by id, push, merge) leave out or refuse STANDARD rows; assignments (list, create, bulk, by id) leave out or refuse those on STANDARD obligations | ISO-9b |
+| M6 | library acts and obligations (list, by id, push, merge) leave out or refuse STANDARD rows; assignments (list, create, bulk, by id) leave out or refuse those on STANDARD obligations; an obligation create or update with a non-empty `clauseRefs` is refused | ISO-9b |
 | M7 | instance list, `/me/approvals`, `/me/tasks`, evidence vault leave out STANDARD instances; instance get, patch and transitions, bulk approve (per item), comments, evidence upload, list, download and remove, instance audit answer 403 for a STANDARD instance | ISO-11a |
 | M9 | generate-instances, reminders, escalations, consultant digest, workflow emails skip STANDARD instances; ISO reminders skip the account; the ISO file scan runs whether the add-on is on or off, so files uploaded before a switch-off still reach the client archive | ISO-10b, ISO-10c |
 | M10 | portfolio, overview, breakdowns, calendar, act-wise, department-wise and overdue reports, register export and certificate PDF leave out STANDARD instances; ISO export kinds answer 403 on create and download; the export worker re-checks | ISO-11b, ISO-11d |
@@ -354,7 +359,7 @@ before any package that depends on the change starts.
 ## 6. Packages and waves
 
 Briefs: [packages.md](packages.md). Waves are for orientation; the Needs column decides. Status as of 2026-10-25
-(`origin/main` at #265). ISO-3 and ISO-7b started before ISO-1a was added to their Needs; each merges `main` after
+(`origin/main` at #266). ISO-3 and ISO-7b started before ISO-1a was added to their Needs; each merges `main` after
 ISO-1a has merged and before marking ready.
 
 | Wave | Package | Module | Title | Needs | Status |
@@ -368,14 +373,15 @@ ISO-1a has merged and before marking ready.
 | I2 | ISO-12b | M13 | Show add-ons on the Account page | ISO-0, ISO-7 | merged (#262) |
 | I2 | ISO-1 | M0 | ISO contracts (shapes, endpoints, events, engine API, fixtures, mock) | ISO-0, ISO-4c | merged (#265) |
 | I3 | ISO-1a | M0 | ISO contract fixes from the ISO-1 audit (contracts 1.8.1) | ISO-1 | started |
-| I3 | ISO-2b | M3 | Stage ISO enum values and give the send log an ISO subject | ISO-1, ISO-2a | started |
+| I3 | ISO-2b | M3 | Stage ISO enum values and give the send log an ISO subject | ISO-1, ISO-2a | merged (#272) |
 | I3 | ISO-3 | M4 | ISO engine functions and transition tables | ISO-1, ISO-1a | started |
 | I3 | ISO-7b | M11 | Mock features per demo user for ISO screens | ISO-1, ISO-1a, ISO-7 | started |
-| I3 | ISO-12a | M13 | Audit trail words for ISO entity types | ISO-1, ISO-12b | started |
+| I3 | ISO-12a | M13 | Audit trail words for ISO entity types | ISO-1, ISO-12b | merged (#268) |
 | I3 | ISO-11e | M10 | Default branch in the export builder ahead of new export kinds | ISO-1 | started |
 | I3 | ISO-11c | M12 | Source filter on register, approvals, calendar and evidence screens | ISO-1, ISO-7b | |
 | I3 | ISO-6a | M17 | ISO screens 1: gate, overview, systems, checklist, documents, certification | ISO-1, ISO-7, ISO-7b | |
-| I3 | ISO-2c | M3 | Library guards, clause references and the catalogue marker | ISO-2b | |
+| I3 | ISO-2c | M3 | Library guards, clause references and the catalogue marker | ISO-2b | started |
+| I3 | ISO-12d | M13 | ISO states in words on the audit trail page | ISO-12a | |
 | I3 | ISO-1b | M0 | Join the staged ISO enum values | ISO-1a, ISO-2b, ISO-12a, ISO-11e | |
 | I3 | ISO-16 | M8 | Import matches and creates STATUTE acts only | ISO-2c | |
 | I3 | ISO-5b | M15 | Features-changed event and copy status in the console | ISO-1, ISO-2c, ISO-5 | |
@@ -449,7 +455,9 @@ Modules with ISO packages: M0, M3, M4, M5, M6, M7, M8, M9, M10, M11, M12, M13, M
 10. A person without a live role in the client is refused on every person field; a client-A record cannot reference a
     client-B unit, instance or ISO record (foreign-key test).
 11. A consultant context cannot write catalogue rows, cannot insert a STANDARD act, and no context can change
-    `act.kind`; merges and obligation moves across kinds are refused; import never matches a STANDARD act.
+    `act.kind`; merges and obligation moves across kinds are refused; staff cannot edit, archive or merge a STANDARD
+    act, and cannot set `clauseRefs` on a STATUTE obligation or while the add-on is off; import never matches a
+    STANDARD act.
 12. Every activity in catalogue §3 exists exactly once, under the act catalogue §3 names, and its `clauseRefs` name
     every standard it serves (for example the emergency drill: 14001 8.2 and 45001 8.2; calibration: 9001 7.1.5,
     14001 9.1.1, 45001 9.1.1).
