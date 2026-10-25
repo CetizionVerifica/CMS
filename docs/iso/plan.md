@@ -114,8 +114,8 @@ call it (model §4 preamble).
 | `isoAudit.conduct` | ✓ | ✓ | ✓ | own | own | | START, checklist, findings, REPORT, CLOSE (own = lead or auditor on the audit) |
 | `isoCertification.write` | ✓ | ✓ | ✓ | | | | certificates, external audits and their findings |
 | `isoNc.raise` | ✓ | ✓ | ✓ | ✓ | ✓ | | RAISE, for a unit the actor can see |
-| `isoNc.work` | | | ✓ | | own | | ADD_ROOT_CAUSE, PLAN_ACTIONS, SUBMIT, SUBMIT_NO_ACTION; the NC's PATCH: every field but owner, approver, dates and severity (description, standards, clauses, unit, source instance, incident and investigation fields) |
-| `isoNc.reassign` | ✓ | ✓ | ✓ | | | | the NC's reassign route: owner, approver, `dueOn`, `effectivenessDueOn` and `severity`, with a reason (model §4.1) |
+| `isoNc.work` | | | ✓ | | own | | ADD_ROOT_CAUSE, PLAN_ACTIONS, SUBMIT, SUBMIT_NO_ACTION; the NC's PATCH: every field but owner, approver, dates, severity and incident outcome (description, standards, clauses, unit, source instance, the other incident fields and the investigation fields) |
+| `isoNc.reassign` | ✓ | ✓ | ✓ | | | | the NC's reassign route: owner, approver, `dueOn`, `effectivenessDueOn`, `severity` and incident `outcome`, with a reason (model §3.10, §4.1) |
 | `isoNc.verify` | | | ✓ | own | | | VERIFY_EFFECTIVE, VERIFY_NOT_EFFECTIVE |
 | `isoNc.cancel` | | | ✓ | own | | | CANCEL |
 | `isoNc.reopen` | | | ✓ | | | | REOPEN |
@@ -123,18 +123,20 @@ call it (model §4 preamble).
 | `isoAction.complete` | | | ✓ | | own | | COMPLETE (own = action owner) |
 | `isoAction.cancel` | | | ✓ | own | | | CANCEL (own = approver of the subject) |
 | `isoAction.reopen` | | | ✓ | | | | REOPEN |
-| `isoReview.plan` | ✓ | ✓ | ✓ | | | | PLAN, CANCEL; standards, `plannedOn` and chair while PLANNED, on their own route |
+| `isoReview.plan` | ✓ | ✓ | ✓ | | | | PLAN, CANCEL; the review's replan route: standards, `plannedOn` and chair while PLANNED |
 | `isoReview.write` | ✓ | ✓ | ✓ | own | own | | the review's PATCH (attendees, minutes), inputs, RECORD_HELD, outputs, CLOSE (own = chair) |
 | `isoFile.write` | ✓ | ✓ | ✓ | own | own | | upload, confirm, remove: whoever may write the subject |
 
 ISO-1 may split or rename an action where a route needs it, keeping the rules above; the coordinator then corrects
 this table (§5.6). ISO-1 (contracts 1.8.0, README decision 51 h and i) added `isoNc.reassign`, so an NC's owner cannot
 reassign their own NC or move its dates, and gave the catalogue and overview reads `isoSystem.read`. **One action per
-route** (ISO-1a, contracts 1.8.1, README decision 51 o): the M0 stub `can()` and the generic route gate read every
-action an endpoint lists as one grant, so a route that listed two leaked rights (the ISO-1 audit, Medium 1). The NC's
-PATCH is `isoNc.work` only, and a separate reassign route is `isoNc.reassign`; the management review's PATCH is
-`isoReview.write` only, and standards, `plannedOn` and chair move to their own `isoReview.plan` route. No ISO route
-lists two actions.
+route** (ISO-1a, contracts 1.8.1, README decision 51 o). In 1.8.0 two routes listed two actions. The M0 stub `can()`
+allows an action when any endpoint listing it grants the role, so those routes leaked rights (an NC's owner got
+`isoNc.reassign`, a review's chair `isoReview.plan`, FA and CO `isoNc.work`); the generic route gate checks only the
+first action an endpoint lists, so under M5's per-action policy it would have refused FA and CO on the NC's PATCH (the
+ISO-1 audit, Medium 1). Now the NC's PATCH is `isoNc.work` only and `POST .../nonconformities/{id}/reassign` is
+`isoNc.reassign`; the review's PATCH is `isoReview.write` only and `POST .../management-reviews/{id}/replan` is
+`isoReview.plan`. No ISO route lists two actions.
 
 ### 3.3 Unit scope
 
@@ -331,8 +333,10 @@ ISO-14 is that package.
 - M17's `e2e/tests/iso/`, M11's `e2e/tests/shell/`, M12's `e2e/tests/register/` and M13's `e2e/tests/overview/` lie
   inside M14's `e2e/`. A package that changes files there and an M14 thread may run at the same time only while the
   M14 thread does not touch those files (§5.5).
-- Up to five threads at once, as for the main build. Each thread marks its PR ready only when it expects it to pass,
-  gets it audited in a separate session, and merges `main` before marking ready.
+- Up to five threads at once, as for the main build. The one exception is ISO-1a, which continued the ISO-1 thread
+  while five I3 packages ran (six at once); no further package starts until fewer than five threads run. Each thread
+  marks its PR ready only when it expects it to pass, gets it audited in a separate session, and merges `main` before
+  marking ready.
 
 ### 5.5 Merging main
 
