@@ -106,21 +106,60 @@ export function featureSource(
 }
 
 /**
- * The override with one add-on switched on or off and everything else as it was: on adds it unless the plan has it,
- * off takes it away even when the plan has it. Limits and the other flags stay.
+ * The override with one add-on switched on or off and everything else as it was. The switch always names the flag it
+ * changes, whether or not the plan has it (ISO-5b): on puts it in `features`, off in `removedFeatures`, so a later
+ * plan edit that adds the flag leaves an account switched off still off. Limits and the other flags stay.
  */
-export function withFeature(
-  current: OverrideParts,
-  plan: Plan,
-  code: string,
-  on: boolean,
-): OverrideParts {
+export function withFeature(current: OverrideParts, code: string, on: boolean): OverrideParts {
   const features = current.features.filter((f) => f !== code);
   const removedFeatures = current.removedFeatures.filter((f) => f !== code);
-  const inPlan = plan.features.includes(code);
-  if (on && !inPlan) features.push(code);
-  if (!on && inPlan) removedFeatures.push(code);
+  (on ? features : removedFeatures).push(code);
   return { limits: current.limits, features, removedFeatures };
+}
+
+/** Minutes the ISO catalogue copy may take before the console flags it (plan §4.3). */
+export const ISO_SETUP_MINUTES = 15;
+
+export type IsoSetup =
+  | { state: 'copied'; at: string }
+  | { state: 'waiting' }
+  | { state: 'late'; since: string }
+  | { state: 'notYet' };
+
+const COPYABLE: readonly string[] = ['TRIAL', 'ACTIVE'];
+const listed = (side: Record<string, unknown> | null, key: string): unknown[] | null => {
+  const value = side?.[key];
+  return Array.isArray(value) ? value : null;
+};
+
+/**
+ * Where the ISO catalogue copy stands, for an account with `isoManagement` on (plan §4.3). The copy runs only in TRIAL
+ * and ACTIVE, so it is "late" only for such an account still without a copy 15 minutes after the later of the latest
+ * switch-on and its latest move into TRIAL or ACTIVE, both read from the operator audit (`events`, newest first). An
+ * account created on a plan with the flag has no switch-on entry: its creation counts. Other statuses: "notYet".
+ */
+export function isoSetup(
+  account: Pick<Account, 'status' | 'createdAt' | 'isoCatalogueCopiedAt'>,
+  events: readonly OperatorAuditEvent[],
+  now: number,
+): IsoSetup {
+  if (account.isoCatalogueCopiedAt) return { state: 'copied', at: account.isoCatalogueCopiedAt };
+  if (!COPYABLE.includes(account.status)) return { state: 'notYet' };
+  const switchedOn = events.find((e) => {
+    const before = listed(e.before, 'features');
+    const after = listed(e.after, 'features');
+    return after?.includes('isoManagement') && !(before ?? []).includes('isoManagement');
+  });
+  const movedIn = events.find((e) => {
+    const to = e.after?.status;
+    return typeof to === 'string' && COPYABLE.includes(to) && e.before?.status !== to;
+  });
+  const since = [switchedOn?.at ?? account.createdAt, movedIn?.at]
+    .filter((at): at is string => at !== undefined)
+    .reduce((a, b) => (Date.parse(a) >= Date.parse(b) ? a : b));
+  return now - Date.parse(since) >= ISO_SETUP_MINUTES * 60_000
+    ? { state: 'late', since }
+    : { state: 'waiting' };
 }
 
 /**

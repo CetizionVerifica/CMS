@@ -5,6 +5,9 @@ import {
   accountOf,
   after,
   cursorOf,
+  featureChange,
+  featuresChanged,
+  overrideToStore,
   matches,
   newestFirst,
   operatorToday,
@@ -92,6 +95,11 @@ describe('the account view', () => {
     expect(
       accountOf(record({ libraryCopiedAt: copied }), entitlements, usage).libraryCopiedAt,
     ).toBe(copied);
+    // The ISO catalogue copy time goes across too (ISO-5b); a record without it reads as not copied.
+    expect(
+      accountOf(record({ isoCatalogueCopiedAt: copied }), entitlements, usage).isoCatalogueCopiedAt,
+    ).toBe(copied);
+    expect(accountOf(record(), entitlements, usage).isoCatalogueCopiedAt).toBeNull();
   });
 
   it('fills the profile of a firm from before accounts with the defaults', () => {
@@ -156,5 +164,55 @@ describe('the account list', () => {
     expect(matches(a, 'private limited')).toBe(true);
     expect(matches(a, 'osprey')).toBe(false);
     expect(matches(record({ profile: {} }), 'limited')).toBe(false);
+  });
+});
+
+describe('the override and its features (ISO-5b)', () => {
+  const stored = {
+    limits: { users: 90 },
+    features: ['isoManagement', 'earlyAccess'],
+    removedFeatures: [],
+    note: 'Pilot',
+  };
+
+  it('keeps an add-on the body names in neither list as stored', () => {
+    expect(
+      overrideToStore({ limits: {}, features: ['beta'], removedFeatures: [], note: null }, stored),
+    ).toEqual({ limits: {}, features: ['beta', 'isoManagement'], removedFeatures: [], note: null });
+    const off = { ...stored, features: [], removedFeatures: ['isoManagement'] };
+    expect(overrideToStore({ limits: {}, features: [], note: null }, off)).toEqual({
+      limits: {},
+      features: [],
+      removedFeatures: ['isoManagement'],
+      note: null,
+    });
+  });
+
+  it('changes an add-on the body names, and other flags exactly as the body says', () => {
+    expect(
+      overrideToStore(
+        { limits: {}, features: [], removedFeatures: ['isoManagement'], note: null },
+        stored,
+      ),
+    ).toEqual({ limits: {}, features: [], removedFeatures: ['isoManagement'], note: null });
+    expect(overrideToStore({ limits: {}, features: ['isoManagement'], note: null }, null)).toEqual({
+      limits: {},
+      features: ['isoManagement'],
+      removedFeatures: [],
+      note: null,
+    });
+  });
+
+  it('says which flags turned on and off, or null', () => {
+    expect(featureChange(['importer'], ['importer', 'isoManagement'])).toEqual({
+      added: ['isoManagement'],
+      removed: [],
+    });
+    expect(featureChange(['b', 'a'], ['c'])).toEqual({ added: ['c'], removed: ['a', 'b'] });
+    expect(featureChange(['importer'], ['importer'])).toBeNull();
+    expect(featuresChanged('acc-1', { added: ['isoManagement'], removed: [] })).toEqual({
+      type: 'account.features_changed',
+      data: { accountId: 'acc-1', added: ['isoManagement'], removed: [] },
+    });
   });
 });
