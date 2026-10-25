@@ -1152,7 +1152,7 @@ describe('ISO files', () => {
     expect(r.isoFileSubject(created)).toEqual({ type: 'clause_assessment', id: rowId });
   });
 
-  it('refuse no subject, two subjects, a subject not stored yet, and a key outside the account prefix', async () => {
+  it('refuse no subject, two subjects, an id of another subject type, and a key outside the account prefix', async () => {
     const insert = (row: string | null, audit: string | null, n: string) =>
       asAdmin((tx) =>
         tx.execute(sql`INSERT INTO iso_file (client_id, clause_assessment_id, external_audit_id, file_name, mime_type,
@@ -1167,7 +1167,7 @@ describe('ISO files', () => {
       await failure(
         asAdmin((tx) => r.isoFiles.create(tx, file({ type: 'risk_item', id: rowId }, 'risk'))),
       ),
-    ).toBe('VALIDATION');
+    ).toBe('NOT_FOUND');
     expect(
       await failure(
         asAdmin((tx) =>
