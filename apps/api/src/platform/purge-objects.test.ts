@@ -1,3 +1,4 @@
+import { createServer, type Server } from 'node:net';
 import { DeleteObjectsCommand, ListObjectsV2Command } from '@aws-sdk/client-s3';
 import { describe, expect, it } from 'vitest';
 import { accountPrefixes, createS3AccountObjects } from './purge-objects.js';
@@ -73,5 +74,25 @@ describe('the account purge’s object storage', () => {
     expect(
       createS3AccountObjects({ ...OPTIONS, endpoint: 'http://localhost:8333' }),
     ).toHaveProperty('deletePrefix');
+  });
+
+  it('gives up on storage that accepts the connection and never answers, instead of waiting forever', async () => {
+    const sockets = new Set<import('node:net').Socket>();
+    const silent: Server = createServer((socket) => sockets.add(socket));
+    await new Promise<void>((resolve) => silent.listen(0, '127.0.0.1', resolve));
+    const { port } = silent.address() as { port: number };
+    try {
+      const objects = createS3AccountObjects({
+        ...OPTIONS,
+        endpoint: `http://127.0.0.1:${port}`,
+        timeouts: { connectMs: 200, requestMs: 200 },
+      });
+      const started = Date.now();
+      await expect(objects.deletePrefix(`evidence/${ACCOUNT}/`)).rejects.toThrow();
+      expect(Date.now() - started).toBeLessThan(5_000);
+    } finally {
+      for (const socket of sockets) socket.destroy();
+      await new Promise((resolve) => silent.close(resolve));
+    }
   });
 });
