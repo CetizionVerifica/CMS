@@ -84,4 +84,6 @@ Check against the customer's own file before going live:
 The operator requests deletion in the console (typing the account's name). For 30 days only the account admins can
 sign in, and only to **Account → Download your data**: one zip per client with the whole register and the clean
 evidence files. The operator can cancel within the 30 days. After that the nightly purge deletes the account's rows,
-audit trail and files for good; the operator audit keeps the record that it happened.
+audit trail and files from the live system; the operator audit keeps the record that it happened. Copies remain in
+the backups until they age out, up to 35 days later ([`backup-restore.md`](backup-restore.md)), and a restore from
+one is followed by the purge again.

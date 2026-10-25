@@ -123,10 +123,12 @@ Each line is a test in `e2e/integrated` unless it says otherwise.
 **Load** (`10-load.spec.ts`, MODULES.md M14)
 
 - Firm A's client is grown to 10,000 instances in one financial year (copies of its units with their assignments and
-  instances), then 10 people at once, each from their own address, read the overview, the first register page of 200,
-  the register count, the act-wise report and (consultants) the portfolio, three rounds each. Each read's p95 must stay
-  within its budget (2 to 3 seconds, set with headroom for a shared CI runner); the run prints the measured p95s. The
-  register page renders at that size and the whole register exports within a minute.
+  instances). One person then reads the overview, the first register page of 200, the register count, the act-wise
+  report and the portfolio three times each, and the slowest of each must stay within 1.5 s (0.5 s for the page,
+  1 s for the portfolio). Then 10 people at once, each from their own address, read the same (the portfolio by
+  consultants only), three rounds each, and each read's p95 must stay within 10 s for the whole-client reads and 3 s
+  for the page and the portfolio (F17). The run prints what it measured. The register page renders at that size and
+  the whole register exports within a minute.
 - Measured on a 4-core cloud container (Postgres 16 on the same machine): see "Load results" below.
 
 **Backup and restore** (`11-backup-restore.spec.ts`, [`backup-restore.md`](backup-restore.md))

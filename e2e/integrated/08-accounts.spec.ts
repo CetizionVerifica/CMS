@@ -373,8 +373,9 @@ test.describe.serial('company accounts and the operator console', () => {
       error: { code: 'ACCOUNT_SUSPENDED' },
     });
     await firmAdmin.dispose();
-    const closed = await clientAdmin.get('/clients');
-    expect(closed.status).toBeGreaterThanOrEqual(400);
+    expect((await clientAdmin.get('/clients')).body).toMatchObject({
+      error: { code: 'ACCOUNT_SUSPENDED' },
+    });
 
     await operator.getByRole('button', { name: 'Cancel deletion' }).click();
     const cancel = operator.getByRole('alertdialog', {
