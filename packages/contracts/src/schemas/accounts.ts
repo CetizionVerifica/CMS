@@ -39,6 +39,25 @@ export const FeatureFlag = z
   .string()
   .regex(/^[a-z][a-zA-Z0-9]{1,39}$/, 'Expected a camelCase flag');
 
+/** Add-ons the operator console offers by name (ADR M16-0001 decision 2). Plans may carry other flags as data. */
+export const KnownFeature = z.enum(['isoManagement']);
+export type KnownFeature = z.infer<typeof KnownFeature>;
+
+/** Each known add-on with the words the console and the Account page show for it. No plan includes one by default. */
+export const KNOWN_FEATURES: readonly {
+  code: KnownFeature;
+  label: string;
+  description: string;
+}[] = [
+  {
+    code: 'isoManagement',
+    label: 'ISO management systems',
+    description:
+      'ISO 9001, 14001 and 45001: clause checklist, controlled documents, risks, objectives, internal audits, ' +
+      'management reviews, nonconformities and certification.',
+  },
+];
+
 /** A plan. Data, not code: the operator edits names and limits without a release. Prices are not stored. */
 export const Plan = z.strictObject({
   code: PlanCode,
@@ -50,12 +69,22 @@ export const Plan = z.strictObject({
 });
 export type Plan = z.infer<typeof Plan>;
 
-/** Per-account changes on top of the plan. A key that is absent keeps the plan's value. */
-export const AccountOverride = z.strictObject({
-  limits: PlanLimits.partial(),
-  features: z.array(FeatureFlag),
-  note: z.string().trim().max(2000).nullable(),
-});
+/**
+ * Per-account changes on top of the plan. A key that is absent keeps the plan's value. `features` adds flags and
+ * `removedFeatures` takes flags away even when the plan has them, so the console's add-on switch can turn one off for
+ * one account (ADR M16-0001 decision 2); `removedFeatures` is optional until M3 stores it, and missing means none.
+ */
+export const AccountOverride = z
+  .strictObject({
+    limits: PlanLimits.partial(),
+    features: z.array(FeatureFlag),
+    removedFeatures: z.array(FeatureFlag).max(50).optional(),
+    note: z.string().trim().max(2000).nullable(),
+  })
+  .refine((o) => !(o.removedFeatures ?? []).some((f) => o.features.includes(f)), {
+    path: ['removedFeatures'],
+    message: 'A flag is either added or removed, not both',
+  });
 export type AccountOverride = z.infer<typeof AccountOverride>;
 
 /** Counted usage, compared with the limits. `users` excludes support people. */
@@ -67,7 +96,21 @@ export const Usage = z.strictObject({
 });
 export type Usage = z.infer<typeof Usage>;
 
-/** What `entitlements(account)` returns: plan limits overlaid with the account override. */
+/**
+ * An account's features: (plan features ∪ override features) − override removed features, sorted and without repeats,
+ * the order `entitlements()` returns them in.
+ */
+export function effectiveFeatures(
+  planFeatures: readonly string[],
+  override: Pick<AccountOverride, 'features' | 'removedFeatures'> | null,
+): string[] {
+  const removed = new Set(override?.removedFeatures ?? []);
+  return [...new Set([...planFeatures, ...(override?.features ?? [])])]
+    .filter((f) => !removed.has(f))
+    .sort();
+}
+
+/** What `entitlements(account)` returns: plan limits overlaid with the account override (`effectiveFeatures`). */
 export const Entitlements = z.strictObject({
   planCode: PlanCode,
   limits: PlanLimits,
@@ -80,6 +123,11 @@ export const AccountSummary = z.strictObject({
   kind: AccountKind,
   status: AccountStatus,
   trialEndsOn: LocalDate.nullable(),
+  /**
+   * The account's features (`Entitlements.features`), so the app shows add-ons such as `isoManagement` only when the
+   * account has them (ADR M16-0001). Optional until M5 sends it: a reader treats a missing list as empty.
+   */
+  features: z.array(FeatureFlag).optional(),
 });
 export type AccountSummary = z.infer<typeof AccountSummary>;
 

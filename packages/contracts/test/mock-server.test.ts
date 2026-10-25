@@ -1370,6 +1370,35 @@ describe('mock server', () => {
     expect(bad.statusCode).toBe(400);
   });
 
+  it("lists the account's features, which firm B starts with and the console stand-in switches", async () => {
+    const firmB = app.store.firms[1]!.data.firm.id;
+    const firmAAdmin = app.store.firms[0]!.data.people.find(
+      (p) => p.email === 'admin@demo-advisory.example',
+    )!.id;
+    const featuresOf = async (as: string) =>
+      (await ok<{ account?: { features?: string[] } }>(app, 'getMe', { as })).account?.features;
+    expect(await featuresOf(PERSON.meera)).toEqual(['isoManagement']);
+    expect(
+      (await ok<{ entitlements: { features: string[] } }>(app, 'getAccount')).entitlements.features,
+    ).toEqual(['isoManagement']);
+    expect(await featuresOf(firmAAdmin)).toEqual([]);
+
+    const put = (firmId: string, payload: unknown) =>
+      app.inject({
+        method: 'PUT',
+        url: `/__mock/firms/${firmId}/features`,
+        headers: { 'content-type': 'application/json' },
+        payload: JSON.stringify(payload),
+      });
+    expect((await put(firmB, { features: [] })).statusCode).toBe(200);
+    expect(await featuresOf(PERSON.meera)).toEqual([]);
+    expect((await put(firmB, { features: ['Not a flag'] })).statusCode).toBe(400);
+    expect((await put(PERSON.meera, { features: [] })).statusCode).toBe(404);
+
+    await app.inject({ method: 'POST', url: '/__mock/reset' });
+    expect(await featuresOf(PERSON.meera)).toEqual(['isoManagement']);
+  });
+
   it('resets to the fixtures', async () => {
     const reset = await app.inject({ method: 'POST', url: '/__mock/reset' });
     expect(reset.statusCode).toBe(204);
@@ -1393,7 +1422,12 @@ describe('mock server', () => {
     await fails(app, 'getAccount', { as: PERSON.kabir }, 'FORBIDDEN', 403);
     await fails(app, 'getAccount', { as: PERSON.arjun }, 'FORBIDDEN', 403);
     const me = await ok<{ account?: unknown }>(app, 'getMe');
-    expect(me.account).toEqual({ kind: 'CONSULTANCY', status: 'ACTIVE', trialEndsOn: null });
+    expect(me.account).toEqual({
+      kind: 'CONSULTANCY',
+      status: 'ACTIVE',
+      trialEndsOn: null,
+      features: ['isoManagement'],
+    });
 
     const first = await ok<{ id: string; supportPersonId: string; endsAt: string }>(
       app,

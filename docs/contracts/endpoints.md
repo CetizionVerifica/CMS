@@ -167,7 +167,8 @@ Notification send log, job admin and library change history have no public endpo
 
 An account is the firm (ADR M15-0001). In `SUSPENDED` nobody can sign in. In `PENDING_DELETION` only account admins (FA) can sign in, and
 every route except `GET /me`, `POST /auth/logout` and the account export (the three export routes of §6) answers `403 ACCOUNT_SUSPENDED`. Creating a
-company, unit or invite past the plan's limit answers `403 PLAN_LIMIT_REACHED` (M6, M5).
+company, unit or invite past the plan's limit answers `403 PLAN_LIMIT_REACHED` (M6, M5). `GET /me` lists the account's
+features in `account.features`; a route of an add-on the account lacks answers `403 FEATURE_NOT_ENABLED` (ADR M16-0001).
 
 | Method | Path | Action | FA | CO | CA | AP | OW | VI | Notes |
 |---|---|---|---|---|---|---|---|---|---|
@@ -197,7 +198,7 @@ Every write records an `OperatorAuditEvent`; writes that change an account also 
 | POST | `/accounts/{id}/status` `{ version, to: ACTIVE \| SUSPENDED, reason }` → `Account` | convert, suspend, resume; must pass `canMoveAccount`, else `409 INVALID_TRANSITION` `{ from, to }` |
 | POST | `/accounts/{id}/trial` `{ version, trialEndsOn, reason? }` → `Account` | moves a TRIAL account's trial end; the status stays TRIAL; any other status `409 INVALID_TRANSITION` |
 | POST | `/accounts/{id}/plan` `{ version, planCode, reason }` → `Account` | |
-| PUT | `/accounts/{id}/override` `{ version, override, reason }` → `Account` | |
+| PUT | `/accounts/{id}/override` `{ version, override, reason }` → `Account` | `override.removedFeatures` turns a plan feature off for this account; the console's add-on switches (`KNOWN_FEATURES`) write it |
 | POST | `/accounts/{id}/owner-invite` | `202`; PROVISIONING only; earlier links stop working |
 | POST | `/accounts/{id}/onboarded` `{ version }` → `Account` | |
 | POST | `/accounts/{id}/deletion` `{ version, reason, confirmName }` → `Account` | `PENDING_DELETION` for 30 days (ADR M15-0002) |

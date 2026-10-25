@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Canopy platform operator API",
-    "version": "1.6.1",
+    "version": "1.7.0",
     "description": "Generated from @canopy/contracts; do not edit. The operator console API (ADR M15-0001). Every route except sign-in needs the operator session; there are no roles. Conventions as in docs/contracts/api-conventions.md."
   },
   "servers": [
@@ -2150,6 +2150,32 @@
                 "properties": {
                   "code": {
                     "type": "string",
+                    "const": "FEATURE_NOT_ENABLED"
+                  },
+                  "message": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "details": {
+                    "type": "object",
+                    "properties": {
+                      "feature": {
+                        "type": "string",
+                        "pattern": "^[a-z][a-zA-Z0-9]{1,39}$"
+                      }
+                    },
+                    "required": ["feature"],
+                    "additionalProperties": false
+                  }
+                },
+                "required": ["code", "message"],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "code": {
+                    "type": "string",
                     "const": "NOT_FOUND"
                   },
                   "message": {
@@ -3279,6 +3305,14 @@
                 "additionalProperties": false
               },
               "features": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[a-z][a-zA-Z0-9]{1,39}$"
+                }
+              },
+              "removedFeatures": {
+                "maxItems": 50,
                 "type": "array",
                 "items": {
                   "type": "string",

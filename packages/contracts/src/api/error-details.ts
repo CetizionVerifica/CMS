@@ -9,6 +9,7 @@ import {
   WorkflowState,
 } from '../enums.js';
 import { Id, Instant, LocalDate, Name } from '../primitives.js';
+import { FeatureFlag } from '../schemas/accounts.js';
 import { Action } from '../schemas/context.js';
 
 /**
@@ -33,6 +34,8 @@ export const ERROR_DETAILS = {
     max: z.int().min(0),
     used: z.int().min(0),
   }),
+  /** The route belongs to an add-on the account does not have (ADR M16-0001 decision 3); reads answer it too. */
+  FEATURE_NOT_ENABLED: z.strictObject({ feature: FeatureFlag }),
   NOT_FOUND: null,
   STALE_VERSION: z.strictObject({ currentVersion: z.int().min(1) }),
   /** An instance action, or (operator routes) an account status move. */
