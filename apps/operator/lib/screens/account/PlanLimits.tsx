@@ -6,15 +6,19 @@ import { useState } from 'react';
 
 import {
   featuresFrom,
+  isKnownFeature,
   LIMIT_KEYS,
   LIMIT_LABEL,
   limitFrom,
   overrideFrom,
+  type OverrideParts,
 } from '../../account-actions';
+import { errorMessage } from '../../api';
 import { atLimit, formatBytes, usageOf } from '../../format';
 import { useSession } from '../../session';
 import { FormDrawer } from '../../ui/FormDrawer';
 import { Card, cell, Pill, Table } from '../../ui/parts';
+import { overrideNote } from './override-note';
 
 const limitText = (value: number | null | undefined) =>
   value === undefined ? '' : value === null ? 'unlimited' : String(value);
@@ -23,22 +27,34 @@ const limitText = (value: number | null | undefined) =>
 const shown = (key: (typeof LIMIT_KEYS)[number], value: number | null | undefined) =>
   key === 'storageBytes' && typeof value === 'number' ? formatBytes(value) : limitText(value);
 
-/** The override body for the form, or the first field error. */
-export function overrideBody(form: {
-  limits: Record<(typeof LIMIT_KEYS)[number], string>;
-  features: string;
-  note: string;
-}): { override: AccountOverride } | { field: string; error: string } {
+/**
+ * The override body for the form, or the first field error. The form holds the limits, the extra flags that are not
+ * add-ons, and the note; the add-ons the Add-ons card switched on or off (`current`) stay as they are.
+ */
+export function overrideBody(
+  form: {
+    limits: Record<(typeof LIMIT_KEYS)[number], string>;
+    features: string;
+    note: string;
+  },
+  current: OverrideParts,
+): { override: AccountOverride } | { field: string; error: string } {
   const limits: Partial<Limits> = {};
   for (const key of LIMIT_KEYS) {
     const parsed = limitFrom(form.limits[key]);
     if ('error' in parsed) return { field: key, error: parsed.error };
     if (parsed.value !== undefined) limits[key] = parsed.value;
   }
+  const typed = featuresFrom(form.features);
+  const addOn = typed.find(isKnownFeature);
+  if (addOn) {
+    return { field: 'features', error: `Turn ${addOn} on or off in the Add-ons card.` };
+  }
   return {
     override: {
       limits,
-      features: featuresFrom(form.features),
+      features: [...current.features.filter(isKnownFeature), ...typed],
+      removedFeatures: current.removedFeatures.filter((f) => !typed.includes(f)),
       note: form.note.trim() || null,
     },
   };
@@ -65,6 +81,7 @@ export function PlanLimits({
     note: '',
   });
   const [overrideReason, setOverrideReason] = useState('');
+  const [opening, setOpening] = useState(false);
   const [fields, setFields] = useState<Record<string, string>>({});
   const params = { id: account.id };
   const choosable = plans.filter((p) => p.retiredAt === null && p.code !== account.planCode);
@@ -100,8 +117,19 @@ export function PlanLimits({
           <Button
             variant="secondary"
             size="sm"
-            onClick={() => {
+            loading={opening}
+            onClick={async () => {
               const current = overrideFrom(account.entitlements, plan);
+              setOpening(true);
+              let note: string | null;
+              try {
+                note = await overrideNote(api, account.id);
+              } catch (e) {
+                toast({ tone: 'error', message: errorMessage(e) });
+                return;
+              } finally {
+                setOpening(false);
+              }
               setForm({
                 limits: {
                   companies: limitText(current.limits.companies),
@@ -109,8 +137,8 @@ export function PlanLimits({
                   users: limitText(current.limits.users),
                   storageBytes: limitText(current.limits.storageBytes),
                 },
-                features: current.features.join(', '),
-                note: '',
+                features: current.features.filter((f) => !isKnownFeature(f)).join(', '),
+                note: note ?? '',
               });
               setOverrideReason('');
               setFields({});
@@ -186,7 +214,7 @@ export function PlanLimits({
         submitLabel="Save override"
         onFieldErrors={setFields}
         onSubmit={async () => {
-          const body = overrideBody(form);
+          const body = overrideBody(form, overrideFrom(account.entitlements, plan));
           if ('error' in body) {
             setFields({ [body.field]: body.error });
             throw 'Check the limits.';
@@ -220,8 +248,8 @@ export function PlanLimits({
           label="Extra features"
           value={form.features}
           onChange={(e) => setForm((f) => ({ ...f, features: e.target.value }))}
-          helper="Feature names, separated by commas."
-          error={fields['override.features'] ?? fields['override.features.0']}
+          helper="Feature names, separated by commas. Add-ons have their own switches."
+          error={fields.features ?? fields['override.features'] ?? fields['override.features.0']}
         />
         <Textarea
           label="Note (optional)"

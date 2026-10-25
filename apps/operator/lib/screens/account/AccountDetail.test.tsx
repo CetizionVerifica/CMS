@@ -1,4 +1,9 @@
-import type { Account } from '@canopy/contracts';
+import {
+  effectiveFeatures,
+  type Account,
+  type AccountOverride,
+  type OperatorAuditEvent,
+} from '@canopy/contracts';
 import { screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -8,7 +13,7 @@ import { navigation } from '../../test/navigation';
 vi.mock('next/navigation', () => navigation);
 
 const { AccountDetail } = await import('./AccountDetail');
-const { account, apiError, fakeApi, list, PLANS, renderSignedIn } =
+const { account, apiError, fakeApi, list, page, PLANS, renderSignedIn } =
   await import('../../test/fake-api');
 const { choose } = await import('../../test/select');
 
@@ -24,16 +29,50 @@ const GRANT = {
   revokedAt: null,
 };
 
-/** An API holding one account; each change returns it at the next version with `change` applied. */
-function accountApi(start: Partial<Account> = {}, extra: Parameters<typeof fakeApi>[0] = {}) {
+/** The newest OVERRIDE_CHANGE, as the operator audit returns it, holding `override`. */
+const overrideEvent = (override: AccountOverride): OperatorAuditEvent => ({
+  id: '01900000-0000-7000-8000-0000000000e1',
+  at: '2026-10-24T04:00:00.000Z',
+  operatorId: '01900000-0000-7000-8000-0000000000a1',
+  action: 'OVERRIDE_CHANGE',
+  accountId: account().id,
+  before: null,
+  after: { override },
+  reason: 'Pilot',
+  requestId: 'req-1',
+  ip: null,
+});
+
+/**
+ * An API holding one account; each change returns it at the next version with `change` applied. An override save
+ * works out the entitlements the way the API does and keeps the override as the newest OVERRIDE_CHANGE.
+ */
+function accountApi(
+  start: Partial<Account> = {},
+  extra: Parameters<typeof fakeApi>[0] = {},
+  override: AccountOverride | null = null,
+  plans = PLANS,
+) {
   let current = account(start);
+  let stored = override;
   const bump = (change: Partial<Account>) => {
     current = { ...current, ...change, version: current.version + 1 };
     return { body: current };
   };
+  const putOverride = (body: AccountOverride) => {
+    stored = body;
+    const plan = plans.find((p) => p.code === current.planCode)!;
+    return bump({
+      entitlements: {
+        planCode: plan.code,
+        limits: { ...plan.limits, ...body.limits },
+        features: effectiveFeatures(plan.features, body),
+      },
+    });
+  };
   const api = fakeApi({
     'GET /accounts/{id}': () => ({ body: current }),
-    'GET /plans': list(PLANS),
+    'GET /plans': list(plans),
     'GET /accounts/{id}/subscriptions': list([]),
     'GET /accounts/{id}/usage': list([]),
     'GET /accounts/{id}/support-grants': list([GRANT]),
@@ -42,7 +81,9 @@ function accountApi(start: Partial<Account> = {}, extra: Parameters<typeof fakeA
       bump({ trialEndsOn: (s.body as { trialEndsOn: Account['trialEndsOn'] }).trialEndsOn }),
     'POST /accounts/{id}/plan': (s) =>
       bump({ planCode: (s.body as { planCode: string }).planCode }),
-    'PUT /accounts/{id}/override': () => bump({}),
+    'PUT /accounts/{id}/override': (s) =>
+      putOverride((s.body as { override: AccountOverride }).override),
+    'GET /audit': () => page(stored ? [overrideEvent(stored)] : []),
     'PATCH /accounts/{id}': (s) =>
       bump({ name: (s.body as { name?: string }).name ?? current.name }),
     'POST /accounts/{id}/onboarded': () => bump({ onboardedAt: '2026-10-24T05:00:00.000Z' }),
@@ -64,7 +105,7 @@ function accountApi(start: Partial<Account> = {}, extra: Parameters<typeof fakeA
     },
     ...extra,
   });
-  return { ...api, current: () => current };
+  return { ...api, current: () => current, stored: () => stored };
 }
 
 const show = (api: ReturnType<typeof accountApi>) =>
@@ -259,7 +300,12 @@ describe('the account page', () => {
     await vi.waitFor(() => expect(sentTo(api, 'PUT', '/override')).toHaveLength(1));
     expect(sentTo(api, 'PUT', '/override')[0]!.body).toEqual({
       version: 3,
-      override: { limits: { units: null, users: 200 }, features: ['sso'], note: null },
+      override: {
+        limits: { units: null, users: 200 },
+        features: ['sso'],
+        removedFeatures: [],
+        note: null,
+      },
       reason: 'Group expansion',
     });
 
@@ -344,5 +390,140 @@ describe('the account page', () => {
     await user.click(within(dialog).getByRole('button', { name: 'Suspend account' }));
     expect(await screen.findByText(/Reload it and try again/)).toBeTruthy();
     expect(within(dialog).getByRole('alert').textContent).toMatch(/didn't work/);
+  });
+});
+
+/** Business with the ISO add-on in the plan itself, so a switch can take it away from one account. */
+const ISO_PLANS = PLANS.map((p) =>
+  p.code === 'BUSINESS' ? { ...p, features: ['importer', 'isoManagement'] } : p,
+);
+
+describe('the add-ons card', () => {
+  const card = async () => screen.findByRole('region', { name: 'Add-ons' });
+  const isoSwitch = async () =>
+    within(await card()).findByRole('switch', {
+      name: 'ISO management systems for Kestrel Metals Group',
+    });
+
+  it('turns the ISO add-on on with a reason, keeping the overridden limits and the note', async () => {
+    const api = accountApi(
+      {
+        entitlements: {
+          planCode: 'BUSINESS',
+          limits: { ...PLANS[1]!.limits, users: 200 },
+          features: ['importer', 'sso'],
+        },
+      },
+      {},
+      { limits: { users: 200 }, features: ['sso'], note: 'Pilot pricing until March' },
+    );
+    await show(api);
+    const user = userEvent.setup();
+    const toggle = await isoSwitch();
+    expect(toggle.getAttribute('aria-checked')).toBe('false');
+    expect(within(await card()).getByText('Not in the plan.')).toBeTruthy();
+    await user.click(toggle);
+    const drawer = await screen.findByRole('dialog', { name: 'Turn on ISO management systems' });
+    await user.type(within(drawer).getByRole('textbox', { name: 'Reason' }), 'Bought the add-on');
+    await user.click(within(drawer).getByRole('button', { name: 'Turn on' }));
+    await vi.waitFor(() => expect(sentTo(api, 'PUT', '/override')).toHaveLength(1));
+    expect(sentTo(api, 'PUT', '/override')[0]!.body).toEqual({
+      version: 3,
+      override: {
+        limits: { users: 200 },
+        features: ['sso', 'isoManagement'],
+        removedFeatures: [],
+        note: 'Pilot pricing until March',
+      },
+      reason: 'Bought the add-on',
+    });
+    expect(
+      await screen.findByText(/ISO management systems is on for Kestrel Metals Group/),
+    ).toBeTruthy();
+    expect((await isoSwitch()).getAttribute('aria-checked')).toBe('true');
+    expect(within(await card()).getByText('Added for this account.')).toBeTruthy();
+  });
+
+  it('turns off an add-on that the plan includes, for this account only', async () => {
+    const api = accountApi(
+      {
+        entitlements: {
+          planCode: 'BUSINESS',
+          limits: PLANS[1]!.limits,
+          features: ['importer', 'isoManagement'],
+        },
+      },
+      {},
+      null,
+      ISO_PLANS,
+    );
+    await show(api);
+    const user = userEvent.setup();
+    expect(within(await card()).getByText('The plan includes it.')).toBeTruthy();
+    await user.click(await isoSwitch());
+    const drawer = await screen.findByRole('dialog', { name: 'Turn off ISO management systems' });
+    await user.type(within(drawer).getByRole('textbox', { name: 'Reason' }), 'Did not renew it');
+    await user.click(within(drawer).getByRole('button', { name: 'Turn off' }));
+    await vi.waitFor(() => expect(sentTo(api, 'PUT', '/override')).toHaveLength(1));
+    expect(sentTo(api, 'PUT', '/override')[0]!.body).toEqual({
+      version: 3,
+      override: { limits: {}, features: [], removedFeatures: ['isoManagement'], note: null },
+      reason: 'Did not renew it',
+    });
+    expect(api.current().entitlements.features).toEqual(['importer']);
+    expect((await isoSwitch()).getAttribute('aria-checked')).toBe('false');
+    expect(
+      within(await card()).getByText('Turned off for this account, although the plan includes it.'),
+    ).toBeTruthy();
+  });
+
+  it('keeps a removed add-on removed, and the note, when the limits are saved', async () => {
+    const api = accountApi(
+      {
+        entitlements: { planCode: 'BUSINESS', limits: PLANS[1]!.limits, features: ['importer'] },
+      },
+      {},
+      { limits: {}, features: [], removedFeatures: ['isoManagement'], note: 'Paused add-on' },
+      ISO_PLANS,
+    );
+    await show(api);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Override limits' }));
+    const drawer = await screen.findByRole('dialog', { name: 'Override limits' });
+    expect(
+      (within(drawer).getByRole('textbox', { name: /^Note/ }) as HTMLTextAreaElement).value,
+    ).toBe('Paused add-on');
+    await user.type(within(drawer).getByRole('textbox', { name: 'Users' }), '400');
+    await user.type(
+      within(drawer).getByRole('textbox', { name: 'Extra features' }),
+      'isoManagement',
+    );
+    await user.type(within(drawer).getByRole('textbox', { name: 'Reason' }), 'More seats');
+    await user.click(within(drawer).getByRole('button', { name: 'Save override' }));
+    expect(await within(drawer).findByText(/Add-ons card/)).toBeTruthy();
+    expect(sentTo(api, 'PUT', '/override')).toHaveLength(0);
+    await user.clear(within(drawer).getByRole('textbox', { name: 'Extra features' }));
+    await user.click(within(drawer).getByRole('button', { name: 'Save override' }));
+    await vi.waitFor(() => expect(sentTo(api, 'PUT', '/override')).toHaveLength(1));
+    expect(sentTo(api, 'PUT', '/override')[0]!.body).toEqual({
+      version: 3,
+      override: {
+        limits: { users: 400 },
+        features: [],
+        removedFeatures: ['isoManagement'],
+        note: 'Paused add-on',
+      },
+      reason: 'More seats',
+    });
+    expect(api.current().entitlements.features).toEqual(['importer']);
+  });
+
+  it('does not open the limits drawer when the note cannot be read', async () => {
+    const api = accountApi({}, { 'GET /audit': apiError(500, 'INTERNAL', 'Try again shortly.') });
+    await show(api);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Override limits' }));
+    expect(await screen.findByText(/Try again/)).toBeTruthy();
+    expect(screen.queryByRole('dialog', { name: 'Override limits' })).toBeNull();
   });
 });
