@@ -156,7 +156,7 @@ Harbour Retail Group and firm A get no ISO rows. Nothing happens after `FIRM_B_A
 | Findings | 8 | every type except MAJOR_NC (3 minor NCs, 2 observations, 2 OFIs, 1 good practice), 4 internal and 4 external |
 | Nonconformities | 7 | numbered 1-7, every state; an INCIDENT (injury, LOST_TIME, AWAITING_VERIFICATION, linked to its statutory notice, no personal data) and a NEAR_MISS (OPEN) |
 | Actions | 18 | on all 5 subject types; 6 OPEN, 7 DONE, 5 CANCELLED |
-| Management review | 1 | HELD on 2024-10-28 over the three standards, 19 inputs and 8 outputs |
+| Management review | 1 | HELD on 2024-10-28 over the three standards, 19 inputs and 8 outputs; the JSON stores no figures, and the mock stores them when it loads, as RECORD_HELD would have (iso-mock.md) |
 | ISO files | 16 | 15 CLEAN, 1 PENDING, 2 removed with a reason, each on one subject |
 | STANDARD assignments | 7 | `WORKPLACE-INSPECTION`, `EMERGENCY-DRILL`, `CALIBRATION` and `ENV-MONITORING` at Pune Plant (Rohan owner, Nisha approver); `AWARENESS`, `WORKER-CONSULTATION` and `DATA-ANALYSIS` at Bengaluru Office (Sameer owner, Divya approver) |
 | STANDARD instances | 34 | FY 2024-25, due 2024-04-30 to 2025-03-31: 14 APPROVED, 19 OPEN, 1 SUBMITTED; 15 CLEAN evidence rows, one per done instance |

@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { IsoExportKind, IsoStandardCode } from '../enums.js';
-import { FyLabel, Id, LocalDate, LongText, Name, Sha256, Text } from '../primitives.js';
+import { FyLabel, Id, Instant, LocalDate, LongText, Name, Sha256, Text } from '../primitives.js';
 import { RecurrenceRule } from '../schemas/library.js';
 import {
   AspectControlType,
@@ -61,6 +61,7 @@ import {
   OperatingCondition,
   PersonsExposed,
   ReviewInput,
+  ReviewInputFigures,
   ReviewInputKey,
   ReviewInputSource,
   ReviewOutput,
@@ -83,7 +84,6 @@ import {
   ManagementReviewDue,
   NonconformityStatus,
   ObjectiveProgress,
-  ReviewInputFigures,
 } from '../schemas/iso-results.js';
 import { MAX_EVIDENCE_BYTES } from '../schemas/work.js';
 import {
@@ -1410,15 +1410,30 @@ export type ReviewClauseRef = z.infer<typeof ReviewClauseRef>;
 
 /**
  * One input row with its key, title, clause references and, where its source is not MANUAL, the source's figures since
- * the last held review (M4 `reviewInputFigures`).
+ * the last held review (M4 `reviewInputFigures`, model §3.13): computed as of today while the review is PLANNED, the
+ * copy stored at RECORD_HELD once it is HELD or CLOSED, and null for a CANCELLED review. `figuresStoredAt` is set
+ * exactly when `sourceFigures` is that stored copy. The values cover the whole system; each figure's ids are only the
+ * records the reader may read (plan §3.3), so a reader limited to some units can see fewer ids than the value counts.
  */
-export const ReviewInputView = ReviewInput.safeExtend({
-  key: ReviewInputKey,
-  title: Text.max(300),
-  source: ReviewInputSource,
-  clauseRefs: z.array(ReviewClauseRef).min(1),
-  sourceFigures: ReviewInputFigures.nullable(),
-});
+export const ReviewInputView = z
+  .strictObject(ReviewInput.shape)
+  .omit({ figuresEngineVersion: true })
+  .extend({
+    key: ReviewInputKey,
+    title: Text.max(300),
+    source: ReviewInputSource,
+    clauseRefs: z.array(ReviewClauseRef).min(1),
+    sourceFigures: ReviewInputFigures.nullable(),
+    figuresStoredAt: Instant.nullable(),
+  })
+  .refine((v) => v.figuresStoredAt === null || v.sourceFigures !== null, {
+    path: ['figuresStoredAt'],
+    message: 'figuresStoredAt is set only with the stored sourceFigures',
+  })
+  .refine((v) => v.source !== 'MANUAL' || v.sourceFigures === null, {
+    path: ['sourceFigures'],
+    message: 'A MANUAL input has no figures',
+  });
 export type ReviewInputView = z.infer<typeof ReviewInputView>;
 
 export const ReviewOutputView = ReviewOutput.safeExtend({

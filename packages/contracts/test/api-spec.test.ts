@@ -37,7 +37,8 @@ describe('OpenAPI document', () => {
     expect(committed).toEqual(JSON.parse(JSON.stringify(doc)));
   });
 
-  it('is valid OpenAPI 3.1 ("spec lints clean")', async () => {
+  // Linting the whole document takes about 5 s on a busy CI runner, past vitest's default limit.
+  it('is valid OpenAPI 3.1 ("spec lints clean")', { timeout: 30_000 }, async () => {
     const result = await validate(structuredClone(doc) as never);
     expect(result).toMatchObject({ valid: true, warnings: [] });
   });

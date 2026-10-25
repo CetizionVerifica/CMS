@@ -636,7 +636,12 @@ interface ManagementReview /* system */ {            // 9.3
   heldOn: LocalDate | null                          // exactly once HELD or CLOSED
   chairId: Id; attendeeIds: Id[]; minutes: string | null; state: ManagementReviewState; cancelReason: string | null
 }
-interface ReviewInput { managementReviewId: Id; inputDefId: Id; notes: string | null }       // one per input key of its standards
+interface ReviewInput {                             // one live row per input key of its standards
+  managementReviewId: Id; inputDefId: Id; notes: string | null
+  sourceFigures: ReviewInputFigures | null          // stored once at RECORD_HELD, a record (model §1.7, §3.13)
+  figuresStoredAt: Instant | null                   // set with sourceFigures
+  figuresEngineVersion: string | null               // set with sourceFigures; not in the view
+}
 interface ReviewOutput { managementReviewId: Id; outputDefId: Id; decision: string | null }  // one per output key of its standards
 ```
 
@@ -737,7 +742,7 @@ Each view is its record plus what the screen needs; the derived parts come from 
 | `NonconformityView` | `status: NonconformityStatus`, `findingId`, `allowedActions` (`NcAction` without `RAISE`) |
 | `IsoActionView` | `status: IsoDueStatus`, `allowedActions: IsoActionAction[]` |
 | `ManagementReviewView` | `allowedActions` (`ManagementReviewAction` without `PLAN`) |
-| `ReviewInputView` | `key`, `title`, `source`, `clauseRefs: { standard, clauseNumber, item }[]`, `sourceFigures: ReviewInputFigures \| null` |
+| `ReviewInputView` | `key`, `title`, `source`, `clauseRefs: { standard, clauseNumber, item }[]`; `sourceFigures: ReviewInputFigures \| null` is the stored copy for a HELD or CLOSED review, computed as of the client's today for a PLANNED one, null for a CANCELLED review or a MANUAL input, with the values system-wide and the ids cut to those the reader may read; `figuresStoredAt` is set exactly when it is the stored copy; no `figuresEngineVersion` |
 | `ReviewOutputView` | `key`, `title`, `clauseRefs` |
 | `IsoReviewDefs` | `{ inputs: IsoReviewInputDef[]; outputs: IsoReviewOutputDef[] }` |
 | `IsoOverview` | `{ asOf; systems: IsoSystemOverview[] }`: per system, clause and certification readiness, climate gaps, NC, action, document, risk, objective, audit programme, management review, certificate and incident figures, each with the ids behind it |
@@ -789,8 +794,16 @@ certificationCycle(certification, externalAudits, asOf): CertificationCycle  // 
 managementReviewDue(system & { standards }, reviews, asOf, s: { dueSoonDays }): ManagementReviewDue
 reviewDue(reviewDueOn, asOf, s: { dueSoonDays }): IsoDueStatus
 planIsoNotifications(items: IsoNotificationInput[], schedule: IsoReminderSchedule, asOf): PlannedIsoNotification[]
-reviewInputFigures(source: ReviewInputSource, data, since, asOf): ReviewInputFigures
+reviewInputFigures(source: S, data: ReviewFigureData[S], since, asOf): ReviewInputFigures   // model §5.4
 ```
+
+`ReviewFigureData` holds, per input source, the records of the review's system the source reads, archived ones
+included, with no unit scope. Every ISO row carries `createdOn` and `archivedOn` (`ReviewFigureDays`, client-local
+days); actions (`ReviewFigureAction`) also `subject` and `doneOn`, nonconformities `reportedOn`. CONTEXT carries
+`contextChanges`, RISKS `ratingChanges` and NONCONFORMITIES `notEffectiveSteps`: the `{ entityId, on }` days
+(`ReviewFigureEventDay`) of the audited events model §5.4 names, in the window. COMPLIANCE_EVALUATION's instances are
+read as they are now. M16 calls it live for a PLANNED review and once at RECORD_HELD with `asOf = heldOn`; a HELD or
+CLOSED review's figures are never computed again.
 
 Results (`src/schemas/iso-results.ts`): `IdCount { count, ids }` (every number carries the ids it counts), `IsoTiming`
 (`ON_TIME`, `DUE_SOON`, `OVERDUE`, `CLOSED`), `IsoDueStatus { timing, overdueDays }`, `NonconformityStatus` (adds
@@ -798,7 +811,8 @@ Results (`src/schemas/iso-results.ts`): `IdCount { count, ids }` (every number c
 (`INTERNAL_AUDIT`, `MANAGEMENT_REVIEW`, `SCOPE`, `POLICY`, `OBJECTIVES`, `RISKS`), `GateResult { gate, met, missing }`,
 `CertificationReadiness`, `ObjectiveProgress`, `AuditProgrammeCoverage`, `IncidentCounts`, `ClimateGap` (`UNDECIDED`,
 `RELEVANT_NO_RISK`, `RELEVANT_NO_ISSUE`), `CertificationCycle` (items of kind `SURVEILLANCE_1`, `SURVEILLANCE_2`,
-`RECERTIFICATION`), `ManagementReviewDue`, `ReviewFigure { key, value, ids }` and `ReviewInputFigures`.
+`RECERTIFICATION`) and `ManagementReviewDue`. `ReviewFigure { key, value, ids }` and `ReviewInputFigures` live in
+`src/schemas/iso.ts`, since `ReviewInput` stores them.
 
 ### Reminders (`src/defaults.ts`)
 

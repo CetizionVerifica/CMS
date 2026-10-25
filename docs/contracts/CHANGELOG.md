@@ -225,3 +225,29 @@ action, names the step on clause N/A events, audits a system's status as an UPDA
 figures as the records stood on its `heldOn`, from their audit trail, with a window that never runs backwards
 (`iso-mock.md`). Tests pin the catalogue to its generator (201 clauses, 137 assessable) and the
 `objectiveProgress` stand-in at a client-local day boundary.
+
+## 1.8.2 · 2026-10-25
+ISO-1a2: stored management review figures and the rest of the 1.8.1 audit. A held review's figures are a record
+(README decision 52): `ReviewInput` gains `sourceFigures`, `figuresStoredAt` and `figuresEngineVersion`, stored
+together once at RECORD_HELD and null before, each null when absent so stored rows still parse.
+`ReviewInputView.sourceFigures` is the stored copy for a HELD or CLOSED review, computed as of the client-local today
+for a PLANNED one, and null for a CANCELLED review or a MANUAL input; the new `figuresStoredAt` is set exactly when it
+is the stored copy. `ReviewFigure` and `ReviewInputFigures` move from `schemas/iso-results.ts` to `schemas/iso.ts`
+under the same exported names. `IsoEngineApi.reviewInputFigures` takes `ReviewFigureData[source]` instead of an
+untyped record: every ISO row with `createdOn` and `archivedOn`, actions also with `subject` and `doneOn`,
+nonconformities with `reportedOn`, and the event days `contextChanges`, `ratingChanges` and `notEffectiveSteps`
+(`ReviewFigureEventDay { entityId, on }`). This is a patch, as 1.0.1 and 1.8.1 were: 1.8.1 narrowed request bodies
+and split two routes, and 1.8.2 narrows the engine signature, but no module provided or called an ISO route or
+`reviewInputFigures` yet, and the new record fields are optional on parse.
+The mock stores the figures at RECORD_HELD as of `heldOn` over the whole system, puts their values (no ids) and the
+engine version in the event, answers that copy for a HELD or CLOSED review whatever changes later, and cuts each
+figure's ids to those the reader may read. It drops the 1.8.1 rebuild from the audit trail and applies model §5.4's
+date rules: a nonconformity counts from the later of its creation day and `reportedOn`; records archived, closed or
+done after as-of count as live, open or OPEN; event days are client-local; the clearing of a residual rating by a
+treatment action is not a re-rating; a review not held counts as of the client-local today. The fixtures' held review
+gets its figures when the mock loads. An `Idempotency-Key` is cached per caller, route and record, so the same key
+on another record is a new request. A test pins the role matrix the stub `can()` reads: every ISO action has the same
+access on every route that checks it, and only the four older actions whose routes differ (`audit.read`,
+`instance.read`, `library.read`, `person.read`) may over-grant in the stub, which M5's policy settles. Decision 51 p
+says M13's and M17's edit forms send only the fields the person changed. The OpenAPI lint test gets a 30-second
+timeout.

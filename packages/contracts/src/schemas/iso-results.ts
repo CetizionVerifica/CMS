@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { FyLabel, Id, LocalDate } from '../primitives.js';
 import { IsoStandardCode } from '../enums.js';
-import { IncidentOutcome, IncidentType, ReviewInputSource } from './iso.js';
+import { IncidentOutcome, IncidentType } from './iso.js';
 
 /**
  * Results of the ISO engine functions (docs/iso/model.md §5, M4), which the ISO API returns as they are. Every number
@@ -197,24 +197,4 @@ export const ManagementReviewDue = z.strictObject({
 });
 export type ManagementReviewDue = z.infer<typeof ManagementReviewDue>;
 
-/** One figure of a review input: a camelCase key, its value and the ids behind it (empty for a score). */
-export const ReviewFigure = z.strictObject({
-  key: z.string().regex(/^[a-z][a-zA-Z0-9]*$/, 'Expected a camelCase key'),
-  value: z.number().finite(),
-  ids: z.array(Id),
-});
-export type ReviewFigure = z.infer<typeof ReviewFigure>;
-
-/**
- * `reviewInputFigures`: one input source's figures between `since` and `asOf` (`since` never after `asOf`), the
- * records as they stood on `asOf`; none for MANUAL.
- */
-export const ReviewInputFigures = z
-  .strictObject({
-    source: ReviewInputSource,
-    since: LocalDate,
-    asOf: LocalDate,
-    figures: z.array(ReviewFigure),
-  })
-  .refine((f) => f.since <= f.asOf, { message: 'since is after asOf', path: ['since'] });
-export type ReviewInputFigures = z.infer<typeof ReviewInputFigures>;
+// `ReviewFigure` and `ReviewInputFigures` live in schemas/iso.ts: a held review's input row stores them (model §3.13).
