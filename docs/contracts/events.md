@@ -1,6 +1,6 @@
 # Domain event catalogue (contracts v1)
 
-Owner: M0. Producers: M5-M8, M10. Consumers: mainly M9 (jobs and notifications) and M10 (cache refresh).
+Owner: M0. Producers: M5-M8, M10, M15. Consumers: mainly M9 (jobs and notifications) and M10 (cache refresh).
 
 ## 1. What an event is (and is not)
 - An **event** says "this happened" so other modules can react (send a reminder, regenerate instances, refresh a dashboard cache).
@@ -77,11 +77,25 @@ interface DomainEvent<T extends string, D> {
 | `account.created` | `{ accountId, kind: AccountKind, planCode, status }` | M9 (owner invite comes from `person.invited`) |
 | `account.status_changed` | `{ accountId, from: AccountStatus, to: AccountStatus }` | M9 (stop or resume jobs and reminders) |
 | `account.plan_changed` | `{ accountId, from: planCode, to: planCode }` | — |
+| `account.features_changed` | `{ accountId, added: FeatureFlag[], removed: FeatureFlag[] }` | M9 (copies the ISO catalogue when `added` has `isoManagement`) |
 | `support_access.granted` | `{ grantId, level: SupportAccessLevel, endsAt }` | — |
 | `support_access.revoked` | `{ grantId }` | — |
 
 `firmId` is the account, `clientId` is null. Operator actions carry `actor: { kind: "OPERATOR"; operatorId: Id }`
 (added in contracts 1.5.0); trial-end suspension by M9 carries `{ kind: "SYSTEM", job }`.
+
+`account.features_changed` (contracts 1.8.0, `docs/iso/plan.md` §4.3) is written only when the account's effective
+features change, through `platform_record_account_event` in the same transaction as the change (the trail's
+`account.event`, as `account.plan_changed` is): from `PUT /accounts/{id}/override`, from `POST /accounts/{id}/plan`, and
+from `PUT /plans/{code}` once for each account on that plan whose features change (ISO-5b). `added` and `removed` are
+the flags that turned on and off; at least one of them is not empty. M9 calls the ISO catalogue copier when
+`added` has `isoManagement`; a 10-minute sweep covers an account created on a plan that has the flag and a missed
+delivery (ISO-10a). The copy itself records `isoCatalogueCopiedAt` once, so a redelivered event copies nothing.
+
+ISO records (management systems, documents, nonconformities, audits and the rest, domain-model.md §10) emit no
+events in v1: no consumer needs one. ISO reminders are scheduled by M9 from the records (`planIsoNotifications`), and
+an ISO file scan writes its audit event on the subject and no `evidence.scanned`. A consumer that needs an ISO event
+asks M0 for it (rule 1).
 
 ### Import and export (producers M8, M10)
 | Type | `data` | Consumers |

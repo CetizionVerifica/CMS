@@ -261,6 +261,11 @@ export const Account = z.strictObject({
   trialEndsOn: LocalDate.nullable(),
   /** When the master library was copied in (ADR M15-0001 decision 7); null while a new account waits for it. */
   libraryCopiedAt: Instant.nullable(),
+  /**
+   * When the ISO catalogue was copied in (docs/iso/plan.md §4.3); null while an account with `isoManagement` waits for
+   * it, and for accounts that never had the add-on. Optional until M15 sends it: a reader treats a missing value as null.
+   */
+  isoCatalogueCopiedAt: Instant.nullable().optional(),
   onboardedAt: Instant.nullable(),
   deletionRequestedAt: Instant.nullable(),
   /** When the purge may run: `deletionRequestedAt` + the grace period. */

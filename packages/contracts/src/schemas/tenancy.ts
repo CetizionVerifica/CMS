@@ -27,6 +27,17 @@ import {
 
 /** Tenancy, entities and people (docs/contracts/domain-model.md §3). */
 
+/**
+ * When an ISO risk item is significant: its rating (likelihood × severity, 1-25, with the existing controls) reaches
+ * `significantAt`, or, when `legalLinkMakesSignificant`, it is linked to a statutory obligation. A set
+ * `significantOverride` on the item wins over both (M4 `isSignificant`).
+ */
+export const IsoRiskRule = z.strictObject({
+  significantAt: z.int().min(1).max(25),
+  legalLinkMakesSignificant: z.boolean(),
+});
+export type IsoRiskRule = z.infer<typeof IsoRiskRule>;
+
 export const FirmSettings = z.strictObject({
   criticalityWeights: z
     .record(Criticality, z.number().min(0).max(100))
@@ -36,6 +47,12 @@ export const FirmSettings = z.strictObject({
   dueSoonDays: z.int().min(0).max(90),
   /** Fixed true in v1. */
   mfaRequiredForFirmRoles: z.literal(true),
+  /**
+   * The ISO risk significance rule (docs/iso/model.md §5.1), the documented criteria the risk register prints. Not
+   * editable in v1. Defaults, so firms stored without it still parse; a reader that does not parse treats a missing
+   * value as `DEFAULT_ISO_RISK_RULE`.
+   */
+  isoRisk: IsoRiskRule.default({ significantAt: 12, legalLinkMakesSignificant: true }),
 });
 export type FirmSettings = z.infer<typeof FirmSettings>;
 

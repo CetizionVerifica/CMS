@@ -72,8 +72,9 @@ export function me(
   person: PersonRecord,
   session: Session,
   clock: Clock,
+  features: string[] = firm.features,
 ): z.input<typeof Me> {
-  const actor = actorFor(firm, session, person, clock.now());
+  const actor = actorFor(firm, session, person, clock.now(), features);
   const clientIds = visibleClientIds(actor);
   const firmRole = actor.memberships.some((m) => isFirmRole(m.role));
   return {
@@ -90,7 +91,7 @@ export function me(
       kind: firm.data.firm.kind ?? 'CONSULTANCY',
       status: firm.data.firm.status ?? 'ACTIVE',
       trialEndsOn: firm.data.firm.trialEndsOn ?? null,
-      features: [...firm.features],
+      features: [...actor.features],
     },
   };
 }
@@ -198,12 +199,12 @@ export const authHandlers: PartialHandlers<
   verifyMfa(ctx) {
     const actor = actorOf(ctx);
     actor.session.mfaSatisfied = true;
-    return me(actor.firm, actor.person, actor.session, ctx.clock);
+    return me(actor.firm, actor.person, actor.session, ctx.clock, actor.features);
   },
 
   getMe(ctx) {
     const actor = actorOf(ctx);
-    return me(actor.firm, actor.person, actor.session, ctx.clock);
+    return me(actor.firm, actor.person, actor.session, ctx.clock, actor.features);
   },
 
   createInvite(ctx) {

@@ -5,8 +5,19 @@ import type { z } from 'zod';
 import type { Invite } from '../api/auth.js';
 import type { SupportGrant } from '../schemas/accounts.js';
 import { CLIENT_ROLES, FIRM_ROLES, type Role } from '../enums.js';
-import { type FixtureSet as FixtureSetSchema } from '../fixtures/schema.js';
-import { loadFixtureSet } from '../fixtures/index.js';
+import {
+  type FixtureSet as FixtureSetSchema,
+  type IsoFixtureSet,
+  type IsoTablesShape,
+} from '../fixtures/schema.js';
+import {
+  type IsoCatalogueRows,
+  isoCatalogueRows,
+  loadFixtureSet,
+  loadIsoFixtureSet,
+} from '../fixtures/index.js';
+import type { IsoEntityType } from '../enums.js';
+import type { IsoFileSubject } from '../schemas/iso.js';
 import type { ImportBatch, ImportIssue, ImportRow, MappingTemplate } from '../schemas/import.js';
 import type { ExportJob } from '../schemas/scores.js';
 
@@ -16,6 +27,58 @@ export type Row<K extends keyof FirmData> = FirmData[K] extends (infer T)[] ? T 
 export type InstanceRecord = Row<'instances'>;
 export type PersonRecord = Row<'people'>;
 export type MembershipRecord = Row<'memberships'>;
+
+/** The mock's ISO tables (docs/iso/model.md §3), as plain JSON rows. */
+export type IsoTables = { [K in keyof typeof IsoTablesShape]: z.input<(typeof IsoTablesShape)[K]> };
+export type IsoRow<K extends keyof IsoTables> = IsoTables[K] extends (infer T)[] ? T : never;
+
+/**
+ * An ISO audit event: an `AuditEvent` whose entity is an ISO record. Kept apart from `data.auditEvents` while the ISO
+ * entity types are staged outside `EntityType` (docs/iso/plan.md §5.1); ISO-1b moves them into the client audit trail.
+ */
+export type IsoAuditEvent = Omit<Row<'auditEvents'>, 'entityType'> & {
+  entityType: z.input<typeof IsoEntityType>;
+};
+
+/** An ISO file upload ticket from `POST /iso/files/upload-url`, until it is confirmed. */
+export interface PendingIsoUpload {
+  clientId: string;
+  subject: z.input<typeof IsoFileSubject>;
+  fileName: string;
+  mimeType: string;
+  sizeBytes: number;
+  createdById: string;
+}
+
+/** One account's copy of the ISO catalogue tables (read-only: only the copy writes them). */
+export type IsoCatalogue = Pick<
+  IsoCatalogueRows,
+  'standards' | 'clauses' | 'reviewInputDefs' | 'reviewOutputDefs'
+>;
+
+const emptyIsoTables = (): IsoTables => ({
+  managementSystems: [],
+  contextItems: [],
+  clauseAssessments: [],
+  documents: [],
+  revisions: [],
+  riskItems: [],
+  riskControls: [],
+  objectives: [],
+  readings: [],
+  auditProgrammes: [],
+  internalAudits: [],
+  auditChecklistItems: [],
+  certifications: [],
+  externalAudits: [],
+  findings: [],
+  nonconformities: [],
+  actions: [],
+  managementReviews: [],
+  reviewInputs: [],
+  reviewOutputs: [],
+  files: [],
+});
 
 type Plain<T extends z.ZodType> = z.input<T>;
 
@@ -45,6 +108,18 @@ export interface FirmState {
   supportGrants: Plain<typeof SupportGrant>[];
   /** The account's features (`Me.account.features`); `PUT /__mock/firms/{firmId}/features` changes them. */
   features: string[];
+  /**
+   * When the ISO catalogue copy was recorded (`Account.isoCatalogueCopiedAt`); null until then, and every `/iso` route
+   * answers 409 FEATURE_NOT_READY (docs/iso/plan.md §4.3).
+   */
+  isoCatalogueCopiedAt: string | null;
+  /** The account's copy of the ISO catalogue tables; empty until the copy. */
+  isoCatalogue: IsoCatalogue;
+  /** The ISO records of the firm's clients. */
+  iso: IsoTables;
+  isoAuditEvents: IsoAuditEvent[];
+  /** ISO file upload tickets, keyed by upload id. */
+  pendingIsoUploads: Map<string, PendingIsoUpload>;
 }
 
 /**
@@ -103,18 +178,27 @@ export class MockStore {
   }
 
   reset(): void {
-    this.firms = this.sets.map((name) => ({
-      data: structuredClone(loadFixtureSet(name)) as FirmData,
-      invites: [],
-      imports: [],
-      pendingImports: new Map(),
-      pendingUploads: new Map(),
-      mappingTemplates: [],
-      exports: [],
-      scanning: new Set(),
-      supportGrants: [],
-      features: [...MOCK_FEATURES[name]],
-    }));
+    this.firms = this.sets.map((name) => {
+      const firm: FirmState = {
+        data: structuredClone(loadFixtureSet(name)) as FirmData,
+        invites: [],
+        imports: [],
+        pendingImports: new Map(),
+        pendingUploads: new Map(),
+        mappingTemplates: [],
+        exports: [],
+        scanning: new Set(),
+        supportGrants: [],
+        features: [...MOCK_FEATURES[name]],
+        isoCatalogueCopiedAt: null,
+        isoCatalogue: { standards: [], clauses: [], reviewInputDefs: [], reviewOutputDefs: [] },
+        iso: emptyIsoTables(),
+        isoAuditEvents: [],
+        pendingIsoUploads: new Map(),
+      };
+      if (name === 'firm-b.synthetic') loadIsoData(firm);
+      return firm;
+    });
     this.sessions.clear();
     this.magicLinks.clear();
     this.idempotency.clear();
@@ -196,4 +280,80 @@ export function activeMemberships(
       m.archivedAt === null &&
       (m.expiresAt === null || m.expiresAt > now),
   );
+}
+
+/**
+ * The ISO catalogue copy (docs/iso/catalogue.md §1) into `firm` at `at`: the catalogue tables, and the STANDARD acts,
+ * their category and obligations into its library, reusing a live STANDARD act or a live category of the same name.
+ * Records the copy; a second call copies nothing. With `requestId`, writes a SYSTEM CREATE audit event per act,
+ * category and obligation it adds (model §8); the fixture load passes none.
+ */
+export function copyIsoCatalogue(firm: FirmState, at: string, requestId?: string): void {
+  if (firm.isoCatalogueCopiedAt !== null) return;
+  const rows = isoCatalogueRows(firm.data.firm.id, at);
+  firm.isoCatalogue = {
+    standards: rows.standards,
+    clauses: rows.clauses,
+    reviewInputDefs: rows.reviewInputDefs,
+    reviewOutputDefs: rows.reviewOutputDefs,
+  };
+  const d = firm.data;
+  const added: { entityType: 'act' | 'category' | 'obligation'; id: string }[] = [];
+  let category = d.categories.find((c) => c.archivedAt === null && c.name === rows.category.name);
+  if (category === undefined) {
+    category = rows.category;
+    d.categories.push(category);
+    added.push({ entityType: 'category', id: category.id });
+  }
+  const actIds = new Map<string, string>();
+  for (const act of rows.acts) {
+    const existing = d.acts.find(
+      (a) => a.archivedAt === null && a.kind === 'STANDARD' && a.name === act.name,
+    );
+    if (existing === undefined) {
+      d.acts.push(act);
+      added.push({ entityType: 'act', id: act.id });
+    }
+    actIds.set(act.id, existing?.id ?? act.id);
+  }
+  for (const obligation of rows.obligations) {
+    if (d.obligations.some((o) => o.id === obligation.id)) continue;
+    d.obligations.push({
+      ...obligation,
+      actId: actIds.get(obligation.actId)!,
+      categoryId: category.id,
+    });
+    added.push({ entityType: 'obligation', id: obligation.id });
+  }
+  for (const row of requestId === undefined ? [] : added) {
+    d.auditEvents.push({
+      id: randomUUID(),
+      firmId: d.firm.id,
+      clientId: null,
+      at,
+      requestId: requestId!,
+      actorId: null,
+      actorKind: 'SYSTEM',
+      action: 'CREATE',
+      entityType: row.entityType,
+      entityId: row.id,
+      before: null,
+      after: { id: row.id },
+      reason: null,
+    });
+  }
+  firm.isoCatalogueCopiedAt = at;
+}
+
+/** Firm B's ISO data: its catalogue copy, the STANDARD register rows and the ISO records (`firm-b.iso.json`). */
+function loadIsoData(firm: FirmState): void {
+  const set = structuredClone(loadIsoFixtureSet()) as z.input<typeof IsoFixtureSet>;
+  if (set.firmId !== firm.data.firm.id) throw new Error('firm-b.iso.json is not firm B');
+  copyIsoCatalogue(firm, set.catalogueCopiedAt);
+  firm.data.assignments.push(...set.assignments);
+  firm.data.instances.push(...set.instances);
+  firm.data.evidence.push(...set.evidence);
+  for (const key of Object.keys(firm.iso) as (keyof IsoTables)[]) {
+    (firm.iso[key] as unknown[]) = set[key] as unknown[];
+  }
 }

@@ -12,6 +12,8 @@ export * from './schemas/import.js';
 export * from './schemas/scores.js';
 export * from './schemas/context.js';
 export * from './schemas/accounts.js';
+export * from './schemas/iso.js';
+export * from './schemas/iso-results.js';
 export type * from './engine-api.js';
 export * from './api/index.js';
 export * from './fixtures/schema.js';
