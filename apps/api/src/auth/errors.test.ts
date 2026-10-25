@@ -35,8 +35,9 @@ describe('ApiError', () => {
   });
 
   it('says when an add-on is still being set up for the account', () => {
-    // FEATURE_NOT_READY arrives with the ISO contracts (ISO-1); until then it is not an ErrorCode here.
-    expect(new ApiError('FEATURE_NOT_READY' as ErrorCode).message).toBe(
+    const error = new ApiError('FEATURE_NOT_READY', { feature: 'isoManagement' });
+    expect(error.statusCode).toBe(409);
+    expect(error.message).toBe(
       'This add-on is being set up for your account. Try again in a few minutes.',
     );
   });

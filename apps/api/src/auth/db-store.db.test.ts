@@ -789,8 +789,18 @@ describe.skipIf(!url)('database AccountStore', () => {
     ]);
     expect(await store.accountFeatures?.(seeded.firmId)).toEqual([]);
     expect(await store.accountFeatures?.(randomUUID())).toEqual([]);
+    // The ISO catalogue copy (docs/iso/plan.md §4.3): read fresh, from the firm row.
+    expect(await store.isoCatalogueCopied?.(seeded.firmId)).toBe(false);
+    expect(await store.isoCatalogueCopied?.(randomUUID())).toBe(false);
     const client = await owner.connect();
     try {
+      await client.query('BEGIN');
+      await client.query(`SELECT set_config('app.firm_id', $1, true)`, [seeded.firmId]);
+      await client.query(`UPDATE firm SET iso_catalogue_copied_at = now() WHERE id = $1`, [
+        seeded.firmId,
+      ]);
+      await client.query('COMMIT');
+      expect(await store.isoCatalogueCopied?.(seeded.firmId)).toBe(true);
       await client.query('BEGIN');
       await client.query(`SELECT set_config('app.firm_id', $1, true)`, [seeded.firmId]);
       await client.query(`UPDATE firm SET status = 'SUSPENDED' WHERE id = $1`, [seeded.firmId]);
