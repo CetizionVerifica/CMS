@@ -96,7 +96,9 @@ export const account = {
         .catch(rethrow)
     ).rows;
     if (!row) throw new DbError('NOT_FOUND', 'No account in this context');
-    return validate(z.array(FeatureFlag), row.features);
+    // A malformed flag in a plan or override row is not a feature; it must not fail every request (audit of #253).
+    const flags = Array.isArray(row.features) ? (row.features as unknown[]) : [];
+    return flags.filter((f): f is string => FeatureFlag.safeParse(f).success);
   },
   async usage(tx: TenantTx): Promise<AccountUsage> {
     const { rows } = await tx.execute<Record<string, unknown>>(sql`SELECT * FROM app_usage()`);

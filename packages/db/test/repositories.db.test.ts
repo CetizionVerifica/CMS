@@ -1419,6 +1419,18 @@ describe('ISO library columns (ADR M16-0001)', () => {
       [{ standard: 'ISO_9001', clauseNumber: '7..1' }],
       [{ standard: 'ISO_9001', clauseNumber: '1.2.3.4.5' }],
       [...twenty, { standard: 'ISO_9001', clauseNumber: '4' }],
+      // Shapes lax jsonpath let through (audit of #253): nested arrays and array-valued keys.
+      [[{ standard: 'ISO_9001', clauseNumber: '7.1.5' }]],
+      [{ standard: ['ISO_9001'], clauseNumber: '7.1.5' }],
+      [{ standard: 'ISO_9001', clauseNumber: ['7.1.5'] }],
+      [{}],
+      [null],
+      'ISO_9001',
+      // A repeated pair, in either key order.
+      [
+        { standard: 'ISO_9001', clauseNumber: '7.1.5' },
+        { clauseNumber: '7.1.5', standard: 'ISO_9001' },
+      ],
     ]) {
       await expect(set(bad), JSON.stringify(bad)).rejects.toMatchObject({ code: '23514' });
     }
