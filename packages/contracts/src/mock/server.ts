@@ -73,7 +73,7 @@ function header(request: FastifyRequest, name: string): string | undefined {
 
 /**
  * Body rejections that api-conventions.md §5 gives their own code, as the real API answers them: a missing or blank
- * `reason` is 422 REASON_REQUIRED, a file over the limit is 413 FILE_TOO_LARGE, and a file type not allowed is 415
+ * `reason`, or none with a change that needs one (an ISO moved date or reassignment), is 422 REASON_REQUIRED, a file over the limit is 413 FILE_TOO_LARGE, and a file type not allowed is 415
  * UNSUPPORTED_FILE. Anything else is 400 VALIDATION.
  */
 function bodyError(error: z.ZodError, id: EndpointId): MockError | undefined {
@@ -90,7 +90,9 @@ function bodyError(error: z.ZodError, id: EndpointId): MockError | undefined {
   }
   if (
     error.issues.some(
-      (i) => top(i) === 'reason' && (i.code === 'too_small' || i.code === 'invalid_type'),
+      (i) =>
+        top(i) === 'reason' &&
+        (i.code === 'too_small' || i.code === 'invalid_type' || i.code === 'custom'),
     )
   ) {
     return new MockError('REASON_REQUIRED', 'A reason is required');

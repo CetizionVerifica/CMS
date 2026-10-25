@@ -882,9 +882,9 @@ export const ISO_ENDPOINTS = {
     summary:
       'Investigation fields (isoNc.work); owner, approver or dates (isoNc.reassign), with a reason.',
     action: ['isoNc.work', 'isoNc.reassign'],
-    roles: 'CA OW:own',
+    roles: 'FA CO CA OW:own',
     notes:
-      'OW only as its owner. Changing owner, approver or dates: FA, CO and CA (isoNc.reassign).',
+      'OW only as its owner, never for owner, approver or dates. FA and CO only for owner, approver, dueOn or effectivenessDueOn (isoNc.reassign), with a reason.',
     body: iso.NcUpdateBody,
     response: iso.NonconformityView,
   }),

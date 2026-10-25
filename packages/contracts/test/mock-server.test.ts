@@ -1260,17 +1260,25 @@ describe('mock server', () => {
       items: { clientId: string; dueThisWeek: number; dueThisWeekFilter: unknown }[];
     }>(app, 'portfolio', { as: PERSON.arjun });
     expect(portfolio.items.map((r) => r.clientId)).toEqual([NORTHWIND]);
-    // The filter lists exactly the items counted as due this week.
+    // The filter lists exactly the items counted as due this week. Firm B has the ISO add-on on, so the statutory
+    // count and its filter keep to legal instances (source LAW).
     const week = portfolio.items[0]!;
     expect(week.dueThisWeekFilter).toEqual({
       dueFrom: TODAY,
       dueTo: '2024-11-21',
       workflowState: ['OPEN', 'SENT_BACK'],
+      source: 'LAW',
     });
     const filtered = await ok<{ items: unknown[] }>(app, 'listInstances', {
       as: PERSON.arjun,
       params: { clientId: NORTHWIND },
-      query: { dueFrom: TODAY, dueTo: '2024-11-21', workflowState: 'OPEN,SENT_BACK', limit: '200' },
+      query: {
+        dueFrom: TODAY,
+        dueTo: '2024-11-21',
+        workflowState: 'OPEN,SENT_BACK',
+        source: 'LAW',
+        limit: '200',
+      },
     });
     expect(filtered.items).toHaveLength(week.dueThisWeek);
     const overview = await ok<{ myTasks: { ownerId: string }[] }>(app, 'clientOverview', {

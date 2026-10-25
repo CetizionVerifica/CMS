@@ -1,4 +1,7 @@
 // M7 endpoints: the register, workflow transitions, comments, evidence and audit.
+// ISO activities (instances under STANDARD acts) follow the add-on's switch (docs/iso/plan.md §4.4-4.6): while it is
+// off they leave the register, queues and vault, and every route naming one answers 403; while it is on, the lists
+// take `source`. The client audit trail keeps listing them either way.
 // Uploads are not stored: the PUT URL points nowhere, and confirmed evidence passes its "scan" on the next read
 // (a file name containing "eicar" fails it instead).
 import { INSTANCE_EDIT_STATES, type InstanceAction, type WorkflowState } from '../../enums.js';
@@ -6,10 +9,12 @@ import {
   type Actor,
   asOfFor,
   audit,
+  checkKindEnabled,
   checkVersion,
   fileUrl,
   filterRows,
   instanceDetail,
+  instanceKind,
   instanceRow,
   Lookup,
   membershipsFor,
@@ -39,6 +44,23 @@ const instanceScope = (i: InstanceRecord) => ({
   ownerId: i.ownerId,
   approverId: i.approverId,
 });
+
+/**
+ * The role check for what an instance touches, then the ISO off switch: an ISO activity (an instance under a
+ * STANDARD act) answers 403 FEATURE_NOT_ENABLED while the add-on is off (docs/iso/plan.md §4.5).
+ */
+function authorizeInstance(ctx: Ctx, instance: InstanceRecord): void {
+  ctx.authorize(instanceScope(instance));
+  const actor = actorOf(ctx);
+  checkKindEnabled(actor, instanceKind(actor.firm, instance));
+}
+
+/** The live instance `id` names, after `authorizeInstance`. */
+function openInstance(ctx: Ctx, id: string | undefined): InstanceRecord {
+  const instance = findInstance(actorOf(ctx), id);
+  authorizeInstance(ctx, instance);
+  return instance;
+}
 
 function requireState(
   instance: InstanceRecord,
@@ -170,12 +192,17 @@ function evidenceView(e: Row<'evidence'>) {
   return view as Omit<Row<'evidence'>, 'storageKey'>;
 }
 
-function findEvidence(actor: Actor, id: string | undefined) {
+/** Live evidence `id` names and its instance, after `authorizeInstance`. */
+function openEvidence(ctx: Ctx, id: string | undefined) {
+  const actor = actorOf(ctx);
   const evidence = actor.firm.data.evidence.find((e) => e.id === id && e.archivedAt === null);
   if (evidence === undefined) throw notFound();
-  return { evidence, instance: findInstance(actor, evidence.instanceId) };
+  const instance = findInstance(actor, evidence.instanceId);
+  authorizeInstance(ctx, instance);
+  return { evidence, instance };
 }
 
+/** The signed-in person's queue across their clients, by due date; `source` and the off switch as on the register. */
 function queue(
   ctx: HandlerContext<'myApprovals' | 'myTasks'>,
   pick: (i: InstanceRecord, actor: Actor) => boolean,
@@ -185,7 +212,7 @@ function queue(
   const look = new Lookup(actor.firm);
   const asOf = asOfFor(actor, null, ctx.query.asOf, ctx.clock);
   const rows = visibleClientIds(actor)
-    .flatMap((clientId) => visibleInstances(actor, clientId))
+    .flatMap((clientId) => visibleInstances(actor, clientId, ctx.query.source))
     .filter((i) => pick(i, actor))
     .map((i) => instanceRow(look, i, asOf));
   return paginate(sortRows(rows, [{ field: 'dueDate', direction: 'asc' }]), ctx.query);
@@ -222,6 +249,7 @@ export const workHandlers: PartialHandlers<
     const look = new Lookup(actor.firm);
     const { limit, cursor, count, sort, asOf: asOfParam, ...filters } = ctx.query;
     const asOf = asOfFor(actor, clientId, asOfParam, ctx.clock);
+    // `filterRows` applies `source`; ISO activities are left out while the add-on is off (plan §4.4-4.6).
     const rows = filterRows(
       visibleInstances(actor, clientId).map((i) => instanceRow(look, i, asOf)),
       filters,
@@ -239,16 +267,14 @@ export const workHandlers: PartialHandlers<
 
   getInstance(ctx) {
     const actor = actorOf(ctx);
-    const instance = findInstance(actor, ctx.params.id);
-    ctx.authorize(instanceScope(instance));
+    const instance = openInstance(ctx, ctx.params.id);
     const asOf = asOfFor(actor, instance.clientId, ctx.query.asOf, ctx.clock);
     return instanceDetail(new Lookup(actor.firm), actor, instance, asOf);
   },
 
   submitInstance(ctx) {
     const actor = actorOf(ctx);
-    const instance = findInstance(actor, ctx.params.id);
-    ctx.authorize(instanceScope(instance));
+    const instance = openInstance(ctx, ctx.params.id);
     // Version and state first, as for every transition; then the submission's own rules.
     checkVersion(instance, ctx.body.version);
     requireState(instance, OPEN, 'SUBMIT');
@@ -283,8 +309,7 @@ export const workHandlers: PartialHandlers<
   },
 
   requestNa(ctx) {
-    const instance = findInstance(actorOf(ctx), ctx.params.id);
-    ctx.authorize(instanceScope(instance));
+    const instance = openInstance(ctx, ctx.params.id);
     transition(
       ctx,
       instance,
@@ -304,15 +329,13 @@ export const workHandlers: PartialHandlers<
   },
 
   approveInstance(ctx) {
-    const instance = findInstance(actorOf(ctx), ctx.params.id);
-    ctx.authorize(instanceScope(instance));
+    const instance = openInstance(ctx, ctx.params.id);
     approve(ctx, instance, ctx.body.version, ctx.body.comment);
     return detail(ctx, instance);
   },
 
   sendBackInstance(ctx) {
-    const instance = findInstance(actorOf(ctx), ctx.params.id);
-    ctx.authorize(instanceScope(instance));
+    const instance = openInstance(ctx, ctx.params.id);
     transition(
       ctx,
       instance,
@@ -328,8 +351,7 @@ export const workHandlers: PartialHandlers<
   },
 
   reopenInstance(ctx) {
-    const instance = findInstance(actorOf(ctx), ctx.params.id);
-    ctx.authorize(instanceScope(instance));
+    const instance = openInstance(ctx, ctx.params.id);
     transition(
       ctx,
       instance,
@@ -359,7 +381,8 @@ export const workHandlers: PartialHandlers<
         try {
           const instance = findInstance(actor, id);
           if (instance.clientId !== ctx.params.clientId) throw notFound();
-          ctx.authorize(instanceScope(instance));
+          // An ISO activity is refused on its own while the add-on is off; the rest still go through.
+          authorizeInstance(ctx, instance);
           approve(ctx, instance, version, ctx.body.comment);
           return {
             id,
@@ -376,8 +399,7 @@ export const workHandlers: PartialHandlers<
 
   updateInstance(ctx) {
     const actor = actorOf(ctx);
-    const instance = findInstance(actor, ctx.params.id);
-    ctx.authorize(instanceScope(instance));
+    const instance = openInstance(ctx, ctx.params.id);
     const body = ctx.body;
     checkVersion(instance, body.version);
     const reassign = body.ownerId !== undefined || body.approverId !== undefined;
@@ -447,8 +469,7 @@ export const workHandlers: PartialHandlers<
 
   listComments(ctx) {
     const actor = actorOf(ctx);
-    const instance = findInstance(actor, ctx.params.id);
-    ctx.authorize(instanceScope(instance));
+    const instance = openInstance(ctx, ctx.params.id);
     const rows = actor.firm.data.comments
       .filter((c) => c.instanceId === instance.id)
       .sort((a, b) => (a.createdAt < b.createdAt ? -1 : a.createdAt > b.createdAt ? 1 : 0));
@@ -457,15 +478,13 @@ export const workHandlers: PartialHandlers<
 
   createComment(ctx) {
     const actor = actorOf(ctx);
-    const instance = findInstance(actor, ctx.params.id);
-    ctx.authorize(instanceScope(instance));
+    const instance = openInstance(ctx, ctx.params.id);
     return addComment(ctx, actor, instance, 'NOTE', ctx.body.body);
   },
 
   evidenceUploadUrl(ctx) {
     const actor = actorOf(ctx);
-    const instance = findInstance(actor, ctx.params.id);
-    ctx.authorize(instanceScope(instance));
+    const instance = openInstance(ctx, ctx.params.id);
     requireState(instance, INSTANCE_EDIT_STATES, 'UPLOAD_EVIDENCE');
     const uploadId = ctx.store.newId();
     actor.firm.pendingUploads.set(uploadId, { instanceId: instance.id, ...ctx.body });
@@ -479,8 +498,7 @@ export const workHandlers: PartialHandlers<
 
   confirmEvidence(ctx) {
     const actor = actorOf(ctx);
-    const instance = findInstance(actor, ctx.params.id);
-    ctx.authorize(instanceScope(instance));
+    const instance = openInstance(ctx, ctx.params.id);
     requireState(instance, INSTANCE_EDIT_STATES, 'UPLOAD_EVIDENCE');
     const upload = actor.firm.pendingUploads.get(ctx.body.uploadId);
     if (upload === undefined || upload.instanceId !== instance.id) {
@@ -521,8 +539,7 @@ export const workHandlers: PartialHandlers<
 
   listInstanceEvidence(ctx) {
     const actor = actorOf(ctx);
-    const instance = findInstance(actor, ctx.params.id);
-    ctx.authorize(instanceScope(instance));
+    const instance = openInstance(ctx, ctx.params.id);
     finishScans(actor.firm);
     return {
       items: actor.firm.data.evidence
@@ -537,7 +554,8 @@ export const workHandlers: PartialHandlers<
     ctx.authorize({ clientId });
     finishScans(actor.firm);
     const look = new Lookup(actor.firm);
-    const visible = new Set(visibleInstances(actor, clientId).map((i) => i.id));
+    // Evidence of ISO activities only with the add-on, as `source` asks (plan §4.4-4.6).
+    const visible = new Set(visibleInstances(actor, clientId, ctx.query.source).map((i) => i.id));
     const q = ctx.query;
     const inList = <T>(list: T[] | undefined, value: T) =>
       list === undefined || list.includes(value);
@@ -561,8 +579,7 @@ export const workHandlers: PartialHandlers<
 
   evidenceDownloadUrl(ctx) {
     const actor = actorOf(ctx);
-    const { evidence, instance } = findEvidence(actor, ctx.params.id);
-    ctx.authorize(instanceScope(instance));
+    const { evidence } = openEvidence(ctx, ctx.params.id);
     finishScans(actor.firm);
     if (evidence.scanStatus !== 'CLEAN') {
       throw new MockError('EVIDENCE_NOT_READY', 'This file has not passed the virus scan', {
@@ -580,8 +597,7 @@ export const workHandlers: PartialHandlers<
 
   removeEvidence(ctx) {
     const actor = actorOf(ctx);
-    const { evidence, instance } = findEvidence(actor, ctx.params.id);
-    ctx.authorize(instanceScope(instance));
+    const { evidence, instance } = openEvidence(ctx, ctx.params.id);
     const manager = membershipsFor(actor, instance.clientId).some((m) =>
       ['FIRM_ADMIN', 'CONSULTANT', 'CLIENT_ADMIN'].includes(m.role),
     );
@@ -607,6 +623,7 @@ export const workHandlers: PartialHandlers<
     const actor = actorOf(ctx);
     const clientId = ctx.params.clientId!;
     ctx.authorize({ clientId });
+    // Not gated: the trail keeps ISO activities' events while the add-on is off (plan §4.4).
     const q = ctx.query;
     const rows = actor.firm.data.auditEvents.filter(
       (e) =>
@@ -626,8 +643,7 @@ export const workHandlers: PartialHandlers<
 
   instanceAudit(ctx) {
     const actor = actorOf(ctx);
-    const instance = findInstance(actor, ctx.params.id);
-    ctx.authorize(instanceScope(instance));
+    const instance = openInstance(ctx, ctx.params.id);
     const evidenceIds = new Set(
       actor.firm.data.evidence.filter((e) => e.instanceId === instance.id).map((e) => e.id),
     );

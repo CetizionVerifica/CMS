@@ -341,6 +341,18 @@ export function isoAudit(
   });
 }
 
+/**
+ * Files confirmed through the mock pass (or, for "eicar" files, fail) their scan when next read or relied on (M9's job),
+ * as `finishScans` does for evidence.
+ */
+export function finishIsoScans(firm: FirmState): void {
+  for (const file of firm.iso.files) {
+    if (!firm.scanning.has(file.id)) continue;
+    file.scanStatus = /eicar/i.test(file.fileName) ? 'INFECTED' : 'CLEAN';
+    firm.scanning.delete(file.id);
+  }
+}
+
 /** Bumps version and updatedAt. */
 export function touchIso(ctx: IsoCtx, row: { version: number; updatedAt: string }): void {
   row.version += 1;
