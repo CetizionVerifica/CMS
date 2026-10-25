@@ -1,16 +1,29 @@
 // How the audit trail words a client's audit events. Display only: the events, their order and who may read them come
 // from the API (M7). Evidence events name no file, so nothing from evidence reaches the page (root CLAUDE.md rule 6).
-import type {
-  AuditEvent,
-  ClauseNaAction,
-  DocumentAction,
-  ExternalAuditAction,
-  InternalAuditAction,
-  IsoActionAction,
-  IsoEntityType,
-  ManagementReviewAction,
-  NcAction,
-  RevisionAction,
+import {
+  ChecklistResult,
+  ClauseStatus,
+  DocumentStatus,
+  ExternalAuditState,
+  InternalAuditState,
+  IsoActionState,
+  ManagementReviewState,
+  ManagementSystemStatus,
+  NcSeverity,
+  NcState,
+  PersonStatus,
+  RevisionState,
+  type AuditEvent,
+  type ClauseNaAction,
+  type DocumentAction,
+  type ExternalAuditAction,
+  type InternalAuditAction,
+  type IsoActionAction,
+  type IsoEntityType,
+  type ManagementReviewAction,
+  type NcAction,
+  type RevisionAction,
+  type WorkflowState,
 } from '@canopy/contracts';
 
 export type AuditAction = AuditEvent['action'];
@@ -235,6 +248,47 @@ const FIELD_LABEL: Record<string, string> = {
   climateDecidedOn: 'Climate decision on',
 };
 
+/** A code in sentence case, one space per underscore: ROOT_CAUSE_FOUND reads "Root cause found" (model §4.7). */
+const sentence = (code: string): string => {
+  const words = code.toLowerCase().replaceAll('_', ' ');
+  return words.charAt(0).toUpperCase() + words.slice(1);
+};
+
+/** One word map per contracts enum, every value by the §4.7 rule (none of these enums has an exception). */
+const byRule = <T extends string>(values: readonly T[]): Record<T, string> =>
+  Object.fromEntries(values.map((value) => [value, sentence(value)])) as Record<T, string>;
+
+/** An instance's stored state in the status-language words (packages/ui/spec/status-language.md). */
+const INSTANCE_STATE: Record<WorkflowState, string> = {
+  OPEN: 'Open',
+  SUBMITTED: 'Awaiting approval',
+  SENT_BACK: 'Sent back',
+  APPROVED: 'Approved',
+  NOT_APPLICABLE: 'Not applicable',
+};
+
+/**
+ * The words for a coded field, by the record's entity type and the field, since `state` and `status` name different
+ * enums on different records. A risk item's `severity` is a number, so only a nonconformity's has words. Fields
+ * without a map show their value as it is.
+ */
+export const VALUE_WORDS: Partial<
+  Record<EntityType | IsoEntityType, Record<string, Readonly<Record<string, string>>>>
+> = {
+  instance: { workflowState: INSTANCE_STATE },
+  person: { status: byRule(PersonStatus.options) },
+  management_system: { status: byRule(ManagementSystemStatus.options) },
+  clause_assessment: { status: byRule(ClauseStatus.options) },
+  controlled_document: { status: byRule(DocumentStatus.options) },
+  document_revision: { state: byRule(RevisionState.options) },
+  internal_audit: { state: byRule(InternalAuditState.options) },
+  audit_checklist_item: { result: byRule(ChecklistResult.options) },
+  external_audit: { state: byRule(ExternalAuditState.options) },
+  nonconformity: { state: byRule(NcState.options), severity: byRule(NcSeverity.options) },
+  iso_action: { state: byRule(IsoActionState.options) },
+  management_review: { state: byRule(ManagementReviewState.options) },
+};
+
 const shown = (value: unknown): string | null => {
   if (value === null || value === undefined) return '—';
   if (typeof value === 'string') return value === '' ? '—' : value;
@@ -252,10 +306,15 @@ export function changes(event: AuditEvent): string[] {
   const before = event.before ?? {};
   const after = event.after ?? {};
   const lines: string[] = [];
+  const words = VALUE_WORDS[event.entityType];
+  const worded = (key: string, value: unknown): unknown => {
+    const map = words?.[key];
+    return map && typeof value === 'string' && Object.hasOwn(map, value) ? map[value] : value;
+  };
   for (const [key, label] of Object.entries(FIELD_LABEL)) {
     if (!(key in before) && !(key in after)) continue;
-    const from = shown(before[key]);
-    const to = shown(after[key]);
+    const from = shown(worded(key, before[key]));
+    const to = shown(worded(key, after[key]));
     if (from === null || to === null || from === to) continue;
     lines.push(event.before ? `${label}: ${from} → ${to}` : `${label}: ${to}`);
   }
