@@ -23,6 +23,7 @@ export {
   ROUTE_AUTH,
   SESSION_COOKIE,
   authorize,
+  hasFeature,
   registerAuth,
   requireClient,
   requireFeature,
