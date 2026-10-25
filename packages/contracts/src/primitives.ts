@@ -108,6 +108,14 @@ export const PlanCode = z
   .string()
   .regex(/^[A-Z][A-Z0-9_]{1,39}$/, 'Expected an upper-case plan code, e.g. STARTER');
 
+/**
+ * A clause number in a management-system standard, e.g. "6.1.2" or "4": one to four dot-separated numbers, the first
+ * 1-99. Numbers only: the catalogue holds titles and our own summaries, never the standard's text (ADR M16-0001).
+ */
+export const ClauseNumber = z
+  .string()
+  .regex(/^[1-9]\d?(\.(0|[1-9]\d?)){0,3}$/, 'Expected a clause number, e.g. 6.1.2');
+
 /** Indian GSTIN: 15 characters, upper case (shape only; the check digit is not verified). */
 export const Gstin = z
   .string()

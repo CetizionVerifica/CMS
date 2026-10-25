@@ -49,6 +49,7 @@ Saved views store exactly this query string, so a view, a dashboard link and an 
 | `ACCESS_EXPIRED` | 403 | VIEWER membership past `expiresAt` | `{ expiredAt }` |
 | `ACCOUNT_SUSPENDED` | 403 | The account is not TRIAL or ACTIVE: any sign-in or request while SUSPENDED; while PENDING_DELETION, sign-in by anyone but an account admin, or any route but `/me`, logout and the account export (domain-model.md §9) | `{ status }` |
 | `PLAN_LIMIT_REACHED` | 403 | Creating a company, unit or invite past the plan's limit | `{ limit, max, used }` |
+| `FEATURE_NOT_ENABLED` | 403 | The route belongs to an add-on the account does not have (e.g. any `/iso` route without `isoManagement`); reads too (domain-model.md §9) | `{ feature }` |
 | `NOT_FOUND` | 404 | Missing, archived, **or in another tenant/client the actor cannot see** (never reveal existence) | — |
 | `STALE_VERSION` | 409 | `version` mismatch | `{ currentVersion }` |
 | `INVALID_TRANSITION` | 409 | Action not allowed from current workflow state, or (operator API) account status move not allowed | `{ from, action }` or `{ from, to }` |

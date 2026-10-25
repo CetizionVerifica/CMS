@@ -1,7 +1,15 @@
 import { z } from 'zod';
-import { Criticality, Jurisdiction, ObligationDomain, RuleStatus, TimelineType } from '../enums.js';
+import {
+  ActKind,
+  Criticality,
+  Jurisdiction,
+  ObligationDomain,
+  RuleStatus,
+  TimelineType,
+} from '../enums.js';
 import {
   baseShape,
+  ClauseNumber,
   Id,
   LocalDate,
   LongText,
@@ -46,8 +54,17 @@ export const Act = z
     stateCode: StateCode.nullable(),
     /** Other spellings that resolve to this Act on import. */
     aliases: z.array(Name),
+    /**
+     * STATUTE (a law) or STANDARD (an ISO management-system standard, ADR M16-0001). Optional until M3 stores it: a
+     * reader treats a missing kind as STATUTE. A STANDARD act is CENTRAL with no stateCode.
+     */
+    kind: ActKind.optional(),
   })
-  .superRefine(checkJurisdiction);
+  .superRefine(checkJurisdiction)
+  .refine((a) => a.kind !== 'STANDARD' || a.jurisdiction === 'CENTRAL', {
+    path: ['jurisdiction'],
+    message: 'A STANDARD act is CENTRAL',
+  });
 export type Act = z.infer<typeof Act>;
 
 export const Category = z.strictObject({
@@ -152,6 +169,16 @@ export const Obligation = z
     logSheets: z.array(TemplateRef),
     /** Bumped on every published change. */
     libraryVersion: z.int().min(1),
+    /**
+     * Clause numbers of the standard this activity serves, for obligations under a STANDARD act (ADR M16-0001), e.g.
+     * `["7.1.5"]` for calibration. Optional until M3 stores it: a reader treats a missing list as empty.
+     */
+    clauseRefs: z.array(ClauseNumber).max(20).optional(),
   })
-  .superRefine(checkJurisdiction);
+  .superRefine(checkJurisdiction)
+  .superRefine((o, ctx) => {
+    if (o.clauseRefs !== undefined && new Set(o.clauseRefs).size !== o.clauseRefs.length) {
+      ctx.addIssue({ code: 'custom', path: ['clauseRefs'], message: 'Clause numbers repeat' });
+    }
+  });
 export type Obligation = z.infer<typeof Obligation>;
