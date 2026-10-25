@@ -1,5 +1,6 @@
 import { LocalDate } from '@canopy/contracts';
 import {
+  account,
   accountJobs,
   acts,
   assignments,
@@ -47,6 +48,10 @@ function firmTx(tx: TenantTx): FirmTx {
   return {
     firmSettings: async () => (await firms.current(tx)).settings,
     accountStatus: async () => (await firms.current(tx)).status,
+    accountFeatures: async () => ({
+      features: await account.features(tx),
+      isoCatalogueCopiedAt: await account.isoCatalogueCopiedAt(tx),
+    }),
     endTrial: (now, job) => accountJobs.endTrial(tx, now, job),
     takeUsageSnapshot: (on) => accountJobs.takeUsageSnapshot(tx, on),
     closeExpiredSupport: (now) => supportGrants.closeExpired(tx, now),
