@@ -344,7 +344,7 @@ type ObjectiveFields = Pick<
 };
 type Reading = Pick<ObjectiveReading, 'periodStart' | 'periodEnd' | 'value'>;
 
-const DEFAULT_CALENDAR: EngineCalendar = { fyStartMonth: 4, holidayPolicy: 'NONE' };
+const DEFAULT_FY: Pick<EngineCalendar, 'fyStartMonth'> = { fyStartMonth: 4 };
 
 /** Whether `value` meets the target in the objective's direction (MAINTAIN: equal to it). */
 function meets(objective: ObjectiveFields, value: number): boolean {
@@ -368,7 +368,7 @@ export function objectiveProgress(
   readings: readonly Reading[],
   objective: ObjectiveFields,
   asOf: LocalDate,
-  cal: EngineCalendar = DEFAULT_CALENDAR,
+  cal: Pick<EngineCalendar, 'fyStartMonth'> = DEFAULT_FY,
 ): ObjectiveProgress {
   const latest = readings
     .filter((r) => compareDates(r.periodEnd, asOf) <= 0)
@@ -406,7 +406,12 @@ export function objectiveProgress(
   const lastDue = addDays(asOf, -1);
   const periods =
     compareDates(createdOn, lastDue) <= 0
-      ? generateInstances(objective.readingRule, { from: createdOn, to: lastDue }, cal)
+      ? generateInstances(
+          objective.readingRule,
+          { from: createdOn, to: lastDue },
+          // Reading periods never move for holidays.
+          { fyStartMonth: cal.fyStartMonth, holidayPolicy: 'NONE' },
+        )
       : [];
   const missedReadings = periods
     .filter(

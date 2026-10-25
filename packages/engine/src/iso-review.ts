@@ -67,7 +67,7 @@ export type ObjectivesData = {
       recordedOn: Day;
     })[];
   })[];
-  calendar?: EngineCalendar;
+  calendar?: Pick<EngineCalendar, 'fyStartMonth'>;
 };
 
 /** NONCONFORMITIES: the input standards' NCs, their VERIFY_NOT_EFFECTIVE steps and their corrective actions. */

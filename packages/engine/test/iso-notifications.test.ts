@@ -82,7 +82,16 @@ describe('planIsoNotifications (model §5.3, §7)', () => {
     expect(planned.map((p) => p.isoSubjectId)).toEqual([u('action'), u('action-2')]);
     expect(new Set(planned.map((p) => p.recipientId))).toEqual(new Set([u('owner')]));
   });
-  it('an overdue system review is sent on the day it becomes overdue, then every 30 days while it stays so', () => {
+  it('an overdue system review is sent on its first overdue day, then every 30 days while it stays so', () => {
+    // Contracts 1.8.1: anchored on managementReviewDue's nextDueOn, first sent the day after it.
+    const rule = IsoReminderSchedule.parse([
+      {
+        kind: 'ISO_MANAGEMENT_REVIEW_DUE',
+        isoSubjectType: 'management_system',
+        offsetDays: [1],
+        repeatEveryDays: 30,
+      },
+    ]);
     const overdue = item({
       kind: 'ISO_MANAGEMENT_REVIEW_DUE',
       isoSubjectType: 'management_system',
@@ -90,13 +99,14 @@ describe('planIsoNotifications (model §5.3, §7)', () => {
       anchorDate: d('2026-01-31'),
       recipientIds: [u('client-admin')],
     });
-    expect(sendDays(overdue, '2026-01-01', 130)).toEqual([
-      '2026-01-31 0',
-      '2026-03-02 30',
-      '2026-04-01 60',
-      '2026-05-01 90',
-    ]);
-    expect(plan([{ ...overdue, open: false }], '2026-03-02')).toEqual([]);
+    const days: string[] = [];
+    for (let n = 0; n < 130; n += 1) {
+      const on = new Date(Date.UTC(2026, 0, 1 + n)).toISOString().slice(0, 10);
+      for (const p of planIsoNotifications([overdue], rule, d(on)))
+        days.push(`${on} ${p.offsetDays}`);
+    }
+    expect(days).toEqual(['2026-02-01 1', '2026-03-03 31', '2026-04-02 61', '2026-05-02 91']);
+    expect(planIsoNotifications([{ ...overdue, open: false }], rule, d('2026-03-03'))).toEqual([]);
   });
   it('a planned review is reminded 14 days before and on plannedOn; certificates 90, 30 and 7 days before', () => {
     const review = item({

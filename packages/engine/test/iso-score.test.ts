@@ -595,13 +595,11 @@ describe('objectiveProgress (model §5.1)', () => {
   });
   it('quarters follow the FY start month given', () => {
     const january = objective({ createdOn: d('2026-01-01'), dueOn: d('2026-12-31') });
-    expect(
-      run([], january, d('2026-04-01'), { fyStartMonth: 1, holidayPolicy: 'NONE' }).missedReadings,
-    ).toEqual([{ periodStart: '2026-01-01', periodEnd: '2026-03-31' }]);
+    expect(run([], january, d('2026-04-01'), { fyStartMonth: 1 }).missedReadings).toEqual([
+      { periodStart: '2026-01-01', periodEnd: '2026-03-31' },
+    ]);
     // February-start quarters: the one running when the objective was made counts, as it ends after that day.
-    expect(
-      run([], january, d('2026-05-01'), { fyStartMonth: 2, holidayPolicy: 'NONE' }).missedReadings,
-    ).toEqual([
+    expect(run([], january, d('2026-05-01'), { fyStartMonth: 2 }).missedReadings).toEqual([
       { periodStart: '2025-11-01', periodEnd: '2026-01-31' },
       { periodStart: '2026-02-01', periodEnd: '2026-04-30' },
     ]);

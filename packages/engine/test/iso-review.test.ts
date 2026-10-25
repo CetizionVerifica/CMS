@@ -180,7 +180,7 @@ describe('reviewInputFigures (model §5.4)', () => {
         objective('o-missed', { closedOn: d('2025-06-30'), outcome: 'NOT_ACHIEVED' }),
         objective('o-closed-before', { closedOn: d('2025-03-31'), outcome: 'ACHIEVED' }),
       ],
-      calendar: { fyStartMonth: 4, holidayPolicy: 'NONE' },
+      calendar: { fyStartMonth: 4 },
     };
     expect(figures('OBJECTIVES', data)).toEqual({
       objectivesOpen: [u('o-on'), u('o-off'), u('o-none')],

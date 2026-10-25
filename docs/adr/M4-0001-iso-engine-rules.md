@@ -65,7 +65,7 @@ statutory scores stay comparable.
    without a baseline, and for MAINTAIN, the reading must meet the target (MAINTAIN: equal within float noise). Null
    without a reading. `missedReadings` are the periods of `readingRule` due from `createdOn` to the day before
    `asOf`, ending on or after `createdOn`, starting by `dueOn`, that no reading overlaps. Quarters and halves follow
-   the client's FY start, passed as an optional `cal` (default April).
+   the client's FY start, passed as `cal` (`{ fyStartMonth }`, default April); reading periods never move for holidays.
 8. **Incidents.** `incidentCounts` counts incident NCs by the client-local date of `occurredAt` (`localDateIn`), both
    period days included, in total, by every type and by every outcome with zeros. The caller leaves cancelled NCs out.
 9. **Climate (Amd 1:2024, clause 4.1).** UNDECIDED while the decision is null; nothing when decided not relevant; when
@@ -119,8 +119,9 @@ statutory scores stay comparable.
     contracts hold it: action due 7 days before and on `dueOn`; action overdue 7 days after; document and risk review
     14 days before and on `reviewDueOn`; internal audit 7 days and 1 day before `plannedStart`; certificate 90, 30 and
     7 days before `expiresOn`; surveillance 60 and 30 days before an unmet cycle date; external response 7 days before
-    and on `responseDueOn`; planned management review 14 days before and on `plannedOn`; overdue system review on the
-    day it becomes overdue, then every 30 days while it stays so; effectiveness on `effectivenessDueOn`. An item is sent
+    and on `responseDueOn`; planned management review 14 days before and on `plannedOn`; overdue system review on its
+    first overdue day (anchored on `managementReviewDue`'s `nextDueOn`, offset +1), then every 30 days while it stays
+    so; effectiveness on `effectivenessDueOn`. An item is sent
     on an offset day or, with `repeatEveryDays`, every that many days after the last offset; an item marked not open,
     or with no rule for its kind and subject type, gets nothing. One notification per distinct recipient per item, so
     two subjects due the same day for one person are two sends.
@@ -134,6 +135,6 @@ statutory scores stay comparable.
 ## Consequences
 - M16 gathers the facts each arrow reads and maps a GUARD answer to 400 VALIDATION (422 REASON_REQUIRED for `reason`)
   and a maker-checker refusal to 403. M9 builds `IsoNotificationInput`s and calls `planIsoNotifications` daily.
-- `objectiveProgress` takes `createdOn` (a `LocalDate`) with contracts 1.8.1, and an optional calendar for the FY
-  start. The mock's stand-ins are all kept, so the M0 mock needs no change.
+- `objectiveProgress` takes `createdOn` (a `LocalDate`) and `{ fyStartMonth }` with contracts 1.8.1; the engine
+  defaults the FY start to April when it is left out. The mock's stand-ins are all kept, so the M0 mock needs no change.
 - Changing any rule here bumps `ENGINE_VERSION` and amends this ADR.
