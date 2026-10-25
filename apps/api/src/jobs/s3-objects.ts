@@ -10,16 +10,28 @@ import {
 /** The part of the S3 client the reader uses; tests pass a fake. */
 export type S3Send = Pick<S3Client, 'send'>;
 
-/** A connection that does not open in this long, or a socket idle this long mid-transfer, fails the read. */
+/**
+ * A connection that does not open in this long, or storage that has not started answering in this long, fails the
+ * read as a service error. Without `throwOnRequestTimeout` the SDK only logs a warning and keeps waiting. The scan's
+ * per-file deadline (`SCAN_FILE_MS`) still bounds the whole read, the transfer included.
+ */
 export const S3_CONNECT_MS = 10_000;
-export const S3_IDLE_MS = 60_000;
+export const S3_ANSWER_MS = 60_000;
 
-function s3Client(settings: S3Settings): S3Send {
+/** The client the reader builds for itself; tests shorten the timeouts. */
+export function s3Client(
+  settings: S3Settings,
+  timeouts = { connectMs: S3_CONNECT_MS, answerMs: S3_ANSWER_MS },
+): S3Send {
   return new S3Client({
     region: settings.region,
     ...(settings.endpoint ? { endpoint: settings.endpoint, forcePathStyle: true } : {}),
     credentials: { accessKeyId: settings.accessKeyId, secretAccessKey: settings.secretAccessKey },
-    requestHandler: { connectionTimeout: S3_CONNECT_MS, requestTimeout: S3_IDLE_MS },
+    requestHandler: {
+      connectionTimeout: timeouts.connectMs,
+      requestTimeout: timeouts.answerMs,
+      throwOnRequestTimeout: true,
+    },
   });
 }
 

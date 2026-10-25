@@ -1,8 +1,9 @@
+import { createServer, type Socket } from 'node:net';
 import { Readable } from 'node:stream';
 import { GetObjectCommand, NoSuchKey } from '@aws-sdk/client-s3';
 import { describe, expect, it } from 'vitest';
 import { ScanInterruptedError, ScanServiceError, ScanTimeoutError } from './ports.js';
-import { s3EvidenceObjects, type S3Send } from './s3-objects.js';
+import { s3Client, s3EvidenceObjects, type S3Send } from './s3-objects.js';
 
 const SETTINGS = {
   bucket: 'canopy-evidence',
@@ -125,5 +126,27 @@ describe('s3EvidenceObjects', () => {
     expect(() =>
       s3EvidenceObjects({ ...SETTINGS, endpoint: 'http://localhost:8333' }),
     ).not.toThrow();
+  });
+
+  it('gives up on storage that accepts the connection and never answers, before the scan deadline', async () => {
+    const sockets = new Set<Socket>();
+    const silent = createServer((socket) => sockets.add(socket));
+    await new Promise<void>((resolve) => silent.listen(0, '127.0.0.1', resolve));
+    const settings = {
+      ...SETTINGS,
+      endpoint: `http://127.0.0.1:${(silent.address() as { port: number }).port}`,
+    };
+    try {
+      const objects = s3EvidenceObjects(
+        settings,
+        s3Client(settings, { connectMs: 200, answerMs: 200 }),
+      );
+      const started = Date.now();
+      await expect(objects.open('evidence/a')).rejects.toBeInstanceOf(ScanServiceError);
+      expect(Date.now() - started).toBeLessThan(5_000);
+    } finally {
+      for (const socket of sockets) socket.destroy();
+      await new Promise((resolve) => silent.close(resolve));
+    }
   });
 });
