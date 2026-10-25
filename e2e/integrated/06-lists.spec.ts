@@ -10,6 +10,8 @@ type Endpoint = {
   method: string;
   path: string;
   query?: { shape?: Record<string, unknown> } | null;
+  /** The add-on an endpoint belongs to; the ISO add-on's endpoints carry it from ISO-1 (ADR M16-0001). */
+  feature?: string;
 };
 
 // F13 (docs/security/review.md, fixed in #154): M6's lists used to answer 500 at limit=200.
@@ -22,6 +24,8 @@ test('every client and firm list answers a full page of 200', async () => {
   for (const [name, e] of Object.entries(ENDPOINTS as Record<string, Endpoint>)) {
     const shape = e.query?.shape ?? {};
     if (e.method !== 'GET' || !('limit' in shape)) continue;
+    // Add-on lists are not served until M16 mounts them (docs/iso/plan.md ISO-8); 04-security expects them to 404.
+    if ('feature' in e) continue;
     // Lists under one record (an import's rows, a person's memberships) are paged the same way; these are the lists
     // the screens load whole.
     if (e.path.replace('{clientId}', '').includes('{')) continue;
