@@ -38,8 +38,12 @@ export default async function PortfolioPage() {
     rows,
     Object.fromEntries(model.clients.map((c) => [c.id, c.timeZone])),
   );
-  // Account admins add clients here; a support session looks but does not add (ADR M15-0001 decision 11).
-  const canAdd = model.roles.firm.includes('FIRM_ADMIN') && model.notice?.kind !== 'support';
+  // Account admins add clients here; a support session looks but does not add (ADR M15-0001 decision 11), and a
+  // closing account adds nothing (decision 5).
+  const canAdd =
+    model.roles.firm.includes('FIRM_ADMIN') &&
+    model.notice?.kind !== 'support' &&
+    model.notice?.kind !== 'closing';
   if (items.length === 0) {
     return (
       <>

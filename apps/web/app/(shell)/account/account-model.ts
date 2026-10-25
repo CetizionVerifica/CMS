@@ -2,6 +2,8 @@
 // grants in words. Formatting only; the API counts usage and decides each grant's status.
 import type { AccountView, SupportGrant } from '@canopy/contracts';
 
+import { isApiError } from '../../../lib/api/client';
+
 export type UsageRow = {
   label: string;
   used: string;
@@ -129,4 +131,12 @@ export function grantRows(grants: SupportGrant[]): GrantRow[] {
     from: formatInstant(g.startsAt),
     until: formatInstant(g.status === 'REVOKED' && g.revokedAt ? g.revokedAt : g.endsAt),
   }));
+}
+
+/**
+ * The API refusing the account page because the account is closing. The shell keeps a session's `GET /me` for a few
+ * seconds, so a page rendered just after the closing request can still take the account as open until the API says so.
+ */
+export function isClosingRefusal(error: unknown): boolean {
+  return isApiError(error, 'ACCOUNT_SUSPENDED') && error.details?.status === 'PENDING_DELETION';
 }
