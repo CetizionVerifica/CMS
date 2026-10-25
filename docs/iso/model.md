@@ -97,9 +97,13 @@ climateDecidedOn (date | null)
 ```
 One climate decision per system: Amd 1:2024 adds the same wording to clause 4.1 of all three standards, so an
 integrated system records it once. Setting or changing it is audited, like an NA decision. Once decided it can change
-but not return to null (`400 VALIDATION`).
+but not return to null (`400 VALIDATION`). M3 backs this rule and the growing-only `standardIds` below with one
+trigger, `management_system_guard` (ISO-2d), which raises `check_violation` (DbError `VALIDATION`); M16 checks both
+first and answers `400 VALIDATION`, so a trigger error never reaches a caller.
 
-`standardIds` may only grow. Adding a standard adds its checklist rows (§3.3); dropping one is `400 VALIDATION`, since
+`standardIds` may only grow. A new system, and a standard added to one, get their checklist rows (§3.3) through M3's
+`clauseAssessments.addForStandards` in the same transaction (`managementSystems.create` adds none); dropping one is
+`400 VALIDATION`, since
 its checklist rows, certificates and reviews would lose their standard (contracts README decision 51 d). A client that
 stops working to a standard leaves it in the system; moving to a newer edition is Later (catalogue §6).
 
@@ -219,6 +223,9 @@ ExternalAudit       managementSystemId, standardIds[] (one integrated visit can 
                     responseDueOn (the body's deadline for the corrective-action response, null if none),
                     state (PLANNED | HELD | RESPONDED | CLOSED | CANCELLED), cancelReason
 ```
+A certificate's `standardId`, and each of an external audit's `standardIds`, is one of its system's `standardIds`
+(`400 VALIDATION`). The database checks only that the standard is in the account's catalogue copy, so M16 checks this
+on every write, as the mock does.
 `certificateNumber`, `issuedOn` and `expiresOn` are set together or not at all (contracts README decision 51 a), so a
 certificate being pursued can be recorded before it is issued. Until then its cycle (§5.2) is empty, it sends no
 ISO_CERTIFICATE_EXPIRING or ISO_SURVEILLANCE_DUE reminder (§7), and the overview does not count it as expiring.
@@ -585,7 +592,7 @@ IsoFileView         the same without storageKey, with `subject: { type, id }`
   `apps/api/src/modules/evidence/index.ts`. M16 declares an `IsoFiles` port in `apps/api/src/modules/iso/ports.ts`
   and never imports M7 code. `apps/api/src/server.ts` (shared) builds `createIsoFiles({ storage:
   options.evidenceStorage })` and passes it to M16's routes, as it builds `createEvidenceService`, so the ISO file
-  routes mount only when evidence storage is configured (ISO-14). M16 checks the feature, the subject, the unit
+  routes mount only when evidence storage is configured (ISO-14b). M16 checks the feature, the subject, the unit
   scope, `can()` and the lock rule below, then calls the port inside the request's tenant transaction, so the
   `iso_file` row and its `AuditEvent` (entity = the ISO subject) commit together. Actions: `EVIDENCE_ADD` on
   confirm, `EVIDENCE_DOWNLOAD` on downloadUrl, `EVIDENCE_REMOVE` on remove, with `after` naming the ISO file id
