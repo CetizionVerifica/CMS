@@ -96,7 +96,9 @@
       "e2e/tests/overview/"
     ],
     "M14": ["e2e/", "docs/security/", "perf/"],
-    "M15": ["apps/api/src/platform/", "apps/operator/"]
+    "M15": ["apps/api/src/platform/", "apps/operator/"],
+    "M16": ["apps/api/src/modules/iso/", "docs/iso/"],
+    "M17": ["apps/web/app/(shell)/c/[clientId]/iso/", "e2e/tests/iso/"]
   },
   "needs": {
     "M0": [],
@@ -114,6 +116,8 @@
     "M10": ["M4", "M7"],
     "M13": ["M7", "M11"],
     "M14": ["M5", "M6", "M7", "M8", "M9", "M10", "M12", "M13"],
-    "M15": ["M5", "M6", "M9"]
+    "M15": ["M5", "M6", "M9"],
+    "M16": ["M5", "M6", "M7"],
+    "M17": ["M11", "M13", "M14", "M15"]
   }
 }

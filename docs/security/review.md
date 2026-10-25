@@ -21,11 +21,14 @@ Severity: **P0** stops a pilot (data exposure or a core journey broken), **P1** 
 | F7  | P1  | Performance, rate limits | Each server render of the shell calls `GET /me` and, for firm users, `GET /portfolio` (scores for every client), and link prefetching renders the shell many times per page. One consultant's import journey made about 400 API calls in 20 seconds (198 `/me`, 121 `/portfolio`), more than the per-visitor limit allows, and `/portfolio` will be slow at 10,000 instances per client. | M11           | Fixed in #147                |
 | F8  | P1  | Evidence                 | Nothing scans uploaded evidence, so every file stays `PENDING`: it cannot be downloaded (`EVIDENCE_NOT_READY`) and an obligation that requires evidence can never be submitted. Needs a scan job and a choice of scanner.                                                                                                                                              | M9, Shyam     | Fixed in #146 (ClamAV)       |
 | F9  | P2  | API contract             | `GET /clients/{clientId}/instances` ignores `?count=true` (api-conventions.md §3), so callers cannot get a total without paging through every row.                                                                                                                                                                                                                       | M7            | Fixed in #142                |
-| F10 | P3  | Web headers              | The web app sends `X-Frame-Options`, `nosniff` and a referrer policy, but no Content-Security-Policy. HSTS is left to the load balancer.                                                                                                                                                                                                                                | M11           | Reported                     |
+| F10 | P3  | Web headers              | The web app sends `X-Frame-Options`, `nosniff` and a referrer policy, but no Content-Security-Policy. HSTS is left to the load balancer.                                                                                                                                                                                                                                | M11           | Fixed in #192 (`proxy.ts`)   |
 | F11 | P3  | Logging                  | Unhandled API errors are logged with the full error object. A Postgres error's `detail` can quote row values (for example an email in a unique violation), which root rule 6 keeps out of logs.                                                                                                                                                                          | M5            | Fixed in #141                |
 | F12 | P1  | Sign-in                  | The web app has no MFA enrolment screen. A firm admin or consultant who has not enrolled yet is sent to the code step with no way to get a code, so a new firm user can never finish signing in. The API's enrolment (`/auth/mfa/enroll`) works; the integrated run enrols through it.                                                                         | M11           | Fixed in #158                |
 | F13 | P1  | API lists                | Every M6 list (clients, companies, units, locations, departments, people, Acts, categories, obligations, assignments) answers 500 to `limit=200`, the largest page the contract allows: the API asks the database for one row more than the page to find the next page, and the repository refuses 201. The library's obligations page asks for every Act this way, so it fails to load. | M6            | Fixed in #154                |
-| F14 | P2  | Sign-in                  | A firm user's first MFA enrolment is trust-on-first-use: until they enrol, anyone with their password can enrol their own authenticator and keep it. Mitigation: firm-role invite acceptance enrols MFA in the same step, while the invite token is fresh, so no session ever exists with a password and no MFA; the operator-created first admin goes through the same invite; email the person whenever MFA is enrolled or reset. | M5, M11       | Patch being drafted          |
+| F14 | P2  | Sign-in                  | A firm user's first MFA enrolment is trust-on-first-use: until they enrol, anyone with their password can enrol their own authenticator and keep it. Mitigation: firm-role invite acceptance enrols MFA in the same step, while the invite token is fresh, so no session ever exists with a password and no MFA; the operator-created first admin goes through the same invite; email the person whenever MFA is enrolled or reset. | M5, M11       | Fixed in #230, #237          |
+| F15 | P1  | Onboarding               | A consultancy account had no screen to add a client: `POST /clients` existed, but nothing in the web app called it, so a new consultancy's admin could not start. Enterprise accounts were unaffected (provisioning makes their one client). Found writing the pilot runbook. | M13           | Fixed in #243                |
+| F16 | P1  | Performance              | At 10,000 instances a client's overview, register count and act-wise report took about 6 s: they read the whole register 200 rows a query, and each query of the register's join spends about 110 ms planning under row-level security. Whole-client reads now take 2,000 rows a query (`REGISTER_READ_LIMIT`); the 200-row cap on what the browser asks for is unchanged. Found by the load check. | M3, M6, M10   | Fixed in #244                |
+| F17 | P2  | Performance              | One API process is CPU-bound on whole-client reads: each overview, register count or act-wise report at 10,000 instances costs about 0.5 s of the process's single thread, so 10 people reading at once with no pause wait up to 7 s, and other requests queue behind them. Mitigation for the pilot: at least two API processes behind the load balancer (deploy checklist 14). Later: cache each client's derived statuses, or derive them off the request thread. | M10, M6       | Mitigated (deploy item 14)   |
 
 ## What was checked and holds
 
@@ -108,9 +111,58 @@ Each line is a test in `e2e/integrated` unless it says otherwise.
   with a live session, and the console's database login is refused (42501) on every customer table it was not
   granted. Every console page is checked with axe at 1280px and 375px.
 
-Not yet covered: the setup, reports and audit pages (M13). Some journeys take a
-step through the API when another journey covers its screen (for example the submit in `02-workflow.spec.ts`) and say
-so in a comment.
+- A closing account (`08-accounts.spec.ts`): the operator requests deletion, after which the account admin's Account
+  page offers only each client's download, which builds on the real API and storage and downloads through a 5-minute
+  link; the rest of the API answers `ACCOUNT_SUSPENDED`, and cancelling the deletion reopens the account. Checked
+  with axe at 1280px and 375px.
+- M13's setup, reports, audit and library pages (`09-setup-reports-audit.spec.ts`): a department added in setup is
+  saved by the API and is on the audit trail; reminder settings are read back after a reload; a report builds on the
+  real export job and downloads through a 5-minute link; the entities, people and library pages load; an owner reaches
+  none of setup, reports or the audit trail. Every page at 1280px and 375px with axe.
+
+**Load** (`10-load.spec.ts`, MODULES.md M14)
+
+- Firm A's client is grown to 10,000 instances in one financial year (copies of its units with their assignments and
+  instances). One person then reads the overview, the first register page of 200, the register count, the act-wise
+  report and the portfolio three times each, and the slowest of each must stay within 1.5 s (0.5 s for the page,
+  1 s for the portfolio). Then 10 people at once, each from their own address, read the same (the portfolio by
+  consultants only), three rounds each, and each read's p95 must stay within 10 s for the whole-client reads and 3 s
+  for the page and the portfolio (F17). The run prints what it measured. The register page renders at that size and
+  the whole register exports within a minute.
+- Measured on a 4-core cloud container (Postgres 16 on the same machine): see "Load results" below.
+
+**Backup and restore** (`11-backup-restore.spec.ts`, [`backup-restore.md`](backup-restore.md))
+
+- After every other journey, the database is dumped with `pg_dump` from one exported snapshot and restored into a
+  new database: every table's row count, row-level security flag and policy come back, and the app's login set to one
+  account sees its instances and none of the other's.
+
+Some journeys take a step through the API when another journey covers its screen (for example the submit in
+`02-workflow.spec.ts`) and say so in a comment.
+
+## Load results
+
+Measured by `e2e/integrated/10-load.spec.ts` on 2026-10-25, on a 4-core container that also ran Postgres 16, the
+web app and the browsers, with one API process. Firm A's client was grown from the sample register to 10,128
+instances for FY 2022-23 (2.7 s to copy), then `ANALYZE`d.
+
+| Read | Before F16, one person | After F16, one person (slowest of 3) | After F16, 10 people at once (p95) |
+| --- | --- | --- | --- |
+| Overview | 6.2 s | 0.56 s | 7.1 s |
+| Register, first page of 200 | 0.15 s | 0.04 s | 2.1 s |
+| Register count | 6.7 s | 0.74 s | 5.4 s |
+| Act-wise report | 6.3 s | 0.62 s | 5.3 s |
+| Portfolio | 0.09 s | 0.03 s | 1.1 s |
+
+- One person alone is within a second on every read. Budgets: 1.5 s for the whole-client reads, 0.5 s for a page.
+- 10 people with no pause between reads queue on the one API process (F17). Each whole-client read is about 0.5 s of
+  its thread, so the process serves about two a second. The budgets (10 s, and 3 s for a page or the portfolio) catch
+  a regression, not a target; two processes halve the wait.
+- The register page opens in the browser in 2.5 s at that size and passes the accessibility check, and the whole
+  register (10,128 rows) exports to Excel in 3.5 s, within the minute allowed.
+- A second run gave the same picture: alone 0.71, 0.04, 0.82, 0.71 and 0.03 s; at once 5.6, 2.4, 6.1, 6.2 and 1.0 s.
+- The backup drill on the same data: a 0.9 MB dump in 0.3 s and a restore in 1.2 s, every table's rows, RLS flags
+  and policies back, and firm B's login sees none of firm A's rows.
 
 ## Running the integrated suite
 
@@ -160,3 +212,18 @@ What a deployment must set for the findings above to stay closed. Never put real
     the load balancer sends `/api/platform` to the console server rather than straight to the API, the API sees the
     console server as its client: `TRUST_PROXY` must list it, or the allowlist checks the console server's address
     instead of the operator's.
+11. The nightly account purge runs only with `PLATFORM_ENABLED`, `OPERATOR_DATABASE_URL` and the `S3_*` settings all
+    set (the API warns at start when storage is missing), and the migration owner, when not a superuser, must be able
+    to `SET ROLE canopy_purge` and the other definer roles (packages/db/CLAUDE.md).
+12. Mail before MFA: with no mail transport the MFA set-up notice (F14) is dropped, not delayed, so configure SMTP
+    before inviting firm users.
+13. Backups as in [`backup-restore.md`](backup-restore.md): point-in-time recovery for 35 days, a nightly dump in
+    another region, bucket versioning with 35 days of old versions, and `AUTH_SECRET_KEY`'s history kept as long as
+    the oldest backup.
+
+14. Capacity (F17): run at least two API processes (or instances) behind the load balancer, each with at least
+    one CPU of its own, so one client's whole-register reads don't hold up everyone else's requests. Sign-in rate
+    limits are kept in each process's memory, so each process allows its own budget: keep to a handful of
+    processes until they share a store.
+
+The steps from here to a working pilot are in [`pilot-runbook.md`](pilot-runbook.md).
