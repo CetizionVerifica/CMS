@@ -1,6 +1,6 @@
 # M16-0001: ISO management systems add-on
 
-Status: accepted, 2026-10-25. Plan: `docs/iso/plan.md`.
+Status: accepted, 2026-10-25. Amended by [M16-0002](M16-0002-iso-plan-v2.md). Plan: `docs/iso/plan.md`.
 
 ## Context
 

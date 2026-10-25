@@ -1,0 +1,732 @@
+# ISO add-on: package briefs
+
+Part of plan v2 ([plan.md](plan.md)). One brief per package. A thread gets: the root `CLAUDE.md`, `plan.md`, its brief
+below, the parts of [model.md](model.md) and [catalogue.md](catalogue.md) the brief names, and the area `CLAUDE.md` of
+its paths. Rules every brief shares (plan §5):
+
+- Title PRs `M<n>: ISO ...` (ISO-14: `Tooling: ISO ...`) and change only the module's paths, plus shared files.
+- Start only when every package in **Needs** has merged; one thread per module at a time.
+- If the work must depart from the brief, say so in the PR and tell the coordinator; do not edit `docs/iso/`.
+- Every package merges `main` before marking ready (plan §5.5).
+- Tests with every PR; isolation test for every new table; `AuditEvent` for every state change; fictional names only
+  (the ISO fixtures use firm B's Northwind Foods Group and invented people).
+- ADRs go in `docs/adr/M<n>-NNNN-slug.md` with the next free number of the module's own series.
+
+Started packages keep their ids and scopes; the first-wave briefs those threads received are summarised here with
+what v2 adds around them. Status is as of 2026-10-25 (`origin/main` at #259).
+
+---
+
+## ISO-0 · M0 · Feature contracts (contracts 1.7.0)
+- **Status:** merged (#247, contracts 1.7.0). Nothing in v2 changes it.
+- **Delivered:** `KNOWN_FEATURES` and `KnownFeature` (`isoManagement`), `effectiveFeatures()`, `FEATURE_NOT_ENABLED`
+  (403, details `{ feature }`), optional `AccountOverride.removedFeatures` (never overlapping `features`), optional
+  `AccountSummary.features` (so `Me.account.features`), `ActKind` and optional `Act.kind` (STANDARD is CENTRAL),
+  optional `Obligation.clauseRefs` as `ClauseNumber[]`, and `ISO_ENTITY_TYPES` staged outside `EntityType` (README
+  decision 41). The mock lists each firm's features (firm B, Second Ledger Consulting, has `isoManagement`; firm A
+  none) and `PUT /__mock/firms/{firmId}/features` changes them.
+- **What later packages change:** ISO-1 replaces `ISO_ENTITY_TYPES` with the v2 list (model §8) and reshapes
+  `clauseRefs` to `{ standard, clauseNumber }[]`; ISO-1b joins the staged values; ISO-1c makes fields required.
+
+## ISO-2a · M3 · Store add-on switches and the ISO library columns
+- **Status:** merged (#253, migration 0036; #258, migration 0037's strict `clause_refs` check). **Needs:** ISO-0.
+- **Delivers:** `account_override.removed_features text[] not null default '{}'`; `act.kind` (STATUTE | STANDARD, not
+  null default STATUTE); `obligation.clause_refs jsonb not null default '[]'` in the shape `{ standard, clauseNumber }[]`
+  (the repository omits it on read and refuses a non-empty value until ISO-1 reshapes the contract); both entitlement
+  reads, `app_account()` (CREATE OR REPLACE in the new migration) and `platformAccounts.entitlements` /
+  `accountOverrides`, return (plan ∪ override) − removed, with db tests on the tenant and operator sides, including a
+  plan feature that is also removed; `account.features(tx)` in `packages/db/src/repositories/accounts.ts`, a
+  features-only read of `app_account()` with no usage counts, which leaves a malformed stored flag out. It does not
+  stage ISO entity types (ISO-2b does).
+
+## ISO-7 · M11 · Gate the shell on the ISO add-on
+- **Status:** merged (#254, #257). **Needs:** ISO-0.
+- **Delivers:** `FeatureNotEnabled` in `lib/patterns` ("ISO management systems is not turned on for your account",
+  no data, a link home); the account's features in the shell model from `Me.account.features` (missing = none);
+  `RouteDef.module` accepts `'M17'` and an optional `feature`; nav and the client `[...stub]` treat a route whose
+  feature is off as absent and the stub shows `FeatureNotEnabled`; the ISO sidebar group linking to
+  `/c/[clientId]/iso/overview` ("ISO overview"), `iso/checklist`, `iso/documents`, `iso/risks`, `iso/objectives`,
+  `iso/audits`, `iso/nonconformities`, `iso/management-reviews`, `iso/certification`; mock demo accounts have
+  `isoManagement` except `MOCK_COMPANY_EMAIL`; the shell e2e test `e2e/tests/shell/iso.spec.ts` (M11's), which
+  clicks every ISO item and checks the h1 and title, and checks the off page and its title as `MOCK_COMPANY_EMAIL`.
+  It creates nothing under `(shell)/c/[clientId]/iso/` (M17's path); the stub says M17's pages take precedence, so
+  M17's `iso/layout.tsx` gates them (#257).
+- **What follows:** ISO-7b makes the mock's delegated routes agree with `/me` per demo user; ISO-6a gates
+  `iso/layout.tsx` with `FeatureNotEnabled`.
+
+## ISO-4a · M5 · Check the add-on feature on requests
+- **Status:** merged (#255, #259). **Needs:** ISO-0.
+- **Delivers:** `requireFeature(ctx, 'isoManagement')` reading the account's effective features on every request
+  through `AuthStore.accountFeatures(firmId)` (`apps/api/src/auth/db-store.ts`), which calls M3's
+  `account.features(tx)` in a short lookup transaction (no session or process cache), and finds the request by
+  `ctx.requestId`, throwing 403 `FEATURE_NOT_ENABLED`; `Me.account.features`; `PendingErrorCode` dropped from
+  `apps/api/src/auth/errors.ts`.
+- **What follows:** ISO-4c (message for `FEATURE_NOT_READY`), ISO-4b (policy rows, `hasFeature`, readiness, unit
+  scope).
+
+## ISO-5 · M15 · Add an add-ons switch to the operator console
+- **Status:** merged (#252). **Needs:** ISO-0, ISO-2a.
+- **Delivers:** the Add-ons card (one switch per `KNOWN_FEATURES` entry, reason required) writing
+  `PUT /accounts/{id}/override` and logging `OVERRIDE_CHANGE`; `removedFeatures` accepted and returned by the override
+  API; `overrideFrom` (`apps/operator/lib/account-actions.ts`) derives `removedFeatures` as the plan features missing
+  from the entitlements; `withFeature` changes only features and removedFeatures (off puts the flag in
+  `removedFeatures` only when the plan has it), the "Override limits" drawer only limits and the non-add-on flags.
+  Neither wipes the note: the operator API has no read of the override, so the console takes the stored note from
+  the account's newest `OVERRIDE_CHANGE` operator audit event (`noteFrom`, `after.override.note`; operator audit is
+  never deleted) and sends it unchanged from both. Tests: a limits save keeps a removed feature removed and the note;
+  a switch keeps overridden limits and the note; turning off a plan feature works.
+- **What follows:** ISO-5b (the features-changed event, plan routes, known features in the drawer, copy status).
+
+---
+
+## ISO-4c · M5 · Message for FEATURE_NOT_READY ahead of the contracts
+- **Thread title:** "ISO-4c: a message for FEATURE_NOT_READY". **Needs:** ISO-4a.
+- **Read:** plan §4.3, §5.2.
+- **Paths:** `apps/api/src/auth/errors.ts`, `apps/api/src/auth/errors.test.ts`.
+- **Delivers:** `FEATURE_NOT_READY` as a pending code (the way #248 added `FEATURE_NOT_ENABLED`) with the message
+  "This add-on is being set up for your account. Try again in a few minutes." Nothing throws it yet (ISO-4b does).
+- **Tests:** the message test, as for `FEATURE_NOT_ENABLED`; the existing "every contract code has a message" test stays
+  green before and after ISO-1 lists the code.
+- **Notes:** must merge before ISO-1.
+
+## ISO-12b · M13 · Show add-ons on the Account page
+- **Thread title:** "ISO-12b: add-ons on the Account page". **Needs:** ISO-0, ISO-7 (the demo users'
+  `Me.account.features` in `apps/web/lib/api/mock.ts`; merged).
+- **Read:** plan §4.1; `apps/web/CLAUDE.md`, `packages/ui/CLAUDE.md`.
+- **Paths:** `apps/web/app/(shell)/account/`, `e2e/tests/overview/` (account page journeys, if they live there).
+- **Delivers:** an Add-ons section listing every `KNOWN_FEATURES` entry with its label and description and On or Off
+  from the shell model's features (`Me.account.features`, ISO-7; missing = Off), never from `getAccount`'s
+  `features`, which the M0 mock fills from firm B for every demo user, `MOCK_COMPANY_EMAIL` included; and the sentence "Your PlanetPulse contact turns add-ons on or off."
+  Read-only: no control changes it.
+- **Tests:** component test for on, off and a missing list; e2e against the mock as a demo user with the add-on and as
+  `MOCK_COMPANY_EMAIL` without it; light mode at 1280 and 375, keyboard-only, axe.
+
+## ISO-1 · M0 · ISO contracts
+- **Thread title:** "ISO-1: ISO contracts". **Needs:** ISO-0, ISO-4c. **Status:** on hold until v2 merges.
+- **Read:** all of model.md and catalogue.md; plan §3, §4, §5.1-5.2; `docs/contracts/README.md` decisions 39 and 41.
+- **Paths:** `packages/contracts/` (`src/enums.ts`, `src/primitives.ts`, `src/errors.ts`, `src/defaults.ts`,
+  `src/engine-api.ts`, `src/schemas/{iso.ts (new),library.ts,tenancy.ts,context.ts,scores.ts,accounts.ts}`,
+  `src/api/{iso.ts (new),endpoints.ts,workflow.ts,dashboards.ts,error-details.ts,openapi.ts}`, `src/mock/`,
+  `scripts/fixtures/`, `fixtures/`, `test/`, `src/version.ts`), `docs/contracts/`.
+- **Delivers (additive; contracts 1.8.0, or the next free minor):**
+  - Shapes for every model §2-3 record (catalogue rows, management system, context, clause assessment, documents and
+    revisions, risk items and controls, objectives and readings, programmes, internal audits and checklist items,
+    certifications, external audits, findings, nonconformities with incident fields, `IsoAction`, management reviews
+    with inputs and outputs, `IsoFile`/`IsoFileView` without `storageKey`), request bodies and list queries, and the
+    state and action enums of every machine in model §4.
+  - `ISO_ENTITY_TYPES` replaced by the v2 list (model §8), before anything stages it; new staged constants
+    `ISO_NOTIFICATION_KINDS` (model §7) and `ISO_EXPORT_KINDS` (model §9). None of them joins a contract enum here.
+  - `Obligation.clauseRefs` reshaped to `{ standard: ISO_9001 | ISO_14001 | ISO_45001, clauseNumber: ClauseNumber }[]`,
+    still optional, unique per standard and number.
+  - Endpoints for model §10 with the role matrix of plan §3.2 in `docs/contracts/endpoints.md` and `ENDPOINTS`; each
+    list endpoint's notes say "AP/OW limited to their units (plan §3.3)". `Resource.unitIds?` (optional, non-empty).
+  - `registerFilterShape.source` (`LAW | ISO`, optional) so `RegisterQuery`, `RegisterFilterQuery` and the register
+    export get it; the same on `MyQueueQuery`, `CalendarQuery` and the vault query.
+  - `ExportCreateBody` accepts the ISO kinds (once joined) with ISO list filters, not `RegisterFilterQuery`.
+  - `FirmSettings.isoRisk: { significantAt: int 1-25, legalLinkMakesSignificant: boolean }` with `.default({
+    significantAt: 12, legalLinkMakesSignificant: true })` on the field and the same value in
+    `DEFAULT_FIRM_SETTINGS`, so firms stored without it still parse. Not editable in v1.
+  - `IsoEngineApi` (a separate interface beside `EngineApi`) with the model §5 signatures, `reviewInputFigures`
+    (model §5.4) included, and `PlannedIsoNotification`, `ISO_NOTIFICATION_DEDUPE_KEY`, `IsoNotificationInput`,
+    `IsoReminderSchedule` and `ISO_REMINDER_SCHEDULE` in `src/defaults.ts` (model §5.3, §7). `EngineApi` and
+    `PlannedNotification` do not change. The management review input view carries `sourceFigures` (model §10).
+  - `DueThisWeekFilter` gains an optional `source` (`LAW | ISO`), so `PortfolioRow.dueThisWeekFilter` can say Law
+    (ISO-11b, ISO-12c).
+  - `FEATURE_NOT_READY` (409, details `{ feature }`) in `ErrorCode`; `ERROR_DETAILS.INVALID_TRANSITION` gains a member
+    `{ entity: IsoEntityType, from: string, action: string }`.
+  - Event `account.features_changed { accountId, added: FeatureFlag[], removed: FeatureFlag[] }` in
+    `docs/contracts/events.md` "Accounts" (producer M15, consumer M9); ISO record events only where a consumer needs
+    them (none in v1). Operator `Account.isoCatalogueCopiedAt` (optional `Instant | null`).
+  - Fixtures: ISO data for firm B's Northwind Foods Group (the client the web mock maps to the demo client;
+    `apps/web/lib/api/mock-delegate.ts` loads only firm B), in its own generated file (`scripts/fixtures/
+    firm-b-iso.ts` → `fixtures/firm-b.iso.json`) merged into firm B by the mock store: a management system with
+    9001 + 14001 + 45001, catalogue rows, clause assessments in every state, documents with revisions, risk items of
+    every kind, objectives with readings, a programme with an audit and findings, an external audit, NCs in every
+    state including an incident, actions on every subject, a management review, a certificate, and the STANDARD acts
+    with a few activity instances. Firm A (the golden register) gets no ISO rows. Existing fixture counts
+    (`test/fixtures.test.ts`) and every web unit and e2e test against the mock stay green unchanged; if a shared list
+    would change a count they assert, keep that STANDARD data out of it and say so in the PR.
+  - Mock handlers for every ISO endpoint, enforcing the flag as the real API does: with the firm's `isoManagement`
+    off every `/iso` route answers 403 and STANDARD instances leave the instance, calendar, approvals and dashboard
+    responses. An `x-mock-features` request header (comma-separated, empty = none) overrides the firm's features for
+    that request, so the web mock can play a demo user without the add-on (ISO-7b). With it on, the mock's portfolio,
+    overview, breakdown, report and certificate responses still count STATUTE-act instances only (plan §4.6);
+    `PortfolioRow.dueThisWeekFilter` carries `source: 'LAW'`; the instance list, `/me/approvals`, `/me/tasks`, vault
+    and calendar handlers honour `source` (`LAW`, `ISO`, absent = both). This lets ISO-11c's and ISO-12c's e2e match a
+    number to its filtered list.
+  - `domain-model.md`, `endpoints.md`, `events.md`, `api-conventions.md`, `openapi.json`, README decisions, CHANGELOG.
+- **Tests:** schema tests per shape (guards from model §3-4 that a schema can express: exactly one subject on
+  `IsoAction`, `IsoFile` and `AuditFinding`; required-when rules, including `dispositionAuthorisedById` when
+  `disposition` is set, the incident `type`/`source`/`outcome`/`lostDays` rules and the climate rationale), mock tests
+  for on, off and the header, fixture tests, OpenAPI lint.
+
+## ISO-2b · M3 · Stage ISO enum values and give the send log an ISO subject
+- **Thread title:** "ISO-2b: staged ISO enum values and the ISO send key". **Needs:** ISO-1, ISO-2a.
+- **Read:** plan §5.1; model §7, §8, §9; `packages/db/CLAUDE.md`.
+- **Paths:** `packages/db/` (a new migration, `migrations/meta/`, `src/schema/enums.ts`, `src/schema/ops.ts`,
+  `src/repositories/ops.ts` (`NotificationSend`, `notificationSends`), tests).
+- **Delivers (one migration on existing types and an existing table, in its own PR):**
+  - `ALTER TYPE ... ADD VALUE` for every value in `ISO_ENTITY_TYPES` (into `entity_type`), `ISO_NOTIFICATION_KINDS`
+    (into `notification_kind`) and `ISO_EXPORT_KINDS` (into `export_kind`); the `new Set([...X.options, ...])` unions
+    in `enums.ts` built from those contract constants, with a comment; the "ahead" rows of
+    `test/schema.test.ts`.
+  - `notification_send`: nullable `iso_subject_type entity_type` and `iso_subject_id uuid`; a check that `instance_id`
+    and `iso_subject_id` are not both set; unique index `notification_send_iso_subject_key` on `(firm_id,
+    iso_subject_type, iso_subject_id, kind, send_date, recipient_id) where iso_subject_id is not null and event_id is
+    null`; `notification_send_digest_key` recreated with `and iso_subject_id is null` added to its predicate. Compare
+    kinds as text in any check (as 0030 and 0034 do), so the new enum values and the constraint apply in one run.
+  - In `src/repositories/ops.ts`: `NotificationSend` gains optional `isoSubjectType` (an ISO entity type) and
+    `isoSubjectId` (both or neither, never with `instanceId`), and its `kind` accepts the `ISO_NOTIFICATION_KINDS`
+    values until ISO-1b joins them (as the `enums.ts` unions do). The private `sendKey()` also matches on the ISO
+    subject (`iso_subject_id is null` for instance, digest and account sends), so `notificationSends.claim`,
+    `markSent` and `markFailed` touch only that subject's row, and one ISO send never marks another subject's row.
+    `listDone` returns the subject. `listDoneDigests` adds `iso_subject_id is null and kind = 'CONSULTANT_DIGEST'`
+    (its port says it lists digest outcomes), so an ISO reminder never counts as that day's digest
+    (`apps/api/src/jobs/digest.ts` skips consultants it returns). `claimSend`, `markSent`, `markFailed`,
+    `listDoneSends` and `listDoneDigests` are M9's `FirmTx` names in `apps/api/src/jobs/postgres-store.ts`; ISO-10c
+    passes the subject through them.
+- **Tests:** schema test with the staged values; drift test green; db tests: two ISO subjects due the same day for one
+  recipient claim two rows; `markSent` on one of them leaves the other PENDING and `claim` reports each row's own
+  state; a digest row and an ISO row for the same recipient, kind and day do not collide; an ISO send to a consultant
+  on digest day leaves `listDoneDigests` without that consultant; the check refuses a row with both an instance and an
+  ISO subject.
+
+## ISO-3 · M4 · ISO engine functions and transition tables
+- **Thread title:** "ISO-3: ISO engine". **Needs:** ISO-1.
+- **Read:** model §4, §5, §7; `packages/engine/CLAUDE.md`.
+- **Paths:** `packages/engine/src/{iso-score.ts,iso-status.ts,iso-notifications.ts,iso-review.ts,index.ts,version.ts}`,
+  their tests, `docs/adr/M4-NNNN-iso-engine-rules.md` (next free M4 number).
+- **Delivers:** every function in model §5 (`reviewInputFigures` in §5.4 included) and every transition table in
+  model §4 with the maker-checker rule of its preamble, exported as one object that `satisfies IsoEngineApi`;
+  `ENGINE_VERSION` bumped; the ADR records the fixed 5×5 scale, the significance rule and its defaults, readiness
+  weights, the certification gates (including RISKS) and their 12-month window, what "covered" means for audits,
+  due-soon and overdue rules for NCs, actions, reviews and certificates, the certification cycle, and the reminder
+  schedule of model §7 (`ISO_REMINDER_SCHEDULE`, ISO-1).
+- **Tests:** explicit dates and values for every function, including month ends, 29 February and FY boundaries; every
+  arrow and every refused arrow of every machine; plan §7 items 5 and 6; a NOT_AUDITED row covers nothing; a row with no
+  unit, in an audit whose unit list is empty, covers its clause but no unit; `reviewInputFigures` per source and for a system's first review (`since` = its creation
+  date); `planIsoNotifications` for a repeating overdue review and two subjects of one kind for one recipient. Coverage 100% on `iso-score.ts` and
+  `iso-status.ts` (the `*{status,score}*` threshold in `vitest.config.mjs` applies by name), 95% elsewhere.
+
+## ISO-7b · M11 · Mock features per demo user for ISO screens
+- **Thread title:** "ISO-7b: mock add-on state per demo user". **Needs:** ISO-1, ISO-7.
+- **Read:** plan §4.4; ISO-1's mock notes.
+- **Paths:** `apps/web/lib/api/mock.ts`, `apps/web/lib/api/mock-delegate.ts`, their tests, `e2e/tests/shell/`.
+- **Delivers:** the delegate forwards the signed-in demo user's `Me.account.features` to M0's mock as
+  `x-mock-features`, so `/me` and every delegated route agree: as `MOCK_COMPANY_EMAIL`, `/iso` routes answer 403 and
+  register lists carry no STANDARD instances; as any other demo user, ISO data shows.
+- **Tests:** delegate unit test for the header; shell e2e for both users, including a direct `/c/{clientId}/iso/...`
+  URL showing the not-turned-on page.
+
+## ISO-12a · M13 · Audit trail words for ISO entity types
+- **Thread title:** "ISO-12a: audit trail words for ISO records". **Needs:** ISO-1, ISO-12b.
+- **Read:** plan §5.1; model §8.
+- **Paths:** `apps/web/app/(shell)/c/[clientId]/audit/`.
+- **Delivers:** `ENTITY` in `audit-model.ts` keyed `Record<EntityType | IsoEntityType | 'account', string>` with
+  plain words for every v2 ISO entity type ("Management system", "Nonconformity", "ISO action", ...), so the map stays
+  complete before and after ISO-1b joins them. Field labels for the ISO fields that audit events carry, where the
+  page labels fields.
+- **Tests:** the model's exhaustiveness test; a rendered ISO event.
+- **Notes:** must merge before ISO-1b.
+
+## ISO-11c · M12 · Source filter on register, approvals, calendar and evidence screens
+- **Thread title:** "ISO-11c: Law and ISO source filter". **Needs:** ISO-1, ISO-7b.
+- **Read:** plan §4.4-4.6; `docs/adr/M12-0001-register-url-state-and-saved-views.md`.
+- **Paths:** `apps/web/app/(shell)/c/[clientId]/{register,approvals,calendar,evidence}/`, `e2e/tests/register/`.
+- **Delivers:** a Source filter (Law, ISO, both) in the URL state like the other filters, on the register, approvals,
+  calendar and evidence vault, shown only when the shell model has `isoManagement`; saved views keep it; with the
+  add-on off the filter is absent and a stale `source` in the URL is ignored. No compliance logic: rows come from the
+  API.
+- **Tests:** unit tests for the URL state; e2e against the mock as a user with the add-on (filter narrows to ISO
+  activities) and as `MOCK_COMPANY_EMAIL` (no filter, no ISO rows); light mode at 1280 and 375, keyboard-only, axe.
+
+## ISO-6a · M17 · ISO screens 1: gate, overview, systems, checklist, documents, certification
+- **Thread title:** "ISO-6a: ISO screens, part 1". **Needs:** ISO-1, ISO-7, ISO-7b.
+- **Read:** plan §2-4; model §3.1-3.4, §3.8, §4.2, §4.4, §4.6, §5.1, §6, §10; catalogue §4; `apps/web/CLAUDE.md`,
+  `packages/ui/CLAUDE.md`.
+- **Paths:** `apps/web/app/(shell)/c/[clientId]/iso/` (`layout.tsx`, `overview/`, `checklist/`, `documents/`,
+  `certification/`, `actions/` placeholder only if needed), `e2e/tests/iso/`.
+- **Delivers:**
+  - `iso/layout.tsx` is required (audit of #254: a real `page.tsx` overrides M11's `[...stub]`, so without it an ISO
+    page would render while the add-on is off). It gates every ISO page: feature off in the shell model → M11's `FeatureNotEnabled` and no data
+    loaded; an API answer of 409 `FEATURE_NOT_READY` → a "being set up" state; 403 `FEATURE_NOT_ENABLED` from any
+    call → `FeatureNotEnabled`.
+  - Overview (`iso/overview`): per standard, clause readiness beside the certification gates (each unmet gate links to
+    what is missing), climate warnings, NC and action counts, programme coverage, incidents, certificate expiry and
+    the next management review; every number links to its filtered list; a "My ISO actions" card linking to
+    `iso/actions`.
+  - Systems set-up (inside overview or checklist, by the design): standards, scope, units, context items, the climate
+    decision.
+  - Checklist: rows per assessable clause, owner, notes, files, N/A request and decision only where allowed, readiness.
+  - Documents: list (status, current revision, review date), detail with revision history (superseded marked),
+    draft, submit, approve, send back, review without change, make obsolete, external editions, files.
+  - Certification: certificates and external audits with their findings, recommendation and response date.
+  - Keep M11's `e2e/tests/shell/iso.spec.ts` (ISO-7) green; M17 cannot edit it. Every ISO page's h1 is its sidebar
+    label (`ISO overview`, `Checklist`, `Documents`, `Risks`, `Objectives`, `Audits`, `Nonconformities`,
+    `Management reviews`, `Certification`) and its title is `<label> · <client name>`. With the feature off, the
+    layout renders `FeatureNotEnabled` and every ISO page's `generateMetadata`, record pages included, loads nothing
+    and returns `Not turned on · <client name>`; `iso` and an unknown `iso/...` path still show the off page as the
+    test expects. If a page needs other words, the coordinator has M11 change its test first.
+- **Tests:** M11's shell ISO test stays green; component tests for every gate state; e2e against the mock for checklist N/A request and approval, a
+  document revision from draft to approved, and the off state as `MOCK_COMPANY_EMAIL`; light mode at 1280 and 375,
+  keyboard-only, axe on every page; loading, empty, error, no-permission, not-turned-on and being-set-up states.
+
+## ISO-2c · M3 · Library guards, clause references and the catalogue marker
+- **Thread title:** "ISO-2c: library guards and the ISO catalogue marker". **Needs:** ISO-2b.
+- **Read:** plan §4.2-4.4; catalogue §1-2; `packages/db/CLAUDE.md`.
+- **Paths:** `packages/db/`.
+- **Delivers (migrations on existing tables, own PR):**
+  - `act.kind`: a BEFORE UPDATE trigger refuses any change, whatever the role; a restrictive insert policy lets
+    `kind = 'STANDARD'` through only under `app_system_job()`; `act_name_key` becomes `(firm_id, kind, name)` among
+    non-archived rows.
+  - `obligation.clause_refs` read and written in the ISO-1 shape (the ISO-2a refusal of non-empty values goes).
+  - `firm.iso_catalogue_copied_at timestamptz` and `app_mark_iso_catalogue_copied()` (SECURITY DEFINER, owned by
+    `canopy_platform`, system context only, sets once, returns true when it set it; works in TRIAL and ACTIVE);
+    `accountJobs.markIsoCatalogueCopied(tx)`.
+  - The app-side read `account.isoCatalogueCopiedAt(tx): Promise<string | null>` in
+    `packages/db/src/repositories/accounts.ts`, which reads `firm.iso_catalogue_copied_at` for `app_firm_id()` like
+    `account.libraryCopied` (no usage query). M5 (ISO-4b) and M9 (ISO-10a-c) use it beside `account.features(tx)`.
+    `app_account()` gets no marker column (adding a result column would mean dropping and recreating it, with its owner
+    `canopy_platform` and 0020's REVOKE/GRANT re-applied). `platformAccounts` returns `isoCatalogueCopiedAt` for the
+    console.
+  - 0036 repeats the feature formula in SQL in `app_account()` and in `platformAccounts.entitlements`; both move onto
+    `canopy_effective_features(plan text[], added text[], removed text[]) RETURNS text[]` (IMMUTABLE, reads no table,
+    sorted and distinct); `app_account()` by CREATE OR REPLACE with unchanged result columns, which keeps its owner and
+    grants.
+- **Tests:** a consultant context cannot insert a STANDARD act; no context can change `act.kind`; a STATUTE and a
+  STANDARD act may share a name; the marker sets once, refuses outside the system context, and works in TRIAL and
+  ACTIVE; `account.isoCatalogueCopiedAt` returns null before the mark and the time after it, in a staff, client and
+  system context; the two feature reads agree for a plan, an added and a removed feature.
+
+## ISO-11e · M10 · Default branch in the export builder ahead of new export kinds
+- **Thread title:** "ISO-11e: the export builder takes new kinds". **Needs:** ISO-1.
+- **Read:** plan §5.1 step 3a; `apps/api/CLAUDE.md`.
+- **Paths:** `apps/api/src/modules/reports/service.ts` and its tests.
+- **Delivers:** `buildFile`'s `switch (job.kind)` gets ``default: throw new Error(`No file builder for
+  ${String(job.kind)}`)``, so the end of the function stays unreachable for tsc when new kinds join `ExportKind`
+  and a job of a kind M10 does not build ends FAILED. `createExport` refuses any kind outside the six it builds
+  (`REGISTER_XLSX`, `ACT_REPORT_XLSX`, `DEPARTMENT_REPORT_XLSX`, `OVERDUE_REPORT_XLSX`, `CERTIFICATE_PDF`,
+  `CLIENT_ARCHIVE_ZIP`) with `400 VALIDATION`, so ISO-1b can join `ISO_EXPORT_KINDS` before ISO-11d builds them.
+- **Tests:** existing kinds build unchanged; a kind from `ISO_EXPORT_KINDS` (ISO-1) is refused at create and fails
+  the build branch.
+- **Notes:** must merge before ISO-1b, as #212 needed M10's default branch before `CLIENT_ARCHIVE_ZIP` joined.
+
+## ISO-1b · M0 · Join the staged ISO enum values
+- **Thread title:** "ISO-1b: ISO values join the contract enums". **Needs:** ISO-2b, ISO-12a, ISO-11e.
+- **Paths:** `packages/contracts/`, `docs/contracts/`.
+- **Delivers (patch bump):** `ISO_ENTITY_TYPES` join `EntityType`, `ISO_NOTIFICATION_KINDS` join `NotificationKind`,
+  `ISO_EXPORT_KINDS` join `ExportKind` (the staged constants stay as subsets); `satisfies Record<ExportKind, string>`
+  in the mock's dashboards handler updated; ISO audit-event fixtures; CHANGELOG and README decision.
+- **Tests:** enum tests; the db schema test, the web typecheck and the apps/api typecheck stay green (they already
+  handle the values: ISO-2b, ISO-12a, ISO-11e).
+
+## ISO-16 · M8 · Import matches and creates STATUTE acts only
+- **Thread title:** "ISO-16: imports never touch ISO standard acts". **Needs:** ISO-2c.
+- **Read:** catalogue §2; `packages/importer/CLAUDE.md`.
+- **Paths:** `apps/api/src/modules/imports/` (the act list in `service.ts` and the commit's act lookup and create),
+  `packages/importer/` only if the analysis needs it.
+- **Delivers:** STANDARD acts are left out of the names analysis knows and out of the commit lookup; acts the commit
+  creates are STATUTE.
+- **Tests:** a register Act named like a STANDARD act (`ISO 14001 environmental management`) creates a STATUTE act
+  beside it; golden counts unchanged; re-import idempotent.
+
+## ISO-5b · M15 · Features-changed event and copy status in the console
+- **Thread title:** "ISO-5b: tell the app when an account's features change". **Needs:** ISO-1, ISO-2c, ISO-5.
+- **Read:** plan §4.1-4.3; `apps/api/src/platform/CLAUDE.md`.
+- **Paths:** `apps/api/src/platform/` (`db-lifecycle.ts`, `db-accounts.ts`, tests), `apps/operator/`.
+- **Delivers:**
+  - `account.features_changed { accountId, added, removed }` written through `platform_record_account_event` (the
+    trail's `account.event`, as `account.plan_changed` is) in the same transaction, only when the effective features
+    change: from `PUT /accounts/{id}/override`, from `POST /accounts/{id}/plan`, and from `PUT /plans/{code}` once for
+    each account on that plan whose features change (with an account trail entry for each).
+  - The override PUT sets a `KNOWN_FEATURES` flag only when the body names it: in `features` (on) or in
+    `removedFeatures` (off). A known flag named in neither list keeps its stored state (the drawer's case). ISO-5b
+    changes the console switch (`withFeature`) so it always names the flag it changes: on puts it in `features` and
+    takes it out of `removedFeatures`; off takes it out of `features` and puts it in `removedFeatures`, whether or
+    not the plan includes it. A `removedFeatures` entry the plan lacks keeps the flag off if a plan edit later adds
+    it. The "Override limits" drawer's free-text features field neither shows nor sends known features (ISO-5
+    already does this in the console; the server rule makes it hold for any caller).
+  - The account page shows "ISO set up" with the copy time (`isoCatalogueCopiedAt`) when the feature is on, and flags
+    "ISO set-up has not finished" when it is still missing 15 minutes after the latest switch-on.
+- **Tests:** per route: switch on and off for a plan with and without the flag (one event, correct added/removed);
+  no event when nothing changes; a plan edit emits one event and one trail entry per affected account; a limits save
+  keeps a removal and the note; switch off on a plan without the flag turns it off, and a later limits save keeps it
+  off; the copy-status display.
+
+## ISO-2d · M3 · ISO tables 1: catalogue copy, systems, checklist, documents, certification, files
+- **Thread title:** "ISO-2d: ISO tables, part 1". **Needs:** ISO-2c.
+- **Read:** model §1, §2, §3.1-3.4, §3.8-3.9 (audit_finding is created in ISO-2e), §6; `packages/db/CLAUDE.md`.
+- **Paths:** `packages/db/` (new `src/schema/iso.ts`, migrations, repositories, tests; `packages/db/CLAUDE.md` table
+  list).
+- **Delivers:** tables `iso_standard`, `iso_clause`, `iso_review_input_def`, `iso_review_output_def` (firm-wide,
+  writes only under `app_system_job()`), `management_system`, `management_system_unit`, `context_item`,
+  `clause_assessment`, `controlled_document`, `document_revision`, `certification`, `certification_unit`,
+  `external_audit`, and `iso_file` (one nullable FK column per subject in model §6; the columns for subjects created
+  in ISO-2e are added there). Every rule of model §1: client policies, composite FKs, `num_nonnulls` checks, archived
+  join rows, purge list. Repositories: catalogue reads and system-context writes; CRUD and list (with unit-scope
+  list filters per plan §3.3, joining the management system's units for records without their own) per record; `isoFiles.create/get/forSubject/pendingScan(tx, limit)/setScanStatus/archive/cleanForClient`,
+  where `pendingScan` does not join instances.
+- **Tests:** isolation test per table; schema-rules and purge-list tests; FK tests (a client-A record cannot point at
+  a client-B unit or ISO record); catalogue writes refused outside the system context; `num_nonnulls` refusals.
+
+## ISO-4b · M5 · ISO policy rows, `hasFeature`, readiness and multi-unit scope
+- **Thread title:** "ISO-4b: ISO permissions". **Needs:** ISO-1, ISO-2c, ISO-4c.
+- **Read:** plan §3, §4.2-4.3; `apps/api/CLAUDE.md` roles.
+- **Paths:** `apps/api/src/auth/`.
+- **Delivers:** one `POLICY` row per ISO action ISO-1 lists (plan §3.2), no wildcard; `inScope` requires an overlap
+  with the membership's `unitIds` when `resource.unitIds` is present; `hasFeature(ctx, flag)` (no throw, for lists that
+  leave ISO rows out); `requireFeature(ctx, 'isoManagement')` also answers 409 `FEATURE_NOT_READY` while the copy
+  is not recorded: a new `AuthStore.isoCatalogueCopied(firmId)` in `db-store.ts` reads `account.isoCatalogueCopiedAt(tx)`
+  (ISO-2c) in a lookup transaction on every gated request, as `accountFeatures` reads `account.features(tx)`;
+  the test store in `apps/api/src/auth/testing.ts` gets the same method.
+- **Tests:** policy table per role × action, own and not own; unit overlap; readiness before and after the marker.
+
+## ISO-10a · M9 · Copy the ISO catalogue when the add-on comes on
+- **Thread title:** "ISO-10a: copy the ISO catalogue on switch-on". **Needs:** ISO-1, ISO-2c.
+- **Read:** plan §4.3; `docs/adr/M9-0002-account-jobs.md`.
+- **Paths:** `apps/api/src/jobs/` (`ports.ts`, a new `iso-catalogue.ts` consumer and sweep, `consumers.ts`
+  (`CONSUMERS`), `postgres-store.ts` (`FirmTx`), `testing/memory-store.ts`, `runner.ts` `JOBS`, `start.ts` options,
+  tests).
+- **Delivers:** `IsoCatalogueCopier` port beside `LibraryCopier`, passed through `startJobsFromEnv` like
+  `copyLibrary`; a consumer of `account.features_changed` that calls it when `added` has `isoManagement`; a sweep job
+  every 10 minutes over TRIAL and ACTIVE accounts whose features include `isoManagement` and whose copy is not
+  recorded; `FirmTx.accountFeatures()` beside `accountStatus()`, returning `{ features, isoCatalogueCopiedAt }`
+  from M3's `account.features(tx)` (ISO-2a, merged) and `account.isoCatalogueCopiedAt(tx)` (ISO-2c), in `postgres-store.ts` and
+  `testing/memory-store.ts`, read once per firm per run. The sweep calls the copier only where
+  `isoCatalogueCopiedAt` is null, and ISO-10b and ISO-10c use the same read to skip accounts not yet copied.
+- **Tests:** the event twice and the sweep at once copy once (with a fake copier that records calls); no call without
+  the feature; a missing copier makes the consumer fail loudly, as the `account.created` consumer does.
+
+## ISO-6b · M17 · ISO screens 2: risks, objectives, actions
+- **Thread title:** "ISO-6b: ISO screens, part 2". **Needs:** ISO-6a, ISO-1b (the mock accepts the ISO export kinds
+  only once they join `ExportKind`).
+- **Read:** model §3.5, §3.6, §3.12, §5.1.
+- **Paths:** `apps/web/app/(shell)/c/[clientId]/iso/{risks,objectives,actions}/`, `e2e/tests/iso/`.
+- **Delivers:** risk register with tabs per kind, the kind-specific fields, existing controls with hierarchy, treatment
+  actions, inherent and residual rating and significance (from the API), override with reason, review; objectives
+  with standards, linked risks, readings, progress and action plans; the actions list (filter by subject, owner,
+  state) and an Actions panel on every subject page; "Download risk register (Excel)" through
+  `POST /clients/{clientId}/exports` with `ISO_RISK_REGISTER_XLSX`.
+- **Tests:** e2e against the mock: add a hazard with controls and a treatment action, complete it, see the control; an
+  objective reading; the actions list as an owner; the risk register download; M11's shell ISO test stays green for
+  the pages this package adds; a11y and layout checks as in ISO-6a.
+
+## ISO-12c · M13 · Statutory numbers link to Law only
+- **Thread title:** "ISO-12c: overview and portfolio links say Law". **Needs:** ISO-1, ISO-11c, ISO-12a.
+- **Read:** plan §4.6; `docs/adr/M12-0001-register-url-state-and-saved-views.md` (the register's URL state);
+  `apps/web/CLAUDE.md`.
+- **Paths:** `apps/web/app/(shell)/c/[clientId]/overview/`, `apps/web/app/(shell)/portfolio/`, `e2e/tests/overview/`.
+- **Delivers:** when the shell model has `isoManagement`, every register or calendar link built from a statutory
+  number (`registerHref` in `overview-model.ts` and in `portfolio-model.ts`, the calendar link and the
+  `dueThisWeekFilter` link included) adds `source=LAW`, keeping a `source` the API already puts on
+  `PortfolioRow.dueThisWeekFilter` (ISO-11b); without the add-on the links are unchanged. The links are built in the
+  web, so M10 cannot do this.
+- **Tests:** unit tests for both hrefs on and off; e2e against the mock checking that a KPI count equals the rows of
+  the register it opens, for a user with the add-on; light mode at 1280 and 375, keyboard-only, axe.
+
+## ISO-9 · M6 · ISO catalogue as code and `copyIsoCatalogue`
+- **Thread title:** "ISO-9: the ISO catalogue and its copy". **Needs:** ISO-2d.
+- **Read:** catalogue.md (all); plan §4.3; `docs/adr/M6-0001-master-library-copy.md`.
+- **Paths:** `apps/api/src/modules/library/` (`iso-catalogue.ts`, `db-iso-catalogue-copy.ts`, tests),
+  `docs/adr/M6-NNNN-iso-catalogue.md`.
+- **Delivers:** the catalogue bundle (editions, clauses with titles and our summaries, `assessable`,
+  `exclusionAllowed`, review input and output definitions, the four STANDARD acts with the fixed values and at least
+  the activity catalogue, each activity once), checked before any copy; `copyIsoCatalogue(db, accountId, requestId)`
+  in the account's system context: returns `copied: false` without the feature or when already copied, marks first,
+  then copies, reusing same-name STANDARD acts and categories, with a CREATE `AuditEvent` (actor SYSTEM) per act,
+  category and obligation. The ADR records the confirmed `exclusionAllowed` list and the editions seeded.
+- **Tests:** copy into an account that already holds the master library and a same-name statutory Act; copy twice
+  (second copies nothing); no STANDARD rows in `copyMasterLibrary`; every catalogue §3 activity once; no clause summary
+  matches standard text (review in the PR).
+
+## ISO-2e · M3 · ISO tables 2: risks, objectives, actions, audits, NCs, reviews
+- **Thread title:** "ISO-2e: ISO tables, part 2". **Needs:** ISO-2d.
+- **Read:** model §1, §3.5-3.7, §3.9-3.13, §6.
+- **Paths:** `packages/db/`.
+- **Delivers:** tables `risk_item`, `risk_control`, `objective`, `objective_reading`, `objective_risk_item`,
+  `audit_programme`, `internal_audit`, `internal_audit_unit`, `internal_audit_person`, `audit_checklist_item`,
+  `audit_finding`, `nonconformity` (per-client number sequence, incident columns, FK to `compliance_instance` for
+  `sourceInstanceId` and `statutoryInstanceId`), `nonconformity_person`, `nonconformity_risk_item`,
+  `nonconformity_document`, `iso_action`, `management_review`, `management_review_person`, `review_input`,
+  `review_output`; the remaining `iso_file` subject columns; repositories with unit-scope list filters per plan §3.3,
+  joining the management system's units for records without their own; purge list.
+- **Tests:** as ISO-2d, plus the `num_nonnulls` checks of `audit_finding` and `iso_action`, and the NC number sequence
+  per client.
+
+## ISO-15 · M7 · ISO file service (`IsoFiles`)
+- **Thread title:** "ISO-15: files for ISO records". **Needs:** ISO-1b, ISO-2d.
+- **Read:** model §6; `docs/adr/0004-m7-instance-workflow.md`; `apps/api/CLAUDE.md`.
+- **Paths:** `apps/api/src/modules/evidence/` (new `index.ts` public index, `db-iso-files.ts`,
+  `db-iso-files.db.test.ts`). The `db-` prefix keeps it out of the unit coverage run and holds it to the floor file by
+  file in `vitest.db.config.mjs`, as for `service.ts`.
+- **Delivers:** `createIsoFiles({ storage })` in `modules/evidence/db-iso-files.ts`, re-exported from
+  `modules/evidence/index.ts`, matching the `IsoFiles` port
+  in model §6, which ISO-8a declares in M16 (upload ticket, confirm → PENDING, list by subject, CLEAN-only 5-minute download URL, remove with
+  reason → archived), with the evidence file-type, size and name rules, ISO keys under
+  `evidence/<firmId>/<clientId>/iso/...`, and the `AuditEvent` on the ISO subject (`EVIDENCE_ADD`,
+  `EVIDENCE_DOWNLOAD`, `EVIDENCE_REMOVE`, model §6), all in the caller's tenant transaction. No route: M16 serves the
+  routes and decides who may call each one (unit scope, locks, the incident-file rule).
+- **Tests:** db tests for each call, the key shape, CLEAN-only download, archive not delete, no signed URL or file
+  content logged; `confirm`, `downloadUrl` and `remove` each write exactly one `AuditEvent` of that action on the ISO
+  subject (entity type, id, `after` naming the file id and never the file name or a URL) in the caller's
+  transaction; `uploadUrl` and `list` write none; a refused call (file not CLEAN) writes none; a rolled-back caller
+  transaction leaves neither the `iso_file` row nor its event.
+
+## ISO-8a · M16 · ISO API 1: gate, audit gate test, systems, checklist, documents, certification, files
+- **Thread title:** "ISO-8a: ISO API, part 1". **Needs:** ISO-1b, ISO-2d, ISO-3, ISO-4b.
+- **Read:** plan §3-4; model §1, §3.1-3.4, §3.8, §4 preamble, §4.2, §4.4 (RECORD_HELD and CANCEL), §4.6, §5.1
+  (`clauseReadiness`, `climateDeterminationGaps`), §6, §10; `apps/api/CLAUDE.md`.
+- **Paths:** `apps/api/src/modules/iso/` (routes, services, `ports.ts` with `IsoFiles`, `testing/`,
+  `audit-gate.db.test.ts`), `apps/api/src/server.ts` (shared: M16's routes mounted inside the existing
+  `options.database` block, as the instance routes are; the file routes only when an `IsoFiles` is given),
+  `docs/adr/M16-NNNN-...` if a decision needs one.
+- **Delivers:**
+  - `requireFeature` on every route (403 off, 409 not ready).
+  - Systems, context, climate decision (once decided, never back to null), catalogue reads, checklist with the N/A
+    machine (`statusBeforeNa`, WITHDRAW_NA) and the climate rule, documents and revisions (model §4.2, EXTERNAL
+    editions through RECORD_EDITION), certifications and external audit visits (§4.4 RECORD_HELD and CANCEL; no
+    findings, which ISO-8c adds).
+  - File routes through the `IsoFiles` port for the ISO-2d subjects, with unit scope, the lock rule (an IN_REVIEW
+    revision's file included) and a hook for per-subject download rules (ISO-8c uses it for incident NCs).
+  - One `Resource` builder implementing plan §3.2's "own" rules, and the maker-checker rule of model §4's preamble.
+  - Closed records read-only (model §1.8); unit scope in every list, read and count per plan §3.3; person checks.
+  - The audit gate test of plan §7 item 2.
+- **Tests:** per route and role (allowed and one refused), off and not-ready answers, every arrow and refused arrow,
+  unit scope, people, locks and field edits refused on each locked subject, with a fake `IsoFiles`; the `Resource`
+  builder for a non-lead auditor and a chair in each role.
+
+## ISO-2f · M3 · Act-kind and feature-aware reads
+- **Thread title:** "ISO-2f: reads that tell laws from ISO activities". **Needs:** ISO-2e.
+- **Read:** plan §4.4-4.6.
+- **Paths:** `packages/db/src/repositories/` and tests (no migration).
+- **Delivers:** an `actKinds` filter on `instances.register`, the reads behind `/me/approvals` and `/me/tasks`, the
+  vault, the calendar, the overview and breakdown reads, the report reads, and `jobs.listScoreItems` (which feeds the
+  digest); library and assignment list reads take the same filter; a by-id lookup of an instance's, obligation's or
+  assignment's act kind for the off-switch checks.
+- **Tests:** each read with STATUTE only, STANDARD only and both; `listScoreItems` leaves a STANDARD instance in range
+  out when asked.
+
+## ISO-6c · M17 · ISO screens 3: audits, nonconformities, management reviews
+- **Thread title:** "ISO-6c: ISO screens, part 3". **Needs:** ISO-6b.
+- **Read:** model §3.7, §3.9-3.11, §3.13, §4.1, §4.3, §4.5; catalogue §5.
+- **Paths:** `apps/web/app/(shell)/c/[clientId]/iso/{audits,nonconformities,management-reviews}/`, `e2e/tests/iso/`.
+- **Delivers:** programme with coverage, internal audits with checklist, independence note, findings (an NC finding
+  raises its NC), report and close; the NC log and NC page with every action of model §4.1, incident fields with the
+  personal-data notice, the reportable notice and the statutory-instance link (an instance picker, as for
+  `sourceInstanceId`), raising from a finding, a risk item, or with an instance picker (`sourceInstanceId`), and a
+  link to the source; management reviews with inputs shown with their `sourceFigures`, outputs, actions and the pack
+  download; "NC log (Excel)" and "Audit report (PDF)" downloads beside the review pack, through
+  `POST /clients/{clientId}/exports`.
+- **Tests:** e2e against the mock: plan and report an audit with an NC finding; take an NC from OPEN to CLOSED and back
+  through VERIFY_NOT_EFFECTIVE; hold and close a review; the three downloads; M11's shell ISO test stays green for the
+  pages this package adds; a11y and layout checks as in ISO-6a.
+
+## ISO-8b · M16 · ISO API 2: risks, objectives, actions
+- **Thread title:** "ISO-8b: ISO API, part 2". **Needs:** ISO-8a, ISO-2e.
+- **Read:** model §3.5, §3.6, §3.12, §5.1.
+- **Paths:** `apps/api/src/modules/iso/`.
+- **Delivers:** risk items with kind rules, rating and significance from the engine at write, override, controls,
+  review (owner, or FA, CO or CA), the re-rating rule when a treatment action completes; objectives and readings;
+  `IsoAction` for every subject with COMPLETE, CANCEL, REOPEN (subject open as model §3.12 defines) and the
+  risk-control rule, refusing actions on MAJOR_NC and MINOR_NC findings; file routes for risk items, objective
+  readings and actions through the `IsoFiles` port, with unit scope and the lock on DONE or CANCELLED actions; rows in
+  the audit gate test for each new route.
+- **Tests:** as ISO-8a, including field edits refused on each locked subject.
+
+## ISO-8c · M16 · ISO API 3: internal audits, external-audit findings, nonconformities, management reviews, overview
+- **Thread title:** "ISO-8c: ISO API, part 3". **Needs:** ISO-8b.
+- **Read:** model §3.7-3.11, §3.13, §4 preamble, §4.1, §4.3, §4.4, §4.5, §5.1-5.2, §5.4, §6, §9 (unit scope only).
+- **Paths:** `apps/api/src/modules/iso/`.
+- **Delivers:**
+  - Programmes, internal audits with checklist, independence rule, findings creating NCs in the same transaction.
+  - External-audit findings (creating NCs), RECORD_RESPONSE and CLOSE (model §4.4).
+  - Nonconformities with every arrow and guard of model §4.1, the disposition rule, incident rules (type and source,
+    lost days, the statutory-instance link checked for unit and act kind) and the personal-data rule.
+  - Management reviews with input and output rows from the account's definitions, each input row with its
+    `sourceFigures` from `reviewInputFigures`.
+  - The ISO overview (model §5.1-5.2 engine results with the ids behind each number).
+  - File routes for internal audits, findings, nonconformities and management reviews with the model §6 lock rules,
+    and the incident-file download rule (model §6).
+  - Rows in the audit gate test for each new route.
+- **Tests:** as ISO-8a, plus plan §7 items 6, 8 and 9: a locked subject refuses add and remove for every role, and
+  field edits; a viewer and an owner of the unit who is not named on an incident NC cannot download its files; a
+  plant-A owner sees none of a plant-B-only system's objectives, reviews or unit-less NCs.
+
+## ISO-9b · M6 · Hide and refuse STANDARD library rows when off; no cross-kind changes
+- **Thread title:** "ISO-9b: the library respects the ISO switch". **Needs:** ISO-9, ISO-2f, ISO-4b.
+- **Read:** plan §4.4-4.5; catalogue §2.
+- **Paths:** `apps/api/src/modules/{library,assignments}/`.
+- **Delivers:** with the feature off, library act and obligation lists leave out STANDARD rows and by-id, push and
+  merge answer 403 for them; assignment lists leave out, and create, bulk and by-id refuse, assignments on STANDARD
+  obligations; whatever the feature, a merge of acts of different kinds and an obligation create or update that would
+  cross kinds answer 400 `VALIDATION`.
+- **Tests:** route tests per role, on and off; cross-kind refusals.
+
+## ISO-11a · M7 · Source filter and the off switch on instances and evidence
+- **Thread title:** "ISO-11a: instances and evidence respect the ISO switch". **Needs:** ISO-15, ISO-2f, ISO-4b.
+- **Read:** plan §4.4-4.6.
+- **Paths:** `apps/api/src/modules/{instances,evidence,approvals,audit}/`.
+- **Delivers:** `source` on the instance list, `/me/approvals`, `/me/tasks` and the vault when the feature is on; with
+  it off those leave STANDARD instances out, and instance get, patch and transitions, bulk approve (per item),
+  comments, evidence upload, list, download and remove, and instance audit answer 403 `FEATURE_NOT_ENABLED` for a
+  STANDARD instance. The client audit trail is not gated.
+- **Tests:** per route, on and off, per role; M7's audit gate test rows for any new refusal path.
+
+## ISO-10b · M9 · Off switch in the existing jobs, STATUTE-only digest, ISO file scan
+- **Thread title:** "ISO-10b: jobs respect the ISO switch". **Needs:** ISO-10a, ISO-1b, ISO-2d, ISO-2f.
+- **Read:** plan §4.2, §4.4, §4.6; model §6.
+- **Paths:** `apps/api/src/jobs/`.
+- **Delivers:** generate-instances skips assignments on STANDARD obligations of an account without the feature or not
+  yet copied; reminders, escalations and the workflow-emails consumer skip STANDARD instances when off (the consumer
+  re-reads features when it handles a queued event); the consultant digest's score and counts read STATUTE-act
+  instances only, on or off; the scan job also scans PENDING `iso_file` rows (`isoFiles.pendingScan`), with the
+  add-on on or off (plan §4.5), and writes the `AuditEvent` on the ISO subject, with no `evidence.scanned` event.
+- **Tests:** one due STANDARD instance leaves the digest's score, overdue, due-soon and awaiting-approval figures
+  unchanged; no reminder or email for a STANDARD instance when off; an event queued before a switch-off sends nothing;
+  an ISO file goes PENDING → CLEAN, also with the add-on off.
+
+## ISO-11b · M10 · Statutory numbers exclude ISO; off switch
+- **Thread title:** "ISO-11b: dashboards and reports with the ISO add-on". **Needs:** ISO-1b, ISO-2e, ISO-2f, ISO-4b,
+  ISO-11e.
+- **Read:** plan §4.4-4.6.
+- **Paths:** `apps/api/src/modules/{dashboard,reports}/`.
+- **Delivers:** portfolio, overview, breakdowns, the act-wise, department-wise and overdue reports and the
+  certificate PDF read STATUTE-act instances only; `PortfolioRow.dueThisWeekFilter` carries `source: 'LAW'` when the
+  feature is on (the web links are ISO-12c's); the register export follows the register: it honours `source` when
+  the feature is on and leaves STANDARD instances out when it is off; the calendar takes `source` and leaves STANDARD
+  out when off; ISO export kinds answer 403 on create and download when off, and the export worker re-checks the
+  feature when it runs.
+- **Tests:** each KPI still equals its filtered register count; an account with ISO instances keeps its statutory
+  numbers; the register export with `source=ISO`, `source=LAW` and the feature off; golden counts unchanged.
+
+## ISO-10c · M9 · ISO reminders
+- **Thread title:** "ISO-10c: ISO reminders". **Needs:** ISO-10b, ISO-2e, ISO-3.
+- **Read:** model §7.
+- **Paths:** `apps/api/src/jobs/`, `packages/notifications/` (templates).
+- **Delivers:** a daily ISO reminder run (client time, like `reminders`) that builds one `IsoNotificationInput` per
+  subject, kind and anchor date (model §5.3, §7), resolving the recipients the §7 table names, calls
+  `planIsoNotifications` with `ISO_REMINDER_SCHEDULE`, claims each send on `ISO_NOTIFICATION_DEDUPE_KEY` (`SendKey`
+  gains `isoSubjectType` and `isoSubjectId`; `postgres-store.ts` passes them through `claimSend`, `markSent`,
+  `markFailed` and `listDoneSends`), and sends through `recipients(personIds, clientId)`; `sendKeyString` in
+  `apps/api/src/jobs/send.ts` appends `isoSubjectType:isoSubjectId` when they are set (it is the done-set key and the
+  source of the mailer's Message-ID in `smtp-mailer.ts`, so each ISO subject gets its own); templates for the nine
+  kinds; skips accounts without the feature or not yet copied (`FirmTx.accountFeatures()`, ISO-10a).
+- **Tests:** one person with two actions due the same day gets two emails, and a second run sends neither again;
+  a `send.test.ts` case: two ISO keys that differ only in subject give different strings; time-zone tests for
+  Asia/Kolkata; no reminder for closed subjects; the overdue management review repeats every 30 days.
+
+## ISO-11d · M10 · ISO exports and ISO data in the client archive
+- **Thread title:** "ISO-11d: ISO exports and the client archive". **Needs:** ISO-11b, ISO-3.
+- **Read:** model §5.4, §9; `docs/adr/M10-0002-client-archive.md`.
+- **Paths:** `apps/api/src/modules/reports/`.
+- **Delivers:** `ISO_NC_LOG_XLSX`, `ISO_RISK_REGISTER_XLSX` (with the documented significance criteria),
+  `ISO_AUDIT_REPORT_PDF` (with the independence note), `ISO_REVIEW_PACK_PDF` (inputs pre-filled with
+  `reviewInputFigures`, outputs, actions); unit scope; no incident personal data; removes ISO-11e's refusal for the
+  four kinds. The client archive always includes ISO records and clean ISO files (model §9), with the NC log and
+  risk register workbooks in its `iso/` folder, counting withheld files in its README.
+- **Tests:** each export's content from fixtures; scope per role; refused when off; archive contents with and without
+  the feature.
+
+## ISO-14 · Tooling · Wire ISO files and the catalogue copy
+- **Thread title:** "ISO-14: wire the ISO add-on". **PR title:** `Tooling: ISO ...` (no module owns these files).
+  **Needs:** ISO-8c, ISO-9, ISO-10a, ISO-10c, ISO-15.
+- **Paths:** `apps/api/src/server.ts` (shared), `apps/api/src/wiring.ts`, `apps/api/src/wiring.test.ts`,
+  `apps/api/src/main.ts` if needed, `apps/api/CLAUDE.md` (module list: `iso`; jobs: ISO reminders and the catalogue
+  sweep).
+- **Delivers:** `server.ts` passes `createIsoFiles({ storage: options.evidenceStorage })` from M7's public index to
+  M16's routes when evidence storage is configured, as it builds `createEvidenceService`; `wiring.ts` passes
+  `copyIsoCatalogue` to the jobs beside `copyLibrary` (ISO-8a already mounts M16's routes in `server.ts`). No web change: the web app already calls the real API whenever
+  `CANOPY_API_URL` is set.
+- **Tests:** `wiring.test.ts` for the copier; a server test that the ISO file routes mount only with evidence
+  storage.
+
+## ISO-13 · M14 · Integrated ISO journey and off-switch sweep
+- **Thread title:** "ISO-13: ISO journey against the real stack". **Needs:** every other package.
+- **Read:** plan §4, §7.
+- **Paths:** `e2e/integrated/` (new ISO specs), `docs/security/review.md` if a check is added.
+- **Delivers:** journey: the operator turns the add-on on; the screens show "being set up" until the copy is recorded;
+  a client sets up a system, runs an internal audit, raises an NC from a finding, closes it with an action and a file
+  (the file's upload, download and removal each appear in the client audit trail on its subject);
+  the operator turns it off; the next request on the same session gets 403; every ISO screen shows not-turned-on; the
+  console shows Off. Sweep: every `ENDPOINTS` entry called with an ISO fixture id answers 403 or returns no ISO item
+  (plan §7 item 3); turning it back on shows the same data. axe on every page visited, including the operator
+  console's account page with the Add-ons card open (ISO-5 shipped the drawer with no integrated or axe step).
+- **Tests:** the specs themselves, in the `e2e-integrated` job.
+
+## ISO-1c · M0 · Make the add-on's optional fields required
+- **Thread title:** "ISO-1c: required add-on fields". **Needs:** ISO-1b, ISO-2c, ISO-4a, ISO-5, ISO-5b, ISO-9,
+  ISO-16.
+- **Paths:** `packages/contracts/`, `docs/contracts/`.
+- **Delivers:** a contracts bump that makes `Act.kind`, `Obligation.clauseRefs` and `AccountOverride.removedFeatures`
+  required on read shapes, only where every provider sends them and every create caller in M6 and M8 sets them (or
+  the create body keeps them optional). If any caller does not, the field stays optional and the PR says why.
+  `AccountSummary.features` stays optional (missing = none), because `AccountView` spreads `AccountSummary` and
+  `GET /account` does not send it (plan §5.1).
+- **Tests:** every package's typecheck and tests stay green (`--affected` covers them).
+
+---
+
+## Review trace
+
+How v2 answers each finding of the independent review of v1 (`confirmed.md`, C1-C58).
+
+| Finding | Where it is addressed |
+|---|---|
+| C1 | plan §5.1 (staging order, optional fields, `features` on `AccountSummary` only); ISO-2b, ISO-12a, ISO-1b, ISO-1c; ISO-1c keeps `AccountSummary.features` optional and needs ISO-5 and ISO-5b |
+| C2 | model §6 (`iso_file`, keys, port, scan); D1 in ADR M16-0002; ISO-15, ISO-2d, ISO-10b, ISO-11d, ISO-14; plan §7 item 8; archive moved to ISO-11d |
+| C3 | model §5.3, §7; ISO-1, ISO-2b, ISO-3, ISO-10c; model §5.3 (`IsoNotificationInput`, `IsoReminderSchedule`), §7 (`ISO_REMINDER_SCHEDULE`); ISO-2b (`ops.ts` `sendKey()`, `listDoneDigests`), ISO-10c (`postgres-store.ts`, `sendKeyString`) |
+| C4 | plan §4.3 (event, consumer, sweep, marker); ISO-2c, ISO-5b, ISO-9, ISO-10a, ISO-14; `account.isoCatalogueCopiedAt` (ISO-2c), `AuthStore.isoCatalogueCopied` (ISO-4b), `FirmTx.accountFeatures()` with the copy time in `postgres-store.ts`, `consumers.ts` (ISO-10a) |
+| C5 | plan §7 item 2 (M16's own audit gate); ISO-8a; model §6 (file audit actions); ISO-15 tests (file `AuditEvent`s); plan §7 item 2 (file rows assert the port call) |
+| C6 | ISO-2a (both reads), ISO-5 (`overrideFrom`, each control its own part); plan §4.1-4.2; plan §4.1 and ISO-5 (note read from the newest `OVERRIDE_CHANGE`, `noteFrom`); ISO-5b (switch names its flag) |
+| C7 | plan §4.5-4.6; ISO-1 (`source`), ISO-2f, ISO-11a, ISO-11b, ISO-11c (M12); ISO-1 (`DueThisWeekFilter.source`), ISO-12c (M13 links) |
+| C8 | model §1.2, §2 (catalogue tables firm-wide, per-account copy) |
+| C9 | plan §4.6; ISO-2f (`listScoreItems`), ISO-10b (digest); ISO-12c (web links), plan §4.5 M13 row |
+| C10 | plan §4.4-4.5; ISO-9b, ISO-11a, ISO-11b (export kinds gated), model §9 (staged export kinds) |
+| C11 | catalogue §2 (fixed values, `act_name_key` per kind, reuse on copy, import); ISO-2c, ISO-9, ISO-16; catalogue §2 `shortName` |
+| C12 | plan §5.3; ISO-8a (`server.ts`), ISO-10a (`JOBS`, `start.ts`), ISO-14 (Tooling, `wiring.ts`, no web switch, `apps/api/CLAUDE.md`); ISO-13 after ISO-14; D11 for `apps/web/CLAUDE.md`; ISO-14 needs ISO-10c and passes `createIsoFiles` in `server.ts`; plan §5.3 PR list (#196, #208, #220, #239) |
+| C13 | plan §5.4 (start by Needs, not plan-wave), §5.5 (thread named); MODULES.md waves note; plan §5.4-5.5 |
+| C14 | ISO-1 fixtures on firm B's Northwind Foods Group, firm A untouched |
+| C15 | ISO-7 (built: `FeatureNotEnabled`, `RouteDef`, mock users), ISO-6a (`iso/layout.tsx` gate), ISO-7b; ISO-6a keeps M11's `e2e/tests/shell/iso.spec.ts` green (h1, titles, off-state metadata) |
+| C16 | model §5.1 (`isSignificant`, fixed scale, not editable); ISO-1 (`FirmSettings.isoRisk` with default) |
+| C17 | model §5.1-5.2 file names; ISO-3 (ADR, `ENGINE_VERSION`); plan §7 item 5 |
+| C18 | plan §3.2 (two-part actions, one row each, no wildcard); ISO-4b; plan §3.2 (`grantHolds` and the `Resource` per action, `isoReview.plan` split); model §4 preamble; ISO-8a (`Resource` builder) |
+| C19 | catalogue §2-3 (four STANDARD acts, each activity once, minimum catalogue, overlap note); plan §2 Later; plan §7 item 12; catalogue §3 (activities assigned by the consultant, no automatic filter), §2 `shortName`; plan §7 item 12 reworded |
+| C20 | model §3.3, §4.6, §5.1 (`clauseReadiness`); catalogue §4 (`assessable`, `exclusionAllowed`); plan §7 item 5; model §3.3 (`statusBeforeNa`, direct writes refused), §4.6 (REJECT_NA restores, WITHDRAW_NA); plan §3.2, §7 item 5 |
+| C21 | model §4.1 (RAISE, SUBMIT_NO_ACTION, effectiveness date, back to OPEN), §3.10 (disposition, correction); plan §3.1 owner raises; model §7 effectiveness reminder; plan §7 item 6; model §4.1 (new effectiveness date and new action after VERIFY_NOT_EFFECTIVE or REOPEN), §3.10 (disposition authoriser), §4 preamble (maker-checker); plan §3.1, §7 item 6; ISO-1 tests |
+| C22 | model §3.11 (incident fields, rules, personal data), §5.1 (`incidentCounts`), catalogue §5 `INCIDENTS`; plan §2 Later (LTIFR); model §3.11 (link an existing instance; creating one is Later; NEAR_MISS and lost-days rules), §6 (incident files restricted); plan §2, §7 item 8; ISO-6c, ISO-8c |
+| C23 | model §3.5 (aspect and hazard fields, hierarchy, existing vs planned, override), §5.1 (`isSignificant`); model §9 (criteria printed); model §3.5 (re-rating when a treatment completes, REVIEW by owner or FA/CO/CA), §5.1 (`significant` from `rating`) |
+| C24 | model §3.12 (`IsoAction` for every subject, D6); plan §2; model §3.9 (no actions on NC findings), §3.12 (open subject defined), §5.1 (OBJECTIVES gate needs a plan) |
+| C25 | model §3.8 (`ExternalAudit`, certificate scope), §3.9 (finding parent), §4.4, §5.2 (`certificationCycle`), §7; model §5.2 (current cycle only, met late), §4.4 (CLOSE from HELD only without NCs); plan §7 item 5 |
+| C26 | model §3.7 (checklist, cancel, report, independence note), §3.9 (finding rules), §4.3, §5.1 (`auditProgrammeCoverage`); model §5.1 (what covers a clause or unit); ISO-3 tests |
+| C27 | model §3.4, §4.2 (state on the revision, REVIEW, superseded, external, availability); model §4.2 (RECORD_EDITION from DRAFT, SUBMIT refused for EXTERNAL, REVIEW needs a current revision), §6 (IN_REVIEW file locked), §7 (document review reminder to the approver) |
+| C28 | model §3.4 (no RECORD type, retention), §6 (locked subjects, remove archives); plan §2 Later (retention schedule); model §1.8 (closed records read-only), §6 (CANCELLED NC final, DONE actions locked); plan §7 item 8; ISO-8a-c file routes and tests |
+| C29 | model §3.13, §4.5, §5.2 (`managementReviewDue`), §7, §9; catalogue §5; model §5.4 (`reviewInputFigures`), §5.2 (`managementReviewDue` per standard, first review), §7 (overdue reminder every 30 days), §10 (`sourceFigures`); ISO-1, ISO-3, ISO-8c, ISO-11d |
+| C30 | model §3.10 (source instance, similar occurrences, risk and system updates), §4.1 gates; ISO-6c (raise with instance picker); plan §2 Later (from the drawer) |
+| C31 | model §3.1-3.3, §3.5, §5.1 (`climateDeterminationGaps`), §8; catalogue §4; plan §7 item 7; model §3.1 (no return to null), §5.1 (every risk kind, context item); plan §7 items 5 and 7 |
+| C32 | model §3.7 (`reportedOn`), §5.1 (`certificationReadiness`); ISO-6a, ISO-8c overview; model §5.1 (RISKS gate, covered clauses and units); ISO-3; overview moved to ISO-8c, after ISO-2e's tables |
+| C33 | catalogue §6 (editions as data, new edition seeded separately, move is Later); plan §2 Later; ADR M16-0002 |
+| C34 | model §3.6 (`standards[]`, `riskItemIds[]`, no indicator kind); plan §2 Later |
+| C35 | plan §5.4 (Needs over plan-wave, M14 overlap); MODULES.md waves note; M16/M17 Uses aligned with `needs`; MODULES.md note on `needs` corrected |
+| C36 | plan §5.1; ISO-0 (staged `ISO_ENTITY_TYPES`), ISO-2b, ISO-12a, ISO-1b; ADR M16-0002 (contract bumps); plan §5.1 step 3a, ISO-11e (M10 default branch) before ISO-1b |
+| C37 | D1 instead of the evidence table: model §6; `Evidence` unchanged; ISO-15, ISO-10b, ISO-11d, ISO-14; `server.ts` builds the port (ISO-14); archive in ISO-11d |
+| C38 | plan §5.3; ISO-11a (M7), ISO-11b and ISO-11d (M10), ISO-11c (M12); MODULES.md module list |
+| C39 | plan §5.3; ISO-14 (Tooling, before ISO-13), ISO-8a (`server.ts`), ISO-10a (jobs); plan §5.3 PR list corrected |
+| C40 | ISO-1 fixtures (firm B, own file), ISO-7 (mock users), ISO-7b (header), ISO-6a needs ISO-7; ISO-12b needs ISO-7 and reads the shell model |
+| C41 | ISO-2a split out (built); ISO-5 needs ISO-2a; M3 packages one at a time (plan §5.4) |
+| C42 | model §7 (D4: separate `planIsoNotifications`, send-log columns and index); ISO-1, ISO-2b, ISO-3, ISO-10c; model §5.3 input types; ISO-2b names `ops.ts` functions |
+| C43 | plan §4.3 (named trigger, producer, consumer, marker); ISO-5b, ISO-10a, ISO-9, ISO-14; `account.isoCatalogueCopiedAt` (ISO-2c) read by ISO-4b and ISO-10a-c |
+| C44 | plan §7 item 2; ISO-8a; ISO-15 tests, ISO-13 journey, plan §7 item 2 |
+| C45 | model §1.2, §2 |
+| C46 | ISO-1 (`IsoEngineApi`, `FirmSettings.isoRisk`, `source`, export and notification kinds staged); ISO-11e before ISO-1b |
+| C47 | plan §5.6 (D9: Tooling PRs from the planning thread, threads report drift); ISO-0 drift written into the plan |
+| C48 | plan §4.4-4.5 (what ISO data is, gate table by module); ISO-9b, ISO-10b, ISO-11a, ISO-11b, ISO-11c; plan §7 item 3; MODULES.md list; scan runs on or off (plan §4.5, ISO-10b); register export follows the register (ISO-11b) |
+| C49 | D1: `iso_file` with one FK column per subject and `num_nonnulls` (model §6); scan via `pendingScan` (ISO-10b); off switch on file routes (plan §4.4); plan §7 item 8; `server.ts` (model §6, ISO-14, ADR M16-0002); `db-iso-files.ts` (ISO-15) |
+| C50 | model §1.2 (catalogue written only in system context); plan §4.4 (kind immutable, STANDARD only by system job, no cross-kind merges or moves); ISO-2c, ISO-9b, ISO-16; plan §7 item 11 |
+| C51 | plan §3.3 (unit scope, named people, children), ISO-1 (`Resource.unitIds`), ISO-4b, ISO-8a-c; plan §7 item 9; plan §3.3 rewritten (records without a unit take the system's units), model §3.1; ISO-2d, ISO-2e, ISO-8c tests |
+| C52 | plan §4.2 (one formula, next request, no cache, jobs per run); ISO-2a, ISO-2c, ISO-4a, ISO-10a; ISO-13 |
+| C53 | plan §4.1 (ISO-5 keeps removals and note; known features out of the free-text field), §4.3 (event from override, plan change and plan edit); ISO-5b. The separate features endpoint was not adopted: ISO-5 had already started on the override route, and ISO-5 plus ISO-5b cover the same problems; ISO-5b: the switch always names its flag, the server keeps a flag named in neither list |
+| C54 | plan §4.3 (marker usable in TRIAL and ACTIVE, sweep, `FEATURE_NOT_READY`, console flag); ISO-4c, ISO-4b, ISO-5b; plan §7 item 4; `FirmTx.accountFeatures()` returns `{ features, isoCatalogueCopiedAt }` (ISO-10a); plan §4.2 |
+| C55 | model §7 (ISO send key, digest key narrowed); plan §4.2 (consumers and export worker re-check); ISO-2b, ISO-10b, ISO-10c, ISO-11b; plan §7 item 13; ISO-2b (`sendKey()`, `listDoneDigests`), ISO-10c (`sendKeyString`, Message-ID) |
+| C56 | plan §5.1-5.2 (enum and error-code staging; ISO-4c before ISO-1); ISO-2b, ISO-1b; plan §5.1 step 3a, ISO-11e |
+| C57 | ISO-1 (mock enforces the flag, `x-mock-features`), ISO-7 (users), ISO-7b (delegate forwards), ISO-6a and ISO-11c off-state e2e; ISO-12b needs ISO-7 |
+| C58 | model §1.4-1.5 (composite FKs, join tables, `num_nonnulls`, people rule); ISO-2d, ISO-2e, ISO-8a; plan §7 item 10 |
