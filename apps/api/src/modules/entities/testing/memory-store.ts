@@ -88,7 +88,8 @@ const TABLES = {
   memberships: { policy: { kind: 'membership' }, uniques: [], versioned: true },
   acts: {
     policy: { kind: 'firmWide', insert: 'staff' },
-    uniques: [{ field: 'name', key: (r) => String(r.name) }],
+    // As act_name_key: a STANDARD act may share a law's name.
+    uniques: [{ field: 'name', key: (r) => `${String(r.kind ?? 'STATUTE')}|${String(r.name)}` }],
     versioned: true,
   },
   categories: {
