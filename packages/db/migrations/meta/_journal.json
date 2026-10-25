@@ -295,6 +295,13 @@
       "when": 1792967253514,
       "tag": "0041_iso_tables_part_2",
       "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1792970160234,
+      "tag": "0042_list_firm_ids_with_feature",
+      "breakpoints": true
     }
   ]
 }

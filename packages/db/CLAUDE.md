@@ -153,6 +153,12 @@ Decisions and their reasons: `docs/adr/0003-m3-tenant-isolation-in-postgres.md`.
   each firm then runs in `withTenant(systemContext(firmId, ...))` with the `jobs` read models and
   `notificationSends` (`claim` returns NEW, PENDING or DONE; `listDone` lists instance and digest sends, `listDoneIso`
   ISO reminders with their subject).
+  `db.listFirmIdsWithFeature(flag)` (migration 0042) returns only the TRIAL and ACTIVE firms whose effective features
+  include `flag`, also ids only, from a function owned by `canopy_lookup` with column grants on what it reads.
+- Act kinds (ISO-2f, docs/iso/plan.md §4.6): the register, the evidence vault, `jobs.listScoreItems` and the act,
+  obligation and assignment lists take `actKinds` (`['STATUTE']` for statutory numbers; absent reads both, an empty
+  list matches nothing). `actKindOf.instance|obligation|assignment` gives the kind behind one row, or null when it is
+  not visible, for the add-on's off-switch checks.
 - In a single-table select, Drizzle leaves columns unqualified, so a correlated subquery inside `sql` binds them to
   the inner table. Use a join or two queries instead.
 - Imports (M8): `importBatches.create` takes an optional `id` (a UUIDv7 from `uuidv7()`, exported here) so an upload

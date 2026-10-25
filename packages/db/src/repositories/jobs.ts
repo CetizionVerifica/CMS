@@ -15,6 +15,7 @@ import { z } from 'zod';
 import type { TenantTx } from '../database.js';
 import { rethrow, validate } from '../errors.js';
 import * as s from '../schema/index.js';
+import { actIdOfKind, type ActKindFilter } from './act-kind.js';
 
 /**
  * Read models for the scheduled jobs (M9: instance generation, reminders, digests, scores). Each runs in
@@ -332,8 +333,16 @@ export const jobs = {
     return [...byPerson.values()];
   },
 
-  /** Score inputs for one client's non-archived instances with a due date in the range. */
-  async listScoreItems(tx: TenantTx, clientId: string, range: DateRange): Promise<ScoreInput[]> {
+  /**
+   * Score inputs for one client's non-archived instances with a due date in the range. `actKinds` keeps those whose
+   * act is of those kinds: the digest's statutory score passes `['STATUTE']` (docs/iso/plan.md §4.6).
+   */
+  async listScoreItems(
+    tx: TenantTx,
+    clientId: string,
+    range: DateRange,
+    filter: ActKindFilter = {},
+  ): Promise<ScoreInput[]> {
     const i = s.complianceInstance;
     const a = s.assignment;
     const o = s.obligation;
@@ -355,6 +364,7 @@ export const jobs = {
           isNull(i.archivedAt),
           gte(i.dueDate, range.from),
           lte(i.dueDate, range.to),
+          actIdOfKind(o.actId, filter.actKinds),
         ),
       )
       .orderBy(asc(i.id))

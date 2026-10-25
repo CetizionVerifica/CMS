@@ -12,6 +12,8 @@ export {
 } from './work.js';
 export type { InstanceExportDetail, NewAuditEvent, RegisterRow } from './work.js';
 export { acts, categories, obligations } from './library.js';
+export { ActKinds, actKindOf } from './act-kind.js';
+export type { ActKindFilter } from './act-kind.js';
 export {
   clients,
   companies,
