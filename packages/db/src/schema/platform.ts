@@ -44,19 +44,31 @@ export const plan = platform.table(
 );
 
 /** Per-account limit and feature changes on top of the plan; one row per account at most. */
-export const accountOverride = platform.table('account_override', {
-  accountId: uuid('account_id')
-    .primaryKey()
-    .references(() => firm.id),
-  limits: jsonb('limits').$type<Partial<PlanLimits>>().notNull().default({}),
-  features: text('features')
-    .array()
-    .notNull()
-    .default(sql`'{}'::text[]`),
-  note: text('note'),
-  version: integer('version').notNull().default(1),
-  updatedAt: instant('updated_at').notNull().defaultNow(),
-});
+export const accountOverride = platform.table(
+  'account_override',
+  {
+    accountId: uuid('account_id')
+      .primaryKey()
+      .references(() => firm.id),
+    limits: jsonb('limits').$type<Partial<PlanLimits>>().notNull().default({}),
+    features: text('features')
+      .array()
+      .notNull()
+      .default(sql`'{}'::text[]`),
+    /** Plan features turned off for this account (the console's add-on switch, ADR M16-0001 decision 2). */
+    removedFeatures: text('removed_features')
+      .array()
+      .notNull()
+      .default(sql`'{}'::text[]`),
+    note: text('note'),
+    version: integer('version').notNull().default(1),
+    updatedAt: instant('updated_at').notNull().defaultNow(),
+  },
+  () => [
+    // A flag is either added or removed, not both (contracts AccountOverride).
+    check('account_override_features_check', sql`not (features && removed_features)`),
+  ],
+);
 
 /** PlanetPulse staff who sign in to the operator console. Created only by the deploy-time CLI. */
 export const operator = platform.table(

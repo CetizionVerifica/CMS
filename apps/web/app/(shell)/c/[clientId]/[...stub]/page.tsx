@@ -1,14 +1,15 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 
-import { ComingSoon, NoPermission } from '../../../../../lib/patterns';
-import { clientHref, findRoute, visibleTo } from '../../../../../lib/routes';
+import { ComingSoon, FeatureNotEnabled, NoPermission } from '../../../../../lib/patterns';
+import { clientHref, featureForPath, findRoute, visibleTo } from '../../../../../lib/routes';
 import { loadShell } from '../../../../../lib/shell/server';
 
 type Props = { params: Promise<{ clientId: string; stub: string[] }> };
 
-// Client routes until M12 or M13 ship their pages (a real page.tsx takes precedence); any other path is a 404.
-// A record path such as /register/123 shows its list's placeholder.
+// Client routes until M12, M13 or M17 ship their pages (a real page.tsx takes precedence); any other path is a 404.
+// A record path such as /register/123 shows its list's placeholder. Any path under an add-on the account doesn't have
+// (/iso/...) says the add-on is off, whether or not the page exists, so the URL tells nothing about its data.
 function routeFor(stub: string[]) {
   for (let n = stub.length; n > 0; n--) {
     const route = findRoute('client', stub.slice(0, n));
@@ -19,17 +20,25 @@ function routeFor(stub: string[]) {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { clientId, stub } = await params;
-  const route = routeFor(stub);
-  const client = (await loadShell()).clients.find((c) => c.id === clientId);
+  const model = await loadShell();
+  const feature = featureForPath(stub);
+  const off = feature !== undefined && !model.features.includes(feature);
+  const route = off ? undefined : routeFor(stub);
+  const client = model.clients.find((c) => c.id === clientId);
+  if (off) return { title: ['Not turned on', client?.name].filter(Boolean).join(' · ') };
   return route ? { title: [route.label, client?.name].filter(Boolean).join(' · ') } : {};
 }
 
 export default async function ClientStub({ params }: Props) {
   const { clientId, stub } = await params;
-  const route = routeFor(stub);
-  if (!route) notFound();
   const model = await loadShell();
   const home = clientHref(clientId);
+  const feature = featureForPath(stub);
+  if (feature !== undefined && !model.features.includes(feature)) {
+    return <FeatureNotEnabled feature={feature} homeHref={home} />;
+  }
+  const route = routeFor(stub);
+  if (!route) notFound();
   if (!visibleTo(route, model.roles.byClient[clientId] ?? [])) {
     return (
       <NoPermission what={route.label.toLowerCase()} backHref={home} backLabel="Go to overview" />

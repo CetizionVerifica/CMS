@@ -85,6 +85,19 @@ export const account = {
       },
     });
   },
+  /**
+   * The account's effective features alone ((plan ∪ added) − removed, from app_account()), without the usage counts
+   * `get` reads, for M5's per-request feature check. Read fresh in every transaction, so a console switch applies at once.
+   */
+  async features(tx: TenantTx): Promise<string[]> {
+    const [row] = (
+      await tx
+        .execute<{ features: unknown }>(sql`SELECT features FROM app_account()`)
+        .catch(rethrow)
+    ).rows;
+    if (!row) throw new DbError('NOT_FOUND', 'No account in this context');
+    return validate(z.array(FeatureFlag), row.features);
+  },
   async usage(tx: TenantTx): Promise<AccountUsage> {
     const { rows } = await tx.execute<Record<string, unknown>>(sql`SELECT * FROM app_usage()`);
     return usageOf(rows[0]);
@@ -511,7 +524,7 @@ export const platformAccounts = {
       .catch(rethrow);
     return usageOf(rows[0]);
   },
-  /** Effective limits and features: the plan overlaid with the account's override. */
+  /** Effective limits and features: the plan overlaid with the account's override, minus its removed features. */
   async entitlements(
     tx: OperatorTx,
     accountId: string,
@@ -521,9 +534,11 @@ export const platformAccounts = {
       .select({
         planCode: s.firm.planCode,
         limits: sql<PlanLimits>`${s.plan.limits} || coalesce(${s.accountOverride.limits}, '{}'::jsonb)`,
-        features: sql<
-          string[]
-        >`ARRAY(SELECT DISTINCT unnest(${s.plan.features} || coalesce(${s.accountOverride.features}, '{}'::text[])) ORDER BY 1)`,
+        // (plan ∪ added) − removed, as app_account() and contracts' effectiveFeatures compute it.
+        features: sql<string[]>`ARRAY(
+          SELECT DISTINCT flag FROM unnest(${s.plan.features} || coalesce(${s.accountOverride.features}, '{}'::text[])) AS flag
+          WHERE flag <> ALL (coalesce(${s.accountOverride.removedFeatures}, '{}'::text[]))
+          ORDER BY 1)`,
       })
       .from(s.firm)
       .innerJoin(s.plan, eq(s.plan.code, s.firm.planCode))

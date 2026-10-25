@@ -3,6 +3,8 @@ import { describe, expect, it } from 'vitest';
 import {
   clientHref,
   clientIdFromPath,
+  featureForPath,
+  featureOn,
   findRoute,
   hrefFor,
   routeByPath,
@@ -31,7 +33,35 @@ describe('routes', () => {
       'library/acts',
       'library/obligations',
       'account',
+      // The ISO add-on (docs/iso/plan.md §5), shipped by M17.
+      'iso/overview',
+      'iso/checklist',
+      'iso/documents',
+      'iso/risks',
+      'iso/objectives',
+      'iso/audits',
+      'iso/nonconformities',
+      'iso/management-reviews',
+      'iso/certification',
     ]);
+  });
+
+  it('ties every ISO route, and only those, to the ISO add-on', () => {
+    for (const route of ROUTES) {
+      expect(route.feature).toBe(route.path.startsWith('iso/') ? 'isoManagement' : undefined);
+      if (route.feature) expect(route).toMatchObject({ scope: 'client', module: 'M17' });
+    }
+    expect(featureOn(routeByPath('iso/audits'), [])).toBe(false);
+    expect(featureOn(routeByPath('iso/audits'), ['isoManagement'])).toBe(true);
+    expect(featureOn(routeByPath('register'), [])).toBe(true);
+    expect(featureForPath(['iso'])).toBe('isoManagement');
+    expect(featureForPath(['iso', 'nonconformities', '12'])).toBe('isoManagement');
+    expect(featureForPath(['register'])).toBeUndefined();
+    expect(featureForPath(['isotope'])).toBeUndefined();
+    expect(featureForPath(['constructor'])).toBeUndefined();
+    expect(featureForPath([])).toBeUndefined();
+    expect(findRoute('client', ['iso', 'management-reviews'])?.label).toBe('Management reviews');
+    expect(switchClientHref('/c/a/iso/audits/12', '', 'b')).toBe('/c/b/iso/audits');
   });
 
   it('builds client and firm hrefs', () => {

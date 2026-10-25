@@ -1,6 +1,6 @@
 import fastifyCookie from '@fastify/cookie';
 import fastifyRateLimit from '@fastify/rate-limit';
-import type { Action, RequestContext, Resource } from '@canopy/contracts';
+import type { Action, KnownFeature, RequestContext, Resource } from '@canopy/contracts';
 import type {
   FastifyError,
   FastifyInstance,
@@ -36,6 +36,11 @@ declare module 'fastify' {
      * (endpoints.md §8). Every other session route answers ACCOUNT_SUSPENDED then.
      */
     whilePendingDeletion?: boolean;
+    /**
+     * The add-on the route belongs to (ADR M16-0001): unless the account has it, the route answers
+     * `403 FEATURE_NOT_ENABLED`, reads included. Checked on every request, after the session and client checks.
+     */
+    feature?: KnownFeature;
   }
   interface FastifyRequest {
     /** The request context. Set on `session` and `session-pre-mfa` routes; reading it elsewhere throws. */
@@ -67,6 +72,8 @@ const contexts = new WeakMap<FastifyRequest, RequestContext>();
 /** Requests on `session-pre-mfa` routes whose actor still owes MFA, with whether they have enrolled. */
 const mfaPending = new WeakMap<FastifyRequest, { enrolled: boolean }>();
 const sessions = new WeakMap<FastifyRequest, SessionRecord>();
+/** Reads the account's features for a request's context; each call goes to the store, nothing is cached. */
+const featureReaders = new WeakMap<RequestContext, () => Promise<readonly string[]>>();
 
 /** The session behind a session route's request (auth routes use it for logout and MFA). */
 export function sessionOf(request: FastifyRequest): SessionRecord {
@@ -87,6 +94,7 @@ function sessionHook(
   options: AuthOptions,
   auth: RouteAuth,
   whilePendingDeletion: boolean,
+  feature: KnownFeature | undefined,
 ): onRequestHookHandler {
   const clock = options.clock ?? (() => new Date());
   return async (request) => {
@@ -123,10 +131,12 @@ function sessionHook(
       throw new ApiError('NOT_FOUND');
 
     contexts.set(request, ctx);
+    featureReaders.set(ctx, async () => (await options.store.accountFeatures?.(ctx.firmId)) ?? []);
     if (session) sessions.set(request, session);
     if (principal && !ctx.mfaSatisfied && mfaRequired(principal, ctx.memberships)) {
       mfaPending.set(request, { enrolled: principal.mfaEnrolled });
     }
+    if (feature !== undefined) await requireFeature(ctx, feature);
   };
 }
 
@@ -239,6 +249,10 @@ export function registerAuth(app: FastifyInstance, options: AuthOptions): void {
         `${String(route.method)} ${route.url}: use config.routeLimit, not config.rateLimit`,
       );
     }
+    // An add-on is the account's, so only a session route can check it.
+    if (auth === 'public' && route.config?.feature !== undefined) {
+      throw new Error(`${String(route.method)} ${route.url}: config.feature needs a session route`);
+    }
     const existing = route.onRequest ?? [];
     route.onRequest = [
       ...(route.config?.routeLimit
@@ -246,7 +260,14 @@ export function registerAuth(app: FastifyInstance, options: AuthOptions): void {
         : []),
       ...(auth === 'public'
         ? []
-        : [sessionHook(options, auth, route.config?.whilePendingDeletion === true)]),
+        : [
+            sessionHook(
+              options,
+              auth,
+              route.config?.whilePendingDeletion === true,
+              route.config?.feature,
+            ),
+          ]),
       ...(Array.isArray(existing) ? existing : [existing]),
     ];
   });
@@ -274,4 +295,15 @@ export function authorize(request: FastifyRequest, action: Action, resource: Res
 /** Throws `NOT_FOUND` when a client (from a body or a loaded row) is outside the actor's clients. */
 export function requireClient(ctx: RequestContext, clientId: string): void {
   if (!ctx.clientIds.includes(clientId)) throw new ApiError('NOT_FOUND');
+}
+
+/**
+ * Throws `403 FEATURE_NOT_ENABLED { feature }` unless the request's account has the add-on now. It reads the account's
+ * features from the store on every call (no session cache), so an operator's switch applies to the next request.
+ * Routes can declare `config.feature` instead; call this where one route serves an add-on only in part.
+ */
+export async function requireFeature(ctx: RequestContext, feature: KnownFeature): Promise<void> {
+  const read = featureReaders.get(ctx);
+  if (read === undefined) throw new Error('requireFeature() is only available on session routes');
+  if (!(await read()).includes(feature)) throw new ApiError('FEATURE_NOT_ENABLED', { feature });
 }

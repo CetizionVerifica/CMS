@@ -5,8 +5,8 @@ import { afterAll, describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { buildServer } from '../server.js';
 import { ApiError } from './errors.js';
-import { authorize, requireClient } from './plugin.js';
-import { createTestAuth } from './testing.js';
+import { authorize, requireClient, requireFeature } from './plugin.js';
+import { accountView, createTestAuth } from './testing.js';
 import { sameToken } from './tokens.js';
 
 const CLIENT = randomUUID();
@@ -30,6 +30,24 @@ app.post('/clients/:clientId/things', { config: { auth: 'session' } }, async (re
 app.post('/move', { config: { auth: 'session' } }, async (req) => {
   const body = z.strictObject({ clientId: z.string() }).parse(req.body);
   requireClient(req.ctx, body.clientId);
+  return { ok: true };
+});
+app.get(
+  '/clients/:clientId/iso',
+  { config: { auth: 'session', feature: 'isoManagement' } },
+  async () => ({
+    ok: true,
+  }),
+);
+app.post(
+  '/clients/:clientId/iso',
+  { config: { auth: 'session', feature: 'isoManagement' } },
+  async () => ({
+    ok: true,
+  }),
+);
+app.get('/mixed', { config: { auth: 'session' } }, async (req) => {
+  await requireFeature(req.ctx, 'isoManagement');
   return { ok: true };
 });
 app.get('/open', { config: { auth: 'public' } }, async (req) => ({ hasCtx: hasCtx(req) }));
@@ -200,6 +218,118 @@ describe('session routes', () => {
       payload: { clientId: CLIENT },
     });
     expect(inside.statusCode).toBe(200);
+  });
+});
+
+describe('add-on features', () => {
+  function withIso(firmId: string, on: boolean) {
+    const view = accountView(firmId);
+    store.accounts.set(firmId, {
+      ...view,
+      entitlements: { ...view.entitlements, features: on ? ['isoManagement'] : [] },
+    });
+  }
+
+  it('answers 403 FEATURE_NOT_ENABLED on reads and writes while the account lacks the add-on', async () => {
+    const actor = signIn({ memberships: [{ role: 'CLIENT_ADMIN', clientId: CLIENT }] });
+    for (const method of ['GET', 'POST'] as const) {
+      const res = await app.inject({
+        method,
+        url: `/clients/${CLIENT}/iso`,
+        headers: actor.headers,
+      });
+      expect(res.statusCode).toBe(403);
+      expect(res.json()).toMatchObject({
+        error: {
+          code: 'FEATURE_NOT_ENABLED',
+          details: { feature: 'isoManagement' },
+          message: "This feature isn't turned on for your account. Contact PlanetPulse to add it.",
+        },
+      });
+    }
+  });
+
+  it('serves the route once the add-on is on, and refuses it on the next request after it goes off', async () => {
+    const actor = signIn({ memberships: [{ role: 'CLIENT_ADMIN', clientId: CLIENT }] });
+    const get = () => app.inject({ url: `/clients/${CLIENT}/iso`, headers: actor.headers });
+    withIso(actor.firmId, true);
+    expect((await get()).statusCode).toBe(200);
+    // Same session: nothing is cached, so the switch applies at once.
+    withIso(actor.firmId, false);
+    expect((await get()).json()).toMatchObject({ error: { code: 'FEATURE_NOT_ENABLED' } });
+    withIso(actor.firmId, true);
+    expect((await get()).statusCode).toBe(200);
+  });
+
+  it('keeps one account’s add-on to that account', async () => {
+    const on = signIn({ memberships: [{ role: 'CLIENT_ADMIN', clientId: CLIENT }] });
+    const off = signIn({ memberships: [{ role: 'CLIENT_ADMIN', clientId: CLIENT }] });
+    withIso(on.firmId, true);
+    expect(
+      (await app.inject({ url: `/clients/${CLIENT}/iso`, headers: on.headers })).statusCode,
+    ).toBe(200);
+    expect(
+      (await app.inject({ url: `/clients/${CLIENT}/iso`, headers: off.headers })).statusCode,
+    ).toBe(403);
+  });
+
+  it('checks the session, CSRF and client before the add-on', async () => {
+    expect((await app.inject({ url: `/clients/${CLIENT}/iso` })).statusCode).toBe(401);
+    const actor = signIn({ memberships: [{ role: 'CLIENT_ADMIN', clientId: CLIENT }] });
+    const outside = await app.inject({
+      url: `/clients/${OTHER_CLIENT}/iso`,
+      headers: actor.headers,
+    });
+    expect(outside.json()).toMatchObject({ error: { code: 'NOT_FOUND' } });
+    const noCsrf = await app.inject({
+      method: 'POST',
+      url: `/clients/${CLIENT}/iso`,
+      headers: { cookie: actor.headers.cookie },
+    });
+    expect(noCsrf.json()).toMatchObject({ error: { code: 'FORBIDDEN' } });
+  });
+
+  it('requireFeature() checks the add-on inside a handler', async () => {
+    const actor = signIn({ memberships: [{ role: 'FIRM_ADMIN' }] });
+    expect((await app.inject({ url: '/mixed', headers: actor.headers })).statusCode).toBe(403);
+    withIso(actor.firmId, true);
+    expect((await app.inject({ url: '/mixed', headers: actor.headers })).json()).toEqual({
+      ok: true,
+    });
+  });
+
+  it('requireFeature() refuses a context it did not build', async () => {
+    const actor = signIn({ memberships: [{ role: 'FIRM_ADMIN' }] });
+    const ctx = (await app.inject({ url: '/whoami', headers: actor.headers })).json();
+    await expect(requireFeature(ctx, 'isoManagement')).rejects.toThrow(
+      /only available on session routes/,
+    );
+  });
+
+  it('refuses every add-on route when the store cannot read features', async () => {
+    const { store: bare, signIn: bareSignIn } = createTestAuth();
+    const noFeatures = Object.assign(Object.create(bare) as typeof bare, {
+      accountFeatures: undefined,
+    });
+    const server = buildServer({ authStore: noFeatures });
+    server.get('/iso', { config: { auth: 'session', feature: 'isoManagement' } }, async () => 'ok');
+    const actor = bareSignIn({ memberships: [{ role: 'FIRM_ADMIN' }] });
+    const view = accountView(actor.firmId);
+    bare.accounts.set(actor.firmId, {
+      ...view,
+      entitlements: { ...view.entitlements, features: ['isoManagement'] },
+    });
+    const res = await server.inject({ url: '/iso', headers: actor.headers });
+    expect(res.json()).toMatchObject({ error: { code: 'FEATURE_NOT_ENABLED' } });
+    await server.close();
+  });
+
+  it('refuses config.feature on a public route', async () => {
+    const bare = buildServer();
+    expect(() =>
+      bare.get('/x', { config: { auth: 'public', feature: 'isoManagement' } }, async () => 'x'),
+    ).toThrow(/config.feature needs a session route/);
+    await bare.close();
   });
 });
 

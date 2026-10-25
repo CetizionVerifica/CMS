@@ -1314,3 +1314,114 @@ describe('imports', () => {
     ).toEqual(['g1']);
   });
 });
+
+describe('ISO library columns (ADR M16-0001)', () => {
+  const standardAct = {
+    name: 'Quality management systems (ISO 9001)',
+    shortName: 'ISO 9001',
+    jurisdiction: 'CENTRAL' as const,
+    stateCode: null,
+    aliases: [] as string[],
+  };
+
+  it('stores an act’s kind, STATUTE unless it says STANDARD, and filters on it', async () => {
+    await inA(async (tx) => {
+      expect((await r.acts.require(tx, world.actId)).kind).toBe('STATUTE');
+      const standard = await r.acts.create(tx, { ...standardAct, kind: 'STANDARD' });
+      expect(standard.kind).toBe('STANDARD');
+      expect((await r.acts.findAll(tx, { kind: 'STANDARD' })).map((a) => a.id)).toEqual([
+        standard.id,
+      ]);
+      const changed = await r.acts.update(tx, standard.id, standard.version, {
+        shortName: 'ISO 9001:2015',
+      });
+      expect(changed.kind).toBe('STANDARD');
+    });
+  });
+
+  it('refuses a STANDARD act that is not CENTRAL, in the repository and in the table', async () => {
+    expect(
+      await code(
+        inA((tx) =>
+          r.acts.create(tx, {
+            ...standardAct,
+            name: 'A state standard',
+            jurisdiction: 'STATE',
+            stateCode: 'WB',
+            kind: 'STANDARD',
+          }),
+        ),
+      ),
+    ).toBe('VALIDATION');
+    await expect(
+      t.ownerQuery(
+        `UPDATE act SET kind = 'STANDARD', jurisdiction = 'STATE', state_code = 'WB' WHERE id = $1`,
+        [world.actId],
+      ),
+    ).rejects.toMatchObject({ code: '23514' });
+  });
+
+  it('keeps clause references out of obligations until the contract carries their standard', async () => {
+    await inA(async (tx) => {
+      const obligation = await r.obligations.require(tx, world.obligationId);
+      expect(obligation).not.toHaveProperty('clauseRefs');
+      // Bare numbers cannot say which standard they belong to, so they are refused, not stored.
+      expect(
+        await code(
+          r.obligations.update(tx, obligation.id, obligation.version, { clauseRefs: ['7.1.5'] }),
+        ),
+      ).toBe('VALIDATION');
+      expect(await code(r.obligations.query(tx, { where: { clauseRefs: [] } }))).toBe('VALIDATION');
+      const same = await r.obligations.update(tx, obligation.id, obligation.version, {
+        clauseRefs: [],
+        title: 'Deposit TDS by the 7th',
+      });
+      expect(same.title).toBe('Deposit TDS by the 7th');
+    });
+    const { rows } = await t.ownerQuery<{ clause_refs: unknown }>(
+      'SELECT clause_refs FROM obligation WHERE id = $1',
+      [world.obligationId],
+    );
+    expect(rows).toEqual([{ clause_refs: [] }]);
+  });
+
+  it('stores clause references only as { standard, clauseNumber } objects', async () => {
+    const set = (value: unknown) =>
+      t.ownerQuery('UPDATE obligation SET clause_refs = $2::jsonb WHERE id = $1', [
+        world.obligationId,
+        JSON.stringify(value),
+      ]);
+    const twenty = Array.from({ length: 20 }, (_, i) => ({
+      standard: 'ISO_45001',
+      clauseNumber: `${i + 1}`,
+    }));
+    for (const ok of [
+      [],
+      [{ standard: 'ISO_9001', clauseNumber: '7.1.5' }],
+      [
+        { standard: 'ISO_14001', clauseNumber: '6.1.2' },
+        { standard: 'ISO_45001', clauseNumber: '4' },
+        { standard: 'ISO_9001', clauseNumber: '10.2.1.1' },
+      ],
+      twenty,
+    ]) {
+      await expect(set(ok), JSON.stringify(ok)).resolves.toBeDefined();
+    }
+    for (const bad of [
+      {},
+      ['7.1.5'],
+      [{ standard: 'ISO_27001', clauseNumber: '5.1' }],
+      [{ standard: 'ISO_9001' }],
+      [{ clauseNumber: '7.1.5' }],
+      [{ standard: 'ISO_9001', clauseNumber: 7 }],
+      [{ standard: 'ISO_9001', clauseNumber: '7.1.5', title: 'Monitoring resources' }],
+      [{ standard: 'ISO_9001', clauseNumber: '0.1' }],
+      [{ standard: 'ISO_9001', clauseNumber: '7..1' }],
+      [{ standard: 'ISO_9001', clauseNumber: '1.2.3.4.5' }],
+      [...twenty, { standard: 'ISO_9001', clauseNumber: '4' }],
+    ]) {
+      await expect(set(bad), JSON.stringify(bad)).rejects.toMatchObject({ code: '23514' });
+    }
+    await set([]);
+  });
+});

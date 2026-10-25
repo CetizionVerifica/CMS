@@ -25,6 +25,7 @@ export {
   authorize,
   registerAuth,
   requireClient,
+  requireFeature,
   type AuthOptions,
   type RouteAuth,
 } from './plugin.js';

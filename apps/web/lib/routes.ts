@@ -1,6 +1,6 @@
 // Route table for the shell (apps/web/CLAUDE.md "Routes"). The sidebar, the client switcher and the `[...stub]`
 // placeholder pages all read it, so a route exists in one place.
-import type { Role } from '@canopy/contracts';
+import type { KnownFeature, Role } from '@canopy/contracts';
 
 export type Scope = 'client' | 'firm';
 
@@ -10,9 +10,14 @@ export type RouteDef = {
   label: string;
   scope: Scope;
   /** The module that ships the real page. Until it does, the `[...stub]` page shows a placeholder. */
-  module: 'M12' | 'M13';
+  module: 'M12' | 'M13' | 'M17';
   /** Roles that see the route. Absent = every role. */
   roles?: readonly Role[];
+  /**
+   * The add-on the route belongs to. Without it on the account, the sidebar leaves the route out and its stub says the
+   * add-on is not turned on (ADR M16-0001). Absent = part of every account.
+   */
+  feature?: KnownFeature;
 };
 
 const FIRM: readonly Role[] = ['FIRM_ADMIN', 'CONSULTANT'];
@@ -60,7 +65,31 @@ export const ROUTES: readonly RouteDef[] = [
   { path: 'library/obligations', label: 'Obligations', scope: 'firm', module: 'M13' },
   // The customer's own account: plan, usage and PlanetPulse support access (ADR M15-0001 decisions 5 and 11).
   { path: 'account', label: 'Account', scope: 'firm', module: 'M13', roles: ['FIRM_ADMIN'] },
+  // The ISO management systems add-on (docs/iso/plan.md §5): every role reads it, the API decides what each can change.
+  ...(
+    [
+      ['iso/overview', 'ISO overview'],
+      ['iso/checklist', 'Checklist'],
+      ['iso/documents', 'Documents'],
+      ['iso/risks', 'Risks'],
+      ['iso/objectives', 'Objectives'],
+      ['iso/audits', 'Audits'],
+      ['iso/nonconformities', 'Nonconformities'],
+      ['iso/management-reviews', 'Management reviews'],
+      ['iso/certification', 'Certification'],
+    ] as const
+  ).map(([path, label]): RouteDef => ({
+    path,
+    label,
+    scope: 'client',
+    module: 'M17',
+    feature: 'isoManagement',
+  })),
 ];
+
+/** The first path segment of every client route that belongs to an add-on, so a direct URL to any page under it, even
+ * one not listed, says the add-on is off rather than 404ing. */
+export const FEATURE_SECTIONS: Readonly<Record<string, KnownFeature>> = { iso: 'isoManagement' };
 
 export function clientHref(clientId: string, path = 'overview'): string {
   return `/c/${encodeURIComponent(clientId)}/${path}`;
@@ -79,6 +108,19 @@ export function hrefFor(route: RouteDef, clientId?: string): string {
 /** Whether any of the actor's roles may see the route. */
 export function visibleTo(route: RouteDef, roles: readonly Role[]): boolean {
   return !route.roles || route.roles.some((r) => roles.includes(r));
+}
+
+/** Whether the account has the route's add-on. A route without one is always on. */
+export function featureOn(route: Pick<RouteDef, 'feature'>, features: readonly string[]): boolean {
+  return !route.feature || features.includes(route.feature);
+}
+
+/** The add-on a client path belongs to (`['iso', 'audits', '12']` → isoManagement), or undefined. */
+export function featureForPath(segments: readonly string[]): KnownFeature | undefined {
+  const first = segments[0];
+  return first !== undefined && Object.hasOwn(FEATURE_SECTIONS, first)
+    ? FEATURE_SECTIONS[first]
+    : undefined;
 }
 
 /** The route a stub page stands in for, or undefined (the stub then 404s). */

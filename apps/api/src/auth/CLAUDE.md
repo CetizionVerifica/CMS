@@ -19,6 +19,11 @@
   While it is PENDING_DELETION, account admins may still reach routes that set `config.whilePendingDeletion: true`,
   which only `/me`, logout and the account export do. `isSupportSession(req)` is true on a PlanetPulse support session.
   Refuse it where support must not act, such as the support-grant routes.
+- Add-ons (ADR M16-0001): a route of an add-on declares `config.feature: 'isoManagement'` (or calls
+  `await requireFeature(req.ctx, 'isoManagement')` where only part of a route is the add-on's). Unless the account
+  has the feature, it answers `403 FEATURE_NOT_ENABLED { feature }`, reads included. Features are read from the store
+  on every request, never from the session, so the operator's switch applies at once. `/me` lists them in
+  `account.features`.
 - `session-pre-mfa` routes exist only to finish MFA: `authorize()` there throws `MFA_REQUIRED` while MFA is owed.
 - Stricter per-route rate limits use `config.routeLimit: { max, timeWindow }`. The plugin's `config.rateLimit` is
   refused, because the API-wide limiter would make it a no-op.

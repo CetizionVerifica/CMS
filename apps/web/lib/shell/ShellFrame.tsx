@@ -15,18 +15,27 @@ import {
   type PrimaryAction,
 } from '@canopy/ui';
 import {
+  Award,
+  BadgeCheck,
   BookOpen,
   Briefcase,
   Building2,
   CalendarDays,
   ChartColumn,
   CheckCheck,
+  CircleAlert,
+  ClipboardCheck,
+  FileText,
   FolderOpen,
   History,
   LayoutDashboard,
   ListChecks,
+  MessagesSquare,
+  SearchCheck,
   Settings,
   LogOut,
+  Target,
+  TriangleAlert,
   Upload,
   Users,
   type LucideIcon,
@@ -49,7 +58,7 @@ import { signOut } from '../auth/actions';
 import { documentTitle, PRODUCT_NAME } from '../brand';
 import { LAYOUT_COOKIE, layoutForWidth, type ShellLayout } from '../layout-hint';
 import { periodFromParams, withPeriod } from '../period';
-import { clientIdFromPath, findRoute, switchClientHref } from '../routes';
+import { clientIdFromPath, featureForPath, findRoute, switchClientHref } from '../routes';
 import { homeHref, navSections, type ShellModel, type ShellNotice } from './model';
 import { rememberClient, recentClients } from './recent';
 import { SearchBox } from './SearchBox';
@@ -68,6 +77,15 @@ const ICONS: Record<string, LucideIcon> = {
   portfolio: Briefcase,
   'library/acts': BookOpen,
   account: Settings,
+  'iso/overview': Award,
+  'iso/checklist': ClipboardCheck,
+  'iso/documents': FileText,
+  'iso/risks': TriangleAlert,
+  'iso/objectives': Target,
+  'iso/audits': SearchCheck,
+  'iso/nonconformities': CircleAlert,
+  'iso/management-reviews': MessagesSquare,
+  'iso/certification': BadgeCheck,
 };
 
 // No prefetch: every page is rendered per request, so prefetching the sidebar's links would ask the API for the
@@ -114,7 +132,7 @@ export function ShellFrame({ model, initialLayout, children }: ShellFrameProps) 
   const nav = navSections(
     current ? (model.roles.byClient[current.id] ?? []) : model.roles.firm,
     current?.id,
-    { showPortfolio: model.showPortfolio !== false },
+    { showPortfolio: model.showPortfolio !== false, features: model.features },
   );
   const search = searchParams.toString();
   const [recentIds, setRecentIds] = useState<string[]>([]);
@@ -146,12 +164,17 @@ export function ShellFrame({ model, initialLayout, children }: ShellFrameProps) 
       .split('/')
       .filter(Boolean)
       .slice(scope === 'client' ? 2 : 0);
+    // A page of an add-on the account doesn't have is titled as the stub says (the client [...stub] page).
+    const feature = scope === 'client' ? featureForPath(segments) : undefined;
+    if (feature !== undefined && !model.features.includes(feature)) {
+      return documentTitle('Not turned on', current?.name);
+    }
     // A record page (/register/123) takes its list's title.
     let route;
     for (let n = segments.length; n > 0 && !route; n--)
       route = findRoute(scope, segments.slice(0, n));
     return documentTitle(route?.label, current?.name);
-  }, [pathname, current?.name]);
+  }, [pathname, current?.name, model.features]);
 
   const settledTitle = useSettledTitle(title);
 

@@ -55,6 +55,7 @@ const model: ShellModel = {
   ],
   roles: { firm: ['CONSULTANT'], byClient: { c1: ['CONSULTANT'], c2: ['CONSULTANT'] } },
   approvalsWaiting: 0,
+  features: [],
 };
 
 function renderShell(
@@ -88,6 +89,28 @@ describe('ShellFrame', () => {
     expect(within(main).getByText('PlanetPulse Compliance')).toBeTruthy();
     expect(document.body.textContent).not.toMatch(/canopy/i);
     expect(document.title).toBe('Register · Demo Metals · PlanetPulse Compliance');
+  });
+
+  it('shows the ISO group with its icons only when the account has the ISO add-on', () => {
+    const { unmount } = renderShell();
+    const main = () => screen.getByRole('navigation', { name: 'Main' });
+    expect(within(main()).queryByRole('link', { name: 'Nonconformities' })).toBeNull();
+    expect(within(main()).queryByText('ISO')).toBeNull();
+    unmount();
+    renderShell({ model: { ...model, features: ['isoManagement'] } });
+    const link = within(main()).getByRole('link', { name: 'Nonconformities' });
+    expect(link.getAttribute('href')).toBe('/c/c1/iso/nonconformities');
+    expect(link.querySelector('svg')).toBeTruthy();
+    expect(within(main()).getByText('ISO')).toBeTruthy();
+  });
+
+  it('titles an ISO page as not turned on when the account lacks the add-on', () => {
+    nav.pathname = '/c/c1/iso/audits';
+    const { unmount } = renderShell({}, <h1>ISO management systems</h1>);
+    expect(document.title).toBe('Not turned on · Demo Metals · PlanetPulse Compliance');
+    unmount();
+    renderShell({ model: { ...model, features: ['isoManagement'] } }, <h1>Audits</h1>);
+    expect(document.title).toBe('Audits · Demo Metals · PlanetPulse Compliance');
   });
 
   it('shows the approvals waiting as a badge on Approvals, and none at zero', () => {

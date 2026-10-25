@@ -185,6 +185,7 @@ describe('an account PENDING_DELETION', () => {
       kind: 'CONSULTANCY',
       status: 'PENDING_DELETION',
       trialEndsOn: null,
+      features: [],
     });
     const headers = headersOf(res);
     for (const [hash, s] of store.sessions) store.sessions.set(hash, { ...s, mfaSatisfied: true });
@@ -292,7 +293,24 @@ describe('invites and accounts', () => {
       kind: 'ENTERPRISE',
       status: 'TRIAL',
       trialEndsOn: '2026-11-11',
+      features: [],
     });
+  });
+
+  it('lists the account’s add-ons on /me, as they are at each request', async () => {
+    const { email, firmId } = await admin({ max: null, used: 0 });
+    const account = store.accounts.get(firmId)!;
+    const withFeatures = (features: string[]) =>
+      store.accounts.set(firmId, {
+        ...account,
+        entitlements: { ...account.entitlements, features },
+      });
+    withFeatures(['isoManagement']);
+    const res = await login(email);
+    expect(Me.parse(res.json()).account?.features).toEqual(['isoManagement']);
+    withFeatures([]);
+    const me = await app.inject({ url: '/api/v1/me', headers: headersOf(res) });
+    expect(Me.parse(me.json()).account?.features).toEqual([]);
   });
 
   it('never invites the PlanetPulse support person', async () => {
