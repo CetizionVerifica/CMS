@@ -125,7 +125,8 @@ const isoListShape = {
 
 /** `?from=&to=` on a date field: each range runs forwards. */
 function checkRange(q: { from?: string; to?: string }, ctx: z.core.$RefinementCtx): void {
-  if (q.from !== undefined && q.to !== undefined && q.to < q.from) issue(ctx, 'to', 'to is before from');
+  if (q.from !== undefined && q.to !== undefined && q.to < q.from)
+    issue(ctx, 'to', 'to is before from');
 }
 
 /** Moving a planned or due date needs a reason, recorded on the audit event (DUE_DATE_CHANGE). */
@@ -199,7 +200,12 @@ export const ManagementSystemUpdateBody = z
   .strictObject({
     ...versionField,
     name: Name.optional(),
-    standardIds: z.array(Id).min(1).max(3).refine(unique, { message: 'Standards repeat' }).optional(),
+    standardIds: z
+      .array(Id)
+      .min(1)
+      .max(3)
+      .refine(unique, { message: 'Standards repeat' })
+      .optional(),
     scopeStatement: nullable(LongText.max(8000)),
     unitIds: ids(500).optional(),
     status: ManagementSystemStatus.optional(),
@@ -433,7 +439,8 @@ function checkRiskKindFields(r: RiskKindFields, ctx: z.core.$RefinementCtx): voi
   if (aspect !== (r.lifeCycleStages ?? []).length > 0) {
     issue(ctx, 'lifeCycleStages', 'An ASPECT has at least one life-cycle stage, other kinds none');
   }
-  if (aspect !== set(r.controlType)) issue(ctx, 'controlType', 'controlType is set exactly for an ASPECT');
+  if (aspect !== set(r.controlType))
+    issue(ctx, 'controlType', 'controlType is set exactly for an ASPECT');
   if (hazard !== set(r.routine)) issue(ctx, 'routine', 'routine is set exactly for a HAZARD');
   if (hazard !== (r.personsExposed ?? []).length > 0) {
     issue(ctx, 'personsExposed', 'A HAZARD has at least one exposed group, other kinds none');
@@ -447,7 +454,7 @@ function checkResidual(
   r: { residualLikelihood?: number | null; residualSeverity?: number | null },
   ctx: z.core.$RefinementCtx,
 ): void {
-  if ((r.residualLikelihood ?? null) === null !== ((r.residualSeverity ?? null) === null)) {
+  if (((r.residualLikelihood ?? null) === null) !== ((r.residualSeverity ?? null) === null)) {
     issue(ctx, 'residualSeverity', 'Residual likelihood and severity are set together');
   }
 }
@@ -461,10 +468,16 @@ export const RiskItemCreateBody = z
     activity: Text.max(300),
     description: LongText.max(4000),
     impact: LongText.max(2000).nullable().default(null),
-    lifeCycleStages: z.array(LifeCycleStage).refine(unique, { message: 'Stages repeat' }).default([]),
+    lifeCycleStages: z
+      .array(LifeCycleStage)
+      .refine(unique, { message: 'Stages repeat' })
+      .default([]),
     controlType: AspectControlType.nullable().default(null),
     routine: z.boolean().nullable().default(null),
-    personsExposed: z.array(PersonsExposed).refine(unique, { message: 'Groups repeat' }).default([]),
+    personsExposed: z
+      .array(PersonsExposed)
+      .refine(unique, { message: 'Groups repeat' })
+      .default([]),
     condition: OperatingCondition.nullable().default(null),
     assessedWith: LongText.max(2000).nullable().default(null),
     likelihood: RiskScale,
@@ -488,7 +501,10 @@ export const RiskItemUpdateBody = z
     activity: Text.max(300).optional(),
     description: LongText.max(4000).optional(),
     impact: nullable(LongText.max(2000)),
-    lifeCycleStages: z.array(LifeCycleStage).refine(unique, { message: 'Stages repeat' }).optional(),
+    lifeCycleStages: z
+      .array(LifeCycleStage)
+      .refine(unique, { message: 'Stages repeat' })
+      .optional(),
     controlType: nullable(AspectControlType),
     routine: nullable(z.boolean()),
     personsExposed: z.array(PersonsExposed).refine(unique, { message: 'Groups repeat' }).optional(),
@@ -671,7 +687,10 @@ function checkAuditTeam(
     issue(ctx, 'auditorIds', 'The lead auditor is not listed again');
   }
   const team = [a.leadAuditorId, ...(a.auditorIds ?? [])].filter((id) => id !== undefined);
-  if (team.some((id) => (a.auditeeIds ?? []).includes(id)) && (a.independenceNote ?? null) === null) {
+  if (
+    team.some((id) => (a.auditeeIds ?? []).includes(id)) &&
+    (a.independenceNote ?? null) === null
+  ) {
     issue(ctx, 'independenceNote', 'An auditor who is also an auditee needs an independence note');
   }
 }
@@ -791,7 +810,11 @@ function checkFindingNc(
 ): void {
   const nc = f.type === 'MAJOR_NC' || f.type === 'MINOR_NC';
   if (nc !== (f.nonconformity !== undefined)) {
-    issue(ctx, 'nonconformity', 'A MAJOR_NC or MINOR_NC finding raises a nonconformity, other types none');
+    issue(
+      ctx,
+      'nonconformity',
+      'A MAJOR_NC or MINOR_NC finding raises a nonconformity, other types none',
+    );
   }
 }
 
@@ -899,14 +922,22 @@ export const ExternalAuditCreateBody = z
     endOn: LocalDate,
     responseDueOn: LocalDate.nullable().default(null),
   })
-  .refine((a) => a.endOn >= a.startOn, { path: ['endOn'], message: 'The audit ends after it starts' });
+  .refine((a) => a.endOn >= a.startOn, {
+    path: ['endOn'],
+    message: 'The audit ends after it starts',
+  });
 export type ExternalAuditCreateBody = z.input<typeof ExternalAuditCreateBody>;
 
 /** Until CLOSED or CANCELLED. */
 export const ExternalAuditUpdateBody = z
   .strictObject({
     ...versionField,
-    standardIds: z.array(Id).min(1).max(3).refine(unique, { message: 'Standards repeat' }).optional(),
+    standardIds: z
+      .array(Id)
+      .min(1)
+      .max(3)
+      .refine(unique, { message: 'Standards repeat' })
+      .optional(),
     type: ExternalAuditType.optional(),
     body: Name.optional(),
     leadAuditorName: nullable(Name),
@@ -927,7 +958,10 @@ export const ExternalAuditHeldBody = z
     recommendation: AuditRecommendation.nullable().default(null),
     responseDueOn: LocalDate.nullable().optional(),
   })
-  .refine((a) => a.endOn >= a.startOn, { path: ['endOn'], message: 'The audit ends after it starts' });
+  .refine((a) => a.endOn >= a.startOn, {
+    path: ['endOn'],
+    message: 'The audit ends after it starts',
+  });
 export type ExternalAuditHeldBody = z.input<typeof ExternalAuditHeldBody>;
 /** RECORD_RESPONSE: every finding with a nonconformity has it past OPEN. */
 export const ExternalAuditResponseBody = VersionBody;
@@ -975,7 +1009,8 @@ export const IncidentBody = z
     workerParticipation: z.boolean().default(false),
   })
   .superRefine((i, ctx) => {
-    if (i.type === 'NEAR_MISS' && i.outcome !== 'NONE') issue(ctx, 'outcome', 'A near miss has outcome NONE');
+    if (i.type === 'NEAR_MISS' && i.outcome !== 'NONE')
+      issue(ctx, 'outcome', 'A near miss has outcome NONE');
     if ((i.outcome === 'LOST_TIME') !== (i.lostDays !== null)) {
       issue(ctx, 'lostDays', 'lostDays is set exactly for LOST_TIME');
     }
@@ -1117,7 +1152,11 @@ function checkBackTo(
   ctx: z.core.$RefinementCtx,
 ): void {
   if ((b.backTo === 'ACTIONS_PLANNED') !== (b.effectivenessDueOn !== undefined)) {
-    issue(ctx, 'effectivenessDueOn', 'Back to ACTIONS_PLANNED needs a new effectivenessDueOn; back to OPEN takes none');
+    issue(
+      ctx,
+      'effectivenessDueOn',
+      'Back to ACTIONS_PLANNED needs a new effectivenessDueOn; back to OPEN takes none',
+    );
   }
 }
 

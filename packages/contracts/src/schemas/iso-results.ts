@@ -137,7 +137,11 @@ export type IncidentCounts = z.infer<typeof IncidentCounts>;
 export const ClimateGap = z.enum(['UNDECIDED', 'RELEVANT_NO_RISK', 'RELEVANT_NO_ISSUE']);
 export type ClimateGap = z.infer<typeof ClimateGap>;
 
-export const CertificationCycleKind = z.enum(['SURVEILLANCE_1', 'SURVEILLANCE_2', 'RECERTIFICATION']);
+export const CertificationCycleKind = z.enum([
+  'SURVEILLANCE_1',
+  'SURVEILLANCE_2',
+  'RECERTIFICATION',
+]);
 export type CertificationCycleKind = z.infer<typeof CertificationCycleKind>;
 
 /**

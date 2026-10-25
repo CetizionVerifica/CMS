@@ -114,15 +114,30 @@ export const ISO_NOTIFICATION_DEDUPE_KEY = [
  * A management review is reminded as a planned review and, separately, as an overdue system.
  */
 export const ISO_REMINDER_SCHEDULE = [
-  { kind: 'ISO_ACTION_DUE', isoSubjectType: 'iso_action', offsetDays: [-7, 0], repeatEveryDays: null },
-  { kind: 'ISO_ACTION_OVERDUE', isoSubjectType: 'iso_action', offsetDays: [7], repeatEveryDays: null },
+  {
+    kind: 'ISO_ACTION_DUE',
+    isoSubjectType: 'iso_action',
+    offsetDays: [-7, 0],
+    repeatEveryDays: null,
+  },
+  {
+    kind: 'ISO_ACTION_OVERDUE',
+    isoSubjectType: 'iso_action',
+    offsetDays: [7],
+    repeatEveryDays: null,
+  },
   {
     kind: 'ISO_REVIEW_DUE',
     isoSubjectType: 'controlled_document',
     offsetDays: [-14, 0],
     repeatEveryDays: null,
   },
-  { kind: 'ISO_REVIEW_DUE', isoSubjectType: 'risk_item', offsetDays: [-14, 0], repeatEveryDays: null },
+  {
+    kind: 'ISO_REVIEW_DUE',
+    isoSubjectType: 'risk_item',
+    offsetDays: [-14, 0],
+    repeatEveryDays: null,
+  },
   {
     kind: 'ISO_AUDIT_STARTING',
     isoSubjectType: 'internal_audit',
@@ -159,5 +174,10 @@ export const ISO_REMINDER_SCHEDULE = [
     offsetDays: [0],
     repeatEveryDays: 30,
   },
-  { kind: 'ISO_EFFECTIVENESS_DUE', isoSubjectType: 'nonconformity', offsetDays: [0], repeatEveryDays: null },
+  {
+    kind: 'ISO_EFFECTIVENESS_DUE',
+    isoSubjectType: 'nonconformity',
+    offsetDays: [0],
+    repeatEveryDays: null,
+  },
 ] as const satisfies IsoReminderSchedule;

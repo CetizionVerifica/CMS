@@ -537,18 +537,26 @@ export const ClauseAssessment = z
   .superRefine((a, ctx) => {
     const naOpen = a.naState === 'REQUESTED' || a.naState === 'APPROVED';
     if ((a.status === 'NOT_APPLICABLE') !== naOpen) {
-      issue(ctx, 'status', 'NOT_APPLICABLE is the status exactly while N/A is REQUESTED or APPROVED');
+      issue(
+        ctx,
+        'status',
+        'NOT_APPLICABLE is the status exactly while N/A is REQUESTED or APPROVED',
+      );
     }
     if (naOpen) {
-      if (a.justification === null) issue(ctx, 'justification', 'An N/A request has a justification');
-      if (a.statusBeforeNa === null) issue(ctx, 'statusBeforeNa', 'An N/A request keeps the status before it');
-      if (a.naRequestedById === null) issue(ctx, 'naRequestedById', 'An N/A request has a requester');
+      if (a.justification === null)
+        issue(ctx, 'justification', 'An N/A request has a justification');
+      if (a.statusBeforeNa === null)
+        issue(ctx, 'statusBeforeNa', 'An N/A request keeps the status before it');
+      if (a.naRequestedById === null)
+        issue(ctx, 'naRequestedById', 'An N/A request has a requester');
     }
     if ((a.naDecidedById === null) !== (a.naDecidedAt === null)) {
       issue(ctx, 'naDecidedAt', 'naDecidedById and naDecidedAt are set together');
     }
     const decided = a.naState === 'APPROVED' || a.naState === 'REJECTED';
-    if (decided && a.naDecidedById === null) issue(ctx, 'naDecidedById', 'A decided N/A has a decider');
+    if (decided && a.naDecidedById === null)
+      issue(ctx, 'naDecidedById', 'A decided N/A has a decider');
     if (decided && a.naDecidedById !== null && a.naDecidedById === a.naRequestedById) {
       issue(ctx, 'naDecidedById', 'The requester does not decide their own N/A request');
     }
@@ -583,7 +591,8 @@ export const ControlledDocument = z
     externalRef: Text.max(200).nullable(),
   })
   .superRefine((d, ctx) => {
-    if (d.type !== 'FORM' && d.retention !== null) issue(ctx, 'retention', 'Only a FORM has retention');
+    if (d.type !== 'FORM' && d.retention !== null)
+      issue(ctx, 'retention', 'Only a FORM has retention');
     if (d.type !== 'EXTERNAL') {
       if (d.issuer !== null) issue(ctx, 'issuer', 'Only an EXTERNAL document has an issuer');
       if (d.externalRef !== null) {
@@ -613,8 +622,15 @@ export const DocumentRevision = z
   })
   .superRefine((r, ctx) => {
     const approved = r.state === 'APPROVED' || r.state === 'SUPERSEDED';
-    setExactlyWhen(ctx, r.approvedAt, approved, 'approvedAt', 'approvedAt is set exactly once approved');
-    if (!approved && r.approvedById !== null) issue(ctx, 'approvedById', 'Only an approved revision has an approver');
+    setExactlyWhen(
+      ctx,
+      r.approvedAt,
+      approved,
+      'approvedAt',
+      'approvedAt is set exactly once approved',
+    );
+    if (!approved && r.approvedById !== null)
+      issue(ctx, 'approvedById', 'Only an approved revision has an approver');
     if (r.approvedById !== null && r.approvedById === r.preparedById) {
       issue(ctx, 'approvedById', 'The approver is not the preparer');
     }
@@ -665,9 +681,19 @@ export const RiskItem = z
     const hazard = r.kind === 'HAZARD';
     if ((aspect || hazard) && r.impact === null) issue(ctx, 'impact', `A ${r.kind} has an impact`);
     if (aspect !== r.lifeCycleStages.length > 0) {
-      issue(ctx, 'lifeCycleStages', 'An ASPECT has at least one life-cycle stage, other kinds none');
+      issue(
+        ctx,
+        'lifeCycleStages',
+        'An ASPECT has at least one life-cycle stage, other kinds none',
+      );
     }
-    setExactlyWhen(ctx, r.controlType, aspect, 'controlType', 'controlType is set exactly for an ASPECT');
+    setExactlyWhen(
+      ctx,
+      r.controlType,
+      aspect,
+      'controlType',
+      'controlType is set exactly for an ASPECT',
+    );
     setExactlyWhen(ctx, r.routine, hazard, 'routine', 'routine is set exactly for a HAZARD');
     if (hazard !== r.personsExposed.length > 0) {
       issue(ctx, 'personsExposed', 'A HAZARD has at least one exposed group, other kinds none');
@@ -735,7 +761,13 @@ export const Objective = z
     outcome: ObjectiveOutcome.nullable(),
   })
   .superRefine((o, ctx) => {
-    setExactlyWhen(ctx, o.outcome, o.closedOn !== null, 'outcome', 'A closed objective has an outcome');
+    setExactlyWhen(
+      ctx,
+      o.outcome,
+      o.closedOn !== null,
+      'outcome',
+      'A closed objective has an outcome',
+    );
   });
 export type Objective = z.infer<typeof Objective>;
 
@@ -806,10 +838,20 @@ export const InternalAudit = z
       issue(ctx, 'auditorIds', 'The lead auditor is not listed again');
     }
     if (selfAuditors(a).length > 0 && a.independenceNote === null) {
-      issue(ctx, 'independenceNote', 'An auditor who is also an auditee needs an independence note');
+      issue(
+        ctx,
+        'independenceNote',
+        'An auditor who is also an auditee needs an independence note',
+      );
     }
     const reported = AFTER_REPORT.includes(a.state);
-    setExactlyWhen(ctx, a.reportedOn, reported, 'reportedOn', 'reportedOn is set exactly once REPORTED');
+    setExactlyWhen(
+      ctx,
+      a.reportedOn,
+      reported,
+      'reportedOn',
+      'reportedOn is set exactly once REPORTED',
+    );
     if (reported && a.summary === null) issue(ctx, 'summary', 'A reported audit has a summary');
     if (reported && a.reportedToIds.length === 0) {
       issue(ctx, 'reportedToIds', 'A reported audit names who it was reported to');
@@ -839,7 +881,13 @@ export const AuditChecklistItem = z
     notAuditedReason: LongText.max(2000).nullable(),
   })
   .superRefine((c, ctx) => {
-    setExactlyWhen(ctx, c.findingId, c.result === 'FINDING', 'findingId', 'A FINDING row links its finding');
+    setExactlyWhen(
+      ctx,
+      c.findingId,
+      c.result === 'FINDING',
+      'findingId',
+      'A FINDING row links its finding',
+    );
     setExactlyWhen(
       ctx,
       c.notAuditedReason,
@@ -869,7 +917,13 @@ export const Certification = z
   })
   .superRefine((c, ctx) => {
     const issued = c.issuedOn !== null;
-    setExactlyWhen(ctx, c.expiresOn, issued, 'expiresOn', 'issuedOn and expiresOn are set together');
+    setExactlyWhen(
+      ctx,
+      c.expiresOn,
+      issued,
+      'expiresOn',
+      'issuedOn and expiresOn are set together',
+    );
     setExactlyWhen(
       ctx,
       c.certificateNumber,
@@ -966,8 +1020,15 @@ export const Incident = z
     workerParticipation: z.boolean(),
   })
   .superRefine((i, ctx) => {
-    if (i.type === 'NEAR_MISS' && i.outcome !== 'NONE') issue(ctx, 'outcome', 'A near miss has outcome NONE');
-    setExactlyWhen(ctx, i.lostDays, i.outcome === 'LOST_TIME', 'lostDays', 'lostDays is set exactly for LOST_TIME');
+    if (i.type === 'NEAR_MISS' && i.outcome !== 'NONE')
+      issue(ctx, 'outcome', 'A near miss has outcome NONE');
+    setExactlyWhen(
+      ctx,
+      i.lostDays,
+      i.outcome === 'LOST_TIME',
+      'lostDays',
+      'lostDays is set exactly for LOST_TIME',
+    );
   });
 export type Incident = z.infer<typeof Incident>;
 
@@ -1064,10 +1125,18 @@ export const Nonconformity = z
         if (n[field] === null) issue(ctx, field, `${n.state} needs ${field}`);
       }
     }
-    setExactlyWhen(ctx, n.closedOn, n.state === 'CLOSED', 'closedOn', 'closedOn is set exactly when CLOSED');
+    setExactlyWhen(
+      ctx,
+      n.closedOn,
+      n.state === 'CLOSED',
+      'closedOn',
+      'closedOn is set exactly when CLOSED',
+    );
     if (n.state === 'CLOSED') {
-      if (n.effective !== true) issue(ctx, 'effective', 'A CLOSED nonconformity was verified effective');
-      if (n.effectivenessNote === null) issue(ctx, 'effectivenessNote', 'A CLOSED nonconformity has an effectiveness note');
+      if (n.effective !== true)
+        issue(ctx, 'effective', 'A CLOSED nonconformity was verified effective');
+      if (n.effectivenessNote === null)
+        issue(ctx, 'effectivenessNote', 'A CLOSED nonconformity has an effectiveness note');
     }
     if (n.closedOn !== null && n.closedOn < n.reportedOn) {
       issue(ctx, 'closedOn', 'closedOn must not be before reportedOn');
@@ -1228,7 +1297,13 @@ export const IsoFile = z
   .superRefine((f, ctx) => {
     const set = Object.values(ISO_FILE_SUBJECT_COLUMNS).filter((column) => f[column] !== null);
     if (set.length !== 1) issue(ctx, 'clauseAssessmentId', 'An ISO file has exactly one subject');
-    setExactlyWhen(ctx, f.removeReason, f.archivedAt !== null, 'removeReason', 'A removed file has a reason');
+    setExactlyWhen(
+      ctx,
+      f.removeReason,
+      f.archivedAt !== null,
+      'removeReason',
+      'A removed file has a reason',
+    );
   });
 export type IsoFile = z.infer<typeof IsoFile>;
 

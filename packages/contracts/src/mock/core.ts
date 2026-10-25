@@ -77,6 +77,8 @@ export interface Actor {
   memberships: MembershipRecord[];
   /** VIEWER memberships past `expiresAt`, for ACCESS_EXPIRED. */
   expired: MembershipRecord[];
+  /** The account's features for this request: the firm's, or the `X-Mock-Features` header's when it is sent. */
+  features: string[];
 }
 
 export function actorFor(
@@ -84,6 +86,7 @@ export function actorFor(
   session: Session,
   person: PersonRecord,
   now: string,
+  features: string[] = firm.features,
 ): Actor {
   const memberships = activeMemberships(firm, person.id, now);
   const expired = firm.data.memberships.filter(
@@ -93,7 +96,7 @@ export function actorFor(
       m.expiresAt !== null &&
       m.expiresAt <= now,
   );
-  return { session, firm, person, memberships, expired };
+  return { session, firm, person, memberships, expired, features: [...features] };
 }
 
 /** Clients the actor may see: all for FIRM_ADMIN, listed ones for CONSULTANT, membership clients otherwise. */
@@ -108,18 +111,24 @@ export function visibleClientIds(actor: Actor): string[] {
   return live.filter((id) => ids.has(id));
 }
 
-/** The actor's memberships that act within `clientId` (all of them when null), optionally within one unit. */
+/**
+ * The actor's memberships that act within `clientId` (all of them when null), optionally within one unit, and
+ * within at least one of `unitIds` when given (a record over several units, docs/iso/plan.md §3.3).
+ */
 export function membershipsFor(
   actor: Actor,
   clientId: string | null,
   unitId?: string,
+  unitIds?: readonly string[],
 ): MembershipRecord[] {
   return actor.memberships.filter((m) => {
     if (clientId === null) return true;
     if (m.role === 'FIRM_ADMIN') return true;
     if (m.role === 'CONSULTANT') return m.consultantClientIds!.includes(clientId);
     if (m.clientId !== clientId) return false;
-    return unitId === undefined || m.unitIds === null || m.unitIds.includes(unitId);
+    if (m.unitIds === null) return true;
+    if (unitIds !== undefined && !unitIds.some((id) => m.unitIds!.includes(id))) return false;
+    return unitId === undefined || m.unitIds.includes(unitId);
   });
 }
 
@@ -130,6 +139,8 @@ export const hasRole = (actor: Actor, clientId: string | null, roles: Role[], un
 export interface Scope {
   clientId: string | null;
   unitId?: string;
+  /** A record over several units: a unit-scoped membership needs one of them (`Resource.unitIds`). */
+  unitIds?: readonly string[];
   ownerId?: string;
   approverId?: string;
   /** Bulk endpoints: an `own` role passes here and each item is checked on its own. */
@@ -151,7 +162,7 @@ export function authorize(actor: Actor, ep: Endpoint, scope: Scope): void {
     }
     throw notFound();
   }
-  const inScope = membershipsFor(actor, scope.clientId, scope.unitId);
+  const inScope = membershipsFor(actor, scope.clientId, scope.unitId, scope.unitIds);
   if (inScope.length === 0) throw notFound();
   const allowed = inScope.some((m) => {
     const access = ep.roles[m.role];

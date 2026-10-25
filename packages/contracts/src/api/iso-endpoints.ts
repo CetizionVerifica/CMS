@@ -47,7 +47,8 @@ export const ISO_ENDPOINTS = {
   listIsoClauses: isoEndpoint({
     method: 'GET',
     path: `${ROOT}/catalogue/clauses`,
-    summary: 'Clauses by standard and number: numbers, titles and our own summaries, never the text.',
+    summary:
+      'Clauses by standard and number: numbers, titles and our own summaries, never the text.',
     action: 'isoSystem.read',
     roles: READERS,
     query: iso.IsoClauseQuery,
@@ -95,7 +96,8 @@ export const ISO_ENDPOINTS = {
   updateIsoSystem: isoEndpoint({
     method: 'PATCH',
     path: `${ROOT}/systems/{id}`,
-    summary: 'Change name, scope, units, status or review interval; add a standard (never drop one).',
+    summary:
+      'Change name, scope, units, status or review interval; add a standard (never drop one).',
     action: 'isoSystem.write',
     roles: MANAGERS,
     body: iso.ManagementSystemUpdateBody,
@@ -305,7 +307,8 @@ export const ISO_ENDPOINTS = {
   submitIsoRevision: isoEndpoint({
     method: 'POST',
     path: `${ROOT}/documents/{id}/revisions/{revisionId}/submit`,
-    summary: 'SUBMIT a DRAFT revision with a change note and one CLEAN file (not EXTERNAL documents).',
+    summary:
+      'SUBMIT a DRAFT revision with a change note and one CLEAN file (not EXTERNAL documents).',
     action: 'isoDocument.write',
     roles: OWNER_WRITERS,
     notes: 'OW only as the document owner.',
@@ -553,7 +556,7 @@ export const ISO_ENDPOINTS = {
     method: 'POST',
     path: `${ROOT}/audit-programmes`,
     summary: "Start a system's audit programme for an FY (one per system and FY).",
-    action: 'isoAudit.plan',
+    action: 'isoSystem.write',
     roles: MANAGERS,
     body: iso.AuditProgrammeCreateBody,
     status: 201,
@@ -563,7 +566,7 @@ export const ISO_ENDPOINTS = {
     method: 'PATCH',
     path: `${ROOT}/audit-programmes/{id}`,
     summary: "Change a programme's notes.",
-    action: 'isoAudit.plan',
+    action: 'isoSystem.write',
     roles: MANAGERS,
     body: iso.AuditProgrammeUpdateBody,
     response: iso.AuditProgrammeView,
@@ -825,7 +828,8 @@ export const ISO_ENDPOINTS = {
   createIsoExternalFinding: isoEndpoint({
     method: 'POST',
     path: `${ROOT}/external-audits/{id}/findings`,
-    summary: 'Record a finding of a HELD visit; a MAJOR_NC or MINOR_NC raises its nonconformity too.',
+    summary:
+      'Record a finding of a HELD visit; a MAJOR_NC or MINOR_NC raises its nonconformity too.',
     action: 'isoCertification.write',
     roles: MANAGERS,
     body: iso.ExternalFindingCreateBody,
@@ -879,7 +883,8 @@ export const ISO_ENDPOINTS = {
       'Investigation fields (isoNc.work); owner, approver or dates (isoNc.reassign), with a reason.',
     action: ['isoNc.work', 'isoNc.reassign'],
     roles: 'CA OW:own',
-    notes: 'OW only as its owner. Changing owner, approver or dates: FA, CO and CA (isoNc.reassign).',
+    notes:
+      'OW only as its owner. Changing owner, approver or dates: FA, CO and CA (isoNc.reassign).',
     body: iso.NcUpdateBody,
     response: iso.NonconformityView,
   }),
@@ -929,7 +934,8 @@ export const ISO_ENDPOINTS = {
     summary: 'VERIFY_EFFECTIVE: closes it. A client admin verifies as delegate.',
     action: 'isoNc.verify',
     roles: 'CA AP:own',
-    notes: 'Never someone who took a maker step since the last RAISE, REOPEN or VERIFY_NOT_EFFECTIVE.',
+    notes:
+      'Never someone who took a maker step since the last RAISE, REOPEN or VERIFY_NOT_EFFECTIVE.',
     body: iso.NcVerifyEffectiveBody,
     response: iso.NonconformityView,
     idempotent: true,
@@ -940,7 +946,8 @@ export const ISO_ENDPOINTS = {
     summary: 'VERIFY_NOT_EFFECTIVE: back to OPEN or ACTIONS_PLANNED, with a reason.',
     action: 'isoNc.verify',
     roles: 'CA AP:own',
-    notes: 'Never someone who took a maker step since the last RAISE, REOPEN or VERIFY_NOT_EFFECTIVE.',
+    notes:
+      'Never someone who took a maker step since the last RAISE, REOPEN or VERIFY_NOT_EFFECTIVE.',
     body: iso.NcVerifyNotEffectiveBody,
     response: iso.NonconformityView,
     idempotent: true,
@@ -1163,7 +1170,8 @@ export const ISO_ENDPOINTS = {
   confirmIsoFile: isoEndpoint({
     method: 'POST',
     path: `${ROOT}/files`,
-    summary: 'Confirm an uploaded file; PENDING until scanned. Audited as EVIDENCE_ADD on the subject.',
+    summary:
+      'Confirm an uploaded file; PENDING until scanned. Audited as EVIDENCE_ADD on the subject.',
     action: 'isoFile.write',
     roles: 'FA CO CA AP:own OW:own',
     notes: 'Whoever may write the subject.',

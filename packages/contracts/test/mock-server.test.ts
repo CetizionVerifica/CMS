@@ -98,9 +98,13 @@ describe('mock server', () => {
   });
   afterAll(async () => {
     await app.close();
-    // Every endpoint in the table has a handler and was called with a valid request ("serves every endpoint").
+    // Every endpoint in the table has a handler, and every core endpoint was called with a valid request ("serves
+    // every endpoint"). The add-on endpoints (`feature` set) are called in their own suites (iso-*.test.ts).
     expect(Object.keys(HANDLERS).sort()).toEqual(Object.keys(ENDPOINTS).sort());
-    expect([...called].sort()).toEqual(Object.keys(ENDPOINTS).sort());
+    const core = (Object.keys(ENDPOINTS) as (keyof typeof ENDPOINTS)[]).filter(
+      (id) => !('feature' in ENDPOINTS[id]),
+    );
+    expect([...called].sort()).toEqual(core.sort());
   });
 
   it('signs in with a password, a magic link or an invite, and checks MFA and CSRF', async () => {
