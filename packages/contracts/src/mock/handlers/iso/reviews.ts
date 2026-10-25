@@ -43,6 +43,7 @@ import {
   canSee,
   checkIsoPerson,
   checkIsoVersion,
+  clauseOf,
   finishIsoScans,
   forbidden,
   holdsRole,
@@ -65,7 +66,7 @@ import {
   systemUnitIds,
   touchIso,
 } from '../../iso/common.js';
-import { localDate, objectiveOnTrack } from '../../iso/derive.js';
+import { incidentsIn, localDate, objectiveOnTrack } from '../../iso/derive.js';
 import type { FirmState, IsoAuditEvent, IsoRow } from '../../store.js';
 
 type Ids =
@@ -73,6 +74,7 @@ type Ids =
   | 'planIsoManagementReview'
   | 'getIsoManagementReview'
   | 'updateIsoManagementReview'
+  | 'replanIsoManagementReview'
   | 'cancelIsoManagementReview'
   | 'recordIsoManagementReviewHeld'
   | 'closeIsoManagementReview'
@@ -114,11 +116,9 @@ const MANAGERS: readonly Role[] = ['FIRM_ADMIN', 'CONSULTANT', 'CLIENT_ADMIN'];
 const FINAL: readonly Review['state'][] = ['CLOSED', 'CANCELLED'];
 /** Reviews that were held: their `heldOn` counts (model §5.2, §5.4). */
 const HELD: readonly Review['state'][] = ['HELD', 'CLOSED'];
-/** The fields only `isoReview.plan` changes, and only while PLANNED (ManagementReviewUpdateBody). */
-const PLAN_FIELDS = ['standards', 'plannedOn', 'chairId'] as const;
 /**
- * Audit groups of a review edit (model §8): moving its date is a due-date change (with the reason), a new chair a
- * reassignment, and its standards (with the input and output rows that follow them), attendees and minutes an UPDATE.
+ * Audit groups of a review edit (model §8): moving its date is a due-date change and a new chair a reassignment, each
+ * with the reason, and its standards (with the input and output rows that follow them), attendees and minutes an UPDATE.
  */
 const EDIT_GROUPS: [IsoAuditEvent['action'], (keyof Review)[]][] = [
   ['DUE_DATE_CHANGE', ['plannedOn']],
@@ -486,6 +486,114 @@ const within = (f: FigureScope, date: string | null) =>
 
 const dayOf = (f: FigureScope, instant: string) => localDate(instant, f.timeZone);
 
+// State on as-of (iso-mock.md "Management review figures"): a held review's figures read each record as it stood on
+// its heldOn, from the audit trail, so the review keeps the picture of the day it was held. A review not held reads
+// the records as they are now, with no day arithmetic across time zones.
+
+/** Whether the figures look back to a past day: the review was held. */
+const past = (f: FigureScope) => f.review.heldOn !== null;
+
+/** Created by as-of, by its client-local day. */
+const existed = (f: FigureScope, row: { createdAt: string }) =>
+  !past(f) || dayOf(f, row.createdAt) <= f.asOf;
+
+/** The audited changes of `field` of a record (events whose `before` has it), oldest first. */
+const changesOf = (f: FigureScope, entityType: IsoEntity, id: string, field: string) =>
+  f.firm.isoAuditEvents
+    .filter(
+      (e) =>
+        e.entityType === entityType && e.entityId === id && e.before !== null && field in e.before,
+    )
+    .sort((a, b) => a.at.localeCompare(b.at));
+
+/** The first audited change of `field` of a record on a day after as-of (none for a review not held). */
+const changeAfter = (f: FigureScope, entityType: IsoEntity, id: string, field: string) =>
+  past(f) ? changesOf(f, entityType, id, field).find((e) => dayOf(f, e.at) > f.asOf) : undefined;
+
+/** A field's value on as-of: the `before` of its first audited change after as-of, else its value now. */
+function fieldAt<R extends { id: string }, K extends keyof R & string>(
+  f: FigureScope,
+  entityType: IsoEntity,
+  row: R,
+  field: K,
+): R[K] {
+  const change = changeAfter(f, entityType, row.id, field);
+  return change === undefined ? row[field] : (change.before![field] as R[K]);
+}
+
+/**
+ * Cancelled by as-of. A cancel counts from its CANCEL step in the trail; a row still CANCELLED with no step after
+ * as-of counts from its last change (a cancelled nonconformity or action takes no edits). A row reopened after as-of
+ * whose cancel left no step (seeded before the trail) has no day for it, so it reads as not cancelled.
+ */
+function cancelledBy(
+  f: FigureScope,
+  entityType: IsoEntity,
+  row: { id: string; state: string; updatedAt: string },
+): boolean {
+  if (!past(f)) return row.state === 'CANCELLED';
+  const steps = changesOf(f, entityType, row.id, 'state');
+  const later = steps.find((e) => dayOf(f, e.at) > f.asOf);
+  if (later === undefined) return row.state === 'CANCELLED' && dayOf(f, row.updatedAt) <= f.asOf;
+  return (
+    later.before!.state === 'CANCELLED' &&
+    steps.some((e) => e.after?.state === 'CANCELLED' && dayOf(f, e.at) <= f.asOf)
+  );
+}
+
+/**
+ * Changed in the window, other than by being created: an audited UPDATE on a day in the window or, for a row with no
+ * change after as-of, its last change in the window.
+ */
+function changedIn(
+  f: FigureScope,
+  entityType: IsoEntity,
+  row: { id: string; updatedAt: string; createdAt: string },
+) {
+  if (row.updatedAt === row.createdAt) return false;
+  const updates = f.firm.isoAuditEvents.filter(
+    (e) => e.entityType === entityType && e.entityId === row.id && e.action === 'UPDATE',
+  );
+  if (updates.some((e) => within(f, dayOf(f, e.at)))) return true;
+  const laterChange = past(f) && updates.some((e) => dayOf(f, e.at) > f.asOf);
+  return !laterChange && within(f, dayOf(f, row.updatedAt));
+}
+
+/** On or before as-of. */
+const byAsOf = (f: FigureScope, date: string | null) => date !== null && date <= f.asOf;
+
+/** An action's state on as-of, or null before it was created. */
+function actionStateAt(f: FigureScope, a: Action): Action['state'] | null {
+  if (!existed(f, a)) return null;
+  if (cancelledBy(f, 'iso_action', a)) return 'CANCELLED';
+  return byAsOf(f, fieldAt(f, 'iso_action', a, 'doneOn')) ? 'DONE' : 'OPEN';
+}
+
+/** Open on as-of with its due date on as-of before it. */
+const overdueAt = (f: FigureScope, a: Action) =>
+  actionStateAt(f, a) === 'OPEN' && fieldAt(f, 'iso_action', a, 'dueOn') < f.asOf;
+
+/**
+ * A nonconformity as it stood on as-of, in the fields the figures read: severity, incident detail, `closedOn`, and a
+ * state that is CANCELLED exactly when it was cancelled by then (one cancelled later with no step in the trail reads
+ * as OPEN).
+ */
+function ncAt(f: FigureScope, n: Nc): Nc {
+  const at = <K extends keyof Nc & string>(field: K) => fieldAt(f, 'nonconformity', n, field);
+  const cancelled = cancelledBy(f, 'nonconformity', n);
+  const state = at('state');
+  return {
+    ...n,
+    severity: at('severity'),
+    incident: at('incident'),
+    closedOn: at('closedOn'),
+    state: cancelled ? 'CANCELLED' : state === 'CANCELLED' ? 'OPEN' : state,
+  };
+}
+
+/** Neither closed nor cancelled by as-of (`n` as `ncsFor` gives it: reported by then). */
+const ncOpenAt = (f: FigureScope, n: Nc) => !byAsOf(f, n.closedOn) && n.state !== 'CANCELLED';
+
 /** Held reviews of the system before this one (bounded by its own `heldOn`, or today) that covered one of `codes`. */
 function earlierReviews(
   firm: FirmState,
@@ -507,7 +615,7 @@ function earlierReviews(
 /**
  * `since` for an input (model §5.4): per standard of the input, the `heldOn` of the last earlier held review covering
  * it, or else the system's creation day in the client's time zone; the earliest of those, so the figures leave out
- * nothing a standard has not been reviewed on yet.
+ * nothing a standard has not been reviewed on yet, and never after as-of.
  */
 function sinceFor(f: Omit<FigureScope, 'since'>): string {
   const earlier = earlierReviews(f.firm, f.review, f.codes, f.asOf);
@@ -517,10 +625,12 @@ function sinceFor(f: Omit<FigureScope, 'since'>): string {
       .filter((r) => r.standards.includes(code))
       .reduce((latest, r) => (r.heldOn! > latest ? r.heldOn! : latest), createdOn),
   );
-  return [...last].sort()[0]!;
+  const since = [...last].sort()[0]!;
+  // A review held before its system was set up in the app reviews just its own day.
+  return since < f.asOf ? since : f.asOf;
 }
 
-/** PREVIOUS_ACTIONS: the actions of earlier held reviews, by state, and those overdue now. */
+/** PREVIOUS_ACTIONS: the actions of earlier held reviews by their state on as-of, and those overdue on as-of. */
 function previousActionFigures(f: FigureScope): Figure[] {
   const reviews = new Set(ids(earlierReviews(f.firm, f.review, f.codes, f.asOf)));
   const actions = liveIso(f.firm, 'actions', f.review.clientId).filter(
@@ -529,16 +639,17 @@ function previousActionFigures(f: FigureScope): Figure[] {
       reviews.has(a.subject.id) &&
       canSee(f.actor, actionReach(f.firm, a)),
   );
-  const open = actions.filter((a) => a.state === 'OPEN');
+  const inState = (state: Action['state']) =>
+    ids(actions.filter((a) => actionStateAt(f, a) === state));
   return [
-    figure('actionsOpen', ids(open)),
-    figure('actionsOverdue', ids(open.filter((a) => a.dueOn < f.asOf))),
-    figure('actionsDone', ids(actions.filter((a) => a.state === 'DONE'))),
-    figure('actionsCancelled', ids(actions.filter((a) => a.state === 'CANCELLED'))),
+    figure('actionsOpen', inState('OPEN')),
+    figure('actionsOverdue', ids(actions.filter((a) => overdueAt(f, a)))),
+    figure('actionsDone', inState('DONE')),
+    figure('actionsCancelled', inState('CANCELLED')),
   ];
 }
 
-/** CONTEXT: issues and interested parties added, changed or removed in the window, and the climate decision. */
+/** CONTEXT: issues and interested parties added, changed or removed in the window, and the climate decision on as-of. */
 function contextFigures(f: FigureScope): Figure[] {
   const items = f.firm.iso.contextItems.filter(
     (c) =>
@@ -548,12 +659,12 @@ function contextFigures(f: FigureScope): Figure[] {
   );
   const live = items.filter((c) => c.archivedAt === null);
   const added = live.filter((c) => within(f, dayOf(f, c.createdAt)));
-  const changed = live.filter(
-    (c) => !added.includes(c) && within(f, dayOf(f, c.updatedAt)) && c.updatedAt !== c.createdAt,
-  );
+  const changed = live.filter((c) => !added.includes(c) && changedIn(f, 'context_item', c));
   const party = (c: { kind: string }) => c.kind === 'INTERESTED_PARTY';
   const system = f.system;
-  const decided = system.climateChangeRelevant === null ? [] : [system.id];
+  const relevant = fieldAt(f, 'management_system', system, 'climateChangeRelevant');
+  const decidedOn = fieldAt(f, 'management_system', system, 'climateDecidedOn');
+  const decided = relevant !== null && byAsOf(f, decidedOn) ? [system.id] : [];
   return [
     figure('issuesAdded', ids(added.filter((c) => !party(c)))),
     figure('issuesChanged', ids(changed.filter((c) => !party(c)))),
@@ -564,18 +675,24 @@ function contextFigures(f: FigureScope): Figure[] {
       ids(items.filter((c) => c.archivedAt !== null && within(f, dayOf(f, c.archivedAt)))),
     ),
     figure('climateDecided', decided),
-    figure('climateRelevant', system.climateChangeRelevant === true ? [system.id] : []),
-    figure('climateDecidedInPeriod', within(f, system.climateDecidedOn) ? [system.id] : []),
+    figure('climateRelevant', relevant === true ? decided : []),
+    figure('climateDecidedInPeriod', within(f, decidedOn) ? decided : []),
   ];
 }
 
 /** Rating fields: an audited change of one of them is a re-rating. */
 const RATING_FIELDS = ['likelihood', 'severity', 'residualLikelihood', 'residualSeverity'];
 
-/** RISKS: items added or re-rated in the window, significant items by kind, treatment actions done and open. */
+/**
+ * RISKS: items added or re-rated in the window, items significant on as-of by kind, treatment actions done in the
+ * window and open on as-of.
+ */
 function riskFigures(f: FigureScope): Figure[] {
   const items = liveIso(f.firm, 'riskItems', f.review.clientId).filter(
-    (i) => i.managementSystemId === f.system.id && canSee(f.actor, riskReach(f.firm, i)),
+    (i) =>
+      i.managementSystemId === f.system.id &&
+      existed(f, i) &&
+      canSee(f.actor, riskReach(f.firm, i)),
   );
   const added = items.filter((i) => within(f, dayOf(f, i.createdAt)));
   const rerated = new Set(
@@ -592,7 +709,7 @@ function riskFigures(f: FigureScope): Figure[] {
   const treatments = liveIso(f.firm, 'actions', f.review.clientId).filter(
     (a) => a.subject.type === 'RISK_ITEM' && itemIds.has(a.subject.id),
   );
-  const significant = items.filter((i) => i.significant);
+  const significant = items.filter((i) => fieldAt(f, 'risk_item', i, 'significant'));
   return [
     figure('itemsAdded', ids(added)),
     figure('itemsRerated', ids(items.filter((i) => !added.includes(i) && rerated.has(i.id)))),
@@ -601,56 +718,80 @@ function riskFigures(f: FigureScope): Figure[] {
     ),
     figure(
       'treatmentActionsDone',
-      ids(treatments.filter((a) => a.state === 'DONE' && within(f, a.doneOn))),
+      ids(treatments.filter((a) => within(f, fieldAt(f, 'iso_action', a, 'doneOn')))),
     ),
-    figure('treatmentActionsOpen', ids(treatments.filter((a) => a.state === 'OPEN'))),
+    figure('treatmentActionsOpen', ids(treatments.filter((a) => actionStateAt(f, a) === 'OPEN'))),
   ];
 }
 
 /**
- * OBJECTIVES: `objectiveProgress` of each objective of the input's standards (one listing several counts once here):
- * open ones on track, off track or without a reading, those closed in the window by outcome, and readings recorded.
+ * OBJECTIVES: `objectiveProgress` of each objective of the input's standards (one listing several counts once here),
+ * as it stood on as-of: those open then, on track, off track or without a reading (on track reads the readings
+ * recorded by as-of for periods ended by then), those closed in the window by outcome, and the readings recorded in
+ * the window, whatever their period.
  */
 function objectiveFigures(f: FigureScope): Figure[] {
   const objectives = liveIso(f.firm, 'objectives', f.review.clientId).filter(
     (o) =>
       o.managementSystemId === f.system.id &&
+      existed(f, o) &&
       o.standards.some((code) => f.codes.includes(code)) &&
       canSee(f.actor, objectiveReach(f.firm, o)),
   );
-  const readingsOf = (o: Objective) =>
-    liveIso(f.firm, 'readings', f.review.clientId).filter(
-      (r) => r.objectiveId === o.id && r.periodEnd <= f.asOf,
+  const readings = liveIso(f.firm, 'readings', f.review.clientId);
+  const readingsOf = (o: Objective) => readings.filter((r) => r.objectiveId === o.id);
+  const closedOn = new Map(objectives.map((o) => [o.id, fieldAt(f, 'objective', o, 'closedOn')]));
+  const open = objectives.filter((o) => !byAsOf(f, closedOn.get(o.id)!));
+  /** The objective and its readings as they stood on as-of. */
+  const onTrack = (o: Objective) =>
+    objectiveOnTrack(
+      {
+        ...o,
+        target: fieldAt(f, 'objective', o, 'target'),
+        baseline: fieldAt(f, 'objective', o, 'baseline'),
+        direction: fieldAt(f, 'objective', o, 'direction'),
+        dueOn: fieldAt(f, 'objective', o, 'dueOn'),
+      },
+      readingsOf(o)
+        .filter((r) => existed(f, r) && r.periodEnd <= f.asOf)
+        .map((r) => ({ ...r, value: fieldAt(f, 'objective_reading', r, 'value') })),
+      f.asOf,
+      f.timeZone,
     );
-  const open = objectives.filter((o) => o.closedOn === null);
-  const track = new Map(
-    open.map((o) => [o.id, objectiveOnTrack(o, readingsOf(o), f.asOf, f.timeZone)]),
-  );
-  const closed = objectives.filter((o) => within(f, o.closedOn));
+  const track = new Map(open.map((o) => [o.id, onTrack(o)]));
+  const closed = objectives.filter((o) => within(f, closedOn.get(o.id)!));
+  const outcome = (o: Objective) => fieldAt(f, 'objective', o, 'outcome');
   const recorded = objectives.flatMap(readingsOf).filter((r) => within(f, dayOf(f, r.createdAt)));
   return [
     figure('objectivesOpen', ids(open)),
     figure('onTrack', ids(open.filter((o) => track.get(o.id) === true))),
     figure('offTrack', ids(open.filter((o) => track.get(o.id) === false))),
     figure('withoutReading', ids(open.filter((o) => track.get(o.id) === null))),
-    figure('achieved', ids(closed.filter((o) => o.outcome === 'ACHIEVED'))),
-    figure('notAchieved', ids(closed.filter((o) => o.outcome === 'NOT_ACHIEVED'))),
+    figure('achieved', ids(closed.filter((o) => outcome(o) === 'ACHIEVED'))),
+    figure('notAchieved', ids(closed.filter((o) => outcome(o) === 'NOT_ACHIEVED'))),
     figure('readingsRecorded', ids(recorded)),
   ];
 }
 
-/** The system's nonconformities of the input's standards that the actor may see. */
+/**
+ * The system's nonconformities of the input's standards that the actor may see, reported by as-of, as they stood
+ * then.
+ */
 const ncsFor = (f: FigureScope) =>
-  liveIso(f.firm, 'nonconformities', f.review.clientId).filter(
-    (n) =>
-      n.managementSystemId === f.system.id &&
-      n.standards.some((code) => f.codes.includes(code)) &&
-      canSee(f.actor, ncReach(f.firm, n)),
-  );
+  liveIso(f.firm, 'nonconformities', f.review.clientId)
+    .filter(
+      (n) =>
+        n.managementSystemId === f.system.id &&
+        (!past(f) || n.reportedOn <= f.asOf) &&
+        n.standards.some((code) => f.codes.includes(code)) &&
+        canSee(f.actor, ncReach(f.firm, n)),
+    )
+    .map((n) => ncAt(f, n));
 
 /**
  * NONCONFORMITIES: raised and closed in the window, by source and severity; VERIFY_NOT_EFFECTIVE steps in the window
- * (the number of steps, with the nonconformities behind them); those open now and their overdue corrective actions.
+ * (the number of steps, with the nonconformities behind them); those open on as-of and their corrective actions
+ * overdue on as-of.
  */
 function ncFigures(f: FigureScope): Figure[] {
   const ncs = ncsFor(f);
@@ -664,13 +805,9 @@ function ncFigures(f: FigureScope): Figure[] {
       e.after?.action === 'VERIFY_NOT_EFFECTIVE' &&
       within(f, dayOf(f, e.at)),
   );
-  const open = ncs.filter((n) => n.state !== 'CLOSED' && n.state !== 'CANCELLED');
+  const open = ncs.filter((n) => ncOpenAt(f, n));
   const overdue = liveIso(f.firm, 'actions', f.review.clientId).filter(
-    (a) =>
-      a.subject.type === 'NONCONFORMITY' &&
-      ncIds.has(a.subject.id) &&
-      a.state === 'OPEN' &&
-      a.dueOn < f.asOf,
+    (a) => a.subject.type === 'NONCONFORMITY' && ncIds.has(a.subject.id) && overdueAt(f, a),
   );
   const by = (prefix: string, rows: Nc[]) => [
     ...NcSeverity.options.map((s) =>
@@ -695,11 +832,12 @@ function ncFigures(f: FigureScope): Figure[] {
   ];
 }
 
-/** INCIDENTS (`incidentCounts`): by the client-local day of `occurredAt`, in total, by type and by outcome. */
+/**
+ * INCIDENTS (`incidentCounts`, the overview's rule `incidentsIn`): by the client-local day of `occurredAt`, those
+ * cancelled by as-of left out, in total, by type and by outcome on as-of.
+ */
 function incidentFigures(f: FigureScope): Figure[] {
-  const incidents = ncsFor(f).filter(
-    (n) => n.incident !== null && within(f, dayOf(f, n.incident.occurredAt)),
-  );
+  const incidents = incidentsIn(ncsFor(f), { from: f.since, to: f.asOf }, f.timeZone);
   const lostTime = incidents.filter((n) => n.incident!.lostDays !== null);
   return [
     figure('incidents', ids(incidents)),
@@ -717,42 +855,57 @@ function incidentFigures(f: FigureScope): Figure[] {
   ];
 }
 
-/** AUDIT_RESULTS: internal audits reported and external audits ended (and held) in the window, findings by type. */
+/** Internal audit states once reported, and external audit states once the visit took place. */
+const REPORTED: readonly string[] = ['REPORTED', 'CLOSED'];
+const VISITED: readonly string[] = ['HELD', 'RESPONDED', 'CLOSED'];
+
+/**
+ * AUDIT_RESULTS: internal audits reported and external audits ended (and held) in the window, of the input's
+ * standards, and their findings by type, each as it stood on as-of. An internal audit's standards are its clauses' (the system's when it lists
+ * none, as for the nonconformities its findings raise).
+ */
 function auditFigures(f: FigureScope): Figure[] {
   const clientId = f.review.clientId;
+  const standards = systemStandards(f.firm, f.system);
+  const covered = f.codes
+    .map((code) => standards.get(code))
+    .filter((id): id is string => id !== undefined);
+  const ofStandards = (a: Audit) =>
+    a.clauseIds.length === 0 ||
+    a.clauseIds.some((id) => covered.includes(clauseOf(f.firm, id)?.standardId ?? ''));
   const audits = liveIso(f.firm, 'internalAudits', clientId).filter(
     (a) =>
       auditSystemId(f.firm, a) === f.system.id &&
-      (a.state === 'REPORTED' || a.state === 'CLOSED') &&
-      within(f, a.reportedOn) &&
+      ofStandards(a) &&
+      REPORTED.includes(fieldAt(f, 'internal_audit', a, 'state')) &&
+      within(f, fieldAt(f, 'internal_audit', a, 'reportedOn')) &&
       canSee(f.actor, auditReach(f.firm, a)),
   );
-  const standards = systemStandards(f.firm, f.system);
-  const covered = f.codes.map((code) => standards.get(code));
   const externals = liveIso(f.firm, 'externalAudits', clientId).filter(
     (e) =>
       e.managementSystemId === f.system.id &&
       e.standardIds.some((id) => covered.includes(id)) &&
-      (e.state === 'HELD' || e.state === 'RESPONDED' || e.state === 'CLOSED') &&
-      within(f, e.endOn) &&
+      VISITED.includes(fieldAt(f, 'external_audit', e, 'state')) &&
+      within(f, fieldAt(f, 'external_audit', e, 'endOn')) &&
       canSee(f.actor, systemReach(f.firm, e)),
   );
   const auditIds = new Set([...ids(audits), ...ids(externals)]);
-  const findings = liveIso(f.firm, 'findings', clientId).filter((x) =>
-    auditIds.has(x.internalAuditId ?? x.externalAuditId!),
+  const findings = liveIso(f.firm, 'findings', clientId).filter(
+    (x) => auditIds.has(x.internalAuditId ?? x.externalAuditId!) && existed(f, x),
   );
+  const typeOf = (x: Finding) => fieldAt(f, 'audit_finding', x, 'type');
   return [
     figure('internalAuditsReported', ids(audits)),
     figure('externalAuditsHeld', ids(externals)),
     ...FindingType.options.map((t) =>
-      figure(figureKey('findings', t), ids(findings.filter((x) => x.type === t))),
+      figure(figureKey('findings', t), ids(findings.filter((x) => typeOf(x) === t))),
     ),
   ];
 }
 
 /**
  * COMPLIANCE_EVALUATION: the evaluation activity's instances on the system's units (due and done in the window, and
- * the latest due by today), and the STATUTE-only score of the instances due in the window (a score has no ids).
+ * the latest due by as-of), and the STATUTE-only score of the instances due in the window (a score has no ids).
  */
 function complianceFigures(f: FigureScope): Figure[] {
   const look = new Lookup(f.firm);
@@ -793,7 +946,8 @@ const FIGURES: Record<Exclude<ReviewInputSource, 'MANUAL'>, (f: FigureScope) => 
 
 /**
  * `reviewInputFigures` (model §5.4) for one input, from the ISO tables the actor may see (plan §3.3), between `since`
- * and today; null for a MANUAL input, which is written by hand.
+ * and the day the review was held, the window it reviewed (today for a review not held: PLANNED, or CANCELLED, which
+ * is cancelled only while PLANNED); null for a MANUAL input, which is written by hand.
  */
 function inputFigures(
   actor: Actor,
@@ -810,7 +964,7 @@ function inputFigures(
     review,
     system,
     codes,
-    asOf: today,
+    asOf: review.heldOn ?? today,
     timeZone: timeZoneOf(actor.firm, review.clientId),
   };
   const f: FigureScope = { ...base, since: sinceFor(base) };
@@ -902,6 +1056,53 @@ function moveReview(
     reason: options.reason ?? null,
     ...(options.delegated ? { delegated: true } : {}),
   });
+}
+
+/**
+ * Checks and saves a review edit, one audit event per EDIT_GROUPS group: the date and chair with `reason`, the rest
+ * (with the input and output rows that follow new standards) as UPDATE. An edit that changes nothing writes nothing.
+ */
+function saveReviewEdit(
+  ctx: IsoCtx,
+  actor: Actor,
+  review: Review,
+  fields: Partial<Pick<Review, 'standards' | 'plannedOn' | 'chairId' | 'attendeeIds' | 'minutes'>>,
+  reason: string | null,
+): ReviewOut {
+  checkReviewPeople(actor, review.clientId, fields);
+  if (review.state === 'HELD' && fields.attendeeIds?.length === 0) {
+    invalid('attendeeIds', 'A held review keeps the people who attended it');
+  }
+  const defined = Object.fromEntries(
+    Object.entries(fields).filter(([, v]) => v !== undefined),
+  ) as Partial<Review>;
+  const changed = (Object.keys(defined) as (keyof Review)[]).filter(
+    (k) => JSON.stringify(review[k]) !== JSON.stringify(defined[k]),
+  );
+  if (changed.length === 0) return reviewView(actor, review);
+  const before = Object.fromEntries(changed.map((k) => [k, review[k]]));
+  Object.assign(review, defined);
+  touchIso(ctx, review);
+  const rows = changed.includes('standards')
+    ? syncRows(ctx, actor, review, systemOf(actor.firm, review))
+    : {};
+  for (const [action, keys] of EDIT_GROUPS) {
+    const inGroup = changed.filter((k) => keys.includes(k));
+    if (inGroup.length === 0) continue;
+    isoAudit(ctx, actor, {
+      action,
+      entityType: 'management_review',
+      entityId: review.id,
+      clientId: review.clientId,
+      before: Object.fromEntries(inGroup.map((k) => [k, before[k]])),
+      after: {
+        ...Object.fromEntries(inGroup.map((k) => [k, review[k]])),
+        ...(action === 'UPDATE' ? rows : {}),
+      },
+      reason: action === 'UPDATE' ? null : reason,
+    });
+  }
+  return reviewView(actor, review);
 }
 
 /** Notes, decisions and edits are taken until the review is CLOSED or CANCELLED (model §1.8). */
@@ -1249,68 +1450,37 @@ export const reviewsHandlers: PartialHandlers<Ids> = {
     return reviewView(actor, review);
   },
 
-  /**
-   * Until CLOSED or CANCELLED: attendees and minutes (`isoReview.write`: a manager or the chair); standards, date and
-   * chair only while PLANNED and only with `isoReview.plan`. Changing the standards adds and archives input and output
-   * rows to match; moving the date is a due-date change with the body's reason, a new chair a reassignment.
-   */
+  /** Until CLOSED or CANCELLED: attendees and minutes (`isoReview.write`: a manager or the chair), audited as UPDATE. */
   updateIsoManagementReview(ctx) {
+    const actor = actorOf(ctx);
+    const review = requireReview(actor, ctx.params.clientId, ctx.params.id);
+    ctx.authorize(selfScope(actor, reviewReach(actor.firm, review), [review.chairId]));
+    const { version, ...fields } = ctx.body;
+    checkIsoVersion(review, version);
+    requireNotFinal(review);
+    return saveReviewEdit(ctx, actor, review, fields, null);
+  },
+
+  /**
+   * `isoReview.plan` (FA, CO, CA) while PLANNED: standards, date and chair. Changing the standards adds and archives
+   * input and output rows to match; a new date is a due-date change and a new chair a reassignment, with the reason.
+   */
+  replanIsoManagementReview(ctx) {
     const actor = actorOf(ctx);
     const firm = actor.firm;
     const review = requireReview(actor, ctx.params.clientId, ctx.params.id);
-    const reach = reviewReach(firm, review);
-    ctx.authorize(selfScope(actor, reach, [review.chairId]));
+    ctx.authorize(isoScope(actor, reviewReach(firm, review)));
     const { version, reason, ...body } = ctx.body;
+    checkIsoVersion(review, version);
+    if (review.state !== 'PLANNED') invalidTransition('management_review', review.state, 'UPDATE');
     const fields = {
       ...body,
       ...(body.standards === undefined ? {} : { standards: inCodeOrder(body.standards) }),
     };
-    const planning = PLAN_FIELDS.some((k) => fields[k] !== undefined);
-    if (planning && !plansReview(actor, review, reach)) {
-      forbidden(
-        'isoReview.plan',
-        'Only a client admin, consultant or account admin changes the standards, date or chair',
-      );
+    if (fields.standards !== undefined) {
+      checkStandards(firm, systemOf(firm, review), fields.standards);
     }
-    checkIsoVersion(review, version);
-    requireNotFinal(review);
-    if (planning && review.state !== 'PLANNED') {
-      invalidTransition('management_review', review.state, 'UPDATE');
-    }
-    const system = systemOf(firm, review);
-    if (fields.standards !== undefined) checkStandards(firm, system, fields.standards);
-    checkReviewPeople(actor, review.clientId, fields);
-    if (review.state === 'HELD' && fields.attendeeIds?.length === 0) {
-      invalid('attendeeIds', 'A held review keeps the people who attended it');
-    }
-    const defined = Object.fromEntries(
-      Object.entries(fields).filter(([, v]) => v !== undefined),
-    ) as Partial<Review>;
-    const changed = (Object.keys(defined) as (keyof Review)[]).filter(
-      (k) => JSON.stringify(review[k]) !== JSON.stringify(defined[k]),
-    );
-    if (changed.length === 0) return reviewView(actor, review);
-    const before = Object.fromEntries(changed.map((k) => [k, review[k]]));
-    Object.assign(review, defined);
-    touchIso(ctx, review);
-    const rows = changed.includes('standards') ? syncRows(ctx, actor, review, system) : {};
-    for (const [action, keys] of EDIT_GROUPS) {
-      const inGroup = changed.filter((k) => keys.includes(k));
-      if (inGroup.length === 0) continue;
-      isoAudit(ctx, actor, {
-        action,
-        entityType: 'management_review',
-        entityId: review.id,
-        clientId: review.clientId,
-        before: Object.fromEntries(inGroup.map((k) => [k, before[k]])),
-        after: {
-          ...Object.fromEntries(inGroup.map((k) => [k, review[k]])),
-          ...(action === 'UPDATE' ? rows : {}),
-        },
-        reason: action === 'DUE_DATE_CHANGE' ? (reason ?? null) : null,
-      });
-    }
-    return reviewView(actor, review);
+    return saveReviewEdit(ctx, actor, review, fields, reason ?? null);
   },
 
   /** CANCEL (client admin; an account admin or consultant as delegate): PLANNED → CANCELLED, with a reason. */

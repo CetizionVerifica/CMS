@@ -129,7 +129,10 @@ function checkRange(q: { from?: string; to?: string }, ctx: z.core.$RefinementCt
     issue(ctx, 'to', 'to is before from');
 }
 
-/** Moving a planned or due date needs a reason, recorded on the audit event (DUE_DATE_CHANGE). */
+/**
+ * A change audited as a reassignment (REASSIGN) or a due-date change (DUE_DATE_CHANGE) needs a reason, recorded on the
+ * audit event; one rule for every ISO record (README decision 51 p).
+ */
 function reasonWith(
   fields: readonly string[],
 ): (body: Record<string, unknown>, ctx: z.core.$RefinementCtx) => void {
@@ -275,7 +278,8 @@ export type ClauseAssessmentView = z.infer<typeof ClauseAssessmentView>;
 
 /**
  * A row's own work. `status` never takes NOT_APPLICABLE (that goes through REQUEST_NA) and is refused while N/A is
- * REQUESTED or APPROVED; clause 4.1 cannot be IMPLEMENTED before the system's climate decision (400 VALIDATION).
+ * REQUESTED or APPROVED; clause 4.1 cannot be IMPLEMENTED before the system's climate decision (400 VALIDATION). A new
+ * owner needs a reason.
  */
 export const ClauseAssessmentUpdateBody = z
   .strictObject({
@@ -284,8 +288,10 @@ export const ClauseAssessmentUpdateBody = z
     ownerId: nullable(Id),
     notes: nullable(Note),
     lastReviewedOn: nullable(LocalDate),
+    reason: Reason.optional(),
   })
-  .superRefine(checkHasChanges);
+  .superRefine(hasChanges)
+  .superRefine(reasonWith(['ownerId']));
 export type ClauseAssessmentUpdateBody = z.input<typeof ClauseAssessmentUpdateBody>;
 
 /** REQUEST_NA: only on a clause with `exclusionAllowed`. `reason` is stored as the row's justification. */
@@ -340,7 +346,10 @@ export const DocumentCreateBody = z
   .superRefine(checkDocumentTypeFields);
 export type DocumentCreateBody = z.input<typeof DocumentCreateBody>;
 
-/** The document's own fields stay editable while it is ACTIVE. `code` and `type` do not change. */
+/**
+ * The document's own fields stay editable while it is ACTIVE. `code` and `type` do not change. A new owner or approver,
+ * or a moved `reviewDueOn`, needs a reason.
+ */
 export const DocumentUpdateBody = z
   .strictObject({
     ...versionField,
@@ -352,8 +361,10 @@ export const DocumentUpdateBody = z
     retention: nullable(LongText.max(2000)),
     issuer: nullable(Name),
     externalRef: nullable(Text.max(200)),
+    reason: Reason.optional(),
   })
-  .superRefine(checkHasChanges);
+  .superRefine(hasChanges)
+  .superRefine(reasonWith(['ownerId', 'approverId', 'reviewDueOn']));
 export type DocumentUpdateBody = z.input<typeof DocumentUpdateBody>;
 
 /** REVIEW: the approver confirms the current revision still fits; sets `lastReviewedOn` and the next review date. */
@@ -493,7 +504,10 @@ export const RiskItemCreateBody = z
   .superRefine(checkResidual);
 export type RiskItemCreateBody = z.input<typeof RiskItemCreateBody>;
 
-/** `kind` does not change; the merged item must still meet the kind rules (400 VALIDATION). Re-rating is audited. */
+/**
+ * `kind` does not change; the merged item must still meet the kind rules (400 VALIDATION). Re-rating is audited. A new
+ * owner or a moved `reviewDueOn` needs a reason.
+ */
 export const RiskItemUpdateBody = z
   .strictObject({
     ...versionField,
@@ -518,8 +532,10 @@ export const RiskItemUpdateBody = z
     climateRelated: z.boolean().optional(),
     ownerId: Id.optional(),
     reviewDueOn: nullable(LocalDate),
+    reason: Reason.optional(),
   })
-  .superRefine(checkHasChanges);
+  .superRefine(hasChanges)
+  .superRefine(reasonWith(['ownerId', 'reviewDueOn']));
 export type RiskItemUpdateBody = z.input<typeof RiskItemUpdateBody>;
 
 /** REVIEW: the item still stands as rated; sets `lastReviewedOn` and the next review date, nothing else. */
@@ -567,21 +583,44 @@ export const ObjectiveQuery = z.strictObject({
   open: QueryBoolean.optional(),
 });
 
-export const ObjectiveCreateBody = z.strictObject({
-  managementSystemId: Id,
-  standards: StandardList,
-  text: Text.max(1000),
-  target: z.number().finite(),
-  unitOfMeasure: Text.max(50),
-  baseline: z.number().finite().nullable().default(null),
-  direction: ObjectiveDirection,
-  readingRule: RecurrenceRule,
-  riskItemIds: ids(100).default([]),
-  ownerId: Id,
-  dueOn: LocalDate,
-});
+/**
+ * With a baseline, an INCREASE target is not below it and a DECREASE target not above it, so progress and on-track
+ * agree; a target equal to the baseline is a level to hold. MAINTAIN, or no baseline, takes any target.
+ */
+function checkObjectiveTarget(
+  o: { baseline?: number | null; target?: number; direction?: string },
+  ctx: z.core.$RefinementCtx,
+): void {
+  if (o.baseline === undefined || o.baseline === null || o.target === undefined) return;
+  if (o.direction === 'INCREASE' && o.target < o.baseline) {
+    issue(ctx, 'target', 'An INCREASE objective has a target at or above its baseline');
+  }
+  if (o.direction === 'DECREASE' && o.target > o.baseline) {
+    issue(ctx, 'target', 'A DECREASE objective has a target at or below its baseline');
+  }
+}
+
+export const ObjectiveCreateBody = z
+  .strictObject({
+    managementSystemId: Id,
+    standards: StandardList,
+    text: Text.max(1000),
+    target: z.number().finite(),
+    unitOfMeasure: Text.max(50),
+    baseline: z.number().finite().nullable().default(null),
+    direction: ObjectiveDirection,
+    readingRule: RecurrenceRule,
+    riskItemIds: ids(100).default([]),
+    ownerId: Id,
+    dueOn: LocalDate,
+  })
+  .superRefine(checkObjectiveTarget);
 export type ObjectiveCreateBody = z.input<typeof ObjectiveCreateBody>;
 
+/**
+ * A new owner or a moved `dueOn` needs a reason. The merged objective must keep its target on its direction's side of
+ * the baseline (400 VALIDATION on `target`).
+ */
 export const ObjectiveUpdateBody = z
   .strictObject({
     ...versionField,
@@ -598,7 +637,7 @@ export const ObjectiveUpdateBody = z
     reason: Reason.optional(),
   })
   .superRefine(hasChanges)
-  .superRefine(reasonWith(['dueOn']));
+  .superRefine(reasonWith(['ownerId', 'dueOn']));
 export type ObjectiveUpdateBody = z.input<typeof ObjectiveUpdateBody>;
 
 /** Closing ends the objective with its outcome; readings and actions stop. */
@@ -713,7 +752,7 @@ export const InternalAuditCreateBody = z
   .superRefine(checkAuditTeam);
 export type InternalAuditCreateBody = z.input<typeof InternalAuditCreateBody>;
 
-/** Only while PLANNED or IN_PROGRESS. Moving `plannedStart` or `plannedEnd` needs a reason. */
+/** Only while PLANNED or IN_PROGRESS. Moving `plannedStart` or `plannedEnd`, or a new lead auditor, needs a reason. */
 export const InternalAuditUpdateBody = z
   .strictObject({
     ...versionField,
@@ -730,7 +769,7 @@ export const InternalAuditUpdateBody = z
     reason: Reason.optional(),
   })
   .superRefine(hasChanges)
-  .superRefine(reasonWith(['plannedStart', 'plannedEnd']));
+  .superRefine(reasonWith(['plannedStart', 'plannedEnd', 'leadAuditorId']));
 export type InternalAuditUpdateBody = z.input<typeof InternalAuditUpdateBody>;
 
 export const InternalAuditStartBody = VersionBody;
@@ -830,7 +869,8 @@ export type ExternalFindingCreateBody = z.input<typeof ExternalFindingCreateBody
 
 /**
  * `type` moves only among OBSERVATION, OFI and GOOD_PRACTICE, or between MAJOR_NC and MINOR_NC (the nonconformity's
- * severity follows); any other change is 400 VALIDATION (cancel the nonconformity instead).
+ * severity follows), and that move only while the nonconformity is OPEN or ROOT_CAUSE_FOUND (409 INVALID_TRANSITION
+ * after) and never by its owner (403 FORBIDDEN); any other change is 400 VALIDATION (cancel the nonconformity instead).
  */
 export const FindingUpdateBody = z
   .strictObject({
@@ -928,7 +968,7 @@ export const ExternalAuditCreateBody = z
   });
 export type ExternalAuditCreateBody = z.input<typeof ExternalAuditCreateBody>;
 
-/** Until CLOSED or CANCELLED. */
+/** Until CLOSED or CANCELLED. Moving `responseDueOn` needs a reason. */
 export const ExternalAuditUpdateBody = z
   .strictObject({
     ...versionField,
@@ -945,8 +985,10 @@ export const ExternalAuditUpdateBody = z
     endOn: LocalDate.optional(),
     recommendation: nullable(AuditRecommendation),
     responseDueOn: nullable(LocalDate),
+    reason: Reason.optional(),
   })
-  .superRefine(checkHasChanges);
+  .superRefine(hasChanges)
+  .superRefine(reasonWith(['responseDueOn']));
 export type ExternalAuditUpdateBody = z.input<typeof ExternalAuditUpdateBody>;
 
 /** RECORD_HELD: the visit's dates, and the body's report as a file on the external audit. */
@@ -1055,12 +1097,14 @@ export const NcRaiseBody = z
   });
 export type NcRaiseBody = z.input<typeof NcRaiseBody>;
 
-/** The incident fields an update may change (the type follows the source and does not change). */
+/**
+ * The incident fields an update may change. The type follows the source and does not change; the outcome changes only
+ * on the reassign route (`NcReassignBody`), and `lostDays` here only while the outcome stays LOST_TIME.
+ */
 const IncidentPatch = z
   .strictObject({
     occurredAt: Incident.shape.occurredAt.optional(),
     location: Text.max(300).optional(),
-    outcome: IncidentOutcome.optional(),
     personCategory: nullable(IncidentPersonCategory),
     lostDays: nullable(z.int().min(1).max(10_000)),
     reportable: z.boolean().optional(),
@@ -1087,30 +1131,51 @@ const ncWorkShape = {
 };
 
 /**
- * Field edits until CLOSED or CANCELLED (`isoNc.work`). Changing `ownerId`, `approverId`, `dueOn` or
- * `effectivenessDueOn` is a reassignment or due-date change (`isoNc.reassign`) and needs a reason. A disposition and
- * who authorised it are set no later than ADD_ROOT_CAUSE.
+ * Investigation field edits until CLOSED or CANCELLED (`isoNc.work`). A disposition and who authorised it are set no
+ * later than ADD_ROOT_CAUSE. Owner, approver, dates, severity and the incident outcome change through `NcReassignBody`.
  */
 export const NcUpdateBody = z
   .strictObject({
     ...versionField,
     description: LongText.max(4000).optional(),
-    severity: NcSeverity.optional(),
     standards: StandardList.optional(),
     clauseIds: ids(20).optional(),
     unitId: nullable(Id),
     sourceInstanceId: nullable(Id),
     ...ncWorkShape,
     incident: IncidentPatch.optional(),
+  })
+  .superRefine(hasChanges);
+export type NcUpdateBody = z.input<typeof NcUpdateBody>;
+
+/**
+ * `isoNc.reassign` (FA, CO, CA), until CLOSED or CANCELLED, always with a reason: a new owner or approver (audited
+ * REASSIGN), a moved `dueOn` or `effectivenessDueOn` (DUE_DATE_CHANGE; the effectiveness date moves once PLAN_ACTIONS
+ * set it and is never cleared), or a new `severity` or incident `outcome` (UPDATE), which SUBMIT_NO_ACTION reads, so
+ * they change only while OPEN or ROOT_CAUSE_FOUND (model §3.10). A nonconformity raised from an audit finding takes
+ * its severity from the finding's type and has no incident (400). `lostDays` comes with an outcome moving to
+ * LOST_TIME and is cleared when it moves from it; while the outcome stays LOST_TIME it changes on the PATCH.
+ */
+export const NcReassignBody = z
+  .strictObject({
+    ...versionField,
     ownerId: Id.optional(),
     approverId: Id.optional(),
     dueOn: LocalDate.optional(),
-    effectivenessDueOn: nullable(LocalDate),
-    reason: Reason.optional(),
+    effectivenessDueOn: LocalDate.optional(),
+    severity: NcSeverity.optional(),
+    incident: z
+      .strictObject({ outcome: IncidentOutcome, lostDays: IncidentPatch.shape.lostDays })
+      .superRefine((i, ctx) => {
+        if ((i.outcome === 'LOST_TIME') !== (i.lostDays !== undefined && i.lostDays !== null)) {
+          issue(ctx, 'lostDays', 'lostDays is set exactly for LOST_TIME');
+        }
+      })
+      .optional(),
+    reason: Reason,
   })
-  .superRefine(hasChanges)
-  .superRefine(reasonWith(['ownerId', 'approverId', 'dueOn', 'effectivenessDueOn']));
-export type NcUpdateBody = z.input<typeof NcUpdateBody>;
+  .superRefine(hasChanges);
+export type NcReassignBody = z.input<typeof NcReassignBody>;
 
 /**
  * ADD_ROOT_CAUSE: containment, correction, root cause (and method) and similar occurrences, given here or before; an
@@ -1292,23 +1357,31 @@ export const ManagementReviewPlanBody = z.strictObject({
 });
 export type ManagementReviewPlanBody = z.input<typeof ManagementReviewPlanBody>;
 
-/**
- * Until CLOSED or CANCELLED. `attendeeIds` and `minutes` need `isoReview.write`; `standards`, `plannedOn` and `chairId`
- * need `isoReview.plan`, while PLANNED, and moving `plannedOn` needs a reason.
- */
+/** Attendees and minutes until CLOSED or CANCELLED (`isoReview.write`). */
 export const ManagementReviewUpdateBody = z
+  .strictObject({
+    ...versionField,
+    attendeeIds: ids(100).optional(),
+    minutes: nullable(LongText),
+  })
+  .superRefine(hasChanges);
+export type ManagementReviewUpdateBody = z.input<typeof ManagementReviewUpdateBody>;
+
+/**
+ * `isoReview.plan` (FA, CO, CA) while PLANNED: its standards (rows of keys no longer wanted are archived, new keys
+ * get rows), `plannedOn` (DUE_DATE_CHANGE) and `chairId` (REASSIGN); a new date or chair needs a reason.
+ */
+export const ManagementReviewReplanBody = z
   .strictObject({
     ...versionField,
     standards: StandardList.optional(),
     plannedOn: LocalDate.optional(),
     chairId: Id.optional(),
-    attendeeIds: ids(100).optional(),
-    minutes: nullable(LongText),
     reason: Reason.optional(),
   })
   .superRefine(hasChanges)
-  .superRefine(reasonWith(['plannedOn']));
-export type ManagementReviewUpdateBody = z.input<typeof ManagementReviewUpdateBody>;
+  .superRefine(reasonWith(['plannedOn', 'chairId']));
+export type ManagementReviewReplanBody = z.input<typeof ManagementReviewReplanBody>;
 
 export const ManagementReviewCancelBody = ReasonBody;
 /** RECORD_HELD: `heldOn` not after today, attendees, and notes on every input row. */

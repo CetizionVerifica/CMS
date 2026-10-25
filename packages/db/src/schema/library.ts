@@ -7,6 +7,7 @@ import {
   index,
   integer,
   jsonb,
+  pgPolicy,
   pgTable,
   text,
   unique,
@@ -46,13 +47,22 @@ export const act = pgTable(
   },
   (t) => [
     unique('act_firm_key').on(t.firmId, t.id),
+    // Names are unique per kind, so a firm's own statutory Act never blocks the ISO catalogue copy (catalogue.md §2).
     uniqueIndex('act_name_key')
-      .on(t.firmId, t.name)
+      .on(t.firmId, t.kind, t.name)
       .where(sql`archived_at is null`),
     check('act_jurisdiction_check', jurisdictionCheck),
     check('act_standard_central_check', sql`kind <> 'STANDARD' or jurisdiction = 'CENTRAL'`),
     check('act_version_check', sql`version >= 1`),
     ...firmWidePolicies({ insert: 'staff' }),
+    // Only the system job (M6's ISO catalogue copy) creates a STANDARD act, so staff cannot get round the add-on
+    // switch (docs/iso/plan.md §4.4). A trigger (migration 0039) refuses any change of kind, whatever the role.
+    pgPolicy('standard_insert', {
+      as: 'restrictive',
+      for: 'insert',
+      to: 'public',
+      withCheck: sql`firm_id = app_firm_id() and (kind <> 'STANDARD' or app_system_job())`,
+    }),
   ],
 );
 

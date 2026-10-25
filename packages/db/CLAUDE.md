@@ -13,10 +13,11 @@ Tenancy and people
 Library
 
 - `act` (name, short name, jurisdiction `CENTRAL | STATE`, state code, `aliases text[]`, `kind` `STATUTE | STANDARD`;
-  a STANDARD act is CENTRAL, ADR M16-0001)
+  a STANDARD act is CENTRAL, ADR M16-0001; the name is unique per firm and kind among non-archived acts; only the
+  system job inserts a STANDARD act, and a trigger refuses any change of kind, whatever the role)
 - `obligation` (`external_ref` e.g. "TAX-CL-033-6067-60218", `domain`, `jurisdiction`, title, description, `category_id`, `criticality`, `timeline_type`, `recurrence_rule jsonb` validated by the engine schema, `applicability_text`, `forms jsonb`, `log_sheets jsonb`, `evidence_required`, `rule_status`, `library_version`,
-  `clause_refs jsonb` of `{ standard, clauseNumber }` objects, never bare numbers; left out of reads until the contract
-  carries the standard)
+  `clause_refs jsonb` of `{ standard, clauseNumber }` objects, never bare numbers, read and written as the contract's
+  `clauseRefs`)
 - `category` (name, `aliases text[]`)
 
 Work
@@ -26,7 +27,7 @@ Work
 - `evidence` (instance, storage key, file name, size, mime, sha256, scan status, uploaded by), `comment` (instance, author, body)
 - `audit_event` (append-only: actor, action, entity, entity id, before jsonb, after jsonb, at, request id)
 - `import_batch`, `import_row` (raw row jsonb, mapped jsonb, outcome), `import_issue` (per row/field issue and resolution) and `mapping_template` (saved column mappings per client) for traceable imports
-- `domain_event` (transactional outbox for the event catalogue), `export_job` (Excel/PDF exports), `notification_send` (send log: scheduled sends unique per instance, kind, send date and recipient; event-driven sends, with `event_id`, unique per event and recipient; only these may have a null `client_id`, seen by firm-wide contexts only)
+- `domain_event` (transactional outbox for the event catalogue), `export_job` (Excel/PDF exports), `notification_send` (send log: scheduled sends unique per instance, kind, send date and recipient; ISO reminders, with `iso_subject_type` and `iso_subject_id` and never an instance, unique per subject, kind, send date and recipient; event-driven sends, with `event_id`, unique per event and recipient; only these and account sends may have a null `client_id`, seen by firm-wide contexts only)
 - `idempotency_key` (M7's Idempotency-Key replay: the first response per person and key, until `expires_at`)
 
 Sign-in (M5)
@@ -37,15 +38,57 @@ Sign-in (M5)
 Accounts and the operator (M15)
 
 - `firm` is also the customer account: `kind`, `status`, `plan_code`, `trial_ends_on`, `onboarded_at`,
-  `deletion_requested_at`, `status_before_deletion`, and `profile jsonb` (legal name, GSTIN, time zone, FY start
+  `deletion_requested_at`, `status_before_deletion`, `iso_catalogue_copied_at` (set once by
+  `app_mark_iso_catalogue_copied()`, docs/iso/plan.md §4.3), and `profile jsonb` (legal name, GSTIN, time zone, FY start
   month; `AccountProfile` in contracts). The app role may update only `name`, `settings` and `version`.
 - `support_grant` (PlanetPulse support access an account admin grants; tenant table). `person.support` marks the
   support person, who is never a sign-in candidate; `auth_session` and `auth_token` carry `support_grant_id`.
 - Schema `platform` (no `firm_id`, no RLS, no access for `canopy_app`): `plan`, `account_override` (features added
-  and `removed_features`; effective features are (plan ∪ added) − removed in `app_account()` and
-  `platformAccounts.entitlements` alike), `operator`,
+  and `removed_features`; effective features are (plan ∪ added) − removed, computed only by
+  `canopy_effective_features()`, which `app_account()` and `platformAccounts.entitlements` both call), `operator`,
   `operator_credential`, `operator_session`, `subscription`, `usage_snapshot`, `operator_audit_event` (append-only for
   every role). ADR M15-0001, M3-0002.
+
+ISO add-on, part 1 (ISO-2d, migration 0040; docs/iso/model.md §1-3.4, §3.8, §6)
+
+- Catalogue, the account's own copy, firm-wide; every context reads it, only a system job (`app_system_job()`) inserts or
+  updates it: `iso_standard` (code, edition), `iso_clause` (number, title, our own summary, parent, `hls_key`,
+  `assessable`, `exclusion_allowed`), `iso_review_input_def`, `iso_review_output_def`. Numbers and our words only.
+- Client records (`client_id`, client policy, a `(firm_id, client_id, id)` key, so a reference never leaves the client):
+  `management_system` (`standard_ids uuid[]`, which only grow, and a climate decision that never returns to null: a
+  trigger), `management_system_unit` and `certification_unit` (join rows, archived when a unit is removed, a partial
+  key on live rows), `context_item`, `clause_assessment` (one per system and clause; the contracts' N/A rules as
+  checks), `controlled_document` (code unique per client; `current_revision_id` names an APPROVED revision of the
+  document, checked by a trigger, not a foreign key, so the purge can delete both), `document_revision` (one DRAFT or
+  IN_REVIEW and one APPROVED per document), `certification`, `external_audit`.
+- `iso_file`: ISO files, never in `evidence`. One nullable subject column per subject with `num_nonnulls(...) = 1`
+  (all eleven subjects of model §6 since ISO-2e); `storage_key` inside `evidence/<firmId>/<clientId>/iso/`; removed files keep the row with `remove_reason`.
+- Repositories (`repositories/iso.ts`): `isoCatalogue`, `managementSystems`, `contextItems`, `clauseAssessments`
+  (`addForStandards` adds the NOT_STARTED rows), `controlledDocuments`, `documentRevisions`, `certifications`,
+  `externalAudits`, `isoFiles` (`create`, `get`, `forSubject`, `pendingScan`, `setScanStatus`, `archive`,
+  `cleanForClient`). Lists take a `UnitScope` (`unitIds`, `personId`) and apply plan §3.3 in SQL. None checks a role,
+  the feature switch or a state machine: M16 does.
+
+ISO add-on, part 2 (ISO-2e, migration 0041; docs/iso/model.md §3.5-3.13)
+
+- Client records, as in part 1: `risk_item` (the contracts' kind rules as checks; `rating`, `residual_rating` and
+  `significant` stored from the engine), `risk_control`, `objective` (`standards` as standard codes), `objective_reading`,
+  `audit_programme` (one per system and FY), `internal_audit` (lead as a column), `audit_checklist_item`,
+  `audit_finding` (exactly one of internal or external audit; an NC link exactly for MAJOR_NC and MINOR_NC, one finding
+  per NC), `nonconformity` (incident fields as `incident_*` columns, set exactly for INCIDENT and NEAR_MISS; composite
+  keys to `compliance_instance` for `source_instance_id` and `statutory_instance_id`), `iso_action` (exactly one of five
+  subject columns), `management_review`, `review_input` and `review_output` (one per review and definition).
+- `nonconformity.number` counts per client from 1: a trigger sets it on insert under a transaction lock on the client
+  and keeps it on update; a unique key backs it. Callers never pass it.
+- Lists of people and ISO records are join rows, archived when removed, with a partial key on live rows:
+  `objective_risk_item`, `internal_audit_unit`, `internal_audit_person` (role AUDITOR, AUDITEE or REPORTED_TO),
+  `nonconformity_person` (investigators), `nonconformity_risk_item` (role RELATED or UPDATED), `nonconformity_document`,
+  `management_review_person` (attendees). A record's repository reads and writes them as the contract's id lists, and
+  checks the result against the contract with its lists in.
+- Repositories (`repositories/iso-records.ts`, helpers in `iso-shared.ts`): `riskItems`, `riskControls`, `objectives`,
+  `objectiveReadings`, `auditProgrammes`, `internalAudits`, `auditChecklistItems`, `auditFindings`, `nonconformities`,
+  `isoActions`, `managementReviews`, `reviewInputs` and `reviewOutputs` (`addForReview` adds one row per key of the
+  given standards). Lists take a `UnitScope`; a child record takes its parent's scope, so by-parent reads take none.
 
 Field-level definitions are in `docs/contracts/domain-model.md` (M0); that file wins if it and this list differ.
 
@@ -90,7 +133,8 @@ Decisions and their reasons: `docs/adr/0003-m3-tenant-isolation-in-postgres.md`.
   `canopy_operator` only (refused if it can become `canopy_app`). `withOperator(requestId, (tx) => ...)` runs as `canopy_operator` with no tenant;
   repositories `platformAccounts` and `platformSupport` take that `OperatorTx`. Every write inside a tenant is a
   `platform_*` function owned by `canopy_platform`, with no exception: the master library copy runs app-side from
-  `account.created`. The app side reads its own account with `account.get` / `account.usage` and
+  `account.created`. The app side reads its own account with `account.get` / `account.usage` (`account.features` and
+  `account.isoCatalogueCopiedAt` for the ISO add-on; M6's ISO copy marks with `accountJobs.markIsoCatalogueCopied`) and
   manages `supportGrants`.
 - Repositories (`src/repositories`, exported from `@canopy/db`): one object per aggregate (`clients`, `units`, `people`,
   `memberships`, `obligations`, `assignments`, `instances`, `evidence`, `comments`, `auditEvents`, `importBatches`,
@@ -107,7 +151,8 @@ Decisions and their reasons: `docs/adr/0003-m3-tenant-isolation-in-postgres.md`.
 - Scheduled jobs (M9): `db.listFirmIds()` returns firm ids only (a SECURITY DEFINER function that any app-role
   transaction could call; only jobs use it);
   each firm then runs in `withTenant(systemContext(firmId, ...))` with the `jobs` read models and
-  `notificationSends` (`claim` returns NEW, PENDING or DONE).
+  `notificationSends` (`claim` returns NEW, PENDING or DONE; `listDone` lists instance and digest sends, `listDoneIso`
+  ISO reminders with their subject).
 - In a single-table select, Drizzle leaves columns unqualified, so a correlated subquery inside `sql` binds them to
   the inner table. Use a join or two queries instead.
 - Imports (M8): `importBatches.create` takes an optional `id` (a UUIDv7 from `uuidv7()`, exported here) so an upload

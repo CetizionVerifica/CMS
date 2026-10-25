@@ -24,7 +24,7 @@ const detail = tolerant(ENDPOINTS.getInstance.response).parse(await response.jso
 | `src/engine-api.ts` | Signatures M4 implements: `EngineApi`, and `IsoEngineApi` beside it |
 | `src/api/endpoints.ts` | `ENDPOINTS`: every endpoint with method, path, `can()` actions, role access and schemas (the ISO routes spread in from `iso-endpoints.ts`); `PLATFORM_ENDPOINTS`: the operator API under `/api/platform/v1` |
 | `src/api/endpoint-def.ts` | The `Endpoint` shape and the `endpoint()` builder both endpoint tables use, with `Endpoint.feature` (an add-on's routes; `x-canopy-feature` in OpenAPI) |
-| `src/api/iso-endpoints.ts` | `ISO_ENDPOINTS`: the 117 M16 routes under `/clients/{clientId}/iso/`, all gated on `isoManagement` |
+| `src/api/iso-endpoints.ts` | `ISO_ENDPOINTS`: the 119 M16 routes under `/clients/{clientId}/iso/`, all gated on `isoManagement` |
 | `src/api/can.ts` | `can()`: the stub policy from the `ENDPOINTS` role matrix, until M5's lands |
 | `src/api/{auth,entities,workflow,imports,dashboards,iso}.ts` | Request bodies, query schemas and response shapes per provider module (`iso.ts`: the ISO bodies, queries, views, `IsoOverview` and `ISO_EXPORT_FILTERS`) |
 | `src/api/common.ts` | Pagination, sorting, comma lists, `page()`, `list()`, bulk results, signed URLs |

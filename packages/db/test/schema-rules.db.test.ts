@@ -371,6 +371,7 @@ describe('platform schema and operator roles', () => {
     expect(rows.map((r) => r.name)).toEqual([
       'app_account',
       'app_end_trial',
+      'app_mark_iso_catalogue_copied',
       'app_mark_library_copied',
       'app_record_support_expiry',
       'app_subscription_ends_on',

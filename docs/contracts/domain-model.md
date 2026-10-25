@@ -521,7 +521,7 @@ interface ClauseAssessment /* system */ {            // one checklist row per as
   clauseId: Id; status: ClauseStatus
   justification: string | null                      // required while N/A is REQUESTED or APPROVED
   naState: ClauseNaState                            // status is NOT_APPLICABLE exactly while REQUESTED or APPROVED
-  statusBeforeNa: ClauseWorkStatus | null           // what REJECT_NA and WITHDRAW_NA restore
+  statusBeforeNa: ClauseWorkStatus | null           // what REJECT_NA restores; WITHDRAW_NA returns the row to NOT_STARTED
   naRequestedById: Id | null; naDecidedById: Id | null; naDecidedAt: Instant | null   // the decider is never the requester
   ownerId: Id | null; notes: string | null; lastReviewedOn: LocalDate | null
 }
@@ -778,7 +778,7 @@ riskRating(likelihood, severity): number                                      //
 isSignificant(item: { rating, obligationIds, significantOverride }, rule: IsoRiskRule): boolean   // an override wins
 clauseReadiness(assessments, clauses): ClauseReadiness                         // IMPLEMENTED 1, PARTIAL 0.5; approved exclusions leave the denominator
 certificationReadiness(system: IsoSystemInput, data: CertificationReadinessData, asOf): CertificationReadiness
-objectiveProgress(readings, objective, asOf): ObjectiveProgress
+objectiveProgress(readings, objective & { createdOn }, asOf, cal: { fyStartMonth }): ObjectiveProgress  // createdOn: createdAt as a client-zone date
 auditProgrammeCoverage(audits, checklistItems, system, clauses /* with excluded */, fy): AuditProgrammeCoverage
 incidentCounts(ncs, period: { from; to }, timeZone): IncidentCounts
 climateDeterminationGaps(system, contextItems, riskItems): ClimateGap[]

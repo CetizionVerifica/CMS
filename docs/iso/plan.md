@@ -1,8 +1,17 @@
 # ISO management systems add-on: plan (v2)
 
-Status: v2, 2026-10-25. Decisions: ADR [M16-0001](../adr/M16-0001-iso-management-systems.md), amended by ADR
+Status: v2.4, 2026-10-25. Decisions: ADR [M16-0001](../adr/M16-0001-iso-management-systems.md), amended by ADR
 [M16-0002](../adr/M16-0002-iso-plan-v2.md). v2 answers the 58 findings of the independent review of v1 (trace at the
-end of [packages.md](packages.md)).
+end of [packages.md](packages.md)). v2.1 takes in the departures the ISO contracts (ISO-1, contracts 1.8.0) list in
+`docs/contracts/README.md` decision 51 (a-n), and points the API, engine and screen briefs at the M0 mock's own
+readings in `docs/contracts/iso-mock.md` (trace at the end of [packages.md](packages.md)). v2.2 adds ISO-1a, the M0 patch
+(contracts 1.8.1) that fixes the findings of the ISO-1 audit: one action per route, an NC's severity moved to
+reassignment, and a calendar date for `objectiveProgress`. v2.3 gives ISO states one set of plain words for the
+screens and the audit trail (model §4.7), adds ISO-12d for them, passes notes from the ISO-12a and ISO-2c audits to
+later briefs, and has M6 refuse edits to a STANDARD act and `clauseRefs` outside the add-on (ISO-9b). v2.4 accepts
+that those refusals live in the API only, passes on what ISO-2d (#276), ISO-10a (#277) and their audits leave for
+later briefs, splits ISO-14 so the catalogue copy is wired as soon as ISO-9 merges (ISO-14a), and gives the jobs a
+list of the accounts that have a feature (ISO-2f).
 
 Every ISO thread reads, in order: the root `CLAUDE.md`, this file, its own brief in [packages.md](packages.md), the
 parts of [model.md](model.md) and [catalogue.md](catalogue.md) its brief names, then the area `CLAUDE.md` of the paths
@@ -96,7 +105,7 @@ call it (model §4 preamble).
 
 | Action | FA | CO | CA | AP | OW | VI | Covers |
 |---|---|---|---|---|---|---|---|
-| `<resource>.read` for every resource below | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | reads, lists, files' download URLs (an incident NC's files only for the people model §6 names), overview |
+| `<resource>.read` for every resource below | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | reads, lists, files' download URLs (an incident NC's files only for the people model §6 names); the catalogue and the overview, which have no resource of their own, use `isoSystem.read` |
 | `isoSystem.write` | ✓ | ✓ | ✓ | | | | systems, scope, units, context items, climate decision, audit programmes |
 | `isoChecklist.write` | ✓ | ✓ | ✓ | | own | | status, notes, files of a checklist row |
 | `isoChecklist.requestNa` | ✓ | ✓ | ✓ | | own | | REQUEST_NA, WITHDRAW_NA |
@@ -110,7 +119,8 @@ call it (model §4 preamble).
 | `isoAudit.conduct` | ✓ | ✓ | ✓ | own | own | | START, checklist, findings, REPORT, CLOSE (own = lead or auditor on the audit) |
 | `isoCertification.write` | ✓ | ✓ | ✓ | | | | certificates, external audits and their findings |
 | `isoNc.raise` | ✓ | ✓ | ✓ | ✓ | ✓ | | RAISE, for a unit the actor can see |
-| `isoNc.work` | | | ✓ | | own | | ADD_ROOT_CAUSE, PLAN_ACTIONS, SUBMIT, SUBMIT_NO_ACTION |
+| `isoNc.work` | | | ✓ | | own | | ADD_ROOT_CAUSE, PLAN_ACTIONS, SUBMIT, SUBMIT_NO_ACTION; the NC's PATCH: every field but owner, approver, dates, severity and incident outcome (description, standards, clauses, unit, source instance, the other incident fields and the investigation fields) |
+| `isoNc.reassign` | ✓ | ✓ | ✓ | | | | the NC's reassign route: owner, approver, `dueOn`, `effectivenessDueOn`, `severity` and incident `outcome`, with a reason (model §3.10, §4.1) |
 | `isoNc.verify` | | | ✓ | own | | | VERIFY_EFFECTIVE, VERIFY_NOT_EFFECTIVE |
 | `isoNc.cancel` | | | ✓ | own | | | CANCEL |
 | `isoNc.reopen` | | | ✓ | | | | REOPEN |
@@ -118,12 +128,20 @@ call it (model §4 preamble).
 | `isoAction.complete` | | | ✓ | | own | | COMPLETE (own = action owner) |
 | `isoAction.cancel` | | | ✓ | own | | | CANCEL (own = approver of the subject) |
 | `isoAction.reopen` | | | ✓ | | | | REOPEN |
-| `isoReview.plan` | ✓ | ✓ | ✓ | | | | PLAN, CANCEL |
-| `isoReview.write` | ✓ | ✓ | ✓ | own | own | | inputs, RECORD_HELD, outputs, CLOSE (own = chair) |
+| `isoReview.plan` | ✓ | ✓ | ✓ | | | | PLAN, CANCEL; the review's replan route: standards, `plannedOn` and chair while PLANNED |
+| `isoReview.write` | ✓ | ✓ | ✓ | own | own | | the review's PATCH (attendees, minutes), inputs, RECORD_HELD, outputs, CLOSE (own = chair) |
 | `isoFile.write` | ✓ | ✓ | ✓ | own | own | | upload, confirm, remove: whoever may write the subject |
 
 ISO-1 may split or rename an action where a route needs it, keeping the rules above; the coordinator then corrects
-this table (§5.6).
+this table (§5.6). ISO-1 (contracts 1.8.0, README decision 51 h and i) added `isoNc.reassign`, so an NC's owner cannot
+reassign their own NC or move its dates, and gave the catalogue and overview reads `isoSystem.read`. **One action per
+route** (ISO-1a, contracts 1.8.1, README decision 51 o). In 1.8.0 two routes listed two actions. The M0 stub `can()`
+allows an action when any endpoint listing it grants the role, so those routes leaked rights (an NC's owner got
+`isoNc.reassign`, a review's chair `isoReview.plan`, FA and CO `isoNc.work`); the generic route gate checks only the
+first action an endpoint lists, so under M5's per-action policy it would have refused FA and CO on the NC's PATCH (the
+ISO-1 audit, Medium 1). Now the NC's PATCH is `isoNc.work` only and `POST .../nonconformities/{id}/reassign` is
+`isoNc.reassign`; the review's PATCH is `isoReview.write` only and `POST .../management-reviews/{id}/replan` is
+`isoReview.plan`. No ISO route lists two actions.
 
 ### 3.3 Unit scope
 
@@ -202,7 +220,10 @@ catalogue (catalogue.md §1) into it.
 - **Consumer and sweep.** M9 consumes the event and, when `added` has `isoManagement`, calls the copier through a
   `JobDeps` port (`IsoCatalogueCopier`, like `LibraryCopier`). A sweep every 10 minutes also calls it for every TRIAL
   or ACTIVE account whose features include `isoManagement` and whose copy is not recorded; that covers an account
-  created on a plan that has the flag, and a missed delivery (ISO-10a). `wiring.ts` injects the copier (ISO-14).
+  created on a plan that has the flag, and a missed delivery (ISO-10a). `wiring.ts` injects the copier (ISO-14a, as
+  soon as ISO-9 and ISO-10a have merged: until then a switch-on fails its retries and the sweep logs an error every
+  10 minutes, and nothing is lost). From ISO-10b the sweep lists only the accounts that have the feature, through
+  M3's `listFirmIdsWithFeature` (ISO-2f), instead of reading every account.
 - **Marker.** The copy runs in the account's system context and records itself with
   `app_mark_iso_catalogue_copied()`: a SECURITY DEFINER function owned by `canopy_platform`, callable only in the
   account's own system context, which sets `firm.iso_catalogue_copied_at` once and returns whether it set it. It works
@@ -213,8 +234,8 @@ catalogue (catalogue.md §1) into it.
   `account.isoCatalogueCopiedAt(tx)` (ISO-2c), which reads the firm row like `account.libraryCopied`.
 - **Until the copy is recorded** every `/iso` route answers `409 FEATURE_NOT_READY` (ISO-4c's message), ISO screens
   show "ISO management systems is being set up. Try again in a few minutes.", and ISO jobs skip the account. The console
-  shows the copy time and flags an account whose copy is still missing 15 minutes after the feature was turned on
-  (ISO-5b).
+  shows the copy time and flags a TRIAL or ACTIVE account whose copy is still missing 15 minutes after the later of
+  the switch-on and its move into TRIAL or ACTIVE, since the marker sets nothing in other statuses (ISO-5b).
 
 ### 4.4 Turning it off
 
@@ -233,7 +254,14 @@ with their obligations, assignments and instances, the comments, evidence and au
   (`CLIENT_ARCHIVE_ZIP`, the account export one client at a time) always includes ISO data;
 - `act.kind` cannot be used to get round the switch: it is set at insert and a trigger refuses any change, only the
   system-job context may insert a STANDARD act, the library create and update bodies take no `kind`, and M6 refuses
-  merges and obligation moves across kinds (ISO-2c, ISO-9b).
+  merges and obligation moves across kinds (ISO-2c, ISO-9b);
+- M6 also refuses any edit, archive or merge of a STANDARD act, whose values are fixed (catalogue §2), and takes a
+  non-empty `clauseRefs` only on an obligation under a STANDARD act and only while the add-on is on (ISO-9b): 400 on
+  a STATUTE obligation, 403 while the add-on is off. The database allows all of these to staff (ISO-2c), and that is
+  accepted: the two 400 refusals keep the catalogue's shape, the 403 is an off-switch gate like every other in §4.5,
+  and all three are M6 route checks guarded by ISO-9b's route tests. In the database, `act.kind` cannot be used to
+  get round the switch (it never changes, and only the system job inserts a STANDARD act); the switch itself, and
+  merges and moves across kinds, are refused in the API.
 
 Turning it back on brings everything back as it was. The account purge (ADR M15-0002) removes ISO rows and files like
 any other client data.
@@ -243,7 +271,7 @@ any other client data.
 | Module | Gate when off | Package |
 |---|---|---|
 | M16 | every `/iso` route, files and overview included: 403; `409 FEATURE_NOT_READY` before the copy | ISO-8a-c |
-| M6 | library acts and obligations (list, by id, push, merge) leave out or refuse STANDARD rows; assignments (list, create, bulk, by id) leave out or refuse those on STANDARD obligations | ISO-9b |
+| M6 | library acts and obligations (list, by id, push, merge) leave out or refuse STANDARD rows; assignments (list, create, bulk, by id) leave out or refuse those on STANDARD obligations; an obligation create or update with a non-empty `clauseRefs` is refused | ISO-9b |
 | M7 | instance list, `/me/approvals`, `/me/tasks`, evidence vault leave out STANDARD instances; instance get, patch and transitions, bulk approve (per item), comments, evidence upload, list, download and remove, instance audit answer 403 for a STANDARD instance | ISO-11a |
 | M9 | generate-instances, reminders, escalations, consultant digest, workflow emails skip STANDARD instances; ISO reminders skip the account; the ISO file scan runs whether the add-on is on or off, so files uploaded before a switch-off still reach the client archive | ISO-10b, ISO-10c |
 | M10 | portfolio, overview, breakdowns, calendar, act-wise, department-wise and overdue reports, register export and certificate PDF leave out STANDARD instances; ISO export kinds answer 403 on create and download; the export worker re-checks | ISO-11b, ISO-11d |
@@ -306,7 +334,7 @@ package below belongs to exactly one module and its PRs are titled `M<n>: ISO ..
 Files no module owns (`apps/api/src/wiring.ts`, `apps/api/src/main.ts`, `apps/api/CLAUDE.md`, `apps/web/CLAUDE.md`)
 change only in a PR with no module prefix, titled `Tooling: ISO ...`, as earlier wiring changes were (#196, #208, #220,
 #239).
-ISO-14 is that package.
+ISO-14a (the catalogue copy) and ISO-14b (ISO files) are those packages.
 
 ### 5.4 Start order
 
@@ -320,8 +348,10 @@ ISO-14 is that package.
 - M17's `e2e/tests/iso/`, M11's `e2e/tests/shell/`, M12's `e2e/tests/register/` and M13's `e2e/tests/overview/` lie
   inside M14's `e2e/`. A package that changes files there and an M14 thread may run at the same time only while the
   M14 thread does not touch those files (§5.5).
-- Up to five threads at once, as for the main build. Each thread marks its PR ready only when it expects it to pass,
-  gets it audited in a separate session, and merges `main` before marking ready.
+- Up to five threads at once, as for the main build, not counting ISO-1a: it continued the ISO-1 thread while five I3
+  packages ran, so six run while it is open, and another package starts only when fewer than five of the others run.
+  Each thread marks its PR ready only when it expects it to pass, gets it audited in a separate session, and merges
+  `main` before marking ready.
 
 ### 5.5 Merging main
 
@@ -339,7 +369,8 @@ before any package that depends on the change starts.
 ## 6. Packages and waves
 
 Briefs: [packages.md](packages.md). Waves are for orientation; the Needs column decides. Status as of 2026-10-25
-(`origin/main` at #259).
+(`origin/main` at #275). ISO-3 and ISO-7b started before ISO-1a was added to their Needs; each merges `main` after
+ISO-1a has merged and before marking ready.
 
 | Wave | Package | Module | Title | Needs | Status |
 |---|---|---|---|---|---|
@@ -348,40 +379,43 @@ Briefs: [packages.md](packages.md). Waves are for orientation; the Needs column 
 | I1 | ISO-7 | M11 | Gate the shell on the ISO add-on | ISO-0 | merged (#254, #257) |
 | I1 | ISO-4a | M5 | Check the add-on feature on requests | ISO-0 | merged (#255, #259) |
 | I1 | ISO-5 | M15 | Add an add-ons switch to the operator console | ISO-0, ISO-2a | merged (#252) |
-| I2 | ISO-4c | M5 | Message for FEATURE_NOT_READY ahead of the contracts | ISO-4a | |
-| I2 | ISO-12b | M13 | Show add-ons on the Account page | ISO-0, ISO-7 | |
-| I2 | ISO-1 | M0 | ISO contracts (shapes, endpoints, events, engine API, fixtures, mock) | ISO-0, ISO-4c | on hold until v2 merges |
-| I3 | ISO-2b | M3 | Stage ISO enum values and give the send log an ISO subject | ISO-1, ISO-2a | |
-| I3 | ISO-3 | M4 | ISO engine functions and transition tables | ISO-1 | |
-| I3 | ISO-7b | M11 | Mock features per demo user for ISO screens | ISO-1, ISO-7 | |
-| I3 | ISO-12a | M13 | Audit trail words for ISO entity types | ISO-1, ISO-12b | |
-| I3 | ISO-11e | M10 | Default branch in the export builder ahead of new export kinds | ISO-1 | |
+| I2 | ISO-4c | M5 | Message for FEATURE_NOT_READY ahead of the contracts | ISO-4a | merged (#261) |
+| I2 | ISO-12b | M13 | Show add-ons on the Account page | ISO-0, ISO-7 | merged (#262) |
+| I2 | ISO-1 | M0 | ISO contracts (shapes, endpoints, events, engine API, fixtures, mock) | ISO-0, ISO-4c | merged (#265) |
+| I3 | ISO-1a | M0 | ISO contract fixes from the ISO-1 audit (contracts 1.8.1) | ISO-1 | started |
+| I3 | ISO-2b | M3 | Stage ISO enum values and give the send log an ISO subject | ISO-1, ISO-2a | merged (#272) |
+| I3 | ISO-3 | M4 | ISO engine functions and transition tables | ISO-1, ISO-1a | started |
+| I3 | ISO-7b | M11 | Mock features per demo user for ISO screens | ISO-1, ISO-1a, ISO-7 | started |
+| I3 | ISO-12a | M13 | Audit trail words for ISO entity types | ISO-1, ISO-12b | merged (#268) |
+| I3 | ISO-11e | M10 | Default branch in the export builder ahead of new export kinds | ISO-1 | started |
 | I3 | ISO-11c | M12 | Source filter on register, approvals, calendar and evidence screens | ISO-1, ISO-7b | |
 | I3 | ISO-6a | M17 | ISO screens 1: gate, overview, systems, checklist, documents, certification | ISO-1, ISO-7, ISO-7b | |
-| I3 | ISO-2c | M3 | Library guards, clause references and the catalogue marker | ISO-2b | |
-| I3 | ISO-1b | M0 | Join the staged ISO enum values | ISO-2b, ISO-12a, ISO-11e | |
+| I3 | ISO-2c | M3 | Library guards, clause references and the catalogue marker | ISO-2b | merged (#273) |
+| I3 | ISO-12d | M13 | ISO states in words on the audit trail page | ISO-12a | merged (#275) |
+| I3 | ISO-1b | M0 | Join the staged ISO enum values | ISO-1a, ISO-2b, ISO-12a, ISO-11e | |
 | I3 | ISO-16 | M8 | Import matches and creates STATUTE acts only | ISO-2c | |
 | I3 | ISO-5b | M15 | Features-changed event and copy status in the console | ISO-1, ISO-2c, ISO-5 | |
-| I4 | ISO-2d | M3 | ISO tables 1: catalogue copy, systems, checklist, documents, certification, files | ISO-2c | |
-| I4 | ISO-4b | M5 | ISO policy rows, `hasFeature`, readiness and multi-unit scope | ISO-1, ISO-2c, ISO-4c | |
-| I4 | ISO-10a | M9 | Copy the ISO catalogue when the add-on comes on | ISO-1, ISO-2c | |
+| I4 | ISO-2d | M3 | ISO tables 1: catalogue copy, systems, checklist, documents, certification, files | ISO-2c | started (#276) |
+| I4 | ISO-4b | M5 | ISO policy rows, `hasFeature`, readiness and multi-unit scope | ISO-1a, ISO-2c, ISO-4c | |
+| I4 | ISO-10a | M9 | Copy the ISO catalogue when the add-on comes on | ISO-1, ISO-2c | started (#277) |
 | I4 | ISO-6b | M17 | ISO screens 2: risks, objectives, actions | ISO-6a, ISO-1b | |
 | I4 | ISO-12c | M13 | Statutory numbers link to Law only | ISO-1, ISO-11c, ISO-12a | |
 | I4 | ISO-9 | M6 | ISO catalogue as code and `copyIsoCatalogue` | ISO-2d | |
 | I4 | ISO-2e | M3 | ISO tables 2: risks, objectives, actions, audits, NCs, reviews | ISO-2d | |
 | I4 | ISO-15 | M7 | ISO file service (`IsoFiles`) | ISO-1b, ISO-2d | |
 | I5 | ISO-8a | M16 | ISO API 1: gate, audit gate test, systems, checklist, documents, certification, files | ISO-1b, ISO-2d, ISO-3, ISO-4b | |
-| I5 | ISO-2f | M3 | Act-kind and feature-aware reads | ISO-2e | |
+| I5 | ISO-2f | M3 | Act-kind and feature-aware reads, accounts by feature | ISO-2e | |
 | I5 | ISO-6c | M17 | ISO screens 3: audits, nonconformities, management reviews | ISO-6b | |
 | I5 | ISO-8b | M16 | ISO API 2: risks, objectives, actions | ISO-8a, ISO-2e | |
 | I5 | ISO-8c | M16 | ISO API 3: internal audits, external-audit findings, nonconformities, management reviews, overview | ISO-8b | |
 | I5 | ISO-9b | M6 | Hide and refuse STANDARD library rows when off; no cross-kind changes | ISO-9, ISO-2f, ISO-4b | |
 | I5 | ISO-11a | M7 | Source filter and the off switch on instances and evidence | ISO-15, ISO-2f, ISO-4b | |
 | I5 | ISO-10b | M9 | Off switch in the existing jobs, STATUTE-only digest, ISO file scan | ISO-10a, ISO-1b, ISO-2d, ISO-2f | |
+| I5 | ISO-14a | none (`Tooling:`) | Wire the ISO catalogue copy | ISO-9, ISO-10a | |
 | I5 | ISO-11b | M10 | Statutory numbers exclude ISO; off switch | ISO-1b, ISO-2e, ISO-2f, ISO-4b, ISO-11e | |
 | I6 | ISO-10c | M9 | ISO reminders | ISO-10b, ISO-2e, ISO-3 | |
 | I6 | ISO-11d | M10 | ISO exports and ISO data in the client archive | ISO-11b, ISO-3 | |
-| I7 | ISO-14 | none (`Tooling:`) | Wire ISO files and the catalogue copy | ISO-8c, ISO-9, ISO-10a, ISO-10c, ISO-15 | |
+| I7 | ISO-14b | none (`Tooling:`) | Wire ISO files | ISO-8c, ISO-10c, ISO-14a, ISO-15 | |
 | I7 | ISO-13 | M14 | Integrated ISO journey and off-switch sweep | every other package | |
 | I7 | ISO-1c | M0 | Make the add-on's optional fields required | ISO-1b, ISO-2c, ISO-4a, ISO-5, ISO-5b, ISO-9, ISO-16 | |
 
@@ -432,7 +466,9 @@ Modules with ISO packages: M0, M3, M4, M5, M6, M7, M8, M9, M10, M11, M12, M13, M
 10. A person without a live role in the client is refused on every person field; a client-A record cannot reference a
     client-B unit, instance or ISO record (foreign-key test).
 11. A consultant context cannot write catalogue rows, cannot insert a STANDARD act, and no context can change
-    `act.kind`; merges and obligation moves across kinds are refused; import never matches a STANDARD act.
+    `act.kind`; merges and obligation moves across kinds are refused; staff cannot edit, archive or merge a STANDARD
+    act, and cannot set `clauseRefs` on a STATUTE obligation or while the add-on is off; import never matches a
+    STANDARD act.
 12. Every activity in catalogue §3 exists exactly once, under the act catalogue §3 names, and its `clauseRefs` name
     every standard it serves (for example the emergency drill: 14001 8.2 and 45001 8.2; calibration: 9001 7.1.5,
     14001 9.1.1, 45001 9.1.1).

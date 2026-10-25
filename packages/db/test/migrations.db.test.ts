@@ -2,6 +2,7 @@ import { randomBytes } from 'node:crypto';
 import { cpSync, existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { DEFAULT_ISO_RISK_RULE } from '@canopy/contracts';
 import pg from 'pg';
 import { afterEach, describe, expect, it } from 'vitest';
 import { createAdminDatabase, createDatabase, MIGRATIONS_FOLDER } from '../src/database.js';
@@ -10,6 +11,8 @@ import {
   populateAuth,
   populateFirm,
   populateIdempotency,
+  populateIso,
+  populateIso2,
   populateSupport,
   type PopulatedFirm,
 } from './support/populate.js';
@@ -48,6 +51,12 @@ const POPULATE: Record<string, (t: TestDatabase) => Promise<void>> = {
   },
   '0020_platform_roles_and_functions': async (t) => {
     for (const label of ['a', 'b'] as const) await populateSupport(t.db, populated[label]!, label);
+  },
+  '0040_iso_tables': async (t) => {
+    for (const label of ['a', 'b'] as const) await populateIso(t.db, populated[label]!, label);
+  },
+  '0041_iso_tables_part_2': async (t) => {
+    for (const label of ['a', 'b'] as const) await populateIso2(t.db, populated[label]!, label);
   },
 };
 const populated: Record<string, PopulatedFirm> = {};
@@ -117,6 +126,31 @@ describe('migrations', () => {
     await t.admin.migrate();
     expect(await rowCounts(t)).toEqual(before);
     for (const [table, n] of Object.entries(before)) expect(n, table).toBeGreaterThan(0);
+  });
+
+  it('0038 gives every firm stored without it the default ISO risk rule', async () => {
+    t = await createTestDatabase({ migrate: false });
+    const before = journal.entries.findIndex((e) => e.tag === '0038_iso_staged_values');
+    expect(before).toBeGreaterThan(0);
+    await t.admin.migrate(folderWithFirst(before));
+    const firms = [
+      await t.admin.createFirm({ name: 'Demo Advisory' }),
+      await t.admin.createFirm({ name: 'Second Ledger Consulting' }),
+    ];
+    // Firms written before contracts 1.8.0 had no isoRisk; one keeps a custom rule.
+    await t.ownerQuery(`UPDATE firm SET settings = settings - 'isoRisk' WHERE id = $1`, [firms[0]]);
+    await t.ownerQuery(
+      `UPDATE firm SET settings = jsonb_set(settings, '{isoRisk,significantAt}', '9') WHERE id = $1`,
+      [firms[1]],
+    );
+    await t.admin.migrate();
+    const { rows } = await t.ownerQuery<{ id: string; iso_risk: unknown }>(
+      `SELECT id, settings->'isoRisk' AS iso_risk FROM firm`,
+    );
+    expect(Object.fromEntries(rows.map((r) => [r.id, r.iso_risk]))).toEqual({
+      [firms[0]!]: DEFAULT_ISO_RISK_RULE,
+      [firms[1]!]: { ...DEFAULT_ISO_RISK_RULE, significantAt: 9 },
+    });
   });
 
   it('apply as a non-superuser owner, and the SECURITY DEFINER lookups still see every firm', async () => {

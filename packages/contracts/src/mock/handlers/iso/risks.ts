@@ -232,6 +232,18 @@ function checkRiskItems(
   }
 }
 
+/** The create body's target rule on the merged objective: INCREASE not below the baseline, DECREASE not above it. */
+function checkTarget(objective: Objective): void {
+  const { baseline, target, direction } = objective;
+  if (baseline === null) return;
+  if (direction === 'INCREASE' && target < baseline) {
+    invalid('target', 'An INCREASE objective has a target at or above its baseline');
+  }
+  if (direction === 'DECREASE' && target > baseline) {
+    invalid('target', 'A DECREASE objective has a target at or below its baseline');
+  }
+}
+
 /** A closed objective takes no field edits and no new or corrected readings (model §1.8). */
 function requireOpen(objective: Objective): void {
   if (objective.closedOn !== null) invalidTransition('objective', 'CLOSED', 'UPDATE');
@@ -260,8 +272,8 @@ const fieldsOf = (row: object) =>
   Object.fromEntries(Object.entries(row).filter(([k]) => !BASE_FIELDS.has(k)));
 
 /**
- * Applies an edit and audits it per model §8: a change of owner is a REASSIGN, of a due date a DUE_DATE_CHANGE (with
- * the reason, if any), the rest one UPDATE. The caller has checked the version; nothing is written without a change.
+ * Applies an edit and audits it per model §8: a change of owner is a REASSIGN and of a due date a DUE_DATE_CHANGE, each
+ * with the body's reason, the rest one UPDATE. The caller has checked the version; nothing is written without a change.
  */
 function applyEdit<T extends { id: string; clientId: string; version: number; updatedAt: string }>(
   ctx: IsoCtx,
@@ -294,7 +306,7 @@ function applyEdit<T extends { id: string; clientId: string; version: number; up
       clientId: row.clientId,
       before: Object.fromEntries(keys.map((k) => [k, changes.before[k]])),
       after: Object.fromEntries(keys.map((k) => [k, changes.after[k]])),
-      reason: action === 'DUE_DATE_CHANGE' ? reason : null,
+      reason: action === 'UPDATE' ? null : reason,
     });
   }
 }
@@ -415,7 +427,7 @@ export const risksHandlers: PartialHandlers<Ids> = {
     const actor = actorOf(ctx);
     const item = requireRisk(actor, ctx.params.clientId, ctx.params.id);
     ctx.authorize(isoScope(actor, riskReach(actor.firm, item), { ownerId: item.ownerId }));
-    const { version, ...fields } = ctx.body;
+    const { version, reason, ...fields } = ctx.body;
     checkIsoVersion(item, version);
     const defined = Object.fromEntries(
       Object.entries(fields).filter(([, v]) => v !== undefined),
@@ -438,6 +450,7 @@ export const risksHandlers: PartialHandlers<Ids> = {
       { ...defined, rating, residualRating, significant },
       'risk_item',
       'reviewDueOn',
+      reason ?? null,
     );
     return riskView(ctx, actor, item);
   },
@@ -625,7 +638,7 @@ export const risksHandlers: PartialHandlers<Ids> = {
     return objectiveView(ctx, actor, objective);
   },
 
-  /** Field edits on an open objective; a change of `dueOn` carries its reason on the DUE_DATE_CHANGE event. */
+  /** Field edits on an open objective; a new owner or `dueOn` carries its reason on the REASSIGN or DUE_DATE_CHANGE. */
   updateIsoObjective(ctx) {
     const actor = actorOf(ctx);
     const objective = requireObjective(actor, ctx.params.clientId, ctx.params.id);
@@ -641,7 +654,11 @@ export const risksHandlers: PartialHandlers<Ids> = {
     if (fields.ownerId !== undefined) {
       checkIsoPerson(actor, objective.clientId, fields.ownerId, 'ownerId');
     }
-    applyEdit(ctx, actor, objective, fields, 'objective', 'dueOn', reason ?? null);
+    const defined = Object.fromEntries(
+      Object.entries(fields).filter(([, v]) => v !== undefined),
+    ) as Partial<Objective>;
+    checkTarget({ ...objective, ...defined });
+    applyEdit(ctx, actor, objective, defined, 'objective', 'dueOn', reason ?? null);
     return objectiveView(ctx, actor, objective);
   },
 

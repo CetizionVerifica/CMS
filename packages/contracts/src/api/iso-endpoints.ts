@@ -118,6 +118,7 @@ export const ISO_ENDPOINTS = {
     summary: 'Issues and interested parties of a system (4.1, 4.2).',
     action: 'isoSystem.read',
     roles: READERS,
+    notes: LIST_NOTE,
     query: iso.ContextItemQuery,
     response: list(ContextItem),
   }),
@@ -157,6 +158,7 @@ export const ISO_ENDPOINTS = {
     summary: 'Checklist rows of a system, by standard and clause number.',
     action: 'isoChecklist.read',
     roles: READERS,
+    notes: LIST_NOTE,
     query: iso.ChecklistQuery,
     response: list(iso.ClauseAssessmentView),
   }),
@@ -281,6 +283,7 @@ export const ISO_ENDPOINTS = {
     summary: 'Every revision of a document, newest first, superseded ones included.',
     action: 'isoDocument.read',
     roles: READERS,
+    notes: LIST_NOTE,
     response: list(iso.RevisionView),
   }),
   draftIsoRevision: isoEndpoint({
@@ -426,6 +429,7 @@ export const ISO_ENDPOINTS = {
     summary: 'Controls in place on a risk item.',
     action: 'isoRisk.read',
     roles: READERS,
+    notes: LIST_NOTE,
     response: list(RiskControl),
   }),
   createIsoRiskControl: isoEndpoint({
@@ -493,7 +497,7 @@ export const ISO_ENDPOINTS = {
   updateIsoObjective: isoEndpoint({
     method: 'PATCH',
     path: `${ROOT}/objectives/{id}`,
-    summary: 'Change an open objective; moving `dueOn` needs a reason.',
+    summary: 'Change an open objective; moving `dueOn` or changing the owner needs a reason.',
     action: 'isoObjective.write',
     roles: OWNER_WRITERS,
     notes: 'OW only as its owner.',
@@ -517,6 +521,7 @@ export const ISO_ENDPOINTS = {
     summary: 'Readings of an objective, by period.',
     action: 'isoObjective.read',
     roles: READERS,
+    notes: LIST_NOTE,
     response: list(ObjectiveReading),
   }),
   createIsoReading: isoEndpoint({
@@ -602,7 +607,8 @@ export const ISO_ENDPOINTS = {
   updateIsoInternalAudit: isoEndpoint({
     method: 'PATCH',
     path: `${ROOT}/internal-audits/{id}`,
-    summary: 'Change a PLANNED or IN_PROGRESS audit; moving its dates needs a reason.',
+    summary:
+      'Change a PLANNED or IN_PROGRESS audit; moving its dates or changing the lead auditor needs a reason.',
     action: 'isoAudit.plan',
     roles: MANAGERS,
     body: iso.InternalAuditUpdateBody,
@@ -657,6 +663,7 @@ export const ISO_ENDPOINTS = {
     summary: "An internal audit's checklist rows.",
     action: 'isoAudit.read',
     roles: READERS,
+    notes: LIST_NOTE,
     response: list(AuditChecklistItem),
   }),
   createIsoAuditChecklistItem: isoEndpoint({
@@ -686,6 +693,7 @@ export const ISO_ENDPOINTS = {
     summary: "An internal audit's findings.",
     action: 'isoAudit.read',
     roles: READERS,
+    notes: LIST_NOTE,
     response: list(AuditFinding),
   }),
   createIsoInternalFinding: isoEndpoint({
@@ -823,6 +831,7 @@ export const ISO_ENDPOINTS = {
     summary: "An external audit's findings.",
     action: 'isoCertification.read',
     roles: READERS,
+    notes: LIST_NOTE,
     response: list(AuditFinding),
   }),
   createIsoExternalFinding: isoEndpoint({
@@ -879,14 +888,23 @@ export const ISO_ENDPOINTS = {
   updateIsoNonconformity: isoEndpoint({
     method: 'PATCH',
     path: `${ROOT}/nonconformities/{id}`,
-    summary:
-      'Investigation fields (isoNc.work); owner, approver or dates (isoNc.reassign), with a reason.',
-    action: ['isoNc.work', 'isoNc.reassign'],
-    roles: 'FA CO CA OW:own',
-    notes:
-      'OW only as its owner, never for owner, approver or dates. FA and CO only for owner, approver, dueOn or effectivenessDueOn (isoNc.reassign), with a reason.',
+    summary: 'Investigation fields, until CLOSED or CANCELLED.',
+    action: 'isoNc.work',
+    roles: 'CA OW:own',
+    notes: 'OW only as its owner.',
     body: iso.NcUpdateBody,
     response: iso.NonconformityView,
+  }),
+  reassignIsoNonconformity: isoEndpoint({
+    method: 'POST',
+    path: `${ROOT}/nonconformities/{id}/reassign`,
+    summary:
+      'Owner, approver, due dates, severity or incident outcome, with a reason; severity and outcome only while OPEN or ROOT_CAUSE_FOUND.',
+    action: 'isoNc.reassign',
+    roles: MANAGERS,
+    body: iso.NcReassignBody,
+    response: iso.NonconformityView,
+    idempotent: true,
   }),
   addIsoNcRootCause: isoEndpoint({
     method: 'POST',
@@ -1079,13 +1097,22 @@ export const ISO_ENDPOINTS = {
   updateIsoManagementReview: isoEndpoint({
     method: 'PATCH',
     path: `${ROOT}/management-reviews/{id}`,
-    summary:
-      'Attendees and minutes (isoReview.write); standards, date or chair while PLANNED (isoReview.plan).',
-    action: ['isoReview.write', 'isoReview.plan'],
+    summary: 'Attendees and minutes, until CLOSED or CANCELLED.',
+    action: 'isoReview.write',
     roles: 'FA CO CA AP:own OW:own',
-    notes: 'AP/OW only as its chair, and never for standards, date or chair.',
+    notes: 'AP/OW only as its chair.',
     body: iso.ManagementReviewUpdateBody,
     response: iso.ManagementReviewView,
+  }),
+  replanIsoManagementReview: isoEndpoint({
+    method: 'POST',
+    path: `${ROOT}/management-reviews/{id}/replan`,
+    summary: 'Standards, date or chair while PLANNED; a new date or chair needs a reason.',
+    action: 'isoReview.plan',
+    roles: MANAGERS,
+    body: iso.ManagementReviewReplanBody,
+    response: iso.ManagementReviewView,
+    idempotent: true,
   }),
   cancelIsoManagementReview: isoEndpoint({
     method: 'POST',
@@ -1125,6 +1152,7 @@ export const ISO_ENDPOINTS = {
     summary: "A review's inputs, each with the figures its source gives (reviewInputFigures).",
     action: 'isoReview.read',
     roles: READERS,
+    notes: LIST_NOTE,
     response: list(iso.ReviewInputView),
   }),
   updateIsoReviewInput: isoEndpoint({
@@ -1143,6 +1171,7 @@ export const ISO_ENDPOINTS = {
     summary: "A review's outputs.",
     action: 'isoReview.read',
     roles: READERS,
+    notes: LIST_NOTE,
     response: list(iso.ReviewOutputView),
   }),
   updateIsoReviewOutput: isoEndpoint({
@@ -1185,7 +1214,7 @@ export const ISO_ENDPOINTS = {
     summary: "One ISO record's files.",
     action: 'isoFile.read',
     roles: READERS,
-    notes: 'Whoever may read the subject.',
+    notes: `Whoever may read the subject. ${LIST_NOTE}`,
     query: iso.IsoFileQuery,
     response: list(IsoFileView),
   }),

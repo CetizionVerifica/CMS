@@ -1,5 +1,6 @@
 import {
   ENDPOINTS,
+  type Act,
   type Id,
   type Jurisdiction,
   type Obligation,
@@ -28,6 +29,18 @@ function checkJurisdiction(value: { jurisdiction: Jurisdiction; stateCode: strin
   }
   if (value.jurisdiction === 'CENTRAL' && value.stateCode !== null) {
     throw invalid('A CENTRAL jurisdiction has no stateCode', ['body', 'stateCode']);
+  }
+}
+
+const kindOf = (act: Pick<Act, 'kind'>) => act.kind ?? 'STATUTE';
+
+/**
+ * A STANDARD act's values are fixed (docs/iso/catalogue.md §2) and the ISO catalogue copy finds it by name, so staff
+ * never edit or merge one (ISO-9b). The database still lets them, so this is the only guard.
+ */
+function refuseStandard(act: Pick<Act, 'kind'>, path: string[]) {
+  if (kindOf(act) === 'STANDARD') {
+    throw invalid('The Act of an ISO standard is fixed and cannot be changed or merged.', path);
   }
 }
 
@@ -91,6 +104,7 @@ export function libraryRoutes(app: FastifyInstance, deps: M6Deps): void {
     const { body } = call;
     return store.transaction(call.ctx, async (tx) => {
       const row = await getLive(tx.acts, call.params.id as Id);
+      refuseStandard(row, ['params', 'id']);
       checkJurisdiction({
         jurisdiction: body.jurisdiction ?? row.jurisdiction,
         stateCode: body.stateCode === undefined ? row.stateCode : body.stateCode,
@@ -117,6 +131,12 @@ export function libraryRoutes(app: FastifyInstance, deps: M6Deps): void {
     call.authorize({ type: 'act', clientId: null });
     return store.transaction(call.ctx, async (tx) => {
       const target = await getLive(tx.acts, call.params.id as Id);
+      refuseStandard(target, ['params', 'id']);
+      // A STANDARD source would also cross kinds: a law and an ISO standard never merge.
+      for (const id of call.body.sourceIds) {
+        const source = await tx.acts.get(id as Id);
+        if (source) refuseStandard(source, ['body', 'sourceIds']);
+      }
       return mergeInto({
         tx,
         repo: tx.acts,
@@ -301,7 +321,16 @@ export function libraryRoutes(app: FastifyInstance, deps: M6Deps): void {
         jurisdiction: fields.jurisdiction ?? row.jurisdiction,
         stateCode: fields.stateCode === undefined ? row.stateCode : fields.stateCode,
       });
-      if (fields.actId !== undefined) await liveRef(tx, 'actId', fields.actId);
+      if (fields.actId !== undefined) {
+        await liveRef(tx, 'actId', fields.actId);
+        const [from, to] = [await tx.acts.get(row.actId), await tx.acts.get(fields.actId)];
+        if (from && to && kindOf(from) !== kindOf(to)) {
+          throw invalid('An obligation cannot move between a law and an ISO standard.', [
+            'body',
+            'actId',
+          ]);
+        }
+      }
       if (fields.categoryId !== undefined) await liveRef(tx, 'categoryId', fields.categoryId);
       const changed = Object.keys(changes(row, fields).after);
       // Every accepted change is a new library version; instances change only through push.

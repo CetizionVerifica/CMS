@@ -165,9 +165,14 @@ export interface IsoEngineApi {
     readings: Pick<ObjectiveReading, 'periodStart' | 'periodEnd' | 'value'>[],
     objective: Pick<
       Objective,
-      'id' | 'target' | 'baseline' | 'direction' | 'readingRule' | 'dueOn' | 'createdAt'
-    >,
+      'id' | 'target' | 'baseline' | 'direction' | 'readingRule' | 'dueOn'
+    > & {
+      /** The objective's `createdAt` as a date in the client's time zone, from the engine's date helper. */
+      createdOn: LocalDate;
+    },
     asOf: LocalDate,
+    /** Reading periods follow the client's financial year (`readingRule`, as `generateInstances`). */
+    cal: Pick<EngineCalendar, 'fyStartMonth'>,
   ): ObjectiveProgress;
   auditProgrammeCoverage(
     audits: Pick<InternalAudit, 'id' | 'state' | 'unitIds'>[],
@@ -236,7 +241,9 @@ export interface IsoEngineApi {
   ): PlannedIsoNotification[];
   /**
    * The figures of one review input source between `since` (the last held review covering the input's standards, or
-   * the system's `createdOn`) and `asOf`. `data` is the system's records the source reads; MANUAL has none.
+   * the system's `createdOn`, and never after `asOf`) and `asOf`, with the records as they stood on `asOf`
+   * (docs/contracts/iso-mock.md "Management review figures"). `data` is the system's records the source reads; MANUAL
+   * has none.
    */
   reviewInputFigures(
     source: ReviewInputSource,

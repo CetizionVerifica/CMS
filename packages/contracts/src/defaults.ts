@@ -169,9 +169,10 @@ export const ISO_REMINDER_SCHEDULE = [
     repeatEveryDays: null,
   },
   {
+    // Anchored on managementReviewDue's nextDueOn: the first send is the first OVERDUE day (as-of after it).
     kind: 'ISO_MANAGEMENT_REVIEW_DUE',
     isoSubjectType: 'management_system',
-    offsetDays: [0],
+    offsetDays: [1],
     repeatEveryDays: 30,
   },
   {

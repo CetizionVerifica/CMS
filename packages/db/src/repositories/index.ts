@@ -34,7 +34,7 @@ export {
   NotificationSend,
   SendFailureCode,
 } from './ops.js';
-export type { ClaimResult, OutboxEvent } from './ops.js';
+export type { ClaimResult, IsoSendKey, OutboxEvent } from './ops.js';
 export { jobs } from './jobs.js';
 export type {
   ClientRef,
@@ -94,3 +94,48 @@ export {
   usageSnapshots,
 } from './platform.js';
 export type { OperatorLogin, OperatorSession, Renewal } from './platform.js';
+export {
+  certifications,
+  CertificationFilter,
+  ChecklistFilter,
+  clauseAssessments,
+  ContextItemFilter,
+  contextItems,
+  controlledDocuments,
+  DocumentFilter,
+  documentRevisions,
+  ExternalAuditFilter,
+  externalAudits,
+  isoCatalogue,
+  IsoClauseFilter,
+  isoFiles,
+  isoFileSubject,
+  isoFileView,
+  ManagementSystemFilter,
+  managementSystems,
+  NewIsoFile,
+  UnitScope,
+} from './iso.js';
+export type { ClauseAssessmentRow, IsoPage } from './iso.js';
+export {
+  auditChecklistItems,
+  AuditFindingFilter,
+  auditFindings,
+  auditProgrammes,
+  InternalAuditFilter,
+  internalAudits,
+  IsoActionFilter,
+  isoActions,
+  ManagementReviewFilter,
+  managementReviews,
+  NonconformityFilter,
+  nonconformities,
+  ObjectiveFilter,
+  objectiveReadings,
+  objectives,
+  reviewInputs,
+  reviewOutputs,
+  riskControls,
+  RiskItemFilter,
+  riskItems,
+} from './iso-records.js';

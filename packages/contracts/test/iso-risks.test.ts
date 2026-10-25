@@ -453,6 +453,7 @@ describe('updateIsoRisk', () => {
       unitId: PUNE,
       reviewDueOn: addDays(TODAY, 90),
       activity: 'Packaging and labels',
+      reason: 'The line moved to Pune',
     });
     expect(moved).toMatchObject({ ownerId: PERSON.rohan, unitId: PUNE, version: 2 });
     const events = isoEvents(app, item.id).slice(1);
@@ -460,9 +461,75 @@ describe('updateIsoRisk', () => {
     expect(events[0]).toMatchObject({
       before: { ownerId: PERSON.sameer },
       after: { ownerId: PERSON.rohan },
+      reason: 'The line moved to Pune',
     });
-    expect(events[1]).toMatchObject({ before: { reviewDueOn: null } });
+    expect(events[1]).toMatchObject({
+      before: { reviewDueOn: null },
+      after: { reviewDueOn: addDays(TODAY, 90) },
+      reason: 'The line moved to Pune',
+    });
     expect(events[2]!.after).toEqual({ unitId: PUNE, activity: 'Packaging and labels' });
+    expect(events[2]!.reason).toBeNull();
+  });
+
+  it('needs a reason for a new owner or a moved review date, and audits it (decision 51 p)', async () => {
+    const item = await createRisk(all, { reviewDueOn: addDays(TODAY, 30) });
+    // Each reason field, alone, beside a plain field, cleared, or with a blank reason: 422 and nothing written.
+    for (const change of [
+      { ownerId: PERSON.kabir },
+      { reviewDueOn: addDays(TODAY, 60) },
+      { reviewDueOn: null },
+      { ownerId: PERSON.kabir, severity: 4 },
+      { reviewDueOn: addDays(TODAY, 60), reason: '' },
+    ]) {
+      await fails(
+        app,
+        'updateIsoRisk',
+        { params: riskParams(item), body: { version: item.version, ...change } },
+        'REASON_REQUIRED',
+        422,
+      );
+    }
+    expect((await getRisk(item)).version).toBe(1);
+    expect(isoEvents(app, item.id)).toHaveLength(1);
+    // With a reason, each change is 200 and its event carries the reason.
+    const owned = await updateRisk(item, {
+      ownerId: PERSON.kabir,
+      reason: 'Kabir took purchasing',
+    });
+    expect(owned).toMatchObject({ ownerId: PERSON.kabir, version: 2 });
+    expect(lastEvent(item.id)).toMatchObject({
+      action: 'REASSIGN',
+      before: { ownerId: PERSON.sameer },
+      after: { ownerId: PERSON.kabir },
+      reason: 'Kabir took purchasing',
+    });
+    const moved = await updateRisk(owned, {
+      reviewDueOn: addDays(TODAY, 60),
+      reason: 'Supplier audit moved',
+    });
+    expect(moved).toMatchObject({ reviewDueOn: addDays(TODAY, 60), version: 3 });
+    expect(lastEvent(item.id)).toMatchObject({
+      action: 'DUE_DATE_CHANGE',
+      before: { reviewDueOn: addDays(TODAY, 30) },
+      after: { reviewDueOn: addDays(TODAY, 60) },
+      reason: 'Supplier audit moved',
+    });
+    // A plain field edit needs no reason; its UPDATE has none.
+    const rerated = await updateRisk(moved, { activity: 'Packaging and cartons' });
+    expect(rerated).toMatchObject({ activity: 'Packaging and cartons', version: 4 });
+    expect(lastEvent(item.id)).toMatchObject({
+      action: 'UPDATE',
+      before: { activity: 'Packaging supply' },
+      after: { activity: 'Packaging and cartons' },
+      reason: null,
+    });
+    expect(isoEvents(app, item.id).map((e) => e.action)).toEqual([
+      'CREATE',
+      'REASSIGN',
+      'DUE_DATE_CHANGE',
+      'UPDATE',
+    ]);
   });
 
   it('writes nothing when nothing changes', async () => {
@@ -484,8 +551,8 @@ describe('updateIsoRisk', () => {
       [risk, { controlType: 'CONTROL' }, 'controlType'],
       [risk, { residualSeverity: 3 }, 'residualSeverity'],
       [risk, { unitId: PUNE }, 'unitId'],
-      [aspect, { ownerId: PERSON.joseph }, 'ownerId'],
-      [aspect, { ownerId: PERSON.rohan, unitId: BENGALURU }, 'ownerId'],
+      [aspect, { ownerId: PERSON.joseph, reason: 'Hand over' }, 'ownerId'],
+      [aspect, { ownerId: PERSON.rohan, unitId: BENGALURU, reason: 'Hand over' }, 'ownerId'],
       [aspect, { obligationIds: [activity] }, 'obligationIds'],
     ] as const) {
       const error = await fails(
@@ -1019,6 +1086,33 @@ describe('createIsoObjective', () => {
     }
   });
 
+  it('keeps the target on the direction’s side of the baseline (400 VALIDATION on target)', async () => {
+    const before = firmB(app).iso.objectives.length;
+    for (const extra of [
+      { direction: 'INCREASE', baseline: 10, target: 5 },
+      { direction: 'DECREASE', baseline: 5, target: 10 },
+    ]) {
+      const error = await fails(
+        app,
+        'createIsoObjective',
+        { body: { managementSystemId: all.id, ...OBJECTIVE, ...extra } },
+        'VALIDATION',
+        400,
+      );
+      expect(error.error.details).toMatchObject({ issues: [{ path: ['body', 'target'] }] });
+    }
+    expect(firmB(app).iso.objectives).toHaveLength(before);
+    // A target equal to the baseline is a level to hold; MAINTAIN, or no baseline, takes any target.
+    for (const extra of [
+      { direction: 'INCREASE', baseline: 95, target: 95 },
+      { direction: 'DECREASE', baseline: 0, target: 0 },
+      { direction: 'MAINTAIN', baseline: 10, target: 5 },
+      { direction: 'INCREASE', baseline: null, target: 5 },
+    ]) {
+      expect(await createObjective(all, extra)).toMatchObject({ target: extra.target, version: 1 });
+    }
+  });
+
   it('lets FA, CO and CA add objectives, and an owner only as its owner', async () => {
     await createObjective(all, {}, PERSON.arjun);
     await createObjective(all, {}, PERSON.kabir);
@@ -1054,6 +1148,8 @@ describe('getIsoObjective and listIsoObjectives', () => {
       standards: ['ISO_45001'],
       dueOn: '2025-06-30',
       direction: 'DECREASE',
+      baseline: 12,
+      target: 4,
       text: 'Fewer first-aid cases',
     });
     const done = await createObjective(goals, { dueOn: '2025-02-28' });
@@ -1134,6 +1230,11 @@ describe('updateIsoObjective', () => {
     });
     const events = isoEvents(app, objective.id).slice(1);
     expect(events.map((e) => e.action)).toEqual(['REASSIGN', 'DUE_DATE_CHANGE', 'UPDATE']);
+    expect(events[0]).toMatchObject({
+      before: { ownerId: PERSON.sameer },
+      after: { ownerId: PERSON.rohan },
+      reason: 'Customer asked for a later review',
+    });
     expect(events[1]).toMatchObject({
       before: { dueOn: OBJECTIVE.dueOn },
       after: { dueOn: '2025-06-30' },
@@ -1144,6 +1245,59 @@ describe('updateIsoObjective', () => {
     expect(same.version).toBe(2);
   });
 
+  it('needs a reason for a new owner or a moved due date, and audits it (decision 51 p)', async () => {
+    const objective = await createObjective();
+    // Each reason field, alone, beside a plain field, or with a blank reason: 422 and nothing written.
+    for (const change of [
+      { ownerId: PERSON.rohan },
+      { dueOn: '2025-06-30' },
+      { ownerId: PERSON.rohan, target: 97 },
+      { dueOn: '2025-06-30', reason: ' ' },
+    ]) {
+      await fails(
+        app,
+        'updateIsoObjective',
+        { params: objParams(objective), body: { version: objective.version, ...change } },
+        'REASON_REQUIRED',
+        422,
+      );
+    }
+    expect((await getObjective(objective)).version).toBe(1);
+    expect(isoEvents(app, objective.id)).toHaveLength(1);
+    // With a reason, each change is 200 and its event carries the reason.
+    const owned = await update(objective, { ownerId: PERSON.rohan, reason: 'Rohan runs dispatch' });
+    expect(owned).toMatchObject({ ownerId: PERSON.rohan, version: 2 });
+    expect(lastEvent(objective.id)).toMatchObject({
+      action: 'REASSIGN',
+      before: { ownerId: PERSON.sameer },
+      after: { ownerId: PERSON.rohan },
+      reason: 'Rohan runs dispatch',
+    });
+    const moved = await update(owned, { dueOn: '2025-06-30', reason: 'Budget year changed' });
+    expect(moved).toMatchObject({ dueOn: '2025-06-30', version: 3 });
+    expect(lastEvent(objective.id)).toMatchObject({
+      action: 'DUE_DATE_CHANGE',
+      before: { dueOn: OBJECTIVE.dueOn },
+      after: { dueOn: '2025-06-30' },
+      reason: 'Budget year changed',
+    });
+    // A plain field edit needs no reason; its UPDATE has none.
+    const raised = await update(moved, { target: 97 });
+    expect(raised).toMatchObject({ target: 97, version: 4 });
+    expect(lastEvent(objective.id)).toMatchObject({
+      action: 'UPDATE',
+      before: { target: 95 },
+      after: { target: 97 },
+      reason: null,
+    });
+    expect(isoEvents(app, objective.id).map((e) => e.action)).toEqual([
+      'CREATE',
+      'REASSIGN',
+      'DUE_DATE_CHANGE',
+      'UPDATE',
+    ]);
+  });
+
   it('needs a reason to move dueOn, and checks standards, risk items and the owner', async () => {
     const objective = await createObjective(quality);
     const elsewhere = await createRisk(blr);
@@ -1152,6 +1306,7 @@ describe('updateIsoObjective', () => {
       body: { version: 1, ...extra },
     });
     await fails(app, 'updateIsoObjective', body({ dueOn: '2025-09-30' }), 'REASON_REQUIRED', 422);
+    await fails(app, 'updateIsoObjective', body({ ownerId: PERSON.rohan }), 'REASON_REQUIRED', 422);
     await fails(app, 'updateIsoObjective', body({ standards: ['ISO_45001'] }), 'VALIDATION', 400);
     await fails(
       app,
@@ -1160,7 +1315,13 @@ describe('updateIsoObjective', () => {
       'VALIDATION',
       400,
     );
-    await fails(app, 'updateIsoObjective', body({ ownerId: PERSON.vikram }), 'VALIDATION', 400);
+    await fails(
+      app,
+      'updateIsoObjective',
+      body({ ownerId: PERSON.vikram, reason: 'Hand over' }),
+      'VALIDATION',
+      400,
+    );
     await fails(app, 'updateIsoObjective', body({ reason: 'Nothing else' }), 'VALIDATION', 400);
     await fails(
       app,
@@ -1169,6 +1330,39 @@ describe('updateIsoObjective', () => {
       'STALE_VERSION',
       409,
     );
+  });
+
+  it('keeps the merged target on the direction’s side of the baseline (400 VALIDATION on target)', async () => {
+    // INCREASE from 80 to 95: a lower target, a DECREASE or a baseline above 95 each breaks it, alone.
+    const objective = await createObjective();
+    for (const change of [{ target: 70 }, { direction: 'DECREASE' }, { baseline: 99 }]) {
+      const error = await fails(
+        app,
+        'updateIsoObjective',
+        { params: objParams(objective), body: { version: 1, ...change } },
+        'VALIDATION',
+        400,
+      );
+      expect(error.error.details).toMatchObject({ issues: [{ path: ['body', 'target'] }] });
+    }
+    expect((await getObjective(objective)).version).toBe(1);
+    expect(isoEvents(app, objective.id)).toHaveLength(1);
+    // Changes that keep it: a DECREASE with its new target, MAINTAIN, a cleared baseline, a target equal to it.
+    const lowered = await update(objective, { direction: 'DECREASE', target: 60 });
+    expect(lowered).toMatchObject({ direction: 'DECREASE', baseline: 80, target: 60, version: 2 });
+    await fails(
+      app,
+      'updateIsoObjective',
+      { params: objParams(lowered), body: { version: 2, baseline: 50 } },
+      'VALIDATION',
+      400,
+    );
+    const held = await update(lowered, { direction: 'MAINTAIN', baseline: 10 });
+    expect(held).toMatchObject({ direction: 'MAINTAIN', baseline: 10, target: 60, version: 3 });
+    const unanchored = await update(held, { direction: 'INCREASE', baseline: null });
+    expect(unanchored).toMatchObject({ baseline: null, target: 60, version: 4 });
+    const level = await update(unanchored, { baseline: 60 });
+    expect(level).toMatchObject({ direction: 'INCREASE', baseline: 60, target: 60, version: 5 });
   });
 
   it('lets managers and the owner edit, and no one else', async () => {
