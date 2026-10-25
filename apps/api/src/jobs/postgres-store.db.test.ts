@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { DEFAULT_CLIENT_SETTINGS } from '@canopy/contracts';
 import {
+  accountJobs,
   acts,
   assignments,
   categories,
@@ -26,7 +27,8 @@ import { ACCOUNT_DAILY, runAccountDaily } from './accounts.js';
 import { CONSUMERS } from './consumers.js';
 import { runConsultantDigest } from './digest.js';
 import { runGenerateInstances } from './generate-instances.js';
-import type { JobDeps } from './ports.js';
+import { runIsoCatalogueSweep } from './iso-catalogue.js';
+import type { IsoCatalogueCopier, JobDeps } from './ports.js';
 import { runRelayOutbox } from './outbox-relay.js';
 import type { EventBus, OutboxEvent } from './ports.js';
 import { postgresJobStore } from './postgres-store.js';
@@ -1193,6 +1195,55 @@ describe.skipIf(!url)('jobs on the Postgres store', () => {
         ),
       ).toBe(1);
       expect(await t.count(b.firmId, 'notification_send', `kind = 'MFA_ENROLLED'`)).toBe(0);
+    });
+  });
+
+  describe('ISO catalogue sweep', () => {
+    it('reads the features and the copy time, and copies an account with the add-on once', async () => {
+      const iso = await seedFirm('Egret Quality Partners', 'Highmoor Foods', 'egret');
+      expect(
+        await deps.store.withFirm(iso.firmId, 'req:features', (tx) => tx.accountFeatures()),
+      ).toEqual({ features: [], isoCatalogueCopiedAt: null });
+      const client = new pg.Client({ connectionString: t.url });
+      await client.connect();
+      try {
+        await client.query(
+          `INSERT INTO platform.account_override (account_id, features) VALUES ($1, '{isoManagement}')`,
+          [iso.firmId],
+        );
+      } finally {
+        await client.end();
+      }
+      // Stands in for M6's copier: marks in the account's own system context, as copyIsoCatalogue does first.
+      const calls: string[] = [];
+      const copyIsoCatalogue: IsoCatalogueCopier = async (accountId) => {
+        calls.push(accountId);
+        return { copied: await inFirm(accountId, (tx) => accountJobs.markIsoCatalogueCopied(tx)) };
+      };
+      const withCopier = { ...deps, copyIsoCatalogue };
+      expect(await runIsoCatalogueSweep(withCopier, 'job:iso-sweep:1')).toEqual({
+        firms: 1,
+        copied: 1,
+        notCopied: 0,
+      });
+      expect(calls).toEqual([iso.firmId]);
+      const after = await deps.store.withFirm(iso.firmId, 'req:features', (tx) =>
+        tx.accountFeatures(),
+      );
+      expect(after.features).toEqual(['isoManagement']);
+      expect(after.isoCatalogueCopiedAt).not.toBeNull();
+      // Recorded: the next sweep leaves every account alone, and the other firms never had the add-on.
+      expect(await runIsoCatalogueSweep(withCopier, 'job:iso-sweep:2')).toEqual({
+        firms: 0,
+        copied: 0,
+        notCopied: 0,
+      });
+      expect(calls).toHaveLength(1);
+      for (const other of [a, b]) {
+        expect(
+          await deps.store.withFirm(other.firmId, 'req:features', (tx) => tx.accountFeatures()),
+        ).toEqual({ features: [], isoCatalogueCopiedAt: null });
+      }
     });
   });
 });

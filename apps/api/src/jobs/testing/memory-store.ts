@@ -123,6 +123,10 @@ export interface MemoryFirm {
   snapshots: LocalDate[];
   /** Last day of the latest paid subscription; null without one. */
   subscriptionEndsOn: LocalDate | null;
+  /** Effective features, e.g. `isoManagement`. */
+  features: string[];
+  /** When the ISO catalogue was copied in; null before. */
+  isoCatalogueCopiedAt: string | null;
   /** Support grants not yet closed, by the moment they end. */
   supportGrants: { id: Id; endsAt: string }[];
   clients: ClientRef[];
@@ -145,6 +149,8 @@ export function memoryFirm(id: Id = randomUUID()): MemoryFirm {
     trialEndsOn: null,
     snapshots: [],
     subscriptionEndsOn: null,
+    features: [],
+    isoCatalogueCopiedAt: null,
     supportGrants: [],
     clients: [],
     assignments: [],
@@ -204,6 +210,10 @@ function firmTx(firm: MemoryFirm, hooks: MemoryStoreHooks): FirmTx {
   return {
     firmSettings: async () => firm.settings,
     accountStatus: async () => firm.status,
+    accountFeatures: async () => ({
+      features: [...firm.features],
+      isoCatalogueCopiedAt: firm.isoCatalogueCopiedAt,
+    }),
     endTrial: async (now) => {
       if (firm.status !== 'TRIAL' || firm.trialEndsOn === null) return false;
       if (compareDates(firm.trialEndsOn, localDateIn(now, 'Asia/Kolkata')) >= 0) return false;
