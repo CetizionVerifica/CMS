@@ -50,6 +50,11 @@ app.get('/mixed', { config: { auth: 'session' } }, async (req) => {
   await requireFeature(req.ctx, 'isoManagement');
   return { ok: true };
 });
+app.get('/mixed-copy', { config: { auth: 'session' } }, async (req) => {
+  // Services often take a copy of the context; it is checked like the original.
+  await requireFeature({ ...req.ctx }, 'isoManagement');
+  return { ok: true };
+});
 app.get('/open', { config: { auth: 'public' } }, async (req) => ({ hasCtx: hasCtx(req) }));
 app.get('/boom', { config: { auth: 'public' } }, async () => {
   throw new Error('secret detail');
@@ -298,12 +303,24 @@ describe('add-on features', () => {
     });
   });
 
-  it('requireFeature() refuses a context it did not build', async () => {
+  it('requireFeature() accepts a copy of the request context', async () => {
     const actor = signIn({ memberships: [{ role: 'FIRM_ADMIN' }] });
+    const res = await app.inject({ url: '/mixed-copy', headers: actor.headers });
+    expect(res.json()).toMatchObject({ error: { code: 'FEATURE_NOT_ENABLED' } });
+    withIso(actor.firmId, true);
+    expect((await app.inject({ url: '/mixed-copy', headers: actor.headers })).json()).toEqual({
+      ok: true,
+    });
+  });
+
+  it('requireFeature() answers 403 for a context whose request has ended', async () => {
+    const actor = signIn({ memberships: [{ role: 'FIRM_ADMIN' }] });
+    withIso(actor.firmId, true);
     const ctx = (await app.inject({ url: '/whoami', headers: actor.headers })).json();
-    await expect(requireFeature(ctx, 'isoManagement')).rejects.toThrow(
-      /only available on session routes/,
-    );
+    await expect(requireFeature(ctx, 'isoManagement')).rejects.toMatchObject({
+      code: 'FEATURE_NOT_ENABLED',
+      statusCode: 403,
+    });
   });
 
   it('refuses every add-on route when the store cannot read features', async () => {
