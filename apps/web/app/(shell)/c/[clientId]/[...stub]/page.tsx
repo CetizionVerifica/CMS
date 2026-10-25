@@ -9,7 +9,9 @@ type Props = { params: Promise<{ clientId: string; stub: string[] }> };
 
 // Client routes until M12, M13 or M17 ship their pages (a real page.tsx takes precedence); any other path is a 404.
 // A record path such as /register/123 shows its list's placeholder. Any path under an add-on the account doesn't have
-// (/iso/...) says the add-on is off, whether or not the page exists, so the URL tells nothing about its data.
+// (/iso/...) says the add-on is off here, so the URL tells nothing about its data. This stub only covers paths with no
+// real page: once M17 adds iso/*/page.tsx, those pages take precedence over it, so M17's own iso/layout.tsx must render
+// FeatureNotEnabled when the account lacks isoManagement (ADR M16-0001).
 function routeFor(stub: string[]) {
   for (let n = stub.length; n > 0; n--) {
     const route = findRoute('client', stub.slice(0, n));
