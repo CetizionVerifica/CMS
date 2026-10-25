@@ -1,7 +1,7 @@
-import type { AuditEvent } from '@canopy/contracts';
+import { EntityType, ISO_ENTITY_TYPES, type AuditEvent } from '@canopy/contracts';
 import { describe, expect, it } from 'vitest';
 
-import { auditRows, changes, kindsFrom, recordName, summary } from './audit-model';
+import { ENTITY, auditRows, changes, kindsFrom, recordName, summary } from './audit-model';
 
 const base: AuditEvent = {
   id: 'e1',
@@ -73,6 +73,77 @@ describe('summary', () => {
       'Committed an import',
     );
     expect(summary(event({ action: 'EXPORT', entityType: 'export' }))).toBe('Started an export');
+  });
+});
+
+// ISO entity types are staged outside EntityType until ISO-1b, so a test event names one through a cast.
+const iso = (entityType: (typeof ISO_ENTITY_TYPES)[number]) =>
+  entityType as unknown as AuditEvent['entityType'];
+
+describe('ENTITY', () => {
+  it('has words for every entity type, the staged ISO ones included, and nothing else', () => {
+    const types = [...EntityType.options, ...ISO_ENTITY_TYPES];
+    expect(Object.keys(ENTITY).sort()).toEqual([...new Set(types)].sort());
+    for (const type of types) expect(ENTITY[type]).toMatch(/^((a|an|the) [A-Za-z]|evidence$)/);
+  });
+});
+
+describe('summary for ISO records', () => {
+  it('words an ISO step from after.action', () => {
+    expect(
+      summary(
+        event({
+          action: 'TRANSITION',
+          entityType: iso('nonconformity'),
+          after: { action: 'VERIFY_EFFECTIVE', state: 'CLOSED' },
+        }),
+      ),
+    ).toBe('Verified as effective: a nonconformity');
+    expect(
+      summary(
+        event({
+          action: 'TRANSITION',
+          entityType: iso('controlled_document'),
+          after: { action: 'MAKE_OBSOLETE', status: 'OBSOLETE' },
+        }),
+      ),
+    ).toBe('Made obsolete: a controlled document');
+    expect(
+      summary(
+        event({ action: 'TRANSITION', entityType: iso('iso_action'), after: { action: 'X' } }),
+      ),
+    ).toBe('Moved an ISO action');
+    expect(summary(event({ entityType: iso('management_system') }))).toBe(
+      'Added a management system',
+    );
+    expect(summary(event({ action: 'REASSIGN', entityType: iso('internal_audit') }))).toBe(
+      'Reassigned an internal audit',
+    );
+  });
+
+  it('says when a step was taken as delegate', () => {
+    expect(
+      summary(
+        event({
+          action: 'TRANSITION',
+          entityType: iso('internal_audit'),
+          after: { action: 'REPORT', state: 'REPORTED', delegated: true },
+        }),
+      ),
+    ).toBe('Reported an internal audit (as delegate)');
+  });
+
+  it('spells out the ISO fields it knows', () => {
+    expect(
+      changes(
+        event({
+          action: 'UPDATE',
+          entityType: iso('risk_item'),
+          before: { significant: false, reviewDueOn: '2026-11-30', severity: 3 },
+          after: { significant: true, reviewDueOn: '2027-05-31', severity: 3 },
+        }),
+      ),
+    ).toEqual(['Significant: No → Yes', 'Next review: 2026-11-30 → 2027-05-31']);
   });
 });
 

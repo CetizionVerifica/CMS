@@ -1,6 +1,17 @@
 // How the audit trail words a client's audit events. Display only: the events, their order and who may read them come
 // from the API (M7). Evidence events name no file, so nothing from evidence reaches the page (root CLAUDE.md rule 6).
-import type { AuditEvent } from '@canopy/contracts';
+import type {
+  AuditEvent,
+  ClauseNaAction,
+  DocumentAction,
+  ExternalAuditAction,
+  InternalAuditAction,
+  IsoActionAction,
+  IsoEntityType,
+  ManagementReviewAction,
+  NcAction,
+  RevisionAction,
+} from '@canopy/contracts';
 
 export type AuditAction = AuditEvent['action'];
 export type EntityType = AuditEvent['entityType'];
@@ -35,9 +46,9 @@ export function kindsFrom(param: string | null): { kinds: string[]; actions: Aud
   return { kinds, actions };
 }
 
-// 'account' is listed ahead of contracts 1.5.1, which adds it to EntityType for the entries the platform's changes to an
-// account write (ADR M15-0003); naming it here keeps this map complete before and after that bump.
-const ENTITY: Record<EntityType | 'account', string> = {
+// The ISO add-on's types are staged outside EntityType until contracts ISO-1b joins them (docs/iso/model.md §8);
+// keying them here keeps this map complete before and after that bump.
+export const ENTITY: Record<EntityType | IsoEntityType, string> = {
   client: 'the client',
   company: 'a company',
   unit: 'a unit',
@@ -54,6 +65,24 @@ const ENTITY: Record<EntityType | 'account', string> = {
   import_batch: 'an import',
   export: 'an export',
   account: 'the account',
+  management_system: 'a management system',
+  certification: 'a certificate',
+  external_audit: 'an external audit',
+  context_item: 'a context item',
+  clause_assessment: 'a clause on the checklist',
+  controlled_document: 'a controlled document',
+  document_revision: 'a document revision',
+  risk_item: 'a risk register entry',
+  risk_control: 'a risk control',
+  objective: 'an objective',
+  objective_reading: 'an objective reading',
+  audit_programme: 'an audit programme',
+  internal_audit: 'an internal audit',
+  audit_checklist_item: 'an audit checklist row',
+  audit_finding: 'an audit finding',
+  nonconformity: 'a nonconformity',
+  iso_action: 'an ISO action',
+  management_review: 'a management review',
 };
 
 const VERB: Record<AuditAction, string> = {
@@ -83,6 +112,48 @@ const WORKFLOW: Record<string, string> = {
   OPEN: 'Reopened',
 };
 
+type IsoStep =
+  | ClauseNaAction
+  | DocumentAction
+  | RevisionAction
+  | InternalAuditAction
+  | ExternalAuditAction
+  | NcAction
+  | IsoActionAction
+  | ManagementReviewAction;
+
+/** An ISO record's step (`after.action` on its TRANSITION), as the verb ahead of the record's words. */
+const ISO_STEP: Record<IsoStep, string> = {
+  REQUEST_NA: 'Asked to mark as not applicable:',
+  APPROVE_NA: 'Approved as not applicable:',
+  REJECT_NA: 'Refused not applicable for',
+  WITHDRAW_NA: 'Withdrew not applicable for',
+  REVIEW: 'Reviewed',
+  MAKE_OBSOLETE: 'Made obsolete:',
+  DRAFT_REVISION: 'Drafted',
+  SUBMIT: 'Submitted',
+  APPROVE: 'Approved',
+  SEND_BACK: 'Sent back',
+  RECORD_EDITION: 'Recorded the edition of',
+  START: 'Started',
+  CANCEL: 'Cancelled',
+  REPORT: 'Reported',
+  CLOSE: 'Closed',
+  RECORD_HELD: 'Recorded as held:',
+  RECORD_RESPONSE: 'Recorded the response to',
+  RAISE: 'Raised',
+  ADD_ROOT_CAUSE: 'Added the root cause of',
+  PLAN_ACTIONS: 'Planned actions for',
+  SUBMIT_NO_ACTION: 'Submitted with no action needed:',
+  VERIFY_EFFECTIVE: 'Verified as effective:',
+  VERIFY_NOT_EFFECTIVE: 'Found not effective:',
+  REOPEN: 'Reopened',
+  COMPLETE: 'Completed',
+  PLAN: 'Planned',
+};
+
+const isIsoStep = (value: string): value is IsoStep => Object.hasOwn(ISO_STEP, value);
+
 const text = (value: unknown): string | null =>
   typeof value === 'string' && value.trim() !== '' ? value : null;
 
@@ -98,10 +169,20 @@ export function recordName(event: AuditEvent): string | null {
   );
 }
 
-/** "Added a department", "Submitted an instance", "Moved the due date of an instance". */
+/**
+ * "Added a department", "Submitted an instance", "Closed a nonconformity". A step a client admin or manager took in
+ * someone else's place (`after.delegated`) says so.
+ */
 export function summary(event: AuditEvent): string {
+  const words = wording(event);
+  return event.after?.delegated === true ? `${words} (as delegate)` : words;
+}
+
+function wording(event: AuditEvent): string {
   const entity = ENTITY[event.entityType];
   if (event.action === 'TRANSITION') {
+    const step = text(event.after?.action);
+    if (step && isIsoStep(step)) return `${ISO_STEP[step]} ${entity}`;
     const state = text(event.after?.workflowState);
     const pendingNa = event.after?.pendingKind === 'NA';
     const verb =
@@ -127,12 +208,38 @@ const FIELD_LABEL: Record<string, string> = {
   workflowState: 'State',
   aliases: 'Other spellings',
   rows: 'Rows',
+  // ISO records (docs/iso/model.md §3). Their long texts are not spelled out, and incident details never reach events.
+  state: 'State',
+  revision: 'Revision',
+  severity: 'Severity',
+  significant: 'Significant',
+  climateRelated: 'Climate related',
+  result: 'Result',
+  dueOn: 'Due date',
+  plannedOn: 'Planned for',
+  plannedStart: 'Planned start',
+  plannedEnd: 'Planned end',
+  startOn: 'Start',
+  endOn: 'End',
+  heldOn: 'Held on',
+  reportedOn: 'Reported on',
+  reviewedOn: 'Reviewed on',
+  lastReviewedOn: 'Last reviewed',
+  reviewDueOn: 'Next review',
+  responseDueOn: 'Response due',
+  effectivenessDueOn: 'Effectiveness check due',
+  doneOn: 'Done on',
+  closedOn: 'Closed on',
+  issuedOn: 'Issued on',
+  expiresOn: 'Expires on',
+  climateDecidedOn: 'Climate decision on',
 };
 
 const shown = (value: unknown): string | null => {
   if (value === null || value === undefined) return '—';
   if (typeof value === 'string') return value === '' ? '—' : value;
-  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+  if (typeof value === 'boolean') return value ? 'Yes' : 'No';
+  if (typeof value === 'number') return String(value);
   if (Array.isArray(value) && value.every((v) => typeof v === 'string')) {
     return value.length === 0 ? '—' : value.join(', ');
   }
