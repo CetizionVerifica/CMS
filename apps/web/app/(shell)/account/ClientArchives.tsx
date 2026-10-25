@@ -5,8 +5,7 @@
 import { Button } from '@canopy/ui';
 import { useState } from 'react';
 
-import { exportProgressAction } from '../c/[clientId]/reports/actions';
-import { startArchiveAction } from './actions';
+import { archiveProgressAction, startArchiveAction } from './actions';
 
 // A large client's evidence takes minutes to pack, so this waits longer than the reports page: up to five minutes.
 export const ARCHIVE_POLL_MS = 3000;
@@ -41,7 +40,7 @@ export function ClientArchives({
         return;
       }
       for (let i = 0; i < ARCHIVE_POLL_TRIES; i++) {
-        const progress = await exportProgressAction(started.id);
+        const progress = await archiveProgressAction(started.id);
         if (progress.status === 'ready') {
           setMessage({ tone: 'info', text: `The archive of ${client.name} is downloading.` });
           window.location.assign(progress.url);
