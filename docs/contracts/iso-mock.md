@@ -54,14 +54,17 @@ README decisions 42-51. M4 owns every formula marked "stand-in".
 - **Management review figures**: `since` is the standard's last HELD or CLOSED review of the same system before this
   one, else the system's creation day, and never after as-of (a review held before its system was set up in the app
   reviews just its own day). As-of is the review's `heldOn` once it is held (the window it reviewed), else today (a
-  PLANNED review, or a CANCELLED one, which was never held). Every figure reads the records as they stood on as-of:
-  a record counts once it was created by then (a nonconformity once reported), and a field takes the `before` value of
-  its first audited change on a later day, else its value now. So open, overdue, done, cancelled, significance,
-  severity, incident outcome, an objective's target and readings, and the climate decision are those of as-of; a row
-  with no trail is read by its dates (`closedOn`, `doneOn`, and for a cancel its last change, since a cancelled record
-  takes no edits). Archived records appear in no figure but `contextItemsRemoved`, whatever the day, since their ids no
-  longer open. COMPLIANCE_EVALUATION reads the instances' workflow as it is now, as the core score's as-of does.
-  Figures count only records the caller can see
+  PLANNED review, or a CANCELLED one, which was never held). A held review's figures read the records as they stood
+  on its `heldOn`: a record counts once it was created by then (a nonconformity, incidents included, once reported),
+  and a field takes the `before` value of its first audited change on a later client-local day, else its value now.
+  So open, overdue, done, cancelled, significance, severity, incident outcome, an objective's target and readings, an
+  audit's state, report date and visit dates, a finding's type and the climate decision are those of `heldOn`, and a
+  context item is changed in the window by an audited UPDATE in it. A row with no trail is read by its dates
+  (`closedOn`, `doneOn`, `updatedAt`, and for a cancel its last change, since a cancelled record takes no edits); a
+  cancel counts from its CANCEL step, so a row cancelled before its trail began and reopened later reads as not
+  cancelled. A review not held reads every record as it is now. Archived records appear in no figure but
+  `contextItemsRemoved`, whatever the day, since their ids no longer open. COMPLIANCE_EVALUATION reads the instances'
+  workflow as it is now, as the core score's as-of does. Figures count only records the caller can see
   and whose standards overlap the review's; an internal audit's standards are those of its clauses (its system's when
   it lists none), and findings follow their audit. INCIDENTS uses the overview's rule, so cancelled NCs are left out
   of both. `readingsRecorded` counts every reading recorded in the window, whatever its period; on-track reads only

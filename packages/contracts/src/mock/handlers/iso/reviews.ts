@@ -486,30 +486,29 @@ const within = (f: FigureScope, date: string | null) =>
 
 const dayOf = (f: FigureScope, instant: string) => localDate(instant, f.timeZone);
 
-// State on as-of (iso-mock.md "Management review figures"): the state figures read each record as it stood on as-of,
-// from its audit trail, so a held review keeps the picture of the day it was held.
+// State on as-of (iso-mock.md "Management review figures"): a held review's figures read each record as it stood on
+// its heldOn, from the audit trail, so the review keeps the picture of the day it was held. A review not held reads
+// the records as they are now, with no day arithmetic across time zones.
+
+/** Whether the figures look back to a past day: the review was held. */
+const past = (f: FigureScope) => f.review.heldOn !== null;
 
 /** Created by as-of, by its client-local day. */
-const existed = (f: FigureScope, row: { createdAt: string }) => dayOf(f, row.createdAt) <= f.asOf;
+const existed = (f: FigureScope, row: { createdAt: string }) =>
+  !past(f) || dayOf(f, row.createdAt) <= f.asOf;
 
-/** The first audited change of `field` of a record on a day after as-of. */
-function changeAfter(
-  f: FigureScope,
-  entityType: IsoEntity,
-  id: string,
-  field: string,
-): IsoAuditEvent | undefined {
-  return f.firm.isoAuditEvents
+/** The audited changes of `field` of a record (events whose `before` has it), oldest first. */
+const changesOf = (f: FigureScope, entityType: IsoEntity, id: string, field: string) =>
+  f.firm.isoAuditEvents
     .filter(
       (e) =>
-        e.entityType === entityType &&
-        e.entityId === id &&
-        e.before !== null &&
-        field in e.before &&
-        dayOf(f, e.at) > f.asOf,
+        e.entityType === entityType && e.entityId === id && e.before !== null && field in e.before,
     )
-    .sort((a, b) => a.at.localeCompare(b.at))[0];
-}
+    .sort((a, b) => a.at.localeCompare(b.at));
+
+/** The first audited change of `field` of a record on a day after as-of (none for a review not held). */
+const changeAfter = (f: FigureScope, entityType: IsoEntity, id: string, field: string) =>
+  past(f) ? changesOf(f, entityType, id, field).find((e) => dayOf(f, e.at) > f.asOf) : undefined;
 
 /** A field's value on as-of: the `before` of its first audited change after as-of, else its value now. */
 function fieldAt<R extends { id: string }, K extends keyof R & string>(
@@ -523,17 +522,41 @@ function fieldAt<R extends { id: string }, K extends keyof R & string>(
 }
 
 /**
- * Cancelled by as-of: its state on as-of was CANCELLED. Without a later step, a cancel counts from its last change
- * (a cancelled nonconformity or action takes no edits).
+ * Cancelled by as-of. A cancel counts from its CANCEL step in the trail; a row still CANCELLED with no step after
+ * as-of counts from its last change (a cancelled nonconformity or action takes no edits). A row reopened after as-of
+ * whose cancel left no step (seeded before the trail) has no day for it, so it reads as not cancelled.
  */
 function cancelledBy(
   f: FigureScope,
   entityType: IsoEntity,
   row: { id: string; state: string; updatedAt: string },
 ): boolean {
-  const change = changeAfter(f, entityType, row.id, 'state');
-  if (change !== undefined) return change.before!.state === 'CANCELLED';
-  return row.state === 'CANCELLED' && dayOf(f, row.updatedAt) <= f.asOf;
+  if (!past(f)) return row.state === 'CANCELLED';
+  const steps = changesOf(f, entityType, row.id, 'state');
+  const later = steps.find((e) => dayOf(f, e.at) > f.asOf);
+  if (later === undefined) return row.state === 'CANCELLED' && dayOf(f, row.updatedAt) <= f.asOf;
+  return (
+    later.before!.state === 'CANCELLED' &&
+    steps.some((e) => e.after?.state === 'CANCELLED' && dayOf(f, e.at) <= f.asOf)
+  );
+}
+
+/**
+ * Changed in the window, other than by being created: an audited UPDATE on a day in the window or, for a row with no
+ * change after as-of, its last change in the window.
+ */
+function changedIn(
+  f: FigureScope,
+  entityType: IsoEntity,
+  row: { id: string; updatedAt: string; createdAt: string },
+) {
+  if (row.updatedAt === row.createdAt) return false;
+  const updates = f.firm.isoAuditEvents.filter(
+    (e) => e.entityType === entityType && e.entityId === row.id && e.action === 'UPDATE',
+  );
+  if (updates.some((e) => within(f, dayOf(f, e.at)))) return true;
+  const laterChange = past(f) && updates.some((e) => dayOf(f, e.at) > f.asOf);
+  return !laterChange && within(f, dayOf(f, row.updatedAt));
 }
 
 /** On or before as-of. */
@@ -568,9 +591,8 @@ function ncAt(f: FigureScope, n: Nc): Nc {
   };
 }
 
-/** Reported by as-of and neither closed nor cancelled by then (`n` as `ncAt` gives it). */
-const ncOpenAt = (f: FigureScope, n: Nc) =>
-  n.reportedOn <= f.asOf && !byAsOf(f, n.closedOn) && n.state !== 'CANCELLED';
+/** Neither closed nor cancelled by as-of (`n` as `ncsFor` gives it: reported by then). */
+const ncOpenAt = (f: FigureScope, n: Nc) => !byAsOf(f, n.closedOn) && n.state !== 'CANCELLED';
 
 /** Held reviews of the system before this one (bounded by its own `heldOn`, or today) that covered one of `codes`. */
 function earlierReviews(
@@ -637,9 +659,7 @@ function contextFigures(f: FigureScope): Figure[] {
   );
   const live = items.filter((c) => c.archivedAt === null);
   const added = live.filter((c) => within(f, dayOf(f, c.createdAt)));
-  const changed = live.filter(
-    (c) => !added.includes(c) && within(f, dayOf(f, c.updatedAt)) && c.updatedAt !== c.createdAt,
-  );
+  const changed = live.filter((c) => !added.includes(c) && changedIn(f, 'context_item', c));
   const party = (c: { kind: string }) => c.kind === 'INTERESTED_PARTY';
   const system = f.system;
   const relevant = fieldAt(f, 'management_system', system, 'climateChangeRelevant');
@@ -753,12 +773,16 @@ function objectiveFigures(f: FigureScope): Figure[] {
   ];
 }
 
-/** The system's nonconformities of the input's standards that the actor may see, as they stood on as-of. */
+/**
+ * The system's nonconformities of the input's standards that the actor may see, reported by as-of, as they stood
+ * then.
+ */
 const ncsFor = (f: FigureScope) =>
   liveIso(f.firm, 'nonconformities', f.review.clientId)
     .filter(
       (n) =>
         n.managementSystemId === f.system.id &&
+        (!past(f) || n.reportedOn <= f.asOf) &&
         n.standards.some((code) => f.codes.includes(code)) &&
         canSee(f.actor, ncReach(f.firm, n)),
     )
@@ -831,9 +855,13 @@ function incidentFigures(f: FigureScope): Figure[] {
   ];
 }
 
+/** Internal audit states once reported, and external audit states once the visit took place. */
+const REPORTED: readonly string[] = ['REPORTED', 'CLOSED'];
+const VISITED: readonly string[] = ['HELD', 'RESPONDED', 'CLOSED'];
+
 /**
  * AUDIT_RESULTS: internal audits reported and external audits ended (and held) in the window, of the input's
- * standards, and their findings by type. An internal audit's standards are its clauses' (the system's when it lists
+ * standards, and their findings by type, each as it stood on as-of. An internal audit's standards are its clauses' (the system's when it lists
  * none, as for the nonconformities its findings raise).
  */
 function auditFigures(f: FigureScope): Figure[] {
@@ -849,27 +877,28 @@ function auditFigures(f: FigureScope): Figure[] {
     (a) =>
       auditSystemId(f.firm, a) === f.system.id &&
       ofStandards(a) &&
-      (a.state === 'REPORTED' || a.state === 'CLOSED') &&
-      within(f, a.reportedOn) &&
+      REPORTED.includes(fieldAt(f, 'internal_audit', a, 'state')) &&
+      within(f, fieldAt(f, 'internal_audit', a, 'reportedOn')) &&
       canSee(f.actor, auditReach(f.firm, a)),
   );
   const externals = liveIso(f.firm, 'externalAudits', clientId).filter(
     (e) =>
       e.managementSystemId === f.system.id &&
       e.standardIds.some((id) => covered.includes(id)) &&
-      (e.state === 'HELD' || e.state === 'RESPONDED' || e.state === 'CLOSED') &&
-      within(f, e.endOn) &&
+      VISITED.includes(fieldAt(f, 'external_audit', e, 'state')) &&
+      within(f, fieldAt(f, 'external_audit', e, 'endOn')) &&
       canSee(f.actor, systemReach(f.firm, e)),
   );
   const auditIds = new Set([...ids(audits), ...ids(externals)]);
-  const findings = liveIso(f.firm, 'findings', clientId).filter((x) =>
-    auditIds.has(x.internalAuditId ?? x.externalAuditId!),
+  const findings = liveIso(f.firm, 'findings', clientId).filter(
+    (x) => auditIds.has(x.internalAuditId ?? x.externalAuditId!) && existed(f, x),
   );
+  const typeOf = (x: Finding) => fieldAt(f, 'audit_finding', x, 'type');
   return [
     figure('internalAuditsReported', ids(audits)),
     figure('externalAuditsHeld', ids(externals)),
     ...FindingType.options.map((t) =>
-      figure(figureKey('findings', t), ids(findings.filter((x) => x.type === t))),
+      figure(figureKey('findings', t), ids(findings.filter((x) => typeOf(x) === t))),
     ),
   ];
 }

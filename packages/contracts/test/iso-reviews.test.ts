@@ -2143,6 +2143,149 @@ describe('review input figures', () => {
     firm().iso.managementReviews.find((r) => r.id === planned.id)!.archivedAt = NOW;
   });
 
+  it('keeps incidents, audits, findings and context changes of a held review as they stood on heldOn', async () => {
+    const held = fixtureId('firm-b:iso:review:2024');
+    const ims = fixtureId('firm-b:iso:system:ims');
+    const early = { createdAt: '2024-09-01T06:30:00Z', updatedAt: '2024-09-01T06:30:00Z' };
+    const figuresOf = async (key: string) => byKey(await inputs(held), key);
+    // An injury of 2024-10-20 reported today, after heldOn.
+    const lateIncident = await ok<{ id: string }>(app, 'raiseIsoNonconformity', {
+      as: PERSON.meera,
+      params: { clientId: NORTHWIND },
+      body: {
+        managementSystemId: ims,
+        source: 'INCIDENT',
+        severity: 'MINOR',
+        standards: ['ISO_45001'],
+        unitId: PUNE,
+        description: 'Slipped near the dock',
+        ownerId: PERSON.sameer,
+        approverId: PERSON.divya,
+        dueOn: '2024-12-15',
+        incident: {
+          occurredAt: '2024-10-20T05:00:00Z',
+          location: 'Dock 2',
+          type: 'INJURY',
+          outcome: 'FIRST_AID',
+          reportable: false,
+        },
+      },
+    });
+    expect(figureOf(await figuresOf('INCIDENTS'), 'incidents').ids).not.toContain(lateIncident.id);
+
+    // A visit held in the window with an observation; today a new finding, the observation moved to OFI, and a
+    // planned visit of the window recorded HELD.
+    const visit = seedExternal(ims, { ...early, state: 'HELD' });
+    const observation = seed(app, 'findings', {
+      ...base(),
+      ...early,
+      internalAuditId: null,
+      externalAuditId: visit.id,
+      type: 'OBSERVATION',
+      clauseIds: [],
+      unitId: null,
+      description: 'Labels faded',
+      nonconformityId: null,
+    });
+    const recordedLater = seedExternal(ims, { ...early });
+    seedFile({ type: 'external_audit', id: recordedLater.id });
+    const added = await ok<{ id: string }>(app, 'createIsoExternalFinding', {
+      as: PERSON.kabir,
+      params: { id: visit.id },
+      body: { type: 'OFI', description: 'Could tag racks' },
+    });
+    await ok(app, 'updateIsoExternalFinding', {
+      as: PERSON.kabir,
+      params: { id: visit.id, findingId: observation.id },
+      body: { version: observation.version, type: 'OFI' },
+    });
+    await ok(app, 'recordIsoExternalAuditHeld', {
+      as: PERSON.kabir,
+      params: { id: recordedLater.id },
+      body: { version: recordedLater.version, startOn: '2024-10-08', endOn: '2024-10-10' },
+    });
+    const audits = await figuresOf('AUDIT_RESULTS');
+    expect(figureOf(audits, 'externalAuditsHeld').ids).toContain(visit.id);
+    expect(figureOf(audits, 'externalAuditsHeld').ids).not.toContain(recordedLater.id);
+    expect(figureOf(audits, 'findingsObservation').ids).toContain(observation.id);
+    expect(figureOf(audits, 'findingsOfi').ids).not.toContain(observation.id);
+    expect(figureOf(audits, 'findingsOfi').ids).not.toContain(added.id);
+
+    // An issue changed in the window (with its event) and again today stays changed in the window.
+    const issue = seedContext(ims, {
+      createdAt: '2024-04-01T06:30:00Z',
+      updatedAt: '2024-10-20T06:30:00Z',
+    });
+    firm().isoAuditEvents.push({
+      id: seedId(),
+      firmId: FIRM_B,
+      clientId: NORTHWIND,
+      at: '2024-10-20T06:30:00Z',
+      requestId: 'seeded',
+      actorId: PERSON.kabir,
+      actorKind: 'PERSON',
+      action: 'UPDATE',
+      entityType: 'context_item',
+      entityId: issue.id,
+      before: { text: 'Old packing line' },
+      after: { text: 'New packing line' },
+      reason: null,
+    });
+    await ok(app, 'updateIsoContextItem', {
+      as: PERSON.kabir,
+      params: { id: ims, itemId: issue.id },
+      body: { version: issue.version, text: 'Two new packing lines' },
+    });
+    expect(figureOf(await figuresOf('CONTEXT_CHANGES'), 'issuesChanged').ids).toContain(issue.id);
+
+    // An action cancelled after heldOn (no CANCEL step: seeded) and reopened today was open, and overdue, then.
+    const nc = seedNc(ims, { ...early });
+    const cancelled = seedAction(
+      { type: 'NONCONFORMITY', id: nc.id },
+      {
+        ...early,
+        dueOn: '2024-10-20',
+        state: 'CANCELLED',
+        cancelReason: 'Raised twice',
+        updatedAt: '2024-11-05T06:30:00Z',
+      },
+    );
+    expect(figureOf(await figuresOf('NONCONFORMITIES'), 'correctiveActionsOverdue').ids).toContain(
+      cancelled.id,
+    );
+    await ok(app, 'reopenIsoAction', {
+      as: PERSON.kabir,
+      params: { id: cancelled.id },
+      body: { version: cancelled.version, reason: 'Not a duplicate after all' },
+    });
+    expect(figureOf(await figuresOf('NONCONFORMITIES'), 'correctiveActionsOverdue').ids).toContain(
+      cancelled.id,
+    );
+
+    const rows: { archivedAt: string | null }[] = [
+      ...[lateIncident.id, nc.id].map((id) => firm().iso.nonconformities.find((n) => n.id === id)!),
+      visit,
+      recordedLater,
+      observation,
+      firm().iso.findings.find((x) => x.id === added.id)!,
+      issue,
+      cancelled,
+    ];
+    for (const row of rows) row.archivedAt = NOW;
+  });
+
+  it('reads a review not held as of now, whatever the client-local day of a record', async () => {
+    // Created at 20:00 UTC today: tomorrow in the client's time zone, while the review's as-of is today.
+    const ims = fixtureId('firm-b:iso:system:ims');
+    const tonight = seedObjective(ims, { createdAt: `${TODAY}T20:00:00Z`, updatedAt: NOW });
+    const review = await plan(ims);
+    const objectives = byKey(await inputs(review.id), 'OBJECTIVES');
+    expect(objectives.sourceFigures!.asOf).toBe(TODAY);
+    expect(figureOf(objectives, 'objectivesOpen').ids).toContain(tonight.id);
+    tonight.archivedAt = NOW;
+    stored(review.id).archivedAt = NOW;
+  });
+
   it('gives a review held before its system was set up a window of its own day', async () => {
     const ims = fixtureId('firm-b:iso:system:ims');
     const review = await plan(ims, { plannedOn: '2024-03-15' });
