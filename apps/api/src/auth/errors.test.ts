@@ -34,6 +34,13 @@ describe('ApiError', () => {
     );
   });
 
+  it('says when an add-on is still being set up for the account', () => {
+    // FEATURE_NOT_READY arrives with the ISO contracts (ISO-1); until then it is not an ErrorCode here.
+    expect(new ApiError('FEATURE_NOT_READY' as ErrorCode).message).toBe(
+      'This add-on is being set up for your account. Try again in a few minutes.',
+    );
+  });
+
   it('falls back to a generic message for a code added to the contract later', () => {
     // A newer @canopy/contracts can add a code (and its HTTP status) before this map gives it a message.
     const code = 'NEW_CODE' as ErrorCode;
