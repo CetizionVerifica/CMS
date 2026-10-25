@@ -20,7 +20,8 @@ const SHA = 'a'.repeat(64);
 
 /**
  * INSERT naming only the given columns, returning the id. Drizzle's insert names every column the schema declares,
- * so tables that gained columns later (person.support, auth_*.support_grant_id, migration 0019) would fail in the
+ * so tables that gained columns later (person.support, auth_*.support_grant_id, migration 0019; act.kind and
+ * obligation.clause_refs, migration 0036) would fail in the
  * migrations test, which populates before those columns exist.
  */
 async function insertNamed<T extends PgTable>(
@@ -101,12 +102,10 @@ export async function populateFirm(
       ),
     );
 
-    const actId = await one(
-      tx
-        .insert(s.act)
-        .values({ name: `Factories Act, 1948 (${label})`, jurisdiction: 'CENTRAL' })
-        .returning({ id: s.act.id }),
-    );
+    const actId = await insertNamed(tx, s.act, {
+      name: `Factories Act, 1948 (${label})`,
+      jurisdiction: 'CENTRAL',
+    });
     add('act', 'firmLevel', actId);
     const categoryId = await one(
       tx
@@ -115,24 +114,19 @@ export async function populateFirm(
         .returning({ id: s.category.id }),
     );
     add('category', 'firmLevel', categoryId);
-    const obligationId = await one(
-      tx
-        .insert(s.obligation)
-        .values({
-          externalRef: `HRS-CL-014-3059-${label}`,
-          domain: 'HRS',
-          jurisdiction: 'CENTRAL',
-          actId,
-          categoryId,
-          title: 'Annual return',
-          description: 'File the annual return.',
-          criticality: 'HIGH',
-          timelineType: 'TIME_BASED',
-          recurrenceRule: { kind: 'ANNUAL', month: 1, day: 31 },
-          ruleStatus: 'CONFIRMED',
-        })
-        .returning({ id: s.obligation.id }),
-    );
+    const obligationId = await insertNamed(tx, s.obligation, {
+      externalRef: `HRS-CL-014-3059-${label}`,
+      domain: 'HRS',
+      jurisdiction: 'CENTRAL',
+      actId,
+      categoryId,
+      title: 'Annual return',
+      description: 'File the annual return.',
+      criticality: 'HIGH',
+      timelineType: 'TIME_BASED',
+      recurrenceRule: { kind: 'ANNUAL', month: 1, day: 31 },
+      ruleStatus: 'CONFIRMED',
+    });
     add('obligation', 'firmLevel', obligationId);
 
     add(

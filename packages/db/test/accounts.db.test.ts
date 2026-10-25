@@ -335,6 +335,74 @@ describe('the app’s own account', () => {
     );
   });
 
+  it('takes the override’s removed features away, even when the plan has them (ADR M16-0001)', async () => {
+    const before = await asOperator(async (tx) => ({
+      account: (await r.platformAccounts.get(tx, a.firmId))!,
+      override: await r.accountOverrides.get(tx, a.firmId),
+    }));
+    const features = async () => {
+      const tenant = (await inFirm(a.firmId, (tx) => r.account.get(tx))).entitlements.features;
+      const operator = (await asOperator((tx) => r.platformAccounts.entitlements(tx, a.firmId)))
+        .features;
+      return { tenant, operator };
+    };
+    await asOperator(async (tx) => {
+      await r.plans.upsert(
+        tx,
+        'ISO_PILOT',
+        {
+          name: 'ISO pilot',
+          limits: { companies: 1, units: 5, users: 10, storageBytes: 1_000_000 },
+          features: ['importer', 'isoManagement'],
+          retired: false,
+        },
+        '2026-10-25T09:00:00.000Z',
+      );
+      await r.platformAccounts.update(tx, a.firmId, before.account.version, {
+        planCode: 'ISO_PILOT',
+      });
+    });
+    const put = (override: Parameters<typeof r.accountOverrides.put>[2]) =>
+      asOperator((tx) => r.accountOverrides.put(tx, a.firmId, override));
+
+    // In the plan and removed: off. Added and not in the plan: on. Removing a flag the plan lacks changes nothing.
+    const off = await put({
+      limits: {},
+      features: ['bulkExport'],
+      removedFeatures: ['isoManagement', 'neverInPlan'],
+      note: 'ISO switched off',
+    });
+    expect(off.after.removedFeatures).toEqual(['isoManagement', 'neverInPlan']);
+    expect(await features()).toEqual({
+      tenant: ['bulkExport', 'importer'],
+      operator: ['bulkExport', 'importer'],
+    });
+
+    // A put without removedFeatures removes nothing, so the plan's isoManagement is back.
+    const on = await put({ limits: {}, features: [], note: 'ISO switched on' });
+    expect(on.after.removedFeatures).toEqual([]);
+    const all = ['importer', 'isoManagement'];
+    expect(await features()).toEqual({ tenant: all, operator: all });
+
+    // The table refuses a flag that is both added and removed, as the contract does.
+    const both = await failure(
+      t.ownerQuery(
+        `UPDATE platform.account_override SET features = '{isoManagement}', removed_features = '{isoManagement}'
+         WHERE account_id = $1`,
+        [a.firmId],
+      ),
+    );
+    expect(both).toBe('23514');
+
+    await asOperator(async (tx) => {
+      const current = (await r.platformAccounts.get(tx, a.firmId))!;
+      await r.platformAccounts.update(tx, a.firmId, current.version, {
+        planCode: before.account.planCode,
+      });
+      if (before.override) await r.accountOverrides.put(tx, a.firmId, before.override);
+    });
+  });
+
   it('app_usage refuses a transaction with no tenant', async () => {
     const result = await failure(
       t.ownerTransaction(async (client) => {

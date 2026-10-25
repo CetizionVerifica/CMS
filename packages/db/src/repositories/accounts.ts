@@ -511,7 +511,7 @@ export const platformAccounts = {
       .catch(rethrow);
     return usageOf(rows[0]);
   },
-  /** Effective limits and features: the plan overlaid with the account's override. */
+  /** Effective limits and features: the plan overlaid with the account's override, minus its removed features. */
   async entitlements(
     tx: OperatorTx,
     accountId: string,
@@ -521,9 +521,11 @@ export const platformAccounts = {
       .select({
         planCode: s.firm.planCode,
         limits: sql<PlanLimits>`${s.plan.limits} || coalesce(${s.accountOverride.limits}, '{}'::jsonb)`,
-        features: sql<
-          string[]
-        >`ARRAY(SELECT DISTINCT unnest(${s.plan.features} || coalesce(${s.accountOverride.features}, '{}'::text[])) ORDER BY 1)`,
+        // (plan ∪ added) − removed, as app_account() and contracts' effectiveFeatures compute it.
+        features: sql<string[]>`ARRAY(
+          SELECT DISTINCT flag FROM unnest(${s.plan.features} || coalesce(${s.accountOverride.features}, '{}'::text[])) AS flag
+          WHERE flag <> ALL (coalesce(${s.accountOverride.removedFeatures}, '{}'::text[]))
+          ORDER BY 1)`,
       })
       .from(s.firm)
       .innerJoin(s.plan, eq(s.plan.code, s.firm.planCode))

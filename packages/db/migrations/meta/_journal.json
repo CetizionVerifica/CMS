@@ -253,6 +253,13 @@
       "when": 1792863022581,
       "tag": "0035_purge_account",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1792939704662,
+      "tag": "0036_iso_addon_columns",
+      "breakpoints": true
     }
   ]
 }

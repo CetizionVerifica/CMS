@@ -15,6 +15,7 @@ import {
 } from 'drizzle-orm/pg-core';
 import { baseColumns, firmWidePolicies, versionColumn } from './columns.js';
 import {
+  actKindEnum,
   criticalityEnum,
   jurisdictionEnum,
   obligationDomainEnum,
@@ -36,6 +37,8 @@ export const act = pgTable(
     shortName: text('short_name'),
     jurisdiction: jurisdictionEnum('jurisdiction').notNull(),
     stateCode: text('state_code'),
+    /** STATUTE (a law) or STANDARD (an ISO management-system standard, ADR M16-0001). */
+    kind: actKindEnum('kind').notNull().default('STATUTE'),
     aliases: text('aliases')
       .array()
       .notNull()
@@ -47,6 +50,7 @@ export const act = pgTable(
       .on(t.firmId, t.name)
       .where(sql`archived_at is null`),
     check('act_jurisdiction_check', jurisdictionCheck),
+    check('act_standard_central_check', sql`kind <> 'STANDARD' or jurisdiction = 'CENTRAL'`),
     check('act_version_check', sql`version >= 1`),
     ...firmWidePolicies({ insert: 'staff' }),
   ],
@@ -72,6 +76,18 @@ export const category = pgTable(
     ...firmWidePolicies({ insert: 'staff' }),
   ],
 );
+
+/** A stored clause reference (the shape ISO-1 gives `Obligation.clauseRefs`). */
+export interface ClauseRef {
+  standard: 'ISO_9001' | 'ISO_14001' | 'ISO_45001';
+  clauseNumber: string;
+}
+
+/**
+ * An array of at most 20 `{ standard, clauseNumber }` objects with no other keys, the clause number shaped as the
+ * contracts' `ClauseNumber` (the contract checks that no pair repeats).
+ */
+const clauseRefsCheck = sql`jsonb_typeof(clause_refs) = 'array' and jsonb_array_length(clause_refs) <= 20 and not jsonb_path_exists(clause_refs, '$[*] ? (@.type() != "object" || !exists(@.standard) || !exists(@.clauseNumber) || exists(@.keyvalue() ? (@.key != "standard" && @.key != "clauseNumber")) || !(@.standard == "ISO_9001" || @.standard == "ISO_14001" || @.standard == "ISO_45001") || @.clauseNumber.type() != "string" || !(@.clauseNumber like_regex "^[1-9][0-9]?([.](0|[1-9][0-9]?)){0,3}$"))')`;
 
 /** A requirement derived from an Act (Excel: one Compliance ID). `external_ref` is data, never a key. */
 export const obligation = pgTable(
@@ -103,6 +119,14 @@ export const obligation = pgTable(
       .notNull()
       .default(sql`'[]'::jsonb`),
     libraryVersion: integer('library_version').notNull().default(1),
+    /**
+     * Clauses of the standards this activity serves (ADR M16-0001): `{ standard, clauseNumber }` objects, never bare
+     * numbers, since one activity can serve 9001, 14001 and 45001 at once. Numbers only, no standard text.
+     */
+    clauseRefs: jsonb('clause_refs')
+      .$type<ClauseRef[]>()
+      .notNull()
+      .default(sql`'[]'::jsonb`),
   },
   (t) => [
     unique('obligation_firm_key').on(t.firmId, t.id),
@@ -129,6 +153,7 @@ export const obligation = pgTable(
       sql`jsonb_typeof(forms) = 'array' and jsonb_typeof(log_sheets) = 'array'`,
     ),
     check('obligation_library_version_check', sql`library_version >= 1`),
+    check('obligation_clause_refs_check', clauseRefsCheck),
     check('obligation_version_check', sql`version >= 1`),
     ...firmWidePolicies({ insert: 'staff' }),
   ],
