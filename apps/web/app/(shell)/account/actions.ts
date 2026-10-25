@@ -59,12 +59,25 @@ export async function revokeSupportAction(grantId: string): Promise<ActionResult
 }
 
 export type ArchiveStart = { ok: true; id: string } | { ok: false; message: string };
+export type ArchiveProgress =
+  { status: 'pending' } | { status: 'failed'; message: string } | { status: 'ready'; url: string };
 
 const NOT_STARTED = 'The download didn’t start. Try again.';
 
+/** The archive's own wording for a refusal; anything else is `otherwise`. */
+function archiveRefused(error: unknown, otherwise: string): string {
+  if (isApiError(error, 'FORBIDDEN', 'ACCESS_EXPIRED')) {
+    return 'Only account admins can download a client’s data.';
+  }
+  if (isApiError(error, 'RATE_LIMITED')) {
+    return 'Too many downloads at once. Wait a minute and try again.';
+  }
+  return otherwise;
+}
+
 /**
- * Starts the archive of one client: its whole register and clean evidence files as one zip (ADR M10-0002). The
- * reports page's `exportProgressAction` follows it to the download link. Works while the account is closing.
+ * Starts the archive of one client: its whole register and clean evidence files as one zip (ADR M10-0002).
+ * `archiveProgressAction` follows it to the download link. Works while the account is closing.
  */
 export async function startArchiveAction(clientId: string): Promise<ArchiveStart> {
   const parsed = Id.safeParse(clientId);
@@ -79,12 +92,27 @@ export async function startArchiveAction(clientId: string): Promise<ArchiveStart
     return { ok: true, id: data.id };
   } catch (error) {
     await redirectIfSignedOut(error);
-    if (isApiError(error, 'FORBIDDEN', 'ACCESS_EXPIRED')) {
-      return { ok: false, message: 'Only account admins can download a client’s data.' };
-    }
-    if (isApiError(error, 'RATE_LIMITED')) {
-      return { ok: false, message: 'Too many downloads at once. Wait a minute and try again.' };
-    }
-    return { ok: false, message: NOT_STARTED };
+    return { ok: false, message: archiveRefused(error, NOT_STARTED) };
+  }
+}
+
+/**
+ * Where an archive is; a finished one comes with its 5-minute download link, which is never logged (root rule 6).
+ * The reports page's `exportProgressAction` does the same with the reports' wording for a refusal.
+ */
+export async function archiveProgressAction(exportId: string): Promise<ArchiveProgress> {
+  const failed = 'The archive couldn’t be prepared. Try again.';
+  const parsed = Id.safeParse(exportId);
+  if (!parsed.success) return { status: 'failed', message: failed };
+  try {
+    const api = await sessionApi();
+    const { data } = await api.call('getExport', { params: { id: parsed.data } });
+    if (data.status === 'FAILED') return { status: 'failed', message: failed };
+    if (data.status !== 'DONE') return { status: 'pending' };
+    const { data: signed } = await api.call('exportDownloadUrl', { params: { id: parsed.data } });
+    return { status: 'ready', url: signed.url };
+  } catch (error) {
+    await redirectIfSignedOut(error);
+    return { status: 'failed', message: archiveRefused(error, failed) };
   }
 }

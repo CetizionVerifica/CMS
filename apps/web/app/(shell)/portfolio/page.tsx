@@ -8,6 +8,7 @@ import { NoPermission, PageEmpty, PageHeader } from '../../../lib/patterns';
 import { routeByPath, visibleTo } from '../../../lib/routes';
 import { homeHref } from '../../../lib/shell/model';
 import { loadShell } from '../../../lib/shell/server';
+import { AddClient } from './AddClient';
 import { PortfolioTable } from './PortfolioTable';
 import { portfolioItems, portfolioSummary } from './portfolio-model';
 
@@ -37,14 +38,21 @@ export default async function PortfolioPage() {
     rows,
     Object.fromEntries(model.clients.map((c) => [c.id, c.timeZone])),
   );
+  // Account admins add clients here; a support session looks but does not add (ADR M15-0001 decision 11).
+  const canAdd = model.roles.firm.includes('FIRM_ADMIN') && model.notice?.kind !== 'support';
   if (items.length === 0) {
     return (
       <>
         <PageHeader title="Portfolio" />
         <PageEmpty
           title="No clients yet"
-          body="Clients you are assigned to appear here with their score and overdue items."
+          body={
+            canAdd
+              ? 'Add your first client below. Each client then appears here with its score and overdue items.'
+              : 'Clients you are assigned to appear here with their score and overdue items.'
+          }
         />
+        {canAdd ? <AddClient /> : null}
       </>
     );
   }
@@ -52,6 +60,7 @@ export default async function PortfolioPage() {
     <>
       <PageHeader title="Portfolio" description={portfolioSummary(items)} />
       <PortfolioTable items={items} />
+      {canAdd ? <AddClient /> : null}
     </>
   );
 }

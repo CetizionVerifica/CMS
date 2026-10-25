@@ -85,6 +85,9 @@ describe('account actions', () => {
       params: { id: (started as { id: string }).id },
     });
     expect(job.kind).toBe('CLIENT_ARCHIVE_ZIP');
+    const id = (started as { id: string }).id;
+    const progress = await actions.archiveProgressAction(id);
+    expect(['pending', 'ready']).toContain(progress.status);
 
     // The demo's consultant acts as M0's firm admin, so an owner of the same client is the refused one.
     resetRequest();
@@ -93,12 +96,21 @@ describe('account actions', () => {
       ok: false,
       message: 'Only account admins can download a client’s data.',
     });
+    // A refusal partway through the wait gets the archive's wording, not the reports page's.
+    expect(await actions.archiveProgressAction(id)).toEqual({
+      status: 'failed',
+      message: 'Only account admins can download a client’s data.',
+    });
   });
 
   it('answers a client id that is not one without calling the API', async () => {
     expect(await actions.startArchiveAction('not-an-id')).toEqual({
       ok: false,
       message: 'The download didn’t start. Try again.',
+    });
+    expect(await actions.archiveProgressAction('not-an-id')).toEqual({
+      status: 'failed',
+      message: 'The archive couldn’t be prepared. Try again.',
     });
   });
 });

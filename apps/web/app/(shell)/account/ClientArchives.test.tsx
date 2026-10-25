@@ -3,12 +3,10 @@ import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const startArchiveAction = vi.fn();
-const exportProgressAction = vi.fn();
+const archiveProgressAction = vi.fn();
 vi.mock('./actions', () => ({
   startArchiveAction: (...args: unknown[]) => startArchiveAction(...args),
-}));
-vi.mock('../c/[clientId]/reports/actions', () => ({
-  exportProgressAction: (...args: unknown[]) => exportProgressAction(...args),
+  archiveProgressAction: (...args: unknown[]) => archiveProgressAction(...args),
 }));
 
 const { ClientArchives, ARCHIVE_POLL_TRIES } = await import('./ClientArchives');
@@ -21,14 +19,14 @@ const assign = vi.fn();
 
 beforeEach(() => {
   startArchiveAction.mockReset().mockResolvedValue({ ok: true, id: 'job-1' });
-  exportProgressAction.mockReset();
+  archiveProgressAction.mockReset();
   assign.mockReset();
   vi.stubGlobal('location', { ...window.location, assign });
 });
 
 describe('download your data', () => {
   it('starts one client’s archive, waits for it, then downloads it', async () => {
-    exportProgressAction
+    archiveProgressAction
       .mockResolvedValueOnce({ status: 'pending' })
       .mockResolvedValueOnce({ status: 'ready', url: 'https://files.test/archive.zip' });
     render(<ClientArchives clients={CLIENTS} closing={false} pollMs={0} />);
@@ -40,7 +38,7 @@ describe('download your data', () => {
     expect(
       await screen.findByText('The archive of Osprey Textiles Group is downloading.'),
     ).toBeTruthy();
-    expect(exportProgressAction).toHaveBeenCalledTimes(2);
+    expect(archiveProgressAction).toHaveBeenCalledTimes(2);
     expect(assign).toHaveBeenCalledWith('https://files.test/archive.zip');
   });
 
@@ -58,19 +56,19 @@ describe('download your data', () => {
       'Only account admins can download a client’s data.',
     );
 
-    exportProgressAction.mockResolvedValueOnce({
+    archiveProgressAction.mockResolvedValueOnce({
       status: 'failed',
-      message: 'The download couldn’t be prepared. Try again.',
+      message: 'The archive couldn’t be prepared. Try again.',
     });
     await userEvent.click(button);
-    expect(await screen.findByText('The download couldn’t be prepared. Try again.')).toBeTruthy();
+    expect(await screen.findByText('The archive couldn’t be prepared. Try again.')).toBeTruthy();
 
-    exportProgressAction.mockResolvedValue({ status: 'pending' });
+    archiveProgressAction.mockResolvedValue({ status: 'pending' });
     await userEvent.click(button);
     expect(
       await screen.findByText('The archive is taking too long. Try again in a few minutes.'),
     ).toBeTruthy();
-    expect(exportProgressAction).toHaveBeenCalledTimes(1 + ARCHIVE_POLL_TRIES);
+    expect(archiveProgressAction).toHaveBeenCalledTimes(1 + ARCHIVE_POLL_TRIES);
     expect(assign).not.toHaveBeenCalled();
   });
 
