@@ -10,6 +10,7 @@ import {
   populateFirm,
   populateIdempotency,
   populateIso,
+  populateIso2,
   populateSupport,
   type PopulatedFirm,
 } from './support/populate.js';
@@ -38,6 +39,8 @@ beforeAll(async () => {
   await populateSupport(t.db, b, 'b');
   await populateIso(t.db, a, 'a');
   await populateIso(t.db, b, 'b');
+  await populateIso2(t.db, a, 'a');
+  await populateIso2(t.db, b, 'b');
 }, 60_000);
 
 afterAll(async () => {

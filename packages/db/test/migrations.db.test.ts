@@ -12,6 +12,7 @@ import {
   populateFirm,
   populateIdempotency,
   populateIso,
+  populateIso2,
   populateSupport,
   type PopulatedFirm,
 } from './support/populate.js';
@@ -53,6 +54,9 @@ const POPULATE: Record<string, (t: TestDatabase) => Promise<void>> = {
   },
   '0040_iso_tables': async (t) => {
     for (const label of ['a', 'b'] as const) await populateIso(t.db, populated[label]!, label);
+  },
+  '0041_iso_tables_part_2': async (t) => {
+    for (const label of ['a', 'b'] as const) await populateIso2(t.db, populated[label]!, label);
   },
 };
 const populated: Record<string, PopulatedFirm> = {};
