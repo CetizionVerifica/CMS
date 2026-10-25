@@ -40,7 +40,7 @@ async function setFirmAFeatures(features: string[], isoCatalogueCopied?: boolean
 
 describe('the ISO routes', () => {
   it('are M16 routes behind the isoManagement switch, none of them public', () => {
-    expect(ISO_IDS.length).toBe(117);
+    expect(ISO_IDS.length).toBe(119);
     for (const id of ISO_IDS) {
       const ep = ENDPOINTS[id];
       expect(ep, id).toBe(ISO_ENDPOINTS[id]);
@@ -52,9 +52,55 @@ describe('the ISO routes', () => {
     }
   });
 
+  it('each name exactly one can() action, so the stub never unions two actions over one route', () => {
+    const many = ISO_IDS.filter((id) => ENDPOINTS[id].actions.length !== 1);
+    expect(many).toEqual([]);
+    // ISO-1a split the two routes that named two actions: the NC's work and its reassignment, the review's minutes and
+    // its plan.
+    const split = {
+      updateIsoNonconformity: ['PATCH', '/clients/{clientId}/iso/nonconformities/{id}'],
+      reassignIsoNonconformity: ['POST', '/clients/{clientId}/iso/nonconformities/{id}/reassign'],
+      updateIsoManagementReview: ['PATCH', '/clients/{clientId}/iso/management-reviews/{id}'],
+      replanIsoManagementReview: ['POST', '/clients/{clientId}/iso/management-reviews/{id}/replan'],
+    } as const;
+    for (const [id, [method, path]] of Object.entries(split)) {
+      const ep = ENDPOINTS[id as keyof typeof split];
+      expect([ep.method, ep.path], id).toEqual([method, path]);
+    }
+    expect(ENDPOINTS['updateIsoNonconformity'].actions).toEqual(['isoNc.work']);
+    expect(ENDPOINTS['updateIsoNonconformity'].roles).toEqual({
+      CLIENT_ADMIN: 'all',
+      OWNER: 'own',
+    });
+    expect(ENDPOINTS['reassignIsoNonconformity'].actions).toEqual(['isoNc.reassign']);
+    expect(ENDPOINTS['reassignIsoNonconformity'].roles).toEqual({
+      FIRM_ADMIN: 'all',
+      CONSULTANT: 'all',
+      CLIENT_ADMIN: 'all',
+    });
+    expect(ENDPOINTS['updateIsoManagementReview'].actions).toEqual(['isoReview.write']);
+    expect(ENDPOINTS['updateIsoManagementReview'].roles).toEqual({
+      FIRM_ADMIN: 'all',
+      CONSULTANT: 'all',
+      CLIENT_ADMIN: 'all',
+      APPROVER: 'own',
+      OWNER: 'own',
+    });
+    expect(ENDPOINTS['replanIsoManagementReview'].actions).toEqual(['isoReview.plan']);
+    expect(ENDPOINTS['replanIsoManagementReview'].roles).toEqual({
+      FIRM_ADMIN: 'all',
+      CONSULTANT: 'all',
+      CLIENT_ADMIN: 'all',
+    });
+  });
+
   it('are each called by an ISO suite', () => {
+    // This file names route ids in its table checks without calling them, so it does not count.
     const sources = readdirSync(new URL('.', import.meta.url))
-      .filter((name) => name.startsWith('iso-') && name.endsWith('.test.ts'))
+      .filter(
+        (name) =>
+          name.startsWith('iso-') && name.endsWith('.test.ts') && name !== 'iso-mock.test.ts',
+      )
       .map((name) => readFileSync(new URL(name, import.meta.url), 'utf8'))
       .join('\n');
     const missing = ISO_IDS.filter((id) => !new RegExp(`['"\`]${id}['"\`]`).test(sources));
@@ -88,8 +134,13 @@ describe('the switch', () => {
     );
     await ok(app, 'listIsoSystems', { headers: { 'x-mock-features': 'isoManagement' } });
     expect(firmB(app).features).toContain('isoManagement');
-    const bad = await call(app, 'listIsoSystems', { headers: { 'x-mock-features': 'Not A Flag' } });
-    expect(bad.status).toBe(400);
+    await fails(
+      app,
+      'listIsoSystems',
+      { headers: { 'x-mock-features': 'Not A Flag' } },
+      'VALIDATION',
+      400,
+    );
   });
 
   it('still checks the session first: no person is 401, not a feature error', async () => {

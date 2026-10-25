@@ -153,8 +153,8 @@ export function objectiveOnTrack(
  * - `progressPercent` is the way from `baseline` to `target` covered by it, 0-100 (null without a baseline or a
  *   reading); MAINTAIN, or a target equal to the baseline, is 100 when the reading meets the target, else 0;
  * - `onTrack` is `objectiveOnTrack`;
- * - `missedReadings` are the periods of `readingRule` that ended on or after the day it was created, start no later
- *   than `dueOn`, fell due before `asOf`, and no reading overlaps.
+ * - `missedReadings` are the periods of `readingRule` that fell due on or after the day it was created and before
+ *   `asOf`, ended on or after that day, start no later than `dueOn`, and no reading overlaps.
  */
 export function objectiveProgress(
   objective: Objective,
@@ -198,6 +198,23 @@ export function objectiveProgress(
     onTrack: objectiveOnTrack(objective, readings, asOf, client.timeZone),
     missedReadings,
   };
+}
+
+/**
+ * The incidents `incidentCounts` (model §5.1) counts, one rule for the systems overview and the INCIDENTS review
+ * figures: incident nonconformities, CANCELLED ones left out, whose `occurredAt` falls in [`from`, `to`] as a
+ * client-local day.
+ */
+export function incidentsIn<N extends Pick<IsoRow<'nonconformities'>, 'state' | 'incident'>>(
+  ncs: readonly N[],
+  period: { from: string; to: string },
+  timeZone: string,
+): N[] {
+  return ncs.filter((n) => {
+    if (n.incident === null || n.state === 'CANCELLED') return false;
+    const on = localDate(n.incident.occurredAt, timeZone);
+    return on >= period.from && on <= period.to;
+  });
 }
 
 /** External audit states in which the visit took place. */

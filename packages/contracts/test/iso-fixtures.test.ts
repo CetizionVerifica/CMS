@@ -32,6 +32,7 @@ import {
   RiskKind,
 } from '../src/schemas/iso.js';
 import { buildFirmBIso } from '../scripts/fixtures/firm-b-iso.js';
+import { buildIsoCatalogue } from '../scripts/fixtures/iso-catalogue.js';
 import {
   type App,
   BENGALURU,
@@ -75,6 +76,24 @@ const states = <T, K extends keyof T>(rows: readonly T[], field: K) =>
   [...new Set(rows.map((r) => r[field]))].sort();
 const instant = (date: string) => `${date}T23:59:59Z`;
 const AS_OF_END = instant(FIRM_B_AS_OF);
+
+describe('iso.catalogue.json', () => {
+  const file = JSON.parse(
+    readFileSync(new URL('../fixtures/iso.catalogue.json', import.meta.url), 'utf8'),
+  ) as unknown;
+
+  it('is what the generator writes', () => {
+    expect(JSON.parse(JSON.stringify(buildIsoCatalogue()))).toEqual(file);
+  });
+
+  it('has the 201 clauses of catalogue.md, 137 of them assessable', () => {
+    const { clauses } = loadIsoCatalogue();
+    const per = (code: IsoStandardCode) => clauses.filter((c) => c.standard === code).length;
+    expect(clauses).toHaveLength(201);
+    expect([per('ISO_9001'), per('ISO_14001'), per('ISO_45001')]).toEqual([94, 48, 59]);
+    expect(clauses.filter((c) => c.assessable)).toHaveLength(137);
+  });
+});
 
 describe('firm-b.iso.json', () => {
   it('is what the generator writes', () => {

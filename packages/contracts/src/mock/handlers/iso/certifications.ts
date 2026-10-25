@@ -13,6 +13,7 @@ import {
   checkSystemUnits,
   clauseOf,
   finishIsoScans,
+  forbidden,
   holdsRole,
   invalid,
   invalidTransition,
@@ -34,6 +35,7 @@ import {
 } from '../../iso/common.js';
 import { certificationCycle } from '../../iso/derive.js';
 import type { FirmState, IsoAuditEvent, IsoRow } from '../../store.js';
+import { patchIsoUnrecorded, raised as raiseEvent } from './nonconformities.js';
 
 type Ids =
   | 'listIsoCertifications'
@@ -279,14 +281,14 @@ const definedOf = <T extends object>(fields: T): Partial<T> =>
 const fieldsOf = (row: object): Record<string, unknown> =>
   Object.fromEntries(Object.entries(row).filter(([key]) => !BASE_FIELDS.includes(key)));
 
-/** Writes a new record and its CREATE event (model §8). */
+/** Writes a new record and its CREATE event (model §8), whose `after` is the record's own fields unless given. */
 function create<T extends { id: string; clientId: string }>(
   ctx: IsoCtx,
   actor: Actor,
   table: T[],
   row: T,
   entityType: IsoEntity,
-  extra: Record<string, unknown> = {},
+  after: Record<string, unknown> = fieldsOf(row),
 ): T {
   table.push(row);
   isoAudit(ctx, actor, {
@@ -294,16 +296,22 @@ function create<T extends { id: string; clientId: string }>(
     entityType,
     entityId: row.id,
     clientId: row.clientId,
-    after: { ...fieldsOf(row), ...extra },
+    after,
   });
   return row;
 }
 
 /**
- * Applies an external audit edit and audits it (model §8): moving the body's response deadline is a due-date change,
- * every other field an UPDATE. Nothing is written when nothing changed.
+ * Applies an external audit edit and audits it (model §8): moving the body's response deadline is a due-date change
+ * with the reason, every other field an UPDATE. Nothing is written when nothing changed.
  */
-function editAudit(ctx: IsoCtx, actor: Actor, audit: Audit, patch: Partial<Audit>): void {
+function editAudit(
+  ctx: IsoCtx,
+  actor: Actor,
+  audit: Audit,
+  patch: Partial<Audit>,
+  reason: string | null,
+): void {
   const changes = diff(audit, { ...audit, ...patch });
   const changed = Object.keys(changes.after);
   if (changed.length === 0) return;
@@ -322,6 +330,7 @@ function editAudit(ctx: IsoCtx, actor: Actor, audit: Audit, patch: Partial<Audit
       clientId: audit.clientId,
       before: Object.fromEntries(keys.map((k) => [k, changes.before[k]])),
       after: Object.fromEntries(keys.map((k) => [k, changes.after[k]])),
+      reason: action === 'UPDATE' ? null : reason,
     });
   }
 }
@@ -557,7 +566,7 @@ export const certificationsHandlers: PartialHandlers<Ids> = {
     const firm = actor.firm;
     const audit = requireAudit(actor, ctx.params.clientId, ctx.params.id);
     ctx.authorize(isoScope(actor, auditReach(firm, audit)));
-    const { version, ...fields } = ctx.body;
+    const { version, reason, ...fields } = ctx.body;
     checkIsoVersion(audit, version);
     if (!EDITABLE.includes(audit.state)) invalidTransition('external_audit', audit.state, 'UPDATE');
     const patch = definedOf(fields) as Partial<Audit>;
@@ -577,7 +586,7 @@ export const certificationsHandlers: PartialHandlers<Ids> = {
     } else {
       checkEnded(merged.endOn, ctx.clock.today());
     }
-    editAudit(ctx, actor, audit, patch);
+    editAudit(ctx, actor, audit, patch, reason ?? null);
     return auditView(actor, audit);
   },
 
@@ -672,7 +681,8 @@ export const certificationsHandlers: PartialHandlers<Ids> = {
 
   /**
    * Records a finding of a HELD visit. A MAJOR_NC or MINOR_NC raises its nonconformity in the same step (model §3.9)
-   * and links it; the nonconformity is audited as raised (CREATE with action RAISE).
+   * and links it; the nonconformity is audited as raised (CREATE with action RAISE). Neither event copies the
+   * description (non-negotiable 6), as on an internal audit.
    */
   createIsoExternalFinding(ctx) {
     const actor = actorOf(ctx);
@@ -694,18 +704,25 @@ export const certificationsHandlers: PartialHandlers<Ids> = {
     };
     if (nc !== null) {
       create(ctx, actor, firm.iso.nonconformities, nc, 'nonconformity', {
-        action: 'RAISE',
+        ...raiseEvent(nc),
         auditFindingId: finding.id,
       });
     }
-    create(ctx, actor, firm.iso.findings, finding, 'audit_finding');
+    create(ctx, actor, firm.iso.findings, finding, 'audit_finding', {
+      externalAuditId: audit.id,
+      type: finding.type,
+      clauseIds: finding.clauseIds,
+      unitId: finding.unitId,
+      nonconformityId: finding.nonconformityId,
+    });
     return finding;
   },
 
   /**
    * Changes a finding while its visit is HELD. `type` moves only among OBSERVATION, OFI and GOOD_PRACTICE (a finding
    * with live actions cannot become GOOD_PRACTICE), or between MAJOR_NC and MINOR_NC, when its nonconformity's
-   * severity follows (refused once that nonconformity is CLOSED or CANCELLED).
+   * severity follows: only while that nonconformity is OPEN or ROOT_CAUSE_FOUND (409 after) and never by its owner
+   * (403), model §3.9. A description edit is audited as changed, not copied.
    */
   updateIsoExternalFinding(ctx) {
     const actor = actorOf(ctx);
@@ -744,12 +761,26 @@ export const certificationsHandlers: PartialHandlers<Ids> = {
       }
       if (raised) {
         nc = firm.iso.nonconformities.find((n) => n.id === finding.nonconformityId)!;
-        if (nc.state === 'CLOSED' || nc.state === 'CANCELLED') {
+        // SUBMIT_NO_ACTION reads the severity, so its owner never moves it, and nobody after ROOT_CAUSE_FOUND.
+        if (nc.ownerId === actor.person.id) {
+          forbidden(
+            'isoCertification.write',
+            'You own its nonconformity, so someone else moves its type',
+          );
+        }
+        if (nc.state !== 'OPEN' && nc.state !== 'ROOT_CAUSE_FOUND') {
           invalidTransition('nonconformity', nc.state, 'UPDATE');
         }
       }
     }
-    patchIso(ctx, actor, finding, version, definedOf(fields) as Partial<Finding>, 'audit_finding');
+    patchIsoUnrecorded(
+      ctx,
+      actor,
+      finding,
+      version,
+      definedOf(fields) as Partial<Finding>,
+      'audit_finding',
+    );
     if (nc !== undefined) {
       patchIso(
         ctx,

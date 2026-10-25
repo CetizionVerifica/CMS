@@ -21,6 +21,11 @@ export interface HandlerContext<K extends EndpointId> {
   requestId: string;
   /** Null only on public endpoints. */
   actor: Actor | null;
+  /**
+   * `X-Mock-Features` when sent: the account's features for this request in place of the firm's. A signed-in actor
+   * already carries them; public routes that answer with `Me` (sign-in) read them here.
+   */
+  features?: string[];
   params: Record<string, string>;
   query: QueryOf<K>;
   body: BodyOf<K>;
