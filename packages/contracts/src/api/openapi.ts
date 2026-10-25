@@ -195,7 +195,8 @@ const CUSTOMER_DOCUMENT: DocumentOptions = {
   description:
     'Generated from @canopy/contracts; do not edit. Conventions: docs/contracts/api-conventions.md. ' +
     'Role permissions per operation are in x-canopy-roles (all, own, limited); a missing role is 403. ' +
-    'An operation with x-canopy-feature needs that add-on: 403 FEATURE_NOT_ENABLED without it.',
+    'An operation with x-canopy-feature needs that add-on: 403 FEATURE_NOT_ENABLED without it, and ' +
+    '409 FEATURE_NOT_READY while the account is still being set up for it.',
 };
 
 /** Operator session cookie (ADR M15-0001 decision 9); never valid on the customer API. */
@@ -264,9 +265,29 @@ export function buildOpenApi(
         headers: { 'X-Request-Id': { $ref: '#/components/headers/RequestId' } },
       };
     }
+    const error = { 'application/json': { schema: { $ref: `${SCHEMA_URI}Error` } } };
+    if (ep.feature !== undefined) {
+      // The add-on gate answers before the handler (api-conventions.md §5, docs/iso/plan.md §4.3); the handler's own
+      // 403 and 409 codes share the status.
+      const write = ep.method !== 'GET';
+      responses['403'] = {
+        description:
+          `FEATURE_NOT_ENABLED { feature } when the account does not have ${ep.feature}; ` +
+          'otherwise FORBIDDEN { action } or another 403 code of api-conventions.md §5.',
+        content: error,
+      };
+      responses['409'] = {
+        description:
+          `FEATURE_NOT_READY { feature } while ${ep.feature} is on but not set up yet` +
+          (write
+            ? '; otherwise STALE_VERSION, INVALID_TRANSITION or DUPLICATE (api-conventions.md §5).'
+            : '.'),
+        content: error,
+      };
+    }
     responses.default = {
       description: 'Error envelope (api-conventions.md §4-5); clients branch on error.code.',
-      content: { 'application/json': { schema: { $ref: `${SCHEMA_URI}Error` } } },
+      content: error,
     };
 
     const params: JsonObject[] = [];

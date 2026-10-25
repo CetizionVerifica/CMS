@@ -234,6 +234,6 @@ export const accountHandlers: PartialHandlers<
     session.expiresAt = cap < grant.endsAt ? cap : grant.endsAt;
     session.capped = true;
     ctx.setSession(session);
-    return me(firm, person, session, ctx.clock);
+    return me(firm, person, session, ctx.clock, ctx.features ?? firm.features);
   },
 };

@@ -25,7 +25,6 @@ import {
   checkSystemUnits,
   daysFrom,
   forbidden,
-  holdsRole,
   invalid,
   invalidTransition,
   type IsoCtx,
@@ -49,6 +48,7 @@ type Ids =
   | 'raiseIsoNonconformity'
   | 'getIsoNonconformity'
   | 'updateIsoNonconformity'
+  | 'reassignIsoNonconformity'
   | 'addIsoNcRootCause'
   | 'planIsoNcActions'
   | 'submitIsoNcNoAction'
@@ -83,9 +83,8 @@ const LOCKED_NC: readonly Nc['state'][] = ['CLOSED', 'CANCELLED'];
 const OWNER_ROLES: readonly Role[] = ['OWNER', 'CLIENT_ADMIN'];
 /** People who may approve a nonconformity: those `isoNc.verify` lets act. */
 const APPROVER_ROLES: readonly Role[] = ['APPROVER', 'CLIENT_ADMIN'];
-const MANAGERS: readonly Role[] = ['FIRM_ADMIN', 'CONSULTANT', 'CLIENT_ADMIN'];
-/** Fields whose change is a reassignment or due-date change (`isoNc.reassign`, with a reason). */
-const REASSIGN_FIELDS = ['ownerId', 'approverId', 'dueOn', 'effectivenessDueOn'] as const;
+/** States in which `isoNc.reassign` may still change the severity and the incident outcome (model §3.10). */
+const SEVERITY_STATES: readonly Nc['state'][] = ['OPEN', 'ROOT_CAUSE_FOUND'];
 /** What ADD_ROOT_CAUSE needs (model §4.1; the stored shape also needs the method). */
 const ROOT_CAUSE_FIELDS = [
   'containment',
@@ -249,6 +248,34 @@ function noActionRefusals(firm: FirmState, nc: Nc): Issue[] {
     });
   }
   return issues;
+}
+
+/**
+ * Whether the nonconformity waits for verification after SUBMIT_NO_ACTION rather than SUBMIT (the later of the two in
+ * its trail, or its `noActionReason` for a row with neither), so VERIFY_EFFECTIVE would close it with no action.
+ */
+function submittedWithoutAction(firm: FirmState, nc: Nc): boolean {
+  if (nc.state !== 'AWAITING_VERIFICATION' || nc.noActionReason === null) return false;
+  const submit = lastStep(firm, nc, ['SUBMIT', 'SUBMIT_NO_ACTION']);
+  return submit === null || stepOf(firm.isoAuditEvents[submit.index]!) === 'SUBMIT_NO_ACTION';
+}
+
+/**
+ * VERIFY_EFFECTIVE closes a nonconformity submitted with no action only while it still meets the SUBMIT_NO_ACTION rule
+ * (model §4.1; 400). No route changes what that rule reads after ROOT_CAUSE_FOUND (severity and the incident outcome
+ * are locked, §3.10), so this guards rows changed outside these routes.
+ */
+function checkStillNoAction(firm: FirmState, nc: Nc): void {
+  if (!submittedWithoutAction(firm, nc)) return;
+  const refusals = noActionRefusals(firm, nc);
+  if (refusals.length > 0) {
+    invalidAll(
+      refusals.map((i) => ({
+        path: i.path,
+        message: `${i.message}, and it was submitted with none: VERIFY_NOT_EFFECTIVE sends it back`,
+      })),
+    );
+  }
 }
 
 // ---------- nonconformities: derived values ----------
@@ -449,9 +476,6 @@ function checkNcChanges(actor: Actor, nc: Nc, next: Nc, today: string): void {
   if (changed('standards') || changed('clauseIds')) {
     checkStandards(firm, system, next.standards, next.clauseIds);
   }
-  if (changed('severity') && findingOf(firm, nc) !== undefined) {
-    invalid('severity', "The finding's type sets the severity: change the finding instead");
-  }
   if (unitMoved || changed('ownerId')) {
     checkPerson(actor, clientId, next.ownerId, 'ownerId', next.unitId, OWNER_ROLES);
   }
@@ -587,11 +611,77 @@ function backToChange(
 const EDIT_GROUPS: [IsoAuditEvent['action'], (key: string) => boolean][] = [
   ['REASSIGN', (k) => k === 'ownerId' || k === 'approverId'],
   ['DUE_DATE_CHANGE', (k) => k === 'dueOn' || k === 'effectivenessDueOn'],
-  ['UPDATE', (k) => !(REASSIGN_FIELDS as readonly string[]).includes(k)],
+  ['UPDATE', (k) => !['ownerId', 'approverId', 'dueOn', 'effectivenessDueOn'].includes(k)],
 ];
 
-/** The RAISE event's `after`: no description and no incident detail beyond its kind (model §3.11, §8). */
-function raised(nc: Nc): Record<string, unknown> {
+const NOT_RECORDED = '[not recorded]';
+
+/**
+ * Free text that can name people, the description (of a nonconformity or the audit finding it copies) and an
+ * incident's location, is noted as changed and never copied into an audit event (non-negotiable 6), as `raised` and
+ * a finding's CREATE leave it out.
+ */
+function unrecorded(key: string, value: unknown): unknown {
+  if (value === null || value === undefined) return value;
+  if (key === 'description') return NOT_RECORDED;
+  if (key === 'incident') return { ...(value as Record<string, unknown>), location: NOT_RECORDED };
+  return value;
+}
+
+/** `patchIso` with the UPDATE event's free text `unrecorded`: the internal and external audit finding edits. */
+export function patchIsoUnrecorded<
+  T extends { id: string; clientId: string; version: number; updatedAt: string },
+>(ctx: IsoCtx, actor: Actor, row: T, version: number, patch: Partial<T>, entityType: IsoEntity): T {
+  checkIsoVersion(row, version);
+  const set = defined(patch);
+  const changes = diff({ ...row } as Record<string, unknown>, { ...row, ...set });
+  const keys = Object.keys(changes.after);
+  if (keys.length === 0) return row;
+  Object.assign(row, set);
+  touchIso(ctx, row);
+  isoAudit(ctx, actor, {
+    action: 'UPDATE',
+    entityType,
+    entityId: row.id,
+    clientId: row.clientId,
+    before: Object.fromEntries(keys.map((k) => [k, unrecorded(k, changes.before[k])])),
+    after: Object.fromEntries(keys.map((k) => [k, unrecorded(k, changes.after[k])])),
+  });
+  return row;
+}
+
+/**
+ * Checks and saves an edit of the nonconformity's fields, one audit event per EDIT_GROUPS group with `reason`
+ * (`isoNc.reassign` always has one); an edit that changes nothing writes nothing.
+ */
+function saveNcEdit(ctx: IsoCtx, actor: Actor, nc: Nc, next: Nc, reason: string | null): NcOut {
+  checkNcChanges(actor, nc, next, ctx.clock.today());
+  const changes = diff(nc, next);
+  const changed = Object.keys(changes.after);
+  if (changed.length === 0) return ncView(ctx, actor, nc);
+  Object.assign(nc, next);
+  touchIso(ctx, nc);
+  for (const [action, belongs] of EDIT_GROUPS) {
+    const group = changed.filter(belongs);
+    if (group.length === 0) continue;
+    isoAudit(ctx, actor, {
+      action,
+      entityType: 'nonconformity',
+      entityId: nc.id,
+      clientId: nc.clientId,
+      before: Object.fromEntries(group.map((k) => [k, unrecorded(k, changes.before[k])])),
+      after: Object.fromEntries(group.map((k) => [k, unrecorded(k, changes.after[k])])),
+      reason,
+    });
+  }
+  return ncView(ctx, actor, nc);
+}
+
+/**
+ * The RAISE event's `after`: no description and no incident detail beyond its kind (model §3.11, §8). An external
+ * finding's nonconformity adds `auditFindingId`.
+ */
+export function raised(nc: Nc): Record<string, unknown> {
   return {
     action: 'RAISE',
     number: nc.number,
@@ -1088,60 +1178,63 @@ export const nonconformitiesHandlers: PartialHandlers<Ids> = {
   },
 
   /**
-   * Field edits until CLOSED or CANCELLED. Investigation fields are `isoNc.work` (CA, or OW as its owner); owner,
-   * approver, `dueOn` and `effectivenessDueOn` are `isoNc.reassign` (FA, CO, CA) with a reason, audited as REASSIGN
-   * and DUE_DATE_CHANGE (model §8).
+   * Investigation field edits until CLOSED or CANCELLED (`isoNc.work`: CA, or OW as its owner), audited as UPDATE with
+   * the description and incident location left out (non-negotiable 6). The incident outcome is the reassign route's;
+   * `lostDays` changes here while the outcome stays LOST_TIME.
    */
   updateIsoNonconformity(ctx) {
     const actor = actorOf(ctx);
-    const firm = actor.firm;
     const nc = requireNc(actor, ctx.params);
-    const reach = ncReach(firm, nc);
-    ctx.authorize(isoScope(actor, reach, { ownerId: nc.ownerId }));
-    const { version, reason, incident, ...fields } = ctx.body;
-    const set = defined(fields);
-    const keys = Object.keys(set);
-    const reassigns = keys.some((k) => (REASSIGN_FIELDS as readonly string[]).includes(k));
-    const works =
-      incident !== undefined ||
-      keys.some((k) => !(REASSIGN_FIELDS as readonly string[]).includes(k));
-    if (reassigns && !holdsRole(actor, nc.clientId, MANAGERS, reach.unitIds)) {
-      forbidden('isoNc.reassign', 'Only a manager changes the owner, approver or dates');
-    }
-    if (
-      works &&
-      !may(actor, 'addIsoNcRootCause', isoScope(actor, reach, { ownerId: nc.ownerId }))
-    ) {
-      forbidden('isoNc.work', "Only the nonconformity's owner or a client admin works on it");
-    }
+    ctx.authorize(isoScope(actor, ncReach(actor.firm, nc), { ownerId: nc.ownerId }));
+    const { version, incident, ...fields } = ctx.body;
     checkIsoVersion(nc, version);
     if (LOCKED_NC.includes(nc.state)) invalidTransition('nonconformity', nc.state, 'UPDATE');
-    const next: Nc = { ...nc, ...set };
+    const next: Nc = { ...nc, ...defined(fields) };
     if (incident !== undefined) {
       if (nc.incident === null)
         invalid('incident', 'Only an INCIDENT or NEAR_MISS has incident fields');
       next.incident = { ...nc.incident, ...defined(incident) };
     }
-    checkNcChanges(actor, nc, next, ctx.clock.today());
-    const changes = diff(nc, next);
-    const changed = Object.keys(changes.after);
-    if (changed.length === 0) return ncView(ctx, actor, nc);
-    Object.assign(nc, next);
-    touchIso(ctx, nc);
-    for (const [action, belongs] of EDIT_GROUPS) {
-      const group = changed.filter(belongs);
-      if (group.length === 0) continue;
-      isoAudit(ctx, actor, {
-        action,
-        entityType: 'nonconformity',
-        entityId: nc.id,
-        clientId: nc.clientId,
-        before: Object.fromEntries(group.map((k) => [k, changes.before[k]])),
-        after: Object.fromEntries(group.map((k) => [k, changes.after[k]])),
-        reason: action === 'UPDATE' ? null : (reason ?? null),
-      });
+    return saveNcEdit(ctx, actor, nc, next, null);
+  },
+
+  /**
+   * `isoNc.reassign` (FA, CO, CA) until CLOSED or CANCELLED, with a reason: owner and approver (REASSIGN), `dueOn` and
+   * `effectivenessDueOn` (DUE_DATE_CHANGE), and severity and the incident outcome (UPDATE) while OPEN or
+   * ROOT_CAUSE_FOUND (model §3.10). In any open state, before that window, a finding's nonconformity refuses severity
+   * and one with no incident (a finding's among them) refuses an outcome (400); CLOSED or CANCELLED is 409 first. `lostDays` moves with the outcome only.
+   */
+  reassignIsoNonconformity(ctx) {
+    const actor = actorOf(ctx);
+    const nc = requireNc(actor, ctx.params);
+    ctx.authorize(isoScope(actor, ncReach(actor.firm, nc)));
+    const { version, reason, incident, ...fields } = ctx.body;
+    checkIsoVersion(nc, version);
+    if (LOCKED_NC.includes(nc.state)) invalidTransition('nonconformity', nc.state, 'UPDATE');
+    const next: Nc = { ...nc, ...defined(fields) };
+    if (incident !== undefined) {
+      if (nc.incident === null)
+        invalid('incident', 'Only an INCIDENT or NEAR_MISS has incident fields');
+      const lostDays = incident.lostDays ?? null;
+      if (incident.outcome === nc.incident.outcome && lostDays !== nc.incident.lostDays) {
+        invalidAll([
+          {
+            path: 'incident.lostDays',
+            message: 'lostDays changes on the PATCH while the outcome stays LOST_TIME',
+          },
+        ]);
+      }
+      next.incident = { ...nc.incident, outcome: incident.outcome, lostDays };
     }
-    return ncView(ctx, actor, nc);
+    const severityMoved = next.severity !== nc.severity;
+    if (severityMoved && findingOf(actor.firm, nc) !== undefined) {
+      invalid('severity', "The finding's type sets the severity: change the finding instead");
+    }
+    const outcomeMoved = next.incident?.outcome !== nc.incident?.outcome;
+    if ((severityMoved || outcomeMoved) && !SEVERITY_STATES.includes(nc.state)) {
+      invalidTransition('nonconformity', nc.state, 'UPDATE');
+    }
+    return saveNcEdit(ctx, actor, nc, next, reason);
   },
 
   /**
@@ -1280,7 +1373,10 @@ export const nonconformitiesHandlers: PartialHandlers<Ids> = {
     return ncView(ctx, actor, nc);
   },
 
-  /** VERIFY_EFFECTIVE (AWAITING_VERIFICATION → CLOSED): the approver, not before `effectivenessDueOn`. */
+  /**
+   * VERIFY_EFFECTIVE (AWAITING_VERIFICATION → CLOSED): the approver, not before `effectivenessDueOn`; after
+   * SUBMIT_NO_ACTION, only while the no-action rule still holds.
+   */
   verifyIsoNcEffective(ctx) {
     const actor = actorOf(ctx);
     const nc = requireNc(actor, ctx.params);
@@ -1288,6 +1384,7 @@ export const nonconformitiesHandlers: PartialHandlers<Ids> = {
     const today = ctx.clock.today();
     checkFrom(nc, ctx.body.version, 'VERIFY_EFFECTIVE', ['AWAITING_VERIFICATION']);
     checkChecker(actor, nc);
+    checkStillNoAction(actor.firm, nc);
     if (nc.effectivenessDueOn !== null && today < nc.effectivenessDueOn) {
       invalid('effectivenessDueOn', `Effectiveness is verified from ${nc.effectivenessDueOn}`);
     }

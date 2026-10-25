@@ -11,8 +11,9 @@ Owner: M0. Applies to every endpoint in `endpoints.md`. Types are in `domain-mod
 - `asOf` for derived status defaults to today in the client's time zone; read endpoints accept `?asOf=YYYY-MM-DD` (FIRM_ADMIN, CONSULTANT, VIEWER only) for "as at" reporting.
 - Mock server only (`@canopy/contracts` mock, never the real API): `X-Mock-Person` (a person id or email) signs a
   request in without a session; `X-Mock-Features` (comma-separated feature flags, empty = none) replaces the account's
-  features for that one request, `Me.account.features` and the add-on gate included, so a demo user can be played
-  without an add-on; anything but camelCase flags is `400 VALIDATION`. `PUT /__mock/firms/{firmId}/features`
+  features for that one request on every route, public ones too (sign-in and support verify return them in
+  `Me.account.features`), the add-on gate included, so a demo user can be played without an add-on; anything but
+  camelCase flags is `400 VALIDATION`. `PUT /__mock/firms/{firmId}/features`
   `{ features, isoCatalogueCopied? }` stands in for the console's switches until the next reset. The other `/__mock/*`
   routes are in `packages/contracts/README.md` and `docs/contracts/README.md` decisions 33-41 and 49.
 
@@ -22,7 +23,8 @@ Owner: M0. Applies to every endpoint in `endpoints.md`. Types are in `domain-mod
   pattern, `POST /clients/{clientId}/iso/<records>/{id}/<step>` with `version` (endpoints.md §10).
 - `Idempotency-Key` header (UUID) is honoured on transitions, bulk approve, import commit and export creation for 24 h: a repeat with the same key returns the first response.
   The same holds for the ISO machine steps (raising a nonconformity and planning a management review included), a
-  risk item's review and closing an objective; `ENDPOINTS` marks each route that honours it (`idempotent`).
+  risk item's review, closing an objective, a nonconformity's reassign and a management review's replan; `ENDPOINTS`
+  marks each route that honours it (`idempotent`).
 - Writes respond with the full updated resource (so the client never refetches to learn the new `version`).
 - Archive = `POST /<resource>/{id}/archive` (with `reason`); restore = `POST /<resource>/{id}/restore`. There is no `DELETE` except removing evidence from an instance, which archives it. An ISO file is removed with
   `POST /clients/{clientId}/iso/files/{id}/remove` and a reason, which archives it too.
@@ -45,7 +47,8 @@ Saved views store exactly this query string, so a view, a dashboard link and an 
 `source` (`ActivitySource`, contracts 1.8.0): `LAW` lists instances of STATUTE acts, `ISO` instances of STANDARD acts
 (the ISO add-on's activities); absent lists both. The register, the register export, `/me/approvals`, `/me/tasks`, the
 evidence vault and the calendar take it. It means something only while the account has the ISO add-on: without it
-STANDARD instances are left out anyway, so `source=ISO` lists nothing. Scores, KPIs, breakdowns and reports always
+STANDARD instances are left out and `source` is ignored, so every list is the statutory one whatever `source` says
+(`source=ISO` is not an error and does not empty the list). Scores, KPIs, breakdowns and reports always
 count STATUTE acts only, and a portfolio row's `dueThisWeekFilter` carries `source: 'LAW'` while the add-on is on, so a
 number always equals the list its link opens (`docs/iso/plan.md` §4.6).
 

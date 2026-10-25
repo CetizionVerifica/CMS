@@ -1040,6 +1040,135 @@ describe('audit and outbox', () => {
     ).toBe(0);
   });
 
+  it('keys an ISO reminder on its subject, apart from the instance, digest and other ISO sends', async () => {
+    const actionA = '01920000-0000-7000-8000-0000000150a1';
+    const actionB = '01920000-0000-7000-8000-0000000150a2';
+    const iso = {
+      clientId: world.clientId,
+      instanceId: null,
+      recipientId: world.ownerId,
+      kind: 'ISO_ACTION_DUE' as const,
+      sendDate: '2022-09-01' as never,
+      isoSubjectType: 'iso_action' as const,
+      isoSubjectId: actionA,
+    };
+    const other = { ...iso, isoSubjectId: actionB };
+    // Two ISO subjects due the same day for one recipient are two rows.
+    expect(await inA((tx) => r.notificationSends.claim(tx, iso))).toBe('NEW');
+    expect(await inA((tx) => r.notificationSends.claim(tx, other))).toBe('NEW');
+    // Marking one leaves the other PENDING, and claim reports each row's own state.
+    await inA((tx) => r.notificationSends.markSent(tx, iso, '2022-09-01T04:00:00.000Z'));
+    expect(await inA((tx) => r.notificationSends.claim(tx, iso))).toBe('DONE');
+    expect(await inA((tx) => r.notificationSends.claim(tx, other))).toBe('PENDING');
+    // The same id under another entity type is another subject.
+    expect(
+      await inA((tx) =>
+        r.notificationSends.claim(tx, {
+          ...iso,
+          kind: 'ISO_REVIEW_DUE',
+          isoSubjectType: 'risk_item',
+        }),
+      ),
+    ).toBe('NEW');
+    expect(
+      await inA((tx) =>
+        r.notificationSends.claim(tx, {
+          ...iso,
+          kind: 'ISO_REVIEW_DUE',
+          isoSubjectType: 'controlled_document',
+        }),
+      ),
+    ).toBe('NEW');
+    // A digest for the same recipient and day does not collide with the ISO rows, and the ISO rows' outcomes never
+    // mark it.
+    const digest = {
+      clientId: world.clientId,
+      instanceId: null,
+      recipientId: world.ownerId,
+      kind: 'CONSULTANT_DIGEST' as const,
+      sendDate: '2022-09-01' as never,
+    };
+    expect(await inA((tx) => r.notificationSends.claim(tx, digest))).toBe('NEW');
+    await inA((tx) => r.notificationSends.markFailed(tx, other, 'NO_EMAIL'));
+    expect(await inA((tx) => r.notificationSends.claim(tx, digest))).toBe('PENDING');
+    // An ISO send to that consultant on digest day is not the day's digest.
+    expect(await inA((tx) => r.notificationSends.listDoneDigests(tx, '2022-09-01'))).toEqual([]);
+    // listDone keeps the statutory keys; listDoneIso returns each ISO send with its subject.
+    expect(
+      await inA((tx) => r.notificationSends.listDone(tx, world.clientId, '2022-09-01')),
+    ).toEqual([]);
+    expect(
+      await inA((tx) => r.notificationSends.listDoneIso(tx, world.clientId, '2022-09-01')),
+    ).toEqual([
+      { ...iso, sendDate: '2022-09-01' },
+      { ...other, sendDate: '2022-09-01' },
+    ]);
+    await inA((tx) => r.notificationSends.markSent(tx, digest, '2022-09-01T05:00:00.000Z'));
+    expect(await inA((tx) => r.notificationSends.listDoneDigests(tx, '2022-09-01'))).toEqual([
+      world.ownerId,
+    ]);
+    expect(
+      (await inA((tx) => r.notificationSends.listDone(tx, world.clientId, '2022-09-01'))).map(
+        (k) => k.kind,
+      ),
+    ).toEqual(['CONSULTANT_DIGEST']);
+    // Firm B sees none of firm A's ISO sends.
+    expect(
+      await inB((tx) => r.notificationSends.listDoneIso(tx, world.clientId, '2022-09-01')),
+    ).toEqual([]);
+
+    // An ISO reminder names its subject, type and id, one client and no instance or event; no other send names one.
+    const [first] = await inA((tx) => r.instances.forAssignment(tx, world.assignmentId));
+    for (const bad of [
+      { ...iso, isoSubjectType: null },
+      { ...iso, isoSubjectId: undefined },
+      { ...iso, instanceId: first!.id },
+      { ...iso, eventId: '01920000-0000-7000-8000-00000000e150' },
+      { ...iso, clientId: null },
+      { ...iso, isoSubjectType: 'firm' as never },
+      { ...iso, isoSubjectId: null, isoSubjectType: null },
+      { ...digest, isoSubjectType: 'iso_action' as const, isoSubjectId: actionA },
+    ]) {
+      expect(await code(inA((tx) => r.notificationSends.claim(tx, bad)))).toBe('VALIDATION');
+    }
+    // The database holds the same rules.
+    const insert = (cols: string, values: string, params: unknown[]) =>
+      t.ownerQuery(
+        `INSERT INTO notification_send (firm_id, client_id, recipient_id, send_date, ${cols})
+         VALUES ($1, $2, $3, '2022-09-02', ${values})`,
+        [firmA, world.clientId, world.ownerId, ...params],
+      );
+    for (const [cols, values, params] of [
+      // both an instance and an ISO subject
+      [
+        'instance_id, kind, iso_subject_type, iso_subject_id',
+        "$4, 'ISO_ACTION_DUE', 'iso_action', $5",
+        [first!.id, actionA],
+      ],
+      // an ISO subject without its type
+      ['kind, iso_subject_id', "'ISO_ACTION_DUE', $4", [actionA]],
+      // an ISO kind without a subject
+      ['kind', "'ISO_ACTION_DUE'", []],
+      // a statutory kind with an ISO subject
+      [
+        'kind, iso_subject_type, iso_subject_id',
+        "'CONSULTANT_DIGEST', 'iso_action', $4",
+        [actionA],
+      ],
+    ] as const) {
+      await expect(insert(cols, values, [...params])).rejects.toThrow(
+        /notification_send_iso_subject_check/,
+      );
+    }
+    await expect(
+      t.ownerQuery(
+        `INSERT INTO notification_send (firm_id, recipient_id, kind, send_date, iso_subject_type, iso_subject_id)
+         VALUES ($1, $2, 'ISO_ACTION_DUE', '2022-09-02', 'iso_action', $3)`,
+        [firmA, world.ownerId, actionA],
+      ),
+    ).rejects.toThrow(/notification_send_(client|iso_subject)_check/);
+  });
+
   it('export jobs keep the storage key out of the contract shape', async () => {
     const job = await inA((tx) =>
       r.exportJobs.create(tx, {
@@ -1361,31 +1490,106 @@ describe('ISO library columns (ADR M16-0001)', () => {
     ).rejects.toMatchObject({ code: '23514' });
   });
 
-  it('keeps clause references out of obligations until the contract carries their standard', async () => {
-    await inA(async (tx) => {
+  it('reads and writes clause references in the contract shape', async () => {
+    const stored = await inA(async (tx) => {
       const obligation = await r.obligations.require(tx, world.obligationId);
-      expect(obligation).not.toHaveProperty('clauseRefs');
-      // Until the repository maps clause references (ISO-2b), a non-empty clauseRefs is refused, not stored. The cast
-      // keeps this compiling on contracts 1.7.0 (bare numbers) and 1.8.0 ({ standard, clauseNumber } objects).
-      expect(
-        await code(
-          r.obligations.update(tx, obligation.id, obligation.version, {
-            clauseRefs: [{ standard: 'ISO_9001', clauseNumber: '7.1.5' }],
-          } as never),
-        ),
-      ).toBe('VALIDATION');
-      expect(await code(r.obligations.query(tx, { where: { clauseRefs: [] } }))).toBe('VALIDATION');
-      const same = await r.obligations.update(tx, obligation.id, obligation.version, {
-        clauseRefs: [],
-        title: 'Deposit TDS by the 7th',
+      // Stored as [] by default, and always read back.
+      expect(obligation.clauseRefs).toEqual([]);
+      const refs = [
+        { standard: 'ISO_9001' as const, clauseNumber: '7.1.5' },
+        { standard: 'ISO_14001' as const, clauseNumber: '9.1.1' },
+      ];
+      const updated = await r.obligations.update(tx, obligation.id, obligation.version, {
+        clauseRefs: refs,
       });
-      expect(same.title).toBe('Deposit TDS by the 7th');
+      expect(updated.clauseRefs).toEqual(refs);
+      expect((await r.obligations.require(tx, obligation.id)).clauseRefs).toEqual(refs);
+      return updated;
+    });
+    // A repeated pair is refused (the table's check backs the contract's rule).
+    expect(
+      await code(
+        inA((tx) =>
+          r.obligations.update(tx, stored.id, stored.version, {
+            clauseRefs: [stored.clauseRefs![0]!, stored.clauseRefs![0]!],
+          }),
+        ),
+      ),
+    ).toBe('VALIDATION');
+    await inA(async (tx) => {
+      const updated = stored;
+      const cleared = await r.obligations.update(tx, updated.id, updated.version, {
+        clauseRefs: [],
+      });
+      expect(cleared.clauseRefs).toEqual([]);
     });
     const { rows } = await t.ownerQuery<{ clause_refs: unknown }>(
       'SELECT clause_refs FROM obligation WHERE id = $1',
       [world.obligationId],
     );
     expect(rows).toEqual([{ clause_refs: [] }]);
+  });
+
+  it('lets only the system job create a STANDARD act, and never changes an act’s kind', async () => {
+    const consultant: TenantContext = {
+      firmId: firmA,
+      personId: world.approverId,
+      clientIds: [world.clientId],
+      firmStaff: true,
+      requestId: 'repo-test',
+    };
+    const firmAdmin: TenantContext = { ...consultant, clientIds: 'ALL' };
+    const named = { ...standardAct, name: 'Environmental management systems (ISO 14001)' };
+    for (const ctx of [consultant, firmAdmin]) {
+      expect(
+        await code(t.db.withTenant(ctx, (tx) => r.acts.create(tx, { ...named, kind: 'STANDARD' }))),
+      ).toBe('FORBIDDEN');
+      // A STATUTE act is staff work as before, with or without the kind.
+      const statute = await t.db.withTenant(ctx, (tx) =>
+        r.acts.create(tx, {
+          ...named,
+          name: `A firm statute (${ctx.clientIds === 'ALL' ? 1 : 2})`,
+        }),
+      );
+      expect(statute.kind).toBe('STATUTE');
+    }
+    // The system job may, and a STATUTE act may share the STANDARD act's name; two of one kind may not.
+    const standard = await inA((tx) => r.acts.create(tx, { ...named, kind: 'STANDARD' }));
+    const statute = await inA((tx) => r.acts.create(tx, { ...named, kind: 'STATUTE' }));
+    expect([standard.kind, statute.kind]).toEqual(['STANDARD', 'STATUTE']);
+    expect(await code(inA((tx) => r.acts.create(tx, { ...named, kind: 'STANDARD' })))).toBe(
+      'DUPLICATE',
+    );
+    expect(await code(inA((tx) => r.acts.create(tx, named)))).toBe('DUPLICATE');
+    // Archived, the name is free again within its kind.
+    await inA((tx) => r.acts.archive(tx, statute.id, statute.version));
+    await inA((tx) => r.acts.create(tx, named));
+
+    // No context changes the kind, either way: not the system job, not firm staff, not the table owner.
+    for (const [ctx, act, kind] of [
+      [ctxA(), standard, 'STATUTE'],
+      [firmAdmin, standard, 'STATUTE'],
+      [ctxA(), await inA((tx) => r.acts.require(tx, world.actId)), 'STANDARD'],
+    ] as const) {
+      expect(
+        await code(
+          t.db.withTenant(ctx, (tx) => r.acts.update(tx, act.id, act.version, { kind } as never)),
+        ),
+      ).toBe('VALIDATION');
+    }
+    await expect(
+      t.ownerQuery(`UPDATE act SET kind = 'STATUTE' WHERE id = $1`, [standard.id]),
+    ).rejects.toMatchObject({ code: '23514' });
+    // Setting the same kind again is not a change.
+    const same = await inA((tx) =>
+      r.acts.update(tx, standard.id, standard.version, {
+        kind: 'STANDARD',
+        shortName: 'ISO 14001',
+      }),
+    );
+    expect(same).toMatchObject({ kind: 'STANDARD', shortName: 'ISO 14001' });
+    // Firm B cannot see firm A's STANDARD act.
+    expect(await inB((tx) => r.acts.get(tx, standard.id))).toBeNull();
   });
 
   it('stores clause references only as { standard, clauseNumber } objects', async () => {

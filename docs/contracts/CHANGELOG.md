@@ -197,3 +197,31 @@ them (403 without the feature, 409 before the copy), honours `X-Mock-Features` p
 `PUT /__mock/firms/{firmId}/features`, applies the off switch and `source` on core routes, and counts STATUTE acts only
 in every statutory figure; `iso-mock.md` lists the rules it picked where the model is silent. README decisions 42-51,
 including the departures from the model and plan.
+
+## 1.8.1 · 2026-10-25
+ISO-1a: the fixes from the 1.8.0 audit, before M16 builds the nonconformity and management review routes. Nothing
+provides or calls an ISO route yet, so the shapes that narrow do not break a module. Every ISO route now has one
+action (README decision 51 o): `PATCH /nonconformities/{id}` is `isoNc.work` (CA, OW own) with the investigation
+fields only, and the new `POST /nonconformities/{id}/reassign` (`NcReassignBody`) is `isoNc.reassign` (FA, CO, CA)
+for owner, approver, `dueOn`, `effectivenessDueOn`, severity and the incident outcome (with `lostDays` when it moves
+to or from LOST_TIME), always with a reason; severity and outcome change only while OPEN or ROOT_CAUSE_FOUND, and
+severity never on a finding's nonconformity. A finding's MAJOR_NC/MINOR_NC move follows the same window and is
+refused to the nonconformity's owner (403). `PATCH /management-reviews/{id}` is `isoReview.write`
+(attendees and minutes) and the new `POST /management-reviews/{id}/replan` (`ManagementReviewReplanBody`) is
+`isoReview.plan` for standards, date and chair while PLANNED. Both new routes honour `Idempotency-Key`. 119 routes. The reason rule (decision 51 p): every
+field edit audited as `REASSIGN` or `DUE_DATE_CHANGE` needs a reason, so `ClauseAssessmentUpdateBody`,
+`DocumentUpdateBody`, `RiskItemUpdateBody`, `ObjectiveUpdateBody`, `InternalAuditUpdateBody` and
+`ExternalAuditUpdateBody` take one where they did not or require it for more fields. `IsoEngineApi.objectiveProgress`
+takes `createdOn: LocalDate` and `{ fyStartMonth }` (decision 51 r). The overdue-system `ISO_MANAGEMENT_REVIEW_DUE`
+rule sends from the first overdue day (`offsetDays: [1]` after `nextDueOn`). The OpenAPI document gives every
+`x-canopy-feature` operation its 403 `FEATURE_NOT_ENABLED` and 409 `FEATURE_NOT_READY` responses, and the 11 ISO
+child lists carry the unit-scope note. Decision 51 also declares the stored rules the model does not list (q) and
+rewords (m). The mock: NC audit events no longer copy the description or incident location; N/A decisions need the
+row's units even for an approver who owns the row; the ISO overview scopes findings by their audit; and
+`X-Mock-Features` applies on every route, so sign-in and support verify return its features. `ObjectiveCreateBody` and
+`PATCH /objectives/{id}` refuse a target on the wrong side of the baseline for INCREASE or DECREASE. The mock also
+leaves finding descriptions out of audit events, refuses an edit that would make a no-action nonconformity need
+action, names the step on clause N/A events, audits a system's status as an UPDATE, and measures a held review's
+figures as the records stood on its `heldOn`, from their audit trail, with a window that never runs backwards
+(`iso-mock.md`). Tests pin the catalogue to its generator (201 clauses, 137 assessable) and the
+`objectiveProgress` stand-in at a client-local day boundary.

@@ -90,6 +90,18 @@ describe('startJobsFromEnv', () => {
     expect(started.map((s) => s.deps.copyLibrary)).toEqual([copyLibrary, copyLibrary]);
   });
 
+  it("passes M6's ISO catalogue copier through, and leaves it out when the API passes none", async () => {
+    const copyIsoCatalogue = async () => ({ copied: true });
+    await startJobsFromEnv({}, { ...options, copyIsoCatalogue });
+    await startJobsFromEnv(SMTP, { ...options, copyIsoCatalogue });
+    await startJobsFromEnv(SMTP, options);
+    expect(started.slice(0, 2).map((s) => s.deps.copyIsoCatalogue)).toEqual([
+      copyIsoCatalogue,
+      copyIsoCatalogue,
+    ]);
+    expect(started[2]!.deps).not.toHaveProperty('copyIsoCatalogue');
+  });
+
   it('leaves the scan off without a scanner', async () => {
     const runner = await startJobsFromEnv(SMTP, options);
     expect(runner.scan).toBe(false);

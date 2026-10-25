@@ -258,7 +258,7 @@ describe('management systems', () => {
     });
   });
 
-  it('changes fields, audits a status change as a transition and adds standards with their rows', async () => {
+  it('changes fields, audits a status change as an update and adds standards with their rows', async () => {
     const system = seedSystem(app, { standards: ['ISO_9001'] });
     const before = rowsOf(system.id).length;
     let updated = await ok<System>(app, 'updateIsoSystem', {
@@ -281,18 +281,19 @@ describe('management systems', () => {
       status: 'CERTIFIED',
       reviewIntervalMonths: 6,
     });
+    // A system's status has no machine (model §4): it is a field edit, in the one UPDATE event.
     const events = isoEvents(app, system.id);
-    expect(events.map((e) => e.action)).toEqual(['UPDATE', 'TRANSITION']);
+    expect(events.map((e) => e.action)).toEqual(['UPDATE']);
+    expect(events[0]).toMatchObject({
+      entityType: 'management_system',
+      before: { status: 'IMPLEMENTING' },
+    });
     expect(events[0]!.after).toEqual({
       name: 'Integrated system',
       scopeStatement: 'Food production at Pune.',
       unitIds: [PUNE],
+      status: 'CERTIFIED',
       reviewIntervalMonths: 6,
-    });
-    expect(events[1]).toMatchObject({
-      entityType: 'management_system',
-      before: { status: 'IMPLEMENTING' },
-      after: { status: 'CERTIFIED' },
     });
 
     const s9001 = standardId(app, 'ISO_9001');
@@ -719,44 +720,131 @@ describe('clause checklist', () => {
     const view = await ok<View>(app, 'updateIsoChecklistRow', {
       as: PERSON.kabir,
       params,
-      body: { version: 1, ownerId: PERSON.sameer, notes: 'Committee minutes' },
+      body: {
+        version: 1,
+        ownerId: PERSON.sameer,
+        notes: 'Committee minutes',
+        reason: 'Sameer runs the committee',
+      },
     });
     expect(view.ownerId).toBe(PERSON.sameer);
     expect(isoEvents(app, row.id).slice(-2)).toEqual([
-      expect.objectContaining({ action: 'UPDATE', after: { notes: 'Committee minutes' } }),
+      expect.objectContaining({
+        action: 'UPDATE',
+        after: { notes: 'Committee minutes' },
+        reason: null,
+      }),
       expect.objectContaining({
         action: 'REASSIGN',
         before: { ownerId: null },
         after: { ownerId: PERSON.sameer },
+        reason: 'Sameer runs the committee',
       }),
     ]);
     await fails(
       app,
       'updateIsoChecklistRow',
-      { as: PERSON.sameer, params, body: { version: 2, ownerId: PERSON.rohan } },
+      { as: PERSON.sameer, params, body: { version: 2, ownerId: PERSON.rohan, reason: 'Mine' } },
       'FORBIDDEN',
       403,
     );
-    // The owner may send their own id back unchanged.
+    // The owner may send their own id back unchanged; the body still carries a reason, as any body with ownerId does.
+    await fails(
+      app,
+      'updateIsoChecklistRow',
+      { as: PERSON.sameer, params, body: { version: 2, ownerId: PERSON.sameer, notes: 'x' } },
+      'REASON_REQUIRED',
+      422,
+    );
+    const count = isoEvents(app, row.id).length;
     await ok(app, 'updateIsoChecklistRow', {
       as: PERSON.sameer,
       params,
-      body: { version: 2, ownerId: PERSON.sameer, notes: 'Minutes filed' },
+      body: { version: 2, ownerId: PERSON.sameer, notes: 'Minutes filed', reason: 'Unchanged' },
     });
+    expect(isoEvents(app, row.id).slice(count)).toEqual([
+      expect.objectContaining({
+        action: 'UPDATE',
+        after: { notes: 'Minutes filed' },
+        reason: null,
+      }),
+    ]);
     for (const person of [PERSON.priya, PERSON.gita, PERSON.vikram]) {
       await fails(
         app,
         'updateIsoChecklistRow',
-        { params, body: { version: 3, ownerId: person } },
+        { params, body: { version: 3, ownerId: person, reason: 'Moving the work' } },
         'VALIDATION',
         400,
       );
     }
     const cleared = await ok<View>(app, 'updateIsoChecklistRow', {
       params,
-      body: { version: 3, ownerId: null },
+      body: { version: 3, ownerId: null, reason: 'Sameer left the committee' },
     });
     expect(cleared.ownerId).toBeNull();
+    expect(lastEvent(row.id)).toMatchObject({
+      action: 'REASSIGN',
+      before: { ownerId: PERSON.sameer },
+      after: { ownerId: null },
+      reason: 'Sameer left the committee',
+    });
+  });
+
+  it('needs a reason to change a row’s owner and records it (decision 51 p)', async () => {
+    const system = seedSystem(app, { standards: ['ISO_9001'] });
+    const row = rowOf(system.id, 'ISO_9001', '7.1.6');
+    const params = rowParams(row);
+    for (const [ownerId, before] of [
+      [PERSON.rohan, null],
+      [PERSON.sameer, PERSON.rohan],
+      [null, PERSON.sameer],
+    ] as const) {
+      const count = isoEvents(app, row.id).length;
+      for (const body of [
+        { version: row.version, ownerId },
+        { version: row.version, ownerId, reason: ' ' },
+        { version: row.version, ownerId, notes: 'Owner changes', status: 'PARTIAL' },
+      ]) {
+        await fails(
+          app,
+          'updateIsoChecklistRow',
+          { as: PERSON.kabir, params, body },
+          'REASON_REQUIRED',
+          422,
+        );
+      }
+      expect(isoEvents(app, row.id)).toHaveLength(count);
+      expect(row.ownerId).toBe(before);
+      const reason = `Handover to ${ownerId ?? 'nobody'}`;
+      const view = await ok<View>(app, 'updateIsoChecklistRow', {
+        as: PERSON.kabir,
+        params,
+        body: { version: row.version, ownerId, reason },
+      });
+      expect(view.ownerId).toBe(ownerId);
+      expect(isoEvents(app, row.id).slice(count)).toEqual([
+        expect.objectContaining({
+          action: 'REASSIGN',
+          entityType: 'clause_assessment',
+          actorId: PERSON.kabir,
+          before: { ownerId: before },
+          after: { ownerId },
+          reason,
+        }),
+      ]);
+    }
+    // Status, notes and review date need none; a reason sent with them is not put on their UPDATE.
+    await ok(app, 'updateIsoChecklistRow', {
+      as: PERSON.kabir,
+      params,
+      body: { version: row.version, status: 'PARTIAL', reason: 'Started' },
+    });
+    expect(lastEvent(row.id)).toMatchObject({
+      action: 'UPDATE',
+      after: { status: 'PARTIAL' },
+      reason: null,
+    });
   });
 
   it('keeps clause 4.1 from IMPLEMENTED until the climate decision', async () => {
@@ -837,8 +925,15 @@ describe('clause N/A (model §4.6)', () => {
       action: 'TRANSITION',
       entityType: 'clause_assessment',
       before: { status: 'PARTIAL', naState: 'NONE', statusBeforeNa: null },
-      after: { status: 'NOT_APPLICABLE', naState: 'REQUESTED', statusBeforeNa: 'PARTIAL' },
       reason: 'We do no design work.',
+    });
+    expect(lastEvent(row.id).after).toEqual({
+      action: 'REQUEST_NA',
+      status: 'NOT_APPLICABLE',
+      naState: 'REQUESTED',
+      statusBeforeNa: 'PARTIAL',
+      justification: 'We do no design work.',
+      naRequestedById: PERSON.sameer,
     });
     expect(lastEvent(row.id).after).not.toHaveProperty('delegated');
 
@@ -897,7 +992,7 @@ describe('clause N/A (model §4.6)', () => {
     });
     expect(lastEvent(row.id)).toMatchObject({
       action: 'TRANSITION',
-      after: { naState: 'REJECTED', status: 'PARTIAL' },
+      after: { action: 'REJECT_NA', naState: 'REJECTED', status: 'PARTIAL' },
       reason: 'Recipes are designed here.',
     });
     await ok(app, 'updateIsoChecklistRow', {
@@ -928,8 +1023,9 @@ describe('clause N/A (model §4.6)', () => {
       naDecidedById: PERSON.divya,
     });
     expect(lastEvent(row.id)).toMatchObject({
+      action: 'TRANSITION',
       before: { naState: 'REQUESTED' },
-      after: { naState: 'APPROVED', naDecidedById: PERSON.divya },
+      after: { action: 'APPROVE_NA', naState: 'APPROVED', naDecidedById: PERSON.divya },
       reason: 'Agreed.',
     });
     expect(lastEvent(row.id).after).not.toHaveProperty('delegated');
@@ -980,7 +1076,7 @@ describe('clause N/A (model §4.6)', () => {
     });
     expect(lastEvent(row.id)).toMatchObject({
       action: 'TRANSITION',
-      after: { naState: 'NONE', status: 'NOT_STARTED' },
+      after: { action: 'WITHDRAW_NA', naState: 'NONE', status: 'NOT_STARTED' },
       reason: 'Design work starts at Pune.',
     });
     await fails(
@@ -991,7 +1087,13 @@ describe('clause N/A (model §4.6)', () => {
       409,
     );
     const transitions = isoEvents(app, row.id).filter((e) => e.action === 'TRANSITION');
-    expect(transitions).toHaveLength(5);
+    expect(transitions.map((e) => e.after?.action)).toEqual([
+      'REQUEST_NA',
+      'REJECT_NA',
+      'REQUEST_NA',
+      'APPROVE_NA',
+      'WITHDRAW_NA',
+    ]);
   });
 
   it('allows N/A only where the clause allows exclusion', async () => {
@@ -1132,6 +1234,101 @@ describe('clause N/A (model §4.6)', () => {
       body: naBody(3, 'Applies again'),
     });
     expect(lastEvent(puneRow.id).after).toMatchObject({ naState: 'NONE', delegated: true });
+  });
+
+  it("decides N/A within the row's units: owning the row widens nothing", async () => {
+    // A client admin's system over Bengaluru only; nisha approves at Pune only, divya everywhere.
+    const system = await ok<System>(app, 'createIsoSystem', {
+      as: PERSON.kabir,
+      body: {
+        name: 'Bengaluru quality',
+        standardIds: [standardId(app, 'ISO_9001')],
+        unitIds: [BENGALURU],
+      },
+    });
+    const rows = [rowOf(system.id, 'ISO_9001', '8.3.1'), rowOf(system.id, 'ISO_9001', '8.3.4')];
+    for (const row of rows) {
+      await ok(app, 'updateIsoChecklistRow', {
+        as: PERSON.kabir,
+        params: rowParams(row),
+        body: { version: 1, ownerId: PERSON.nisha, reason: 'Nisha leads design reviews' },
+      });
+      const requested = await ok<View>(app, 'requestIsoClauseNa', {
+        as: PERSON.kabir,
+        params: rowParams(row),
+        body: naBody(2),
+      });
+      expect(requested).toMatchObject({
+        ownerId: PERSON.nisha,
+        naState: 'REQUESTED',
+        naRequestedById: PERSON.kabir,
+        version: 3,
+      });
+      expect(lastEvent(row.id).after).toMatchObject({ naState: 'REQUESTED', delegated: true });
+    }
+    const [approveRow, rejectRow] = rows as [Row, Row];
+
+    // As the owner nisha still lists both rows, but she is offered no decision and may take none.
+    const owned = (
+      await ok<{ items: View[] }>(app, 'listIsoChecklist', {
+        as: PERSON.nisha,
+        params: { id: system.id },
+      })
+    ).items;
+    expect(owned.map((v) => v.id).sort()).toEqual(rows.map((r) => r.id).sort());
+    for (const view of owned) {
+      expect(view.allowedActions).not.toContain('APPROVE_NA');
+      expect(view.allowedActions).not.toContain('REJECT_NA');
+      expect(view.allowedActions).toEqual([]);
+    }
+    await fails(
+      app,
+      'approveIsoClauseNa',
+      { as: PERSON.nisha, params: rowParams(approveRow), body: { version: 3 } },
+      'NOT_FOUND',
+      404,
+    );
+    await fails(
+      app,
+      'rejectIsoClauseNa',
+      {
+        as: PERSON.nisha,
+        params: rowParams(rejectRow),
+        body: { version: 3, reason: 'Design is done here' },
+      },
+      'NOT_FOUND',
+      404,
+    );
+    for (const row of rows) expect(row).toMatchObject({ naState: 'REQUESTED', version: 3 });
+
+    // An approver of the system's unit is offered both and decides, not as delegate.
+    const pending = (
+      await ok<{ items: View[] }>(app, 'listIsoChecklist', {
+        as: PERSON.divya,
+        params: { id: system.id },
+        query: { naState: 'REQUESTED' },
+      })
+    ).items;
+    expect(pending).toHaveLength(2);
+    for (const view of pending) expect(view.allowedActions).toEqual(['APPROVE_NA', 'REJECT_NA']);
+    const approved = await ok<View>(app, 'approveIsoClauseNa', {
+      as: PERSON.divya,
+      params: rowParams(approveRow),
+      body: { version: 3 },
+    });
+    expect(approved).toMatchObject({ naState: 'APPROVED', naDecidedById: PERSON.divya });
+    expect(lastEvent(approveRow.id).after).not.toHaveProperty('delegated');
+    const rejected = await ok<View>(app, 'rejectIsoClauseNa', {
+      as: PERSON.divya,
+      params: rowParams(rejectRow),
+      body: { version: 3, reason: 'Design is done here' },
+    });
+    expect(rejected).toMatchObject({ naState: 'REJECTED', naDecidedById: PERSON.divya });
+    expect(lastEvent(rejectRow.id)).toMatchObject({
+      action: 'TRANSITION',
+      actorId: PERSON.divya,
+      reason: 'Design is done here',
+    });
   });
 });
 
@@ -1819,6 +2016,39 @@ describe('ISO overview', () => {
       query: { managementSystemId: bengaluru.id },
     });
     expect(none.systems).toEqual([]);
+  });
+
+  it("takes a finding's reach from its audit, never the finding's own unit", async () => {
+    const both = seedSystem(app, { unitIds: [PUNE, BENGALURU], standards: ['ISO_9001'] });
+    const prog = programme(both.id, '2024-25');
+    // Led by sameer and naming nobody else, so only the audits' units can bring rohan (OW, Pune) in.
+    const wide = audit(prog.id, { unitIds: [PUNE, BENGALURU], state: 'IN_PROGRESS' });
+    const atBengaluru = finding({ internalAuditId: wide.id, unitId: BENGALURU });
+    const seen = action('AUDIT_FINDING', atBengaluru.id);
+    const narrow = audit(prog.id, { unitIds: [BENGALURU], state: 'IN_PROGRESS' });
+    const unseen = action(
+      'AUDIT_FINDING',
+      finding({ internalAuditId: narrow.id, unitId: BENGALURU }).id,
+    );
+
+    const listed = async (as: string) =>
+      (
+        await ok<{ items: { id: string }[] }>(app, 'listIsoActions', {
+          as,
+          query: { managementSystemId: both.id },
+        })
+      ).items
+        .map((a) => a.id)
+        .sort();
+    expect(await listed(PERSON.rohan)).toEqual([seen.id]);
+    expect((await overview(PERSON.rohan, both.id)).actions.open).toEqual({
+      count: 1,
+      ids: [seen.id],
+    });
+    // A manager counts both; the overview and the list agree for each reader.
+    const all = [seen.id, unseen.id].sort();
+    expect(await listed(PERSON.meera)).toEqual(all);
+    expect([...(await overview(PERSON.meera, both.id)).actions.open.ids].sort()).toEqual(all);
   });
 
   it('takes an as-of date from firm roles and viewers only, and filters by system', async () => {

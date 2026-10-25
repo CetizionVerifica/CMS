@@ -62,6 +62,20 @@ export function firmWidePolicies({ insert }: { insert: 'staff' | 'any' }) {
   ];
 }
 
+/**
+ * The account's copy of the ISO catalogue (docs/iso/model.md §1.2): every context of the firm reads it; only the
+ * catalogue copy, a system job, writes it, so no staff context and no route changes it.
+ */
+export function cataloguePolicies() {
+  const firm = sql`firm_id = app_firm_id()`;
+  const job = sql`firm_id = app_firm_id() and app_system_job()`;
+  return [
+    pgPolicy('tenant_read', { for: 'select', to: 'public', using: firm }),
+    pgPolicy('tenant_insert', { for: 'insert', to: 'public', withCheck: job }),
+    pgPolicy('tenant_update', { for: 'update', to: 'public', using: job, withCheck: job }),
+  ];
+}
+
 /** Client rows: the firm, and a client the transaction may see (all clients for firm-wide contexts). */
 export function clientPolicy(column: 'client_id' | 'id' = 'client_id') {
   const rule = sql.raw(`firm_id = app_firm_id() and app_can_see_client(${column})`);

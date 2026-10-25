@@ -1,3 +1,4 @@
+import type { AuditEvent } from '@canopy/contracts';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -11,6 +12,7 @@ vi.mock('next/navigation', () => ({
 }));
 
 const { AuditTable } = await import('./AuditTable');
+const { auditRows } = await import('./audit-model');
 const { AuditFilterBar } = await import('./AuditFilterBar');
 
 beforeEach(() => router.push.mockReset());
@@ -50,6 +52,89 @@ describe('AuditTable', () => {
     expect(first!.textContent).toContain('11:00');
     expect(first!.textContent).toContain('Reason: Site closed');
     expect(second!.textContent).toContain('—');
+  });
+
+  it('shows an ISO event in words', () => {
+    const event: AuditEvent = {
+      id: 'e3',
+      firmId: 'f1',
+      clientId: 'c1',
+      at: '2026-10-24T05:30:00.000Z',
+      requestId: 'r1',
+      actorId: 'p1',
+      actorKind: 'PERSON',
+      action: 'TRANSITION',
+      // Staged outside EntityType until ISO-1b.
+      entityType: 'nonconformity' as unknown as AuditEvent['entityType'],
+      entityId: 'nc1',
+      before: { state: 'OPEN' },
+      after: {
+        action: 'PLAN_ACTIONS',
+        state: 'ACTIONS_PLANNED',
+        title: 'Guard missing on press 4',
+      },
+      reason: null,
+    };
+    render(
+      <AuditTable
+        timeZone="Asia/Kolkata"
+        empty={<p>Nothing</p>}
+        rows={auditRows([event], { p1: 'Divya Hegde' })}
+      />,
+    );
+    const [, row] = within(screen.getByRole('table', { name: 'Audit trail' })).getAllByRole('row');
+    expect(row!.textContent).toContain('Planned actions for a nonconformity');
+    expect(row!.textContent).toContain('Guard missing on press 4');
+    expect(row!.textContent).toContain('State: Open → Actions planned');
+  });
+
+  it('shows instance states and person statuses in words', () => {
+    const event = (over: Partial<AuditEvent>): AuditEvent => ({
+      id: 'e4',
+      firmId: 'f1',
+      clientId: 'c1',
+      at: '2026-10-24T05:30:00.000Z',
+      requestId: 'r1',
+      actorId: 'p1',
+      actorKind: 'PERSON',
+      action: 'TRANSITION',
+      entityType: 'instance',
+      entityId: 'i1',
+      before: null,
+      after: null,
+      reason: null,
+      ...over,
+    });
+    render(
+      <AuditTable
+        timeZone="Asia/Kolkata"
+        empty={<p>Nothing</p>}
+        rows={auditRows(
+          [
+            event({
+              before: { workflowState: 'SUBMITTED' },
+              after: { workflowState: 'SENT_BACK', delegated: true },
+              reason: 'Wrong month',
+            }),
+            event({
+              id: 'e5',
+              action: 'UPDATE',
+              entityType: 'person',
+              entityId: 'p2',
+              before: { status: 'INVITED' },
+              after: { name: 'Arjun Mehta', status: 'ACTIVE' },
+            }),
+          ],
+          { p1: 'Divya Hegde' },
+        )}
+      />,
+    );
+    const [, instance, person] = within(
+      screen.getByRole('table', { name: 'Audit trail' }),
+    ).getAllByRole('row');
+    expect(instance!.textContent).toContain('Sent back an instance (as delegate)');
+    expect(instance!.textContent).toContain('State: Awaiting approval → Sent back');
+    expect(person!.textContent).toContain('Status: Invited → Active');
   });
 
   it('shows the empty message', () => {

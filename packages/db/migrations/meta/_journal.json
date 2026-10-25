@@ -267,6 +267,34 @@
       "when": 1792942557168,
       "tag": "0037_clause_refs_strict_check",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1792958177688,
+      "tag": "0038_iso_staged_values",
+      "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1792961364892,
+      "tag": "0039_iso_library_guards",
+      "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1792964737404,
+      "tag": "0040_iso_tables",
+      "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1792967253514,
+      "tag": "0041_iso_tables_part_2",
+      "breakpoints": true
     }
   ]
 }

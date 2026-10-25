@@ -490,6 +490,7 @@ describe('updateIsoDocument', () => {
         approverId: PERSON.kabir,
         reviewDueOn: addDays(TODAY, 30),
         clauseIds: [clause('ISO_9001', '7.5.3')],
+        reason: 'Kabir signs off forms now',
       },
     });
     expect(updated).toMatchObject({
@@ -502,12 +503,19 @@ describe('updateIsoDocument', () => {
     expect(events[0]).toMatchObject({
       before: { approverId: PERSON.divya },
       after: { approverId: PERSON.kabir },
+      reason: 'Kabir signs off forms now',
+    });
+    expect(events[1]).toMatchObject({
+      before: { reviewDueOn: null },
+      after: { reviewDueOn: addDays(TODAY, 30) },
+      reason: 'Kabir signs off forms now',
     });
     expect(events[2]!.after).toEqual({
       title: 'Batch record form',
       clauseIds: [clause('ISO_9001', '7.5.3')],
       retention: 'Five years',
     });
+    expect(events[2]!.reason).toBeNull();
     // Nothing changed: no write, same version.
     const same = await ok<Doc>(app, 'updateIsoDocument', {
       params: { id: doc.id },
@@ -519,9 +527,28 @@ describe('updateIsoDocument', () => {
     const handed = await ok<Doc>(app, 'updateIsoDocument', {
       as: PERSON.kabir,
       params: { id: doc.id },
-      body: { version: same.version, ownerId: PERSON.rohan, reviewDueOn: null, retention: null },
+      body: {
+        version: same.version,
+        ownerId: PERSON.rohan,
+        reviewDueOn: null,
+        retention: null,
+        reason: 'Rohan runs the Pune line',
+      },
     });
     expect(handed).toMatchObject({ ownerId: PERSON.rohan, reviewDueOn: null, retention: null });
+    expect(isoEvents(app, doc.id).slice(4)).toEqual([
+      expect.objectContaining({
+        action: 'REASSIGN',
+        after: { ownerId: PERSON.rohan },
+        reason: 'Rohan runs the Pune line',
+      }),
+      expect.objectContaining({
+        action: 'DUE_DATE_CHANGE',
+        after: { reviewDueOn: null },
+        reason: 'Rohan runs the Pune line',
+      }),
+      expect.objectContaining({ action: 'UPDATE', after: { retention: null }, reason: null }),
+    ]);
   });
 
   it('refuses other people, stale versions, wrong fields and obsolete documents', async () => {
@@ -541,8 +568,8 @@ describe('updateIsoDocument', () => {
       { retention: 'Kept' },
       { issuer: 'Body' },
       { externalRef: 'REF-1' },
-      { ownerId: PERSON.gita },
-      { approverId: PERSON.joseph },
+      { ownerId: PERSON.gita, reason: 'Hand over' },
+      { approverId: PERSON.joseph, reason: 'Hand over' },
       { clauseIds: [seedId()] },
     ]) {
       await fails(
@@ -583,6 +610,68 @@ describe('updateIsoDocument', () => {
       from: 'OBSOLETE',
       action: 'UPDATE',
     });
+  });
+
+  it('needs a reason for a new owner or approver or a moved review date, and audits it (decision 51 p)', async () => {
+    const doc = await createDoc(all, { reviewDueOn: addDays(TODAY, 30) });
+    const update = (body: Record<string, unknown>) => ({ params: { id: doc.id }, body });
+    // Each reason field, alone, beside a plain field, cleared, or with a blank reason: 422 and nothing written.
+    for (const change of [
+      { ownerId: PERSON.rohan },
+      { approverId: PERSON.kabir },
+      { reviewDueOn: addDays(TODAY, 60) },
+      { reviewDueOn: null },
+      { ownerId: PERSON.rohan, title: 'Moved on' },
+      { approverId: PERSON.kabir, reason: '   ' },
+    ]) {
+      await fails(
+        app,
+        'updateIsoDocument',
+        update({ version: doc.version, ...change }),
+        'REASON_REQUIRED',
+        422,
+      );
+    }
+    expect((await getDoc(doc)).version).toBe(doc.version);
+    expect(isoEvents(app, doc.id)).toHaveLength(1);
+    // With a reason, each change is 200 and its event carries the reason.
+    let current = doc;
+    for (const [change, action, before, reason] of [
+      [{ ownerId: PERSON.rohan }, 'REASSIGN', { ownerId: PERSON.sameer }, 'Rohan runs Pune'],
+      [{ approverId: PERSON.kabir }, 'REASSIGN', { approverId: PERSON.divya }, 'Divya is away'],
+      [
+        { reviewDueOn: addDays(TODAY, 60) },
+        'DUE_DATE_CHANGE',
+        { reviewDueOn: addDays(TODAY, 30) },
+        'Audit moved',
+      ],
+    ] as const) {
+      current = await ok<Doc>(app, 'updateIsoDocument', {
+        params: { id: doc.id },
+        body: { version: current.version, ...change, reason },
+      });
+      expect(current).toMatchObject(change);
+      expect(lastEvent(doc.id)).toMatchObject({ action, before, after: change, reason });
+    }
+    // A plain field edit needs no reason; its UPDATE has none.
+    current = await ok<Doc>(app, 'updateIsoDocument', {
+      params: { id: doc.id },
+      body: { version: current.version, title: 'Quality policy, issue 2' },
+    });
+    expect(current).toMatchObject({ title: 'Quality policy, issue 2', version: doc.version + 4 });
+    expect(lastEvent(doc.id)).toMatchObject({
+      action: 'UPDATE',
+      before: { title: 'Quality policy' },
+      after: { title: 'Quality policy, issue 2' },
+      reason: null,
+    });
+    expect(isoEvents(app, doc.id).map((e) => e.action)).toEqual([
+      'CREATE',
+      'REASSIGN',
+      'REASSIGN',
+      'DUE_DATE_CHANGE',
+      'UPDATE',
+    ]);
   });
 });
 

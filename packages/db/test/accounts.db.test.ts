@@ -446,6 +446,176 @@ describe('the app’s own account', () => {
   });
 });
 
+describe('the ISO catalogue marker (docs/iso/plan.md §4.3)', () => {
+  const contexts = (firm: PopulatedFirm) =>
+    ({
+      system: systemContext(firm.firmId, 'accounts-test'),
+      firmAdmin: {
+        firmId: firm.firmId,
+        personId: '01920000-0000-7000-8000-0000000000bb',
+        clientIds: 'ALL',
+        requestId: 'accounts-test',
+      },
+      consultant: {
+        firmId: firm.firmId,
+        personId: '01920000-0000-7000-8000-0000000000bb',
+        clientIds: [firm.clientIds[0]!],
+        firmStaff: true,
+        requestId: 'accounts-test',
+      },
+      client: {
+        firmId: firm.firmId,
+        personId: '01920000-0000-7000-8000-0000000000bb',
+        clientIds: [firm.clientIds[0]!],
+        requestId: 'accounts-test',
+      },
+    }) satisfies Record<string, TenantContext>;
+  const readAll = async (firm: PopulatedFirm) =>
+    Object.fromEntries(
+      await Promise.all(
+        Object.entries(contexts(firm)).map(
+          async ([name, ctx]) =>
+            [name, await t.db.withTenant(ctx, (tx) => r.account.isoCatalogueCopiedAt(tx))] as const,
+        ),
+      ),
+    );
+  const setStatus = (firm: PopulatedFirm, status: string, trialEndsOn: string | null) =>
+    t.ownerQuery('UPDATE firm SET status = $2, trial_ends_on = $3 WHERE id = $1', [
+      firm.firmId,
+      status,
+      trialEndsOn,
+    ]);
+  const unmark = () => t.ownerQuery('UPDATE firm SET iso_catalogue_copied_at = NULL');
+
+  it('sets once in the account’s system context and reads the same in every context', async () => {
+    await unmark();
+    const before = await asOperator((tx) => r.platformAccounts.get(tx, a.firmId));
+    expect(before).toMatchObject({ status: 'ACTIVE', isoCatalogueCopiedAt: null });
+    expect(await readAll(a)).toEqual({
+      system: null,
+      firmAdmin: null,
+      consultant: null,
+      client: null,
+    });
+
+    // Only the system context may mark: not a firm admin, a consultant or a client user.
+    const { system, ...people } = contexts(a);
+    for (const [name, ctx] of Object.entries(people)) {
+      expect(
+        await failure(t.db.withTenant(ctx, (tx) => r.accountJobs.markIsoCatalogueCopied(tx))),
+        name,
+      ).toBe('FORBIDDEN');
+    }
+    // Nor may the app role write the column itself, even as the system job.
+    expect(
+      await failure(
+        t.db.withTenant(system, (tx) =>
+          tx.execute(sql`UPDATE firm SET iso_catalogue_copied_at = now() WHERE id = app_firm_id()`),
+        ),
+      ),
+    ).toBe('42501');
+
+    expect(await inFirm(a.firmId, (tx) => r.accountJobs.markIsoCatalogueCopied(tx))).toBe(true);
+    const at = await inFirm(a.firmId, (tx) => r.account.isoCatalogueCopiedAt(tx));
+    expect(at).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+    expect(await inFirm(a.firmId, (tx) => r.accountJobs.markIsoCatalogueCopied(tx))).toBe(false);
+    expect(await readAll(a)).toEqual({ system: at, firmAdmin: at, consultant: at, client: at });
+    const after = await asOperator((tx) => r.platformAccounts.get(tx, a.firmId));
+    expect(after).toEqual({ ...before, isoCatalogueCopiedAt: at });
+    // The other account is untouched.
+    expect(await readAll(b)).toEqual({
+      system: null,
+      firmAdmin: null,
+      consultant: null,
+      client: null,
+    });
+    await unmark();
+  });
+
+  it('a failed copy rolls the mark back, and a second copy waits for the first', async () => {
+    await unmark();
+    expect(
+      await failure(
+        inFirm(a.firmId, async (tx) => {
+          expect(await r.accountJobs.markIsoCatalogueCopied(tx)).toBe(true);
+          throw new Error('copy failed');
+        }),
+      ),
+    ).toContain('copy failed');
+    expect(await inFirm(a.firmId, (tx) => r.account.isoCatalogueCopiedAt(tx))).toBeNull();
+
+    let releaseFirst!: () => void;
+    const firstHolds = new Promise<void>((resolve) => (releaseFirst = resolve));
+    let firstMarked!: () => void;
+    const marked = new Promise<void>((resolve) => (firstMarked = resolve));
+    const first = inFirm(a.firmId, async (tx) => {
+      const result = await r.accountJobs.markIsoCatalogueCopied(tx);
+      firstMarked();
+      await firstHolds;
+      return result;
+    });
+    await marked;
+    const second = inFirm(a.firmId, (tx) => r.accountJobs.markIsoCatalogueCopied(tx));
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    releaseFirst();
+    expect(await Promise.all([first, second])).toEqual([true, false]);
+    await unmark();
+  });
+
+  it('works in TRIAL and ACTIVE, and marks nothing in any other status', async () => {
+    await unmark();
+    try {
+      await setStatus(b, 'TRIAL', '2099-01-01');
+      expect(await inFirm(b.firmId, (tx) => r.accountJobs.markIsoCatalogueCopied(tx))).toBe(true);
+      await unmark();
+      for (const status of ['SUSPENDED', 'PROVISIONING']) {
+        await setStatus(b, status, null);
+        expect(
+          await inFirm(b.firmId, (tx) => r.accountJobs.markIsoCatalogueCopied(tx)),
+          status,
+        ).toBe(false);
+        expect(await inFirm(b.firmId, (tx) => r.account.isoCatalogueCopiedAt(tx))).toBeNull();
+      }
+    } finally {
+      await setStatus(b, 'ACTIVE', null);
+      await unmark();
+    }
+  });
+
+  it('computes the effective features in one SQL function, sorted and distinct', async () => {
+    const effective = async (
+      plan: string[] | null,
+      added: string[] | null,
+      removed: string[] | null,
+    ) =>
+      (
+        await t.ownerQuery<{ f: string[] }>(
+          'SELECT canopy_effective_features($1::text[], $2::text[], $3::text[]) AS f',
+          [plan, added, removed],
+        )
+      ).rows[0]!.f;
+    expect(await effective(['importer', 'isoManagement'], null, null)).toEqual([
+      'importer',
+      'isoManagement',
+    ]);
+    expect(await effective(['isoManagement'], ['bulkExport', 'isoManagement'], null)).toEqual([
+      'bulkExport',
+      'isoManagement',
+    ]);
+    expect(
+      await effective(['importer', 'isoManagement'], ['bulkExport'], ['isoManagement']),
+    ).toEqual(['bulkExport', 'importer']);
+    expect(await effective([], null, ['isoManagement'])).toEqual([]);
+    // Pure, so the planner may fold it, and it reads no table.
+    const { rows } = await t.ownerQuery<{ volatile: string; body: string }>(
+      `SELECT provolatile AS volatile, prosrc AS body FROM pg_proc WHERE proname = 'canopy_effective_features'`,
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.volatile).toBe('i');
+    expect(rows[0]!.body).not.toMatch(/\bfrom\s+(?!unnest)/i);
+  });
+});
+
 describe('the owner accepting their invite', () => {
   async function accept(
     account: { accountId: string; ownerId: string; inviteId: string },
