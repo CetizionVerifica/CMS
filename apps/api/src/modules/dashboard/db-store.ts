@@ -7,6 +7,7 @@ import {
   exportJobs,
   firms,
   instances,
+  REGISTER_READ_LIMIT,
   tenantFromRequest,
   units,
   type Database,
@@ -30,8 +31,11 @@ import type {
  * in `withTenant` for the request's context, so row-level security decides what it sees; M10 builds no SQL.
  */
 
-/** The register's page size cap (M3 MAX_LIMIT). A store read collects every page. */
-const PAGE = 200;
+/**
+ * The register's page for whole-client reads (M3 `REGISTER_READ_LIMIT`). A store read collects every page; 200-row
+ * pages made the overview and reports take seconds at 10,000 instances (security review F16).
+ */
+const PAGE = REGISTER_READ_LIMIT;
 /** `instances.exportDetails` takes at most this many ids per call. */
 const DETAIL_CHUNK = 10_000;
 

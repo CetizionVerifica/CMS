@@ -679,6 +679,27 @@ describe('instances', () => {
     expect(await code(inA((tx) => r.instances.register(tx, world.clientId, { q: 'x' })))).toBe(
       'VALIDATION',
     );
+    // Whole-client reads take pages up to REGISTER_READ_LIMIT, past the API's 200; beyond it, or 0, is refused.
+    expect(r.REGISTER_READ_LIMIT).toBe(2000);
+    const all = await inA((tx) => r.instances.register(tx, world.clientId, {}, { limit: 2000 }));
+    expect(all.nextCursor).toBeNull();
+    expect(all.items.length).toBeGreaterThan(2);
+    for (const limit of [0, 2001, 1.5]) {
+      expect(await code(inA((tx) => r.instances.register(tx, world.clientId, {}, { limit })))).toBe(
+        'VALIDATION',
+      );
+    }
+    // The register plans its joins in the order written, then puts the transaction's setting back.
+    const setting = await inA(async (tx) => {
+      await tx.execute(sql`SET LOCAL join_collapse_limit = 5`);
+      const page = await r.instances.register(tx, world.clientId, {}, { limit: 2 });
+      expect(page.items).toHaveLength(2);
+      const { rows } = await tx.execute<{ value: string }>(
+        sql`SELECT current_setting('join_collapse_limit') AS value`,
+      );
+      return rows[0]!.value;
+    });
+    expect(setting).toBe('5');
   });
 
   it('evidence: views hide the storage key; scan status and archive', async () => {

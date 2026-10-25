@@ -7,6 +7,7 @@ export {
   evidence,
   EvidenceVaultFilter,
   instances,
+  REGISTER_READ_LIMIT,
   RegisterFilter,
 } from './work.js';
 export type { InstanceExportDetail, NewAuditEvent, RegisterRow } from './work.js';
