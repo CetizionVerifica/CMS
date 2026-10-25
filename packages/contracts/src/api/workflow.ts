@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import {
+  ActivitySource,
   AuditAction,
   Criticality,
   DerivedStatus,
@@ -65,6 +66,11 @@ export const registerFilterShape = {
   completedTo: LocalDate.optional(),
   hasEvidence: QueryBoolean.optional(),
   q: SearchText.optional(),
+  /**
+   * `LAW` (STATUTE acts) or `ISO` (STANDARD acts, ISO add-on); absent means both. With the add-on off, STANDARD
+   * instances are never returned and the filter is ignored (plan §4.5).
+   */
+  source: ActivitySource.optional(),
 };
 
 /** `fy` excludes dueFrom/dueTo; each range must run forwards. */
@@ -113,8 +119,12 @@ export const RegisterFilterQuery = z
   })
   .superRefine(checkRegisterFilters);
 
-/** `/me/approvals` and `/me/tasks`: always the signed-in person's queue, by due date. */
-export const MyQueueQuery = z.strictObject({ ...pageQueryShape, ...asOfQueryShape });
+/** `/me/approvals` and `/me/tasks`: always the signed-in person's queue, by due date; `source` as on the register. */
+export const MyQueueQuery = z.strictObject({
+  ...pageQueryShape,
+  ...asOfQueryShape,
+  source: ActivitySource.optional(),
+});
 
 export const InstanceReadQuery = z.strictObject({ ...asOfQueryShape });
 
@@ -236,6 +246,7 @@ export const EvidenceVaultQuery = z
     uploadedTo: LocalDate.optional(),
     scanStatus: csv(ScanStatus).optional(),
     q: SearchText.optional(),
+    source: ActivitySource.optional(),
   })
   .refine(
     (query) =>

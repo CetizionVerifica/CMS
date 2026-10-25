@@ -1,19 +1,27 @@
 // M6 endpoints: clients, entities, people, memberships, the library and assignments.
+// STANDARD acts (the ISO add-on's), their obligations and the assignments on them follow the add-on's switch
+// (docs/iso/plan.md §4.4-4.5): while it is off they leave every list and every route naming one answers 403. Kinds
+// never mix: acts of different kinds do not merge, and an obligation does not move between kinds (catalogue.md §2).
 import { DEFAULT_CLIENT_SETTINGS } from '../../defaults.js';
 import type { Role } from '../../enums.js';
 import {
+  actKind,
   type Actor,
+  assignmentKind,
   audit,
+  checkKindEnabled,
   checkVersion,
   diff,
   fresh,
   fyRange,
   hasRole,
+  inSource,
   libraryIsFiltered,
   live,
   matches,
   MockError,
   notFound,
+  obligationKind,
   paginate,
   touch,
   visibleClientIds,
@@ -196,6 +204,20 @@ function usedObligationIds(actor: Actor): Set<string> {
   );
 }
 
+/** 400 VALIDATION for a change the act-kind rules refuse (catalogue.md §2; ISO-9b answers the same). */
+function kindRule(field: string, message: string): MockError {
+  return new MockError('VALIDATION', message, { issues: [{ path: [field], message }] });
+}
+
+/** A live assignment by id, after the role check and the ISO off switch (one on a STANDARD obligation). */
+function openAssignment(ctx: Ctx, id: string | undefined): Row<'assignments'> {
+  const actor = actorOf(ctx);
+  const assignment = find(actor, 'assignments', id);
+  ctx.authorize({ clientId: assignment.clientId });
+  checkKindEnabled(actor, assignmentKind(actor.firm, assignment));
+  return assignment;
+}
+
 /** Instances for each period of the client's current FY (the real API generates them with the engine). */
 function generateInstances(ctx: Ctx, assignment: Row<'assignments'>): InstanceRecord[] {
   const actor = actorOf(ctx);
@@ -251,7 +273,8 @@ function createAssignment(
   const actor = actorOf(ctx);
   const d = actor.firm.data;
   ref(actor, 'units', body.unitId, 'unitId', clientId);
-  ref(actor, 'obligations', body.obligationId, 'obligationId');
+  const obligation = ref(actor, 'obligations', body.obligationId, 'obligationId');
+  checkKindEnabled(actor, obligationKind(actor.firm, obligation));
   ref(actor, 'departments', body.departmentId, 'departmentId', clientId);
   ref(actor, 'people', body.defaultOwnerId, 'defaultOwnerId');
   ref(actor, 'people', body.defaultApproverId, 'defaultApproverId');
@@ -905,8 +928,8 @@ export const entityHandlers: PartialHandlers<
   listActs(ctx) {
     const actor = actorOf(ctx);
     ctx.authorize({ clientId: null });
-    let rows = live(actor.firm.data.acts).filter((a) =>
-      matches(ctx.query.q, a.name, a.shortName, ...a.aliases),
+    let rows = live(actor.firm.data.acts).filter(
+      (a) => inSource(actor, actKind(a)) && matches(ctx.query.q, a.name, a.shortName, ...a.aliases),
     );
     if (libraryIsFiltered(actor)) {
       const used = usedObligationIds(actor);
@@ -921,7 +944,11 @@ export const entityHandlers: PartialHandlers<
   createAct(ctx) {
     const actor = actorOf(ctx);
     ctx.authorize({ clientId: null });
-    noDuplicateName(actor.firm.data.acts, ctx.body.name);
+    // Names are unique per kind, and a new act is a STATUTE (catalogue.md §2).
+    noDuplicateName(
+      actor.firm.data.acts.filter((a) => actKind(a) === 'STATUTE'),
+      ctx.body.name,
+    );
     const act = { ...fresh(ctx, actor.firm.data.firm.id), ...ctx.body };
     actor.firm.data.acts.push(act);
     audit(ctx, actor, {
@@ -938,6 +965,7 @@ export const entityHandlers: PartialHandlers<
     const actor = actorOf(ctx);
     const act = find(actor, 'acts', ctx.params.id);
     ctx.authorize({ clientId: null });
+    checkKindEnabled(actor, actKind(act));
     const merged = {
       ...act,
       ...Object.fromEntries(Object.entries(ctx.body).filter(([, v]) => v !== undefined)),
@@ -949,6 +977,9 @@ export const entityHandlers: PartialHandlers<
         { issues: [{ path: ['stateCode'], message: 'Does not match jurisdiction' }] },
       );
     }
+    if (actKind(act) === 'STANDARD' && merged.jurisdiction !== 'CENTRAL') {
+      throw kindRule('jurisdiction', 'A STANDARD act is CENTRAL');
+    }
     return patch(ctx, act, ctx.body, 'act', null);
   },
 
@@ -956,6 +987,15 @@ export const entityHandlers: PartialHandlers<
     const actor = actorOf(ctx);
     const target = find(actor, 'acts', ctx.params.id);
     ctx.authorize({ clientId: null });
+    checkKindEnabled(actor, actKind(target));
+    // Sources are named by id too: a STANDARD one is refused while the add-on is off, and kinds never merge.
+    for (const source of live(actor.firm.data.acts)) {
+      if (!ctx.body.sourceIds.includes(source.id) || source.id === target.id) continue;
+      checkKindEnabled(actor, actKind(source));
+      if (actKind(source) !== actKind(target)) {
+        throw kindRule('sourceIds', 'Acts of different kinds cannot be merged');
+      }
+    }
     return mergeNamed(ctx, actor.firm.data.acts, target, ctx.body, 'act', null, (sourceId) => {
       for (const o of actor.firm.data.obligations) if (o.actId === sourceId) o.actId = target.id;
     });
@@ -970,7 +1010,9 @@ export const entityHandlers: PartialHandlers<
     if (libraryIsFiltered(actor)) {
       const used = usedObligationIds(actor);
       const ids = new Set(
-        actor.firm.data.obligations.filter((o) => used.has(o.id)).map((o) => o.categoryId),
+        actor.firm.data.obligations
+          .filter((o) => used.has(o.id) && inSource(actor, obligationKind(actor.firm, o)))
+          .map((o) => o.categoryId),
       );
       rows = rows.filter((c) => ids.has(c.id));
     }
@@ -1030,6 +1072,7 @@ export const entityHandlers: PartialHandlers<
     const rows = live(actor.firm.data.obligations).filter(
       (o) =>
         (used === null || used.has(o.id)) &&
+        inSource(actor, obligationKind(actor.firm, o)) &&
         inList(q.actId, o.actId) &&
         inList(q.categoryId, o.categoryId) &&
         inList(q.domain, o.domain) &&
@@ -1048,7 +1091,8 @@ export const entityHandlers: PartialHandlers<
   createObligation(ctx) {
     const actor = actorOf(ctx);
     ctx.authorize({ clientId: null });
-    ref(actor, 'acts', ctx.body.actId, 'actId');
+    // Staff may add activities under a STANDARD act while the add-on is on (catalogue.md §2).
+    checkKindEnabled(actor, actKind(ref(actor, 'acts', ctx.body.actId, 'actId')));
     ref(actor, 'categories', ctx.body.categoryId, 'categoryId');
     const obligation = { ...fresh(ctx, actor.firm.data.firm.id), ...ctx.body, libraryVersion: 1 };
     actor.firm.data.obligations.push(obligation);
@@ -1067,6 +1111,7 @@ export const entityHandlers: PartialHandlers<
     const obligation = find(actor, 'obligations', ctx.params.id);
     ctx.authorize({ clientId: null });
     if (libraryIsFiltered(actor) && !usedObligationIds(actor).has(obligation.id)) throw notFound();
+    checkKindEnabled(actor, obligationKind(actor.firm, obligation));
     return obligation;
   },
 
@@ -1074,7 +1119,15 @@ export const entityHandlers: PartialHandlers<
     const actor = actorOf(ctx);
     const obligation = find(actor, 'obligations', ctx.params.id);
     ctx.authorize({ clientId: null });
-    if (ctx.body.actId !== undefined) ref(actor, 'acts', ctx.body.actId, 'actId');
+    const kind = obligationKind(actor.firm, obligation);
+    checkKindEnabled(actor, kind);
+    if (ctx.body.actId !== undefined) {
+      const act = ref(actor, 'acts', ctx.body.actId, 'actId');
+      checkKindEnabled(actor, actKind(act));
+      if (actKind(act) !== kind) {
+        throw kindRule('actId', 'An obligation cannot move to an act of another kind');
+      }
+    }
     if (ctx.body.categoryId !== undefined)
       ref(actor, 'categories', ctx.body.categoryId, 'categoryId');
     const merged = {
@@ -1094,8 +1147,10 @@ export const entityHandlers: PartialHandlers<
   },
 
   archiveObligation(ctx) {
-    const obligation = find(actorOf(ctx), 'obligations', ctx.params.id);
+    const actor = actorOf(ctx);
+    const obligation = find(actor, 'obligations', ctx.params.id);
     ctx.authorize({ clientId: null });
+    checkKindEnabled(actor, obligationKind(actor.firm, obligation));
     return archive(ctx, obligation, ctx.body, 'obligation', null);
   },
 
@@ -1109,6 +1164,7 @@ export const entityHandlers: PartialHandlers<
     const actor = actorOf(ctx);
     const obligation = find(actor, 'obligations', ctx.params.id);
     ctx.authorize({ clientId: null });
+    checkKindEnabled(actor, obligationKind(actor.firm, obligation));
     const visible = new Set(visibleClientIds(actor));
     for (const clientId of ctx.body.clientIds)
       if (!visible.has(clientId)) throw unknownRef('clientIds', 'client');
@@ -1143,6 +1199,7 @@ export const entityHandlers: PartialHandlers<
     const rows = live(actor.firm.data.assignments).filter(
       (a) =>
         a.clientId === clientId &&
+        inSource(actor, assignmentKind(actor.firm, a)) &&
         inList(q.unitId, a.unitId) &&
         inList(q.departmentId, a.departmentId) &&
         inList(q.obligationId, a.obligationId) &&
@@ -1176,8 +1233,7 @@ export const entityHandlers: PartialHandlers<
 
   updateAssignment(ctx) {
     const actor = actorOf(ctx);
-    const assignment = find(actor, 'assignments', ctx.params.id);
-    ctx.authorize({ clientId: assignment.clientId });
+    const assignment = openAssignment(ctx, ctx.params.id);
     const { applyToOpen, ...changes } = ctx.body;
     if (changes.departmentId !== undefined)
       ref(actor, 'departments', changes.departmentId, 'departmentId', assignment.clientId);
@@ -1212,8 +1268,7 @@ export const entityHandlers: PartialHandlers<
 
   setAssignmentApplicability(ctx) {
     const actor = actorOf(ctx);
-    const assignment = find(actor, 'assignments', ctx.params.id);
-    ctx.authorize({ clientId: assignment.clientId });
+    const assignment = openAssignment(ctx, ctx.params.id);
     checkVersion(assignment, ctx.body.version);
     const before = { applicability: assignment.applicability };
     assignment.applicability = ctx.body.applicability;
@@ -1232,8 +1287,7 @@ export const entityHandlers: PartialHandlers<
   },
 
   archiveAssignment(ctx) {
-    const assignment = find(actorOf(ctx), 'assignments', ctx.params.id);
-    ctx.authorize({ clientId: assignment.clientId });
+    const assignment = openAssignment(ctx, ctx.params.id);
     return archive(ctx, assignment, ctx.body, 'assignment', assignment.clientId);
   },
 };

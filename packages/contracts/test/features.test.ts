@@ -147,16 +147,20 @@ describe('Act kind', () => {
 });
 
 describe('obligation clause references', () => {
-  it('are optional clause numbers, each once', () => {
+  it('are optional clauses of a named standard, each once', () => {
+    const ref = (standard: string, clauseNumber: string) => ({ standard, clauseNumber });
+    const ok = (clauseRefs: unknown) => Obligation.safeParse({ ...obligation, clauseRefs }).success;
     expect(Obligation.safeParse(obligation).success).toBe(true);
-    expect(Obligation.safeParse({ ...obligation, clauseRefs: ['7.1.5', '9.1.1'] }).success).toBe(
+    expect(ok([])).toBe(true);
+    // 9001 8.2 and 14001 8.2 are different clauses, so the same number may appear once per standard.
+    expect(ok([ref('ISO_9001', '8.2'), ref('ISO_14001', '8.2'), ref('ISO_45001', '9.1.1')])).toBe(
       true,
     );
-    expect(Obligation.safeParse({ ...obligation, clauseRefs: [] }).success).toBe(true);
-    expect(Obligation.safeParse({ ...obligation, clauseRefs: ['7.1.5', '7.1.5'] }).success).toBe(
-      false,
-    );
-    expect(Obligation.safeParse({ ...obligation, clauseRefs: ['Clause 7'] }).success).toBe(false);
+    expect(ok([ref('ISO_9001', '7.1.5'), ref('ISO_9001', '7.1.5')])).toBe(false);
+    expect(ok(['7.1.5'])).toBe(false);
+    expect(ok([ref('ISO_9001', 'Clause 7')])).toBe(false);
+    expect(ok([ref('ISO_27001', '7.1')])).toBe(false);
+    expect(ok([{ ...ref('ISO_9001', '7.1'), title: 'x' }])).toBe(false);
   });
   it.each(['4', '6.1.2', '7.1.5.1', '10.2', '8.1.0'])('accepts clause number %s', (n) => {
     expect(ClauseNumber.safeParse(n).success).toBe(true);

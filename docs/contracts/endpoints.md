@@ -1,9 +1,12 @@
 # Endpoints and role permissions (contracts v1)
 
-Owner: M0. Each provider module (M5, M6, M7, M8, M10, M15) implements its section exactly; M11-M13 build against the mock of it.
-The endpoint table in code (`packages/contracts/src/api/endpoints.ts`) is the source of truth, with request and response
-schemas per endpoint; `openapi.json` is generated from it. A test checks that this file and the code list the same paths.
+Owner: M0. Each provider module (M5, M6, M7, M8, M10, M15, M16) implements its section exactly; M11-M13 and M17 build
+against the mock of it. The endpoint table in code (`packages/contracts/src/api/endpoints.ts`, with the ISO add-on's
+`ISO_ENDPOINTS` from `iso-endpoints.ts` spread into it) is the source of truth, with request and response schemas per
+endpoint; `openapi.json` is generated from it. A test checks that this file and the code list the same paths.
 Conventions, filters and error codes: `api-conventions.md`. Types: `domain-model.md`. All paths are under `/api/v1`.
+The customer API's sections come first, §10 (the ISO add-on) included; §9, the operator API, is a separate API with
+its own OpenAPI document, so it comes last.
 
 ## 1. Role legend and scoping
 
@@ -97,7 +100,7 @@ Assignment-level NOT_APPLICABLE stops future instance generation; existing OPEN 
 
 | Method | Path | Action | FA | CO | CA | AP | OW | VI | Notes |
 |---|---|---|---|---|---|---|---|---|---|
-| GET | `/clients/{clientId}/instances` | `instance.read` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | register; filters per conventions §3; AP/OW limited to their units |
+| GET | `/clients/{clientId}/instances` | `instance.read` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | register; filters per conventions §3, `source` (`LAW` or `ISO`) included; AP/OW limited to their units |
 | GET | `/instances/{id}` | `instance.read` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | `InstanceDetail` with `allowedActions` |
 | POST | `/instances/{id}/submit` `{ version, completedOn, comment }` | `instance.submit` | | | | | own | | CA may submit on behalf only if delegated (not v1) |
 | POST | `/instances/{id}/request-na` `{ version, reason }` | `instance.submit` | | | | | own | | |
@@ -106,19 +109,27 @@ Assignment-level NOT_APPLICABLE stops future instance generation; existing OPEN 
 | POST | `/instances/{id}/reopen` `{ version, reason }` | `instance.reopen` | ✓ | ✓ | ✓ | | | | |
 | POST | `/clients/{clientId}/instances/bulk-approve` `{ items: {id, version}[], comment? }` | `instance.approve` | | | ✓ | own | | | max 200, per-item results |
 | PATCH | `/instances/{id}` `{ version, ownerId?, approverId?, dueDate?, reason }` | `instance.reassign` / `instance.dueDate` | ✓ | ✓ | ✓ | | | | only while OPEN, SENT_BACK or SUBMITTED (`INSTANCE_EDIT_STATES`); every change needs a reason (it goes on the audit event); a due-date change sets `dueDateOverridden` |
-| GET | `/me/approvals` | `instance.read` | | | ✓ | ✓ | | | SUBMITTED where actor is approver (CA: all in client) |
-| GET | `/me/tasks` | `instance.read` | | | | ✓ | ✓ | | OPEN/SENT_BACK where actor is owner, by due date |
+| GET | `/me/approvals` | `instance.read` | | | ✓ | ✓ | | | SUBMITTED where actor is approver (CA: all in client); `source` as on the register |
+| GET | `/me/tasks` | `instance.read` | | | | ✓ | ✓ | | OPEN/SENT_BACK where actor is owner, by due date; `source` as on the register |
 | GET · POST | `/instances/{id}/comments` `{ body }` | `comment.read` / `comment.write` | ✓ | ✓ | ✓ | own | own | r | |
 | POST | `/instances/{id}/evidence/upload-url` | `evidence.write` | ✓ | ✓ | ✓ | own | own | | only while OPEN, SENT_BACK or SUBMITTED |
 | POST | `/instances/{id}/evidence` `{ uploadId, fileName, sha256 }` | `evidence.write` | ✓ | ✓ | ✓ | own | own | | |
 | GET | `/instances/{id}/evidence` | `evidence.read` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | metadata only |
-| GET | `/clients/{clientId}/evidence` (vault: unitId, actId, departmentId, uploadedFrom/To, scanStatus, q) | `evidence.read` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | AP/OW limited to their units |
+| GET | `/clients/{clientId}/evidence` (vault: unitId, actId, departmentId, uploadedFrom/To, scanStatus, q, source) | `evidence.read` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | AP/OW limited to their units |
 | GET | `/evidence/{id}/download-url` | `evidence.download` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | 5-min URL, audited |
 | POST | `/evidence/{id}/remove` `{ reason }` | `evidence.remove` | ✓ | ✓ | ✓ | | own | | OW only before approval; archives, never deletes |
 | GET | `/clients/{clientId}/audit` (entityType, entityId, actorId, action, from, to) | `audit.read` | ✓ | ✓ | ✓ | | | ✓ | |
 | GET | `/instances/{id}/audit` | `audit.read` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | instance history in drawer |
 
 Internal only (no route): `scanCallback(evidenceId, result)` called by the virus-scan job; `generateInstances(assignmentId)` called by M9.
+
+ISO activities are instances of obligations under STANDARD acts (domain-model.md §4), so they use these routes. While
+the account has the ISO add-on, the register, `/me/approvals`, `/me/tasks`, the vault and the calendar (§6) take
+`source`: `LAW` (STATUTE acts), `ISO` (STANDARD acts) or absent (both). While it is off, those lists leave STANDARD
+instances out whatever `source` says, every other route here that names a STANDARD instance, its comments, evidence or
+audit answers `403 FEATURE_NOT_ENABLED` (after the 404 and role checks), and bulk approve refuses those ids per item
+(`docs/iso/plan.md` §4.4-4.5). M6's library and assignment routes do the same for STANDARD acts, their obligations and
+the assignments on them.
 
 ## 5. M8 · Import (`apps/api/src/modules/imports`)
 
@@ -149,12 +160,17 @@ Query params: `fy` or `from`/`to`, `unitId`, `asOf` (FA/CO/VI). All numbers are 
 | GET | `/portfolio` → `{ items: PortfolioRow[] }` | `dashboard.portfolio` | ✓ | ✓ | | | | |
 | GET | `/clients/{clientId}/overview` → `{ result, upcoming: InstanceRow[], myTasks: InstanceRow[] }` | `dashboard.read` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | GET | `/clients/{clientId}/breakdowns` (`by=department\|act\|criticality\|unit\|owner`) → `Breakdown` | `dashboard.read` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| GET | `/clients/{clientId}/calendar` (`from`, `to`) → `{ items: { date, items: InstanceRow[] }[] }` | `instance.read` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| GET | `/clients/{clientId}/calendar` (`from`, `to`, `unitId`, `source`) → `{ items: { date, items: InstanceRow[] }[] }` | `instance.read` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | GET | `/clients/{clientId}/reports/act-wise` · `/clients/{clientId}/reports/department-wise` → `Breakdown` · `/clients/{clientId}/reports/overdue` → `{ result, items: InstanceRow[] }` | `report.read` | ✓ | ✓ | ✓ | ✓ | | ✓ |
 | POST | `/clients/{clientId}/exports` `{ kind, filters, unitId?, fy? }` → `ExportJob`; `filters` is a register query string without paging, validated like `GET /clients/{clientId}/instances` | `export.create` | ✓ | ✓ | ✓ | ✓ | | ✓ |
 | GET | `/exports/{id}` · `/exports/{id}/download-url` | `export.read` | ✓ | ✓ | ✓ | ✓ | | ✓ |
 
 AP and OW dashboards are limited to their units (and owners see the same numbers as their register filter).
+Statutory numbers (portfolio, overview, breakdowns, the act-wise, department-wise and overdue reports, the certificate
+PDF) count STATUTE-act instances only, with the ISO add-on on or off (`docs/iso/plan.md` §4.6); while it is on,
+`PortfolioRow.dueThisWeekFilter.source` is `LAW`, so the linked register lists exactly the items counted. The ISO
+export kinds (`ISO_EXPORT_KINDS`) are staged: `kind` refuses them until ISO-1b joins them to `ExportKind`, after which
+their `filters` are checked against the ISO list queries (`ISO_EXPORT_FILTERS`), not the register's.
 `REGISTER_XLSX` uses the 19 sample headers in the same order so it re-imports with no changes.
 `CLIENT_ARCHIVE_ZIP` is the account export, one client at a time: FA only (`403 FORBIDDEN` for anyone else), no
 `filters`, `unitId` or `fy`; a zip of the client's whole register (every FY, the `REGISTER_XLSX` layout) and its clean
@@ -168,7 +184,8 @@ Notification send log, job admin and library change history have no public endpo
 An account is the firm (ADR M15-0001). In `SUSPENDED` nobody can sign in. In `PENDING_DELETION` only account admins (FA) can sign in, and
 every route except `GET /me`, `POST /auth/logout` and the account export (the three export routes of §6) answers `403 ACCOUNT_SUSPENDED`. Creating a
 company, unit or invite past the plan's limit answers `403 PLAN_LIMIT_REACHED` (M6, M5). `GET /me` lists the account's
-features in `account.features`; a route of an add-on the account lacks answers `403 FEATURE_NOT_ENABLED` (ADR M16-0001).
+features in `account.features`; a route of an add-on the account lacks answers `403 FEATURE_NOT_ENABLED` (ADR M16-0001),
+and an ISO route answers `409 FEATURE_NOT_READY` until the account's ISO catalogue copy is recorded (§10).
 
 | Method | Path | Action | FA | CO | CA | AP | OW | VI | Notes |
 |---|---|---|---|---|---|---|---|---|---|
@@ -176,6 +193,257 @@ features in `account.features`; a route of an add-on the account lacks answers `
 | GET | `/account/support-grants` → `{ items: SupportGrant[] }` | `supportGrant.read` | ✓ | | | | | | newest first; ended grants read `EXPIRED` or `REVOKED` |
 | POST | `/account/support-grants` `{ level, days }` → `SupportGrant` | `supportGrant.manage` | ✓ | | | | | | `days` 1-30 (default 7); ends any live grant; Idempotency-Key |
 | POST | `/account/support-grants/{id}/revoke` → `SupportGrant` | `supportGrant.manage` | ✓ | | | | | | ends its memberships and support sessions now |
+
+## 10. M16 · ISO add-on (`apps/api/src/modules/iso`)
+
+ISO 9001, 14001 and 45001 management systems for a client (ADR M16-0001 and M16-0002, `docs/iso/plan.md`,
+`docs/iso/model.md`). The 117 routes are `ISO_ENDPOINTS` (`packages/contracts/src/api/iso-endpoints.ts`), all M16's and
+all under `/clients/{clientId}/iso/`; bodies, queries and views are in `src/api/iso.ts`, types in domain-model.md §10.
+
+**The switch.** Every route here carries `feature: 'isoManagement'` (`x-canopy-feature` in the OpenAPI document).
+Without the feature on the account, every route, reads and file routes included, answers `403 FEATURE_NOT_ENABLED`
+`{ feature }` after the session, MFA and CSRF checks and before input validation, the client check and the role check.
+With it, every route answers `409 FEATURE_NOT_READY` `{ feature }` until the account's ISO catalogue copy is recorded
+(`Account.isoCatalogueCopiedAt`, plan §4.3). The add-on's effect on §3, §4 and §6 is described there.
+
+**Who may act.** The `Action` column is the `can()` action; the action table at the end of this section is plan §3.2
+as implemented. **own** means the person named in that role on the record: its owner (a checklist row's owner, a
+document's, risk item's, objective's or nonconformity's owner, an action's subject's owner), its approver (a
+document's or nonconformity's approver, an action's subject's approver), the lead auditor or an auditor of an internal
+audit, or the chair of a management review; M16 builds each `Resource` per action (plan §3.2). FA, CO and CA may take a
+step whose usual taker is the record's owner, row owner, lead auditor or chair, audited with `delegated: true`; FA and
+CO never take an approver's step, and only the record's approver or a CA as delegate does. Nobody takes a checker step
+(APPROVE, APPROVE_NA, VERIFY_EFFECTIVE, VERIFY_NOT_EFFECTIVE) on a record where they took a maker step since its last
+RAISE, REOPEN, VERIFY_NOT_EFFECTIVE or DRAFT_REVISION: `403 FORBIDDEN` (model §4).
+
+**Scope.** Client scope as §1. AP/OW limited to their units (plan §3.3): an approver or owner whose membership lists
+`unitIds` sees a record only when its unit is one of theirs; when its units list overlaps theirs (an empty list on an
+internal audit or certificate means its management system's units, an empty list on a management system every unit of
+the client); when it has no unit of its own and its management system's units qualify; or when it names them (owner,
+approver, lead auditor, auditor, auditee, reported-to, chair, attendee or investigator). A child record (finding,
+action, revision, reading, checklist row or item, control, input, output, file) takes its parent's units. Outside them a
+single read or write is `404`, and lists and overview counts leave the record out. The current approved revision of a
+system document, and its file, stays readable by every member of the client. The catalogue routes read the account's
+own copy, which is firm-wide and the same for every client: clause numbers, titles and summaries in our own words,
+never a standard's text.
+
+**Writes.** Every update and machine step carries `version` (`409 STALE_VERSION`). A step the record's state does not
+allow is `409 INVALID_TRANSITION` with `{ entity, from, action }`: the ISO entity type, its state (or a checklist row's
+N/A state) and the model §4 action, or `UPDATE` for a field edit, list change or new child row on a locked record
+(model §1.8, §6). A failed guard is `400 VALIDATION` naming the fields; a missing reason is `422 REASON_REQUIRED`. A
+person named on a record must hold a live role in its client covering its unit, else `400 VALIDATION` (model §1.5).
+Moving a planned or due date, or changing an owner or approver, needs a `reason` and is audited as `DUE_DATE_CHANGE` or
+`REASSIGN`. Every create, edit, state change, list change and file add, remove or download writes an `AuditEvent` with
+the model §8 entity type (`ISO_ENTITY_TYPES`, staged: no route writes one before ISO-1b joins them to `EntityType`).
+Views of records with a machine carry `allowedActions`, the steps the signed-in person may take now. Machine steps
+honour `Idempotency-Key` (api-conventions.md §2), RAISE and PLAN included, and so do a risk item's REVIEW and closing an
+objective; DRAFT_REVISION, like every other create, does not.
+
+**Files** go in `iso_file`, never in `evidence` (model §6): the evidence upload rules (types, 25 MB, a 5-minute
+presigned PUT), PENDING until scanned, download only when CLEAN through a 5-minute signed URL, removal with a reason
+(archived, never deleted). Confirm, download and remove are audited on the subject as `EVIDENCE_ADD`,
+`EVIDENCE_DOWNLOAD` and `EVIDENCE_REMOVE`. A file is added to or removed from an open subject only (`409
+INVALID_TRANSITION` on a locked one). Files of an incident nonconformity and its actions download only for the
+nonconformity's owner, approver and investigators, CA, CO and FA; other readers see the list and get `403 FORBIDDEN`
+on the URL.
+
+### Catalogue (the account's copy)
+| Method | Path | Action | FA | CO | CA | AP | OW | VI | Notes |
+|---|---|---|---|---|---|---|---|---|---|
+| GET | `/clients/{clientId}/iso/catalogue/standards` | `isoSystem.read` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | standards and editions |
+| GET | `/clients/{clientId}/iso/catalogue/clauses` (standardId, assessable) | `isoSystem.read` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | by standard and number: numbers, titles and our own summaries, never the text |
+| GET | `/clients/{clientId}/iso/catalogue/review-defs` (standardId) → `{ inputs, outputs }` | `isoSystem.read` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | management review input and output definitions per standard |
+
+### Management systems and context
+| Method | Path | Action | FA | CO | CA | AP | OW | VI | Notes |
+|---|---|---|---|---|---|---|---|---|---|
+| GET | `/clients/{clientId}/iso/systems` (status, q) | `isoSystem.read` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | AP/OW limited to their units (plan §3.3) |
+| POST | `/clients/{clientId}/iso/systems` | `isoSystem.write` | ✓ | ✓ | ✓ | | | | `201`; adds a NOT_STARTED checklist row per assessable clause of each standard |
+| GET | `/clients/{clientId}/iso/systems/{id}` | `isoSystem.read` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | |
+| PATCH | `/clients/{clientId}/iso/systems/{id}` | `isoSystem.write` | ✓ | ✓ | ✓ | | | | name, scope, units, status, review interval; a standard may be added (with its checklist rows), never dropped |
+| PUT | `/clients/{clientId}/iso/systems/{id}/climate` | `isoSystem.write` | ✓ | ✓ | ✓ | | | | the climate decision (Amd 1:2024, clause 4.1); may change, never back to undecided; audited |
+| GET | `/clients/{clientId}/iso/systems/{id}/context` (kind, climateRelated, includeArchived) | `isoSystem.read` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | issues and interested parties (4.1, 4.2); AP/OW limited to their units (plan §3.3) |
+| POST | `/clients/{clientId}/iso/systems/{id}/context` | `isoSystem.write` | ✓ | ✓ | ✓ | | | | `201` |
+| PATCH | `/clients/{clientId}/iso/systems/{id}/context/{itemId}` | `isoSystem.write` | ✓ | ✓ | ✓ | | | | |
+| POST | `/clients/{clientId}/iso/systems/{id}/context/{itemId}/archive` `{ reason }` | `isoSystem.write` | ✓ | ✓ | ✓ | | | | |
+
+### Clause checklist
+| Method | Path | Action | FA | CO | CA | AP | OW | VI | Notes |
+|---|---|---|---|---|---|---|---|---|---|
+| GET | `/clients/{clientId}/iso/systems/{id}/checklist` (standardId, status, naState, ownerId) | `isoChecklist.read` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | by standard and clause number; AP/OW limited to their units (plan §3.3) |
+| PATCH | `/clients/{clientId}/iso/systems/{id}/checklist/{rowId}` | `isoChecklist.write` | ✓ | ✓ | ✓ | | own | | status (never NOT_APPLICABLE, refused while N/A is REQUESTED or APPROVED), owner, notes, review date; 4.1 not IMPLEMENTED before the climate decision; OW only on rows they own |
+| POST | `/clients/{clientId}/iso/systems/{id}/checklist/{rowId}/na-request` `{ version, reason }` | `isoChecklist.requestNa` | ✓ | ✓ | ✓ | | own | | REQUEST_NA on a clause that allows exclusion; `reason` is stored as the justification |
+| POST | `/clients/{clientId}/iso/systems/{id}/checklist/{rowId}/na-approve` | `isoChecklist.decideNa` | | | ✓ | ✓ | | | APPROVE_NA; never the requester (`403`) |
+| POST | `/clients/{clientId}/iso/systems/{id}/checklist/{rowId}/na-reject` `{ version, reason }` | `isoChecklist.decideNa` | | | ✓ | ✓ | | | REJECT_NA; the row returns to its status before the request; never the requester |
+| POST | `/clients/{clientId}/iso/systems/{id}/checklist/{rowId}/na-withdraw` `{ version, reason }` | `isoChecklist.requestNa` | ✓ | ✓ | ✓ | | own | | WITHDRAW_NA: the clause applies again; the row returns to NOT_STARTED |
+
+### Documents
+| Method | Path | Action | FA | CO | CA | AP | OW | VI | Notes |
+|---|---|---|---|---|---|---|---|---|---|
+| GET | `/clients/{clientId}/iso/documents` (managementSystemId, q, type, status, ownerId, approverId, clauseId) | `isoDocument.read` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ACTIVE only unless `status` says otherwise; AP/OW limited to their units (plan §3.3); a system document's current revision is readable by every member of the client |
+| POST | `/clients/{clientId}/iso/documents` | `isoDocument.write` | ✓ | ✓ | ✓ | | own | | `201`, no revision yet; OW only as its owner |
+| GET | `/clients/{clientId}/iso/documents/{id}` | `isoDocument.read` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | with its current revision and the actions on offer |
+| PATCH | `/clients/{clientId}/iso/documents/{id}` | `isoDocument.write` | ✓ | ✓ | ✓ | | own | | its own fields while ACTIVE (not `code` or `type`); OW only as its owner |
+| POST | `/clients/{clientId}/iso/documents/{id}/review` `{ version, note, nextReviewDueOn }` | `isoDocument.approve` | | | ✓ | own | | | REVIEW: the approver confirms the current revision |
+| POST | `/clients/{clientId}/iso/documents/{id}/obsolete` `{ version, reason }` | `isoDocument.approve` | | | ✓ | own | | | MAKE_OBSOLETE; the history stays readable |
+| GET | `/clients/{clientId}/iso/documents/{id}/revisions` | `isoDocument.read` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | newest first, superseded ones included; AP/OW limited to their units (plan §3.3) |
+| POST | `/clients/{clientId}/iso/documents/{id}/revisions` | `isoDocument.write` | ✓ | ✓ | ✓ | | own | | `201`; DRAFT_REVISION: no other revision in DRAFT or IN_REVIEW; OW only as the document owner |
+| PATCH | `/clients/{clientId}/iso/documents/{id}/revisions/{revisionId}` | `isoDocument.write` | ✓ | ✓ | ✓ | | own | | label or change note of a DRAFT revision |
+| POST | `/clients/{clientId}/iso/documents/{id}/revisions/{revisionId}/submit` | `isoDocument.write` | ✓ | ✓ | ✓ | | own | | SUBMIT: change note and exactly one live CLEAN file; not an EXTERNAL document |
+| POST | `/clients/{clientId}/iso/documents/{id}/revisions/{revisionId}/approve` | `isoDocument.approve` | | | ✓ | own | | | APPROVE: the previous approved revision becomes SUPERSEDED; never the preparer (`403`) |
+| POST | `/clients/{clientId}/iso/documents/{id}/revisions/{revisionId}/send-back` `{ version, reason }` | `isoDocument.approve` | | | ✓ | own | | | SEND_BACK to DRAFT |
+| POST | `/clients/{clientId}/iso/documents/{id}/revisions/{revisionId}/record-edition` | `isoDocument.write` | ✓ | ✓ | ✓ | | own | | RECORD_EDITION of an EXTERNAL document: approved once its file is CLEAN, with no internal approver |
+
+### Risk register
+| Method | Path | Action | FA | CO | CA | AP | OW | VI | Notes |
+|---|---|---|---|---|---|---|---|---|---|
+| GET | `/clients/{clientId}/iso/risks` (managementSystemId, q, unitId, kind, significant, climateRelated, ownerId, includeArchived) | `isoRisk.read` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | risks, opportunities, aspects and hazards; AP/OW limited to their units (plan §3.3) |
+| POST | `/clients/{clientId}/iso/risks` | `isoRisk.write` | ✓ | ✓ | ✓ | | own | | `201`; the engine's rating and significance are stored with it; OW only as its owner, for their units |
+| GET | `/clients/{clientId}/iso/risks/{id}` | `isoRisk.read` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | |
+| PATCH | `/clients/{clientId}/iso/risks/{id}` | `isoRisk.write` | ✓ | ✓ | ✓ | | own | | change or re-rate (not `kind`); rating and significance recomputed; OW only as its owner |
+| POST | `/clients/{clientId}/iso/risks/{id}/archive` `{ reason }` | `isoRisk.write` | ✓ | ✓ | ✓ | | own | | its actions can no longer be reopened |
+| POST | `/clients/{clientId}/iso/risks/{id}/review` `{ version, nextReviewDueOn, note? }` | `isoRisk.write` | ✓ | ✓ | ✓ | | own | | REVIEW: stands as rated; sets the next review date |
+| PUT | `/clients/{clientId}/iso/risks/{id}/significance` `{ version, significantOverride, reason }` | `isoRisk.override` | ✓ | ✓ | ✓ | | | | set or clear the override; audited |
+| GET | `/clients/{clientId}/iso/risks/{id}/controls` | `isoRisk.read` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | controls in place; AP/OW limited to their units (plan §3.3) |
+| POST | `/clients/{clientId}/iso/risks/{id}/controls` | `isoRisk.write` | ✓ | ✓ | ✓ | | own | | `201`; `hierarchy` required on a HAZARD; planned controls are treatment actions |
+| PATCH | `/clients/{clientId}/iso/risks/{id}/controls/{controlId}` | `isoRisk.write` | ✓ | ✓ | ✓ | | own | | OW only as the item owner |
+| POST | `/clients/{clientId}/iso/risks/{id}/controls/{controlId}/archive` `{ reason }` | `isoRisk.write` | ✓ | ✓ | ✓ | | own | | a control no longer in place |
+
+### Objectives
+| Method | Path | Action | FA | CO | CA | AP | OW | VI | Notes |
+|---|---|---|---|---|---|---|---|---|---|
+| GET | `/clients/{clientId}/iso/objectives` (managementSystemId, q, standard, ownerId, open) | `isoObjective.read` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | with progress; AP/OW limited to their units (plan §3.3) |
+| POST | `/clients/{clientId}/iso/objectives` | `isoObjective.write` | ✓ | ✓ | ✓ | | own | | `201`; one or more standards of its system; OW only as its owner |
+| GET | `/clients/{clientId}/iso/objectives/{id}` | `isoObjective.read` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | with progress |
+| PATCH | `/clients/{clientId}/iso/objectives/{id}` | `isoObjective.write` | ✓ | ✓ | ✓ | | own | | while open; moving `dueOn` needs a reason |
+| POST | `/clients/{clientId}/iso/objectives/{id}/close` `{ version, closedOn, outcome }` | `isoObjective.write` | ✓ | ✓ | ✓ | | own | | readings and actions stop |
+| GET | `/clients/{clientId}/iso/objectives/{id}/readings` | `isoObjective.read` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | by period; AP/OW limited to their units (plan §3.3) |
+| POST | `/clients/{clientId}/iso/objectives/{id}/readings` | `isoObjective.write` | ✓ | ✓ | ✓ | | own | | `201`; on an open objective; OW only as the objective owner |
+| PATCH | `/clients/{clientId}/iso/objectives/{id}/readings/{readingId}` | `isoObjective.write` | ✓ | ✓ | ✓ | | own | | correct a reading on an open objective |
+
+### Audit programmes and internal audits
+| Method | Path | Action | FA | CO | CA | AP | OW | VI | Notes |
+|---|---|---|---|---|---|---|---|---|---|
+| GET | `/clients/{clientId}/iso/audit-programmes` (managementSystemId, fy) | `isoAudit.read` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | by FY, with coverage; AP/OW limited to their units (plan §3.3) |
+| POST | `/clients/{clientId}/iso/audit-programmes` | `isoSystem.write` | ✓ | ✓ | ✓ | | | | `201`; one per system and FY (`409 DUPLICATE`) |
+| PATCH | `/clients/{clientId}/iso/audit-programmes/{id}` | `isoSystem.write` | ✓ | ✓ | ✓ | | | | notes |
+| GET | `/clients/{clientId}/iso/internal-audits` (managementSystemId, q, programmeId, state, unitId, leadAuditorId, from, to) | `isoAudit.read` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | by planned start; AP/OW limited to their units (plan §3.3) |
+| POST | `/clients/{clientId}/iso/internal-audits` | `isoAudit.plan` | ✓ | ✓ | ✓ | | | | `201`, PLANNED; an auditor who is also an auditee needs an independence note |
+| GET | `/clients/{clientId}/iso/internal-audits/{id}` | `isoAudit.read` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | with the actions on offer |
+| PATCH | `/clients/{clientId}/iso/internal-audits/{id}` | `isoAudit.plan` | ✓ | ✓ | ✓ | | | | while PLANNED or IN_PROGRESS; moving its dates needs a reason |
+| POST | `/clients/{clientId}/iso/internal-audits/{id}/start` | `isoAudit.conduct` | ✓ | ✓ | ✓ | own | own | | START; AP/OW only as its lead auditor or an auditor |
+| POST | `/clients/{clientId}/iso/internal-audits/{id}/report` `{ version, summary, reportedOn?, reportedToIds? }` | `isoAudit.conduct` | ✓ | ✓ | ✓ | own | own | | REPORT: someone reported to and a result for every clause of the audit |
+| POST | `/clients/{clientId}/iso/internal-audits/{id}/close` | `isoAudit.conduct` | ✓ | ✓ | ✓ | own | own | | CLOSE once every nonconformity it raised has left OPEN |
+| POST | `/clients/{clientId}/iso/internal-audits/{id}/cancel` `{ version, reason }` | `isoAudit.plan` | ✓ | ✓ | ✓ | | | | CANCEL a PLANNED audit |
+| GET | `/clients/{clientId}/iso/internal-audits/{id}/checklist` | `isoAudit.read` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | AP/OW limited to their units (plan §3.3) |
+| POST | `/clients/{clientId}/iso/internal-audits/{id}/checklist` | `isoAudit.conduct` | ✓ | ✓ | ✓ | own | own | | `201`; while PLANNED or IN_PROGRESS |
+| PATCH | `/clients/{clientId}/iso/internal-audits/{id}/checklist/{itemId}` | `isoAudit.conduct` | ✓ | ✓ | ✓ | own | own | | answer or change a row while PLANNED or IN_PROGRESS |
+| GET | `/clients/{clientId}/iso/internal-audits/{id}/findings` | `isoAudit.read` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | AP/OW limited to their units (plan §3.3) |
+| POST | `/clients/{clientId}/iso/internal-audits/{id}/findings` | `isoAudit.conduct` | ✓ | ✓ | ✓ | own | own | | `201` while IN_PROGRESS; a MAJOR_NC or MINOR_NC raises its nonconformity in the same step |
+| PATCH | `/clients/{clientId}/iso/internal-audits/{id}/findings/{findingId}` | `isoAudit.conduct` | ✓ | ✓ | ✓ | own | own | | while IN_PROGRESS; limited type moves (`FindingUpdateBody`) |
+
+### Certification and external audits
+| Method | Path | Action | FA | CO | CA | AP | OW | VI | Notes |
+|---|---|---|---|---|---|---|---|---|---|
+| GET | `/clients/{clientId}/iso/certifications` (managementSystemId, standardId) | `isoCertification.read` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | with surveillance and recertification dates; AP/OW limited to their units (plan §3.3) |
+| POST | `/clients/{clientId}/iso/certifications` | `isoCertification.write` | ✓ | ✓ | ✓ | | | | `201`; one standard of a system; may be recorded before it is issued |
+| PATCH | `/clients/{clientId}/iso/certifications/{id}` | `isoCertification.write` | ✓ | ✓ | ✓ | | | | issuing sets number, issue and expiry dates together |
+| GET | `/clients/{clientId}/iso/external-audits` (managementSystemId, state, type, from, to) | `isoCertification.read` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | by start date; AP/OW limited to their units (plan §3.3) |
+| POST | `/clients/{clientId}/iso/external-audits` | `isoCertification.write` | ✓ | ✓ | ✓ | | | | `201`, PLANNED; one visit may cover several standards |
+| GET | `/clients/{clientId}/iso/external-audits/{id}` | `isoCertification.read` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | with the actions on offer |
+| PATCH | `/clients/{clientId}/iso/external-audits/{id}` | `isoCertification.write` | ✓ | ✓ | ✓ | | | | until CLOSED or CANCELLED |
+| POST | `/clients/{clientId}/iso/external-audits/{id}/held` | `isoCertification.write` | ✓ | ✓ | ✓ | | | | RECORD_HELD: the visit's dates; the body's report is a file on it |
+| POST | `/clients/{clientId}/iso/external-audits/{id}/response` | `isoCertification.write` | ✓ | ✓ | ✓ | | | | RECORD_RESPONSE once every nonconformity its findings raised has left OPEN |
+| POST | `/clients/{clientId}/iso/external-audits/{id}/close` | `isoCertification.write` | ✓ | ✓ | ✓ | | | | CLOSE with the recommendation recorded |
+| POST | `/clients/{clientId}/iso/external-audits/{id}/cancel` `{ version, reason }` | `isoCertification.write` | ✓ | ✓ | ✓ | | | | CANCEL a PLANNED visit |
+| GET | `/clients/{clientId}/iso/external-audits/{id}/findings` | `isoCertification.read` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | AP/OW limited to their units (plan §3.3) |
+| POST | `/clients/{clientId}/iso/external-audits/{id}/findings` | `isoCertification.write` | ✓ | ✓ | ✓ | | | | `201` while HELD; a MAJOR_NC or MINOR_NC raises its nonconformity in the same step |
+| PATCH | `/clients/{clientId}/iso/external-audits/{id}/findings/{findingId}` | `isoCertification.write` | ✓ | ✓ | ✓ | | | | while HELD; limited type moves (`FindingUpdateBody`) |
+
+### Nonconformities and incidents
+| Method | Path | Action | FA | CO | CA | AP | OW | VI | Notes |
+|---|---|---|---|---|---|---|---|---|---|
+| GET | `/clients/{clientId}/iso/nonconformities` (managementSystemId, q, unitId, state, source, severity, standard, ownerId, approverId, incident, overdue) | `isoNc.read` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | newest first, with timing; AP/OW limited to their units (plan §3.3) |
+| POST | `/clients/{clientId}/iso/nonconformities` | `isoNc.raise` | ✓ | ✓ | ✓ | ✓ | ✓ | | `201`; RAISE a nonconformity, incident or near miss for a unit the actor can see; not with an audit source (those come from findings) |
+| GET | `/clients/{clientId}/iso/nonconformities/{id}` | `isoNc.read` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | with its timing, the finding that raised it and the actions on offer |
+| PATCH | `/clients/{clientId}/iso/nonconformities/{id}` | `isoNc.work` / `isoNc.reassign` | ✓ | ✓ | ✓ | | own | | until CLOSED or CANCELLED; investigation fields need `isoNc.work` (CA, or OW only as its owner); owner, approver, `dueOn` and `effectivenessDueOn` need `isoNc.reassign` (FA, CO, CA) and a reason |
+| POST | `/clients/{clientId}/iso/nonconformities/{id}/root-cause` | `isoNc.work` | | | ✓ | | own | | ADD_ROOT_CAUSE: containment, correction, root cause and similar occurrences |
+| POST | `/clients/{clientId}/iso/nonconformities/{id}/plan-actions` `{ version, effectivenessDueOn }` | `isoNc.work` | | | ✓ | | own | | PLAN_ACTIONS: at least one OPEN action |
+| POST | `/clients/{clientId}/iso/nonconformities/{id}/submit-no-action` | `isoNc.work` | | | ✓ | | own | | SUBMIT_NO_ACTION for a minor case, with the reason, risk review and system change |
+| POST | `/clients/{clientId}/iso/nonconformities/{id}/submit` | `isoNc.work` | | | ✓ | | own | | SUBMIT for verification once its actions are done |
+| POST | `/clients/{clientId}/iso/nonconformities/{id}/verify-effective` `{ version, effectivenessNote }` | `isoNc.verify` | | | ✓ | own | | | VERIFY_EFFECTIVE closes it; CA verifies as delegate; never a maker since the last RAISE, REOPEN or VERIFY_NOT_EFFECTIVE |
+| POST | `/clients/{clientId}/iso/nonconformities/{id}/verify-not-effective` `{ version, reason, backTo, effectivenessDueOn? }` | `isoNc.verify` | | | ✓ | own | | | back to OPEN or ACTIONS_PLANNED; the same maker-checker rule |
+| POST | `/clients/{clientId}/iso/nonconformities/{id}/cancel` `{ version, reason }` | `isoNc.cancel` | | | ✓ | own | | | CANCEL (final) |
+| POST | `/clients/{clientId}/iso/nonconformities/{id}/reopen` `{ version, reason, backTo, effectivenessDueOn? }` | `isoNc.reopen` | | | ✓ | | | | REOPEN a CLOSED nonconformity to OPEN or ACTIONS_PLANNED |
+
+### Actions (every subject)
+| Method | Path | Action | FA | CO | CA | AP | OW | VI | Notes |
+|---|---|---|---|---|---|---|---|---|---|
+| GET | `/clients/{clientId}/iso/actions` (managementSystemId, q, subjectType, subjectId, ownerId, state, overdue, from, to) | `isoAction.read` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | by due date; AP/OW limited to their units (plan §3.3) |
+| POST | `/clients/{clientId}/iso/actions` | `isoAction.write` | ✓ | ✓ | ✓ | | own | | `201` on an open subject; none on a MAJOR_NC, MINOR_NC or GOOD_PRACTICE finding; OW only as the subject's owner |
+| GET | `/clients/{clientId}/iso/actions/{id}` | `isoAction.read` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | with the actions on offer |
+| PATCH | `/clients/{clientId}/iso/actions/{id}` | `isoAction.write` | ✓ | ✓ | ✓ | | own | | while OPEN; a new owner or due date needs a reason |
+| POST | `/clients/{clientId}/iso/actions/{id}/complete` `{ version, doneOn, effectivenessNote? }` | `isoAction.complete` | | | ✓ | | own | | COMPLETE: OPEN to DONE; on a risk item it also adds the control; OW only as the action's owner |
+| POST | `/clients/{clientId}/iso/actions/{id}/cancel` `{ version, reason }` | `isoAction.cancel` | | | ✓ | own | | | CANCEL an OPEN action; AP only as the subject's approver |
+| POST | `/clients/{clientId}/iso/actions/{id}/reopen` `{ version, reason }` | `isoAction.reopen` | | | ✓ | | | | REOPEN a DONE or CANCELLED action while its subject is open |
+
+### Management reviews
+| Method | Path | Action | FA | CO | CA | AP | OW | VI | Notes |
+|---|---|---|---|---|---|---|---|---|---|
+| GET | `/clients/{clientId}/iso/management-reviews` (managementSystemId, q, state, from, to) | `isoReview.read` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | by planned date; AP/OW limited to their units (plan §3.3) |
+| POST | `/clients/{clientId}/iso/management-reviews` | `isoReview.plan` | ✓ | ✓ | ✓ | | | | `201`; PLAN: its input and output rows come with it |
+| GET | `/clients/{clientId}/iso/management-reviews/{id}` | `isoReview.read` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | with the actions on offer |
+| PATCH | `/clients/{clientId}/iso/management-reviews/{id}` | `isoReview.write` / `isoReview.plan` | ✓ | ✓ | ✓ | own | own | | attendees and minutes (`isoReview.write`); standards, date or chair while PLANNED (`isoReview.plan`, moving the date needs a reason); AP/OW only as its chair, and never for standards, date or chair |
+| POST | `/clients/{clientId}/iso/management-reviews/{id}/cancel` `{ version, reason }` | `isoReview.plan` | ✓ | ✓ | ✓ | | | | CANCEL a PLANNED review |
+| POST | `/clients/{clientId}/iso/management-reviews/{id}/held` `{ version, heldOn, attendeeIds?, minutes? }` | `isoReview.write` | ✓ | ✓ | ✓ | own | own | | RECORD_HELD: notes on every input; AP/OW only as its chair |
+| POST | `/clients/{clientId}/iso/management-reviews/{id}/close` | `isoReview.write` | ✓ | ✓ | ✓ | own | own | | CLOSE: a decision on every output, every review action DONE or CANCELLED |
+| GET | `/clients/{clientId}/iso/management-reviews/{id}/inputs` | `isoReview.read` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | each with its source's figures (`reviewInputFigures`); AP/OW limited to their units (plan §3.3) |
+| PATCH | `/clients/{clientId}/iso/management-reviews/{id}/inputs/{inputId}` | `isoReview.write` | ✓ | ✓ | ✓ | own | own | | notes on one input |
+| GET | `/clients/{clientId}/iso/management-reviews/{id}/outputs` | `isoReview.read` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | AP/OW limited to their units (plan §3.3) |
+| PATCH | `/clients/{clientId}/iso/management-reviews/{id}/outputs/{outputId}` | `isoReview.write` | ✓ | ✓ | ✓ | own | own | | the decision on one output |
+
+### Files and overview
+| Method | Path | Action | FA | CO | CA | AP | OW | VI | Notes |
+|---|---|---|---|---|---|---|---|---|---|
+| POST | `/clients/{clientId}/iso/files/upload-url` `{ subject, fileName, mimeType, sizeBytes }` → `UploadTicket` | `isoFile.write` | ✓ | ✓ | ✓ | own | own | | presigned PUT (5 minutes) for one file on an open record; whoever may write the subject |
+| POST | `/clients/{clientId}/iso/files` `{ subject, uploadId, fileName, sha256 }` → `IsoFileView` | `isoFile.write` | ✓ | ✓ | ✓ | own | own | | `201`, PENDING until scanned; audited as `EVIDENCE_ADD` on the subject |
+| GET | `/clients/{clientId}/iso/files` (subjectType, subjectId, includeRemoved) | `isoFile.read` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | one record's files; whoever may read the subject; never a URL; AP/OW limited to their units (plan §3.3) |
+| GET | `/clients/{clientId}/iso/files/{id}/download-url` | `isoFile.read` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | 5-minute URL, CLEAN files only, audited as `EVIDENCE_DOWNLOAD`; an incident's files only for its owner, approver and investigators, CA, CO and FA |
+| POST | `/clients/{clientId}/iso/files/{id}/remove` `{ reason }` → `IsoFileView` | `isoFile.write` | ✓ | ✓ | ✓ | own | own | | archives, never deletes; from an open record only |
+| GET | `/clients/{clientId}/iso/overview` (managementSystemId, asOf) → `IsoOverview` | `isoSystem.read` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | KPIs per management system, every number with the ids behind it; AP/OW limited to their units (plan §3.3) |
+
+### `can()` actions (plan §3.2 as implemented)
+
+ISO-4b adds one `POLICY` row per action. "own" is the person named in that role on the record, as above.
+
+| Action | FA | CO | CA | AP | OW | VI | Covers |
+|---|---|---|---|---|---|---|---|
+| `isoSystem.read`, `isoChecklist.read`, `isoDocument.read`, `isoRisk.read`, `isoObjective.read`, `isoAudit.read`, `isoCertification.read`, `isoNc.read`, `isoAction.read`, `isoReview.read`, `isoFile.read` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | reads and lists; `isoSystem.read` also the catalogue and the overview; `isoFile.read` file lists and download URLs (an incident's files only for the people named above) |
+| `isoSystem.write` | ✓ | ✓ | ✓ | | | | systems, scope, units, context items, climate decision, audit programmes |
+| `isoChecklist.write` | ✓ | ✓ | ✓ | | own | | a row's status, owner, notes, review date and files (own = row owner) |
+| `isoChecklist.requestNa` | ✓ | ✓ | ✓ | | own | | REQUEST_NA, WITHDRAW_NA |
+| `isoChecklist.decideNa` | | | ✓ | ✓ | | | APPROVE_NA, REJECT_NA (never the requester) |
+| `isoDocument.write` | ✓ | ✓ | ✓ | | own | | documents, revisions, DRAFT_REVISION, SUBMIT, RECORD_EDITION (own = document owner) |
+| `isoDocument.approve` | | | ✓ | own | | | revision APPROVE and SEND_BACK, document REVIEW and MAKE_OBSOLETE (own = document approver) |
+| `isoRisk.write` | ✓ | ✓ | ✓ | | own | | risk items, controls, REVIEW, archive (own = item owner) |
+| `isoRisk.override` | ✓ | ✓ | ✓ | | | | the significance override |
+| `isoObjective.write` | ✓ | ✓ | ✓ | | own | | objectives, readings, close (own = objective owner) |
+| `isoAudit.plan` | ✓ | ✓ | ✓ | | | | plan, edit and cancel internal audits |
+| `isoAudit.conduct` | ✓ | ✓ | ✓ | own | own | | START, checklist items, findings, REPORT, CLOSE (own = lead auditor or auditor) |
+| `isoCertification.write` | ✓ | ✓ | ✓ | | | | certificates, external audits and their findings |
+| `isoNc.raise` | ✓ | ✓ | ✓ | ✓ | ✓ | | RAISE, for a unit the actor can see |
+| `isoNc.work` | | | ✓ | | own | | investigation fields, ADD_ROOT_CAUSE, PLAN_ACTIONS, SUBMIT, SUBMIT_NO_ACTION (own = NC owner) |
+| `isoNc.reassign` | ✓ | ✓ | ✓ | | | | a nonconformity's owner, approver, `dueOn` and `effectivenessDueOn`, with a reason (new in ISO-1, README decision 51 h). The PATCH route admits FA and CO for these fields only |
+| `isoNc.verify` | | | ✓ | own | | | VERIFY_EFFECTIVE, VERIFY_NOT_EFFECTIVE (own = NC approver) |
+| `isoNc.cancel` | | | ✓ | own | | | CANCEL |
+| `isoNc.reopen` | | | ✓ | | | | REOPEN |
+| `isoAction.write` | ✓ | ✓ | ✓ | | own | | create and edit actions (own = owner of the subject) |
+| `isoAction.complete` | | | ✓ | | own | | COMPLETE (own = action owner) |
+| `isoAction.cancel` | | | ✓ | own | | | CANCEL (own = approver of the subject; findings, reviews, risk items and objectives have none, so only CA) |
+| `isoAction.reopen` | | | ✓ | | | | REOPEN |
+| `isoReview.plan` | ✓ | ✓ | ✓ | | | | PLAN, CANCEL, and a PLANNED review's standards, date and chair |
+| `isoReview.write` | ✓ | ✓ | ✓ | own | own | | attendees, minutes, inputs, RECORD_HELD, outputs, CLOSE (own = chair) |
+| `isoFile.write` | ✓ | ✓ | ✓ | own | own | | upload, confirm, remove: whoever may write the subject |
 
 ## 9. M15 · Operator API (`/api/platform/v1`, `apps/api/src/platform`)
 

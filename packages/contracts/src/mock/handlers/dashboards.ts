@@ -1,7 +1,8 @@
 // M10 endpoints: portfolio, client overview, breakdowns, calendar, reports and exports. Every number comes with
-// the instance ids behind it, computed by the mock's copy of the engine rules (derive.ts).
+// the instance ids behind it, computed by the mock's copy of the engine rules (derive.ts). Statutory numbers count
+// STATUTE-act instances only, with the ISO add-on on or off; the calendar takes `source` (docs/iso/plan.md §4.6).
 import { RegisterQuery } from '../../api/workflow.js';
-import type { BreakdownBy, ExportKind } from '../../enums.js';
+import type { ActivitySource, BreakdownBy, ExportKind } from '../../enums.js';
 import {
   type Actor,
   asOfFor,
@@ -9,6 +10,7 @@ import {
   fileUrl,
   fresh,
   fyRange,
+  hasIso,
   instanceRow,
   Lookup,
   MockError,
@@ -31,13 +33,22 @@ interface Period {
   unitId?: string[];
 }
 
-/** Instances of a client in the dashboard period (by due date) and units. */
-function inPeriod(actor: Actor, clientId: string, period: Period): InstanceRecord[] {
+/**
+ * Instances of a client in the dashboard period (by due date) and units, of `source`: `LAW` for statutory numbers,
+ * which never count ISO activities (plan §4.6), or the calendar's `source` query (both when absent and the add-on is
+ * on; STATUTE only while it is off).
+ */
+function inPeriod(
+  actor: Actor,
+  clientId: string,
+  period: Period,
+  source: ActivitySource | undefined,
+): InstanceRecord[] {
   const client = actor.firm.data.clients.find((c) => c.id === clientId)!;
   const range = period.fy === undefined ? null : fyRange(period.fy, client.settings.fyStartMonth);
   const from = range?.from ?? period.from;
   const to = range?.to ?? period.to;
-  return visibleInstances(actor, clientId).filter(
+  return visibleInstances(actor, clientId, source).filter(
     (i) =>
       (from === undefined || i.dueDate >= from) &&
       (to === undefined || i.dueDate <= to) &&
@@ -122,7 +133,7 @@ export const dashboardHandlers: PartialHandlers<
     const look = new Lookup(actor.firm);
     return {
       items: visibleClientIds(actor).map((clientId) => {
-        const instances = inPeriod(actor, clientId, ctx.query);
+        const instances = inPeriod(actor, clientId, ctx.query, 'LAW');
         const updated = instances.map((i) => i.updatedAt).sort();
         return {
           clientId,
@@ -134,10 +145,12 @@ export const dashboardHandlers: PartialHandlers<
               i.dueDate >= asOf &&
               daysBetween(asOf, i.dueDate) < 7,
           ).length,
+          // With the add-on on, the register also lists ISO activities, so the link says Law (plan §4.6).
           dueThisWeekFilter: {
             dueFrom: asOf,
             dueTo: addDays(asOf, 6),
             workflowState: ['OPEN' as const, 'SENT_BACK' as const],
+            ...(hasIso(actor) ? { source: 'LAW' as const } : {}),
           },
           lastActivityAt: updated.at(-1) ?? null,
         };
@@ -151,7 +164,8 @@ export const dashboardHandlers: PartialHandlers<
     ctx.authorize({ clientId });
     const asOf = asOfFor(actor, clientId, ctx.query.asOf, ctx.clock);
     const look = new Lookup(actor.firm);
-    const instances = inPeriod(actor, clientId, ctx.query);
+    // The overview is statutory: its lists, like its numbers, leave ISO activities out (ISO-11b).
+    const instances = inPeriod(actor, clientId, ctx.query, 'LAW');
     const pending = instances.filter((i) => [...OPEN, 'SUBMITTED'].includes(i.workflowState));
     return {
       result: scoreResult(look, instances, asOf),
@@ -175,7 +189,7 @@ export const dashboardHandlers: PartialHandlers<
     const asOf = asOfFor(actor, clientId, ctx.query.asOf, ctx.clock);
     return breakdown(
       new Lookup(actor.firm),
-      inPeriod(actor, clientId, ctx.query),
+      inPeriod(actor, clientId, ctx.query, 'LAW'),
       ctx.query.by,
       asOf,
     );
@@ -187,7 +201,7 @@ export const dashboardHandlers: PartialHandlers<
     ctx.authorize({ clientId });
     const asOf = asOfFor(actor, clientId, ctx.query.asOf, ctx.clock);
     const look = new Lookup(actor.firm);
-    const rows = rowsByDue(look, inPeriod(actor, clientId, ctx.query), asOf);
+    const rows = rowsByDue(look, inPeriod(actor, clientId, ctx.query, ctx.query.source), asOf);
     const days = new Map<string, typeof rows>();
     for (const row of rows) days.set(row.dueDate, [...(days.get(row.dueDate) ?? []), row]);
     return { items: [...days].map(([date, items]) => ({ date, items })) };
@@ -198,7 +212,12 @@ export const dashboardHandlers: PartialHandlers<
     const clientId = ctx.params.clientId!;
     ctx.authorize({ clientId });
     const asOf = asOfFor(actor, clientId, ctx.query.asOf, ctx.clock);
-    return breakdown(new Lookup(actor.firm), inPeriod(actor, clientId, ctx.query), 'act', asOf);
+    return breakdown(
+      new Lookup(actor.firm),
+      inPeriod(actor, clientId, ctx.query, 'LAW'),
+      'act',
+      asOf,
+    );
   },
 
   departmentReport(ctx) {
@@ -208,7 +227,7 @@ export const dashboardHandlers: PartialHandlers<
     const asOf = asOfFor(actor, clientId, ctx.query.asOf, ctx.clock);
     return breakdown(
       new Lookup(actor.firm),
-      inPeriod(actor, clientId, ctx.query),
+      inPeriod(actor, clientId, ctx.query, 'LAW'),
       'department',
       asOf,
     );
@@ -220,7 +239,7 @@ export const dashboardHandlers: PartialHandlers<
     ctx.authorize({ clientId });
     const asOf = asOfFor(actor, clientId, ctx.query.asOf, ctx.clock);
     const look = new Lookup(actor.firm);
-    const instances = inPeriod(actor, clientId, ctx.query);
+    const instances = inPeriod(actor, clientId, ctx.query, 'LAW');
     return {
       result: scoreResult(look, instances, asOf),
       items: rowsByDue(look, instances, asOf).filter((r) => r.status === 'OVERDUE'),
@@ -238,6 +257,8 @@ export const dashboardHandlers: PartialHandlers<
     ) {
       throw new MockError('FORBIDDEN', 'Not allowed: export.create', { action: 'export.create' });
     }
+    // A register export follows the register, `source` and the ISO off switch included (plan §4.5). The mock
+    // writes no file, so its filters are only checked and kept.
     const filters = Object.fromEntries(new URLSearchParams(ctx.body.filters));
     const parsed = RegisterQuery.safeParse(filters);
     if (!parsed.success) {
