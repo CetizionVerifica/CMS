@@ -1,7 +1,35 @@
 import { z } from 'zod';
-import { DerivedStatus, TimelineType, WorkflowState } from '../enums.js';
-import { Id, LocalDate, Name, Text } from '../primitives.js';
-import { Act, Category, Obligation, RecurrenceRule } from '../schemas/library.js';
+import { DerivedStatus, IsoStandardCode, TimelineType, WorkflowState } from '../enums.js';
+import { ClauseNumber, Id, Instant, LocalDate, LongText, Name, Text } from '../primitives.js';
+import {
+  AuditChecklistItem,
+  AuditFinding,
+  AuditProgramme,
+  Certification,
+  ClauseAssessment,
+  ClauseItem,
+  ContextItem,
+  ControlledDocument,
+  DocumentRevision,
+  ExternalAudit,
+  InternalAudit,
+  IsoAction,
+  IsoEdition,
+  IsoFile,
+  ManagementReview,
+  ManagementSystem,
+  Nonconformity,
+  Objective,
+  ObjectiveReading,
+  ReviewInput,
+  ReviewInputKey,
+  ReviewInputSource,
+  ReviewOutput,
+  ReviewOutputKey,
+  RiskControl,
+  RiskItem,
+} from '../schemas/iso.js';
+import { Act, Category, ClauseRef, Obligation, RecurrenceRule } from '../schemas/library.js';
 import {
   Client,
   Company,
@@ -109,3 +137,111 @@ export const ExpectedFixture = z.strictObject({
   }),
 });
 export type ExpectedFixture = z.infer<typeof ExpectedFixture>;
+
+// ---------- ISO add-on (fixtures.md §8) ----------
+
+/**
+ * `iso.catalogue.json`: the ISO catalogue an account's copy starts from (docs/iso/catalogue.md), without ids or firm.
+ * `isoCatalogueRows(firmId, at)` turns it into one account's rows, with ids that are the same on every load.
+ */
+export const IsoCatalogueFixture = z.strictObject({
+  version: Text.max(20),
+  standards: z.array(
+    z.strictObject({ code: IsoStandardCode, edition: IsoEdition, title: Name, topic: Name }),
+  ),
+  clauses: z.array(
+    z.strictObject({
+      standard: IsoStandardCode,
+      number: ClauseNumber,
+      title: Text.max(200),
+      summary: Text.max(1000),
+      parent: ClauseNumber.nullable(),
+      hlsKey: ClauseNumber.nullable(),
+      assessable: z.boolean(),
+      exclusionAllowed: z.boolean(),
+    }),
+  ),
+  reviewInputs: z.array(
+    z.strictObject({
+      standard: IsoStandardCode,
+      key: ReviewInputKey,
+      clauseNumber: ClauseNumber,
+      item: ClauseItem.nullable(),
+      title: Text.max(300),
+      source: ReviewInputSource,
+    }),
+  ),
+  reviewOutputs: z.array(
+    z.strictObject({
+      standard: IsoStandardCode,
+      key: ReviewOutputKey,
+      clauseNumber: ClauseNumber,
+      item: ClauseItem.nullable(),
+      title: Text.max(300),
+    }),
+  ),
+  /** The one category of the STANDARD acts. */
+  category: Name,
+  acts: z.array(
+    z.strictObject({
+      key: z.enum(['ISO_9001', 'ISO_14001', 'ISO_45001', 'IMS']),
+      name: Name,
+      shortName: Name,
+    }),
+  ),
+  /** The recurring activities (catalogue.md §3), each shipped once, under its act. */
+  activities: z.array(
+    z.strictObject({
+      key: z.string().regex(/^[A-Z0-9]+(-[A-Z0-9]+)*$/),
+      title: Text.max(1000),
+      act: z.enum(['ISO_9001', 'ISO_14001', 'ISO_45001', 'IMS']),
+      rule: RecurrenceRule,
+      evidence: LongText,
+      clauseRefs: z.array(ClauseRef).min(1).max(20),
+    }),
+  ),
+});
+export type IsoCatalogueFixture = z.infer<typeof IsoCatalogueFixture>;
+
+/** The ISO records of one firm, every one in its strict schema (the mock store's ISO tables). */
+export const IsoTablesShape = {
+  managementSystems: z.array(ManagementSystem),
+  contextItems: z.array(ContextItem),
+  clauseAssessments: z.array(ClauseAssessment),
+  documents: z.array(ControlledDocument),
+  revisions: z.array(DocumentRevision),
+  riskItems: z.array(RiskItem),
+  riskControls: z.array(RiskControl),
+  objectives: z.array(Objective),
+  readings: z.array(ObjectiveReading),
+  auditProgrammes: z.array(AuditProgramme),
+  internalAudits: z.array(InternalAudit),
+  auditChecklistItems: z.array(AuditChecklistItem),
+  certifications: z.array(Certification),
+  externalAudits: z.array(ExternalAudit),
+  findings: z.array(AuditFinding),
+  nonconformities: z.array(Nonconformity),
+  actions: z.array(IsoAction),
+  managementReviews: z.array(ManagementReview),
+  reviewInputs: z.array(ReviewInput),
+  reviewOutputs: z.array(ReviewOutput),
+  files: z.array(IsoFile),
+};
+
+/**
+ * `firm-b.iso.json`: firm B's ISO add-on data (Northwind Foods Group's integrated management system). The catalogue
+ * rows, STANDARD acts, their category and obligations are not stored here: they are `isoCatalogueRows(firm B,
+ * catalogueCopiedAt)`, as the account's copy would make them. The STANDARD assignments and instances (with their
+ * evidence) join firm B's register data; the ISO records fill the mock's ISO tables.
+ */
+export const IsoFixtureSet = z.strictObject({
+  source: Text,
+  firmId: Id,
+  /** When the account's catalogue copy was recorded (`Account.isoCatalogueCopiedAt`). */
+  catalogueCopiedAt: Instant,
+  assignments: z.array(Assignment),
+  instances: z.array(ComplianceInstance),
+  evidence: z.array(Evidence),
+  ...IsoTablesShape,
+});
+export type IsoFixtureSet = z.infer<typeof IsoFixtureSet>;

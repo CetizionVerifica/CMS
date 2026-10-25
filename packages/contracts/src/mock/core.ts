@@ -4,6 +4,8 @@ import type { ERROR_DETAILS } from '../api/error-details.js';
 import type { Endpoint } from '../api/endpoints.js';
 import type { RegisterQuery } from '../api/workflow.js';
 import {
+  type ActivitySource,
+  type ActKind,
   type DerivedStatus,
   INSTANCE_EDIT_STATES,
   type InstanceAction,
@@ -77,6 +79,8 @@ export interface Actor {
   memberships: MembershipRecord[];
   /** VIEWER memberships past `expiresAt`, for ACCESS_EXPIRED. */
   expired: MembershipRecord[];
+  /** The account's features for this request: the firm's, or the `X-Mock-Features` header's when it is sent. */
+  features: string[];
 }
 
 export function actorFor(
@@ -84,6 +88,7 @@ export function actorFor(
   session: Session,
   person: PersonRecord,
   now: string,
+  features: string[] = firm.features,
 ): Actor {
   const memberships = activeMemberships(firm, person.id, now);
   const expired = firm.data.memberships.filter(
@@ -93,7 +98,7 @@ export function actorFor(
       m.expiresAt !== null &&
       m.expiresAt <= now,
   );
-  return { session, firm, person, memberships, expired };
+  return { session, firm, person, memberships, expired, features: [...features] };
 }
 
 /** Clients the actor may see: all for FIRM_ADMIN, listed ones for CONSULTANT, membership clients otherwise. */
@@ -108,18 +113,24 @@ export function visibleClientIds(actor: Actor): string[] {
   return live.filter((id) => ids.has(id));
 }
 
-/** The actor's memberships that act within `clientId` (all of them when null), optionally within one unit. */
+/**
+ * The actor's memberships that act within `clientId` (all of them when null), optionally within one unit, and
+ * within at least one of `unitIds` when given (a record over several units, docs/iso/plan.md §3.3).
+ */
 export function membershipsFor(
   actor: Actor,
   clientId: string | null,
   unitId?: string,
+  unitIds?: readonly string[],
 ): MembershipRecord[] {
   return actor.memberships.filter((m) => {
     if (clientId === null) return true;
     if (m.role === 'FIRM_ADMIN') return true;
     if (m.role === 'CONSULTANT') return m.consultantClientIds!.includes(clientId);
     if (m.clientId !== clientId) return false;
-    return unitId === undefined || m.unitIds === null || m.unitIds.includes(unitId);
+    if (m.unitIds === null) return true;
+    if (unitIds !== undefined && !unitIds.some((id) => m.unitIds!.includes(id))) return false;
+    return unitId === undefined || m.unitIds.includes(unitId);
   });
 }
 
@@ -130,6 +141,8 @@ export const hasRole = (actor: Actor, clientId: string | null, roles: Role[], un
 export interface Scope {
   clientId: string | null;
   unitId?: string;
+  /** A record over several units: a unit-scoped membership needs one of them (`Resource.unitIds`). */
+  unitIds?: readonly string[];
   ownerId?: string;
   approverId?: string;
   /** Bulk endpoints: an `own` role passes here and each item is checked on its own. */
@@ -151,7 +164,7 @@ export function authorize(actor: Actor, ep: Endpoint, scope: Scope): void {
     }
     throw notFound();
   }
-  const inScope = membershipsFor(actor, scope.clientId, scope.unitId);
+  const inScope = membershipsFor(actor, scope.clientId, scope.unitId, scope.unitIds);
   if (inScope.length === 0) throw notFound();
   const allowed = inScope.some((m) => {
     const access = ep.roles[m.role];
@@ -162,6 +175,75 @@ export function authorize(actor: Actor, ep: Endpoint, scope: Scope): void {
     return false;
   });
   if (!allowed) throw new MockError('FORBIDDEN', `Not allowed: ${action}`, { action });
+}
+
+// ---------- the ISO add-on's off switch and the Law/ISO source (docs/iso/plan.md §4.4-4.6) ----------
+
+/** The ISO add-on's feature flag. */
+export const ISO_FEATURE = 'isoManagement';
+
+/** Whether the account has the ISO add-on for this request (`Actor.features`). */
+export const hasIso = (actor: Actor): boolean => actor.features.includes(ISO_FEATURE);
+
+/** 403 FEATURE_NOT_ENABLED, as the `/iso` routes answer while the add-on is off. */
+export function isoNotEnabled(): MockError<'FEATURE_NOT_ENABLED'> {
+  return new MockError('FEATURE_NOT_ENABLED', 'This add-on is not turned on', {
+    feature: ISO_FEATURE,
+  });
+}
+
+/** An act's kind; an act without one is a STATUTE (`Act.kind`). */
+export const actKind = (act: { kind?: ActKind | undefined }): ActKind => act.kind ?? 'STATUTE';
+
+/** The kind of the act an obligation belongs to. */
+export function obligationKind(firm: FirmState, obligation: { actId: string }): ActKind {
+  return actKind(firm.data.acts.find((a) => a.id === obligation.actId)!);
+}
+
+/** The kind of the act behind an assignment. */
+export function assignmentKind(firm: FirmState, assignment: { obligationId: string }): ActKind {
+  return obligationKind(
+    firm,
+    firm.data.obligations.find((o) => o.id === assignment.obligationId)!,
+  );
+}
+
+/** The kind of the act behind an instance: STANDARD for an ISO activity. */
+export function instanceKind(firm: FirmState, instance: { assignmentId: string }): ActKind {
+  return assignmentKind(
+    firm,
+    firm.data.assignments.find((a) => a.id === instance.assignmentId)!,
+  );
+}
+
+/** Ids of the firm's assignments on obligations of STANDARD acts, archived ones included. */
+export function standardAssignmentIds(firm: FirmState): Set<string> {
+  const acts = new Set(firm.data.acts.filter((a) => actKind(a) === 'STANDARD').map((a) => a.id));
+  const obligations = new Set(
+    firm.data.obligations.filter((o) => acts.has(o.actId)).map((o) => o.id),
+  );
+  return new Set(
+    firm.data.assignments.filter((a) => obligations.has(a.obligationId)).map((a) => a.id),
+  );
+}
+
+/**
+ * Whether a list shows an item of a `kind` act for `source`: with the ISO add-on off only STATUTE items, whatever
+ * `source` says; with it on, `LAW` = STATUTE, `ISO` = STANDARD, and both when `source` is absent (plan §4.4, §4.6).
+ */
+export function inSource(actor: Actor, kind: ActKind, source?: ActivitySource): boolean {
+  if (!hasIso(actor)) return kind === 'STATUTE';
+  return source === undefined || (source === 'ISO') === (kind === 'STANDARD');
+}
+
+/**
+ * Off hides and refuses, it never deletes: a core route that names an item of a STANDARD act (the act, its
+ * obligations, their assignments and instances, and the instances' comments, evidence and audit) answers 403
+ * FEATURE_NOT_ENABLED while the add-on is off (plan §4.4-4.5). Call it after the role check, so an actor who cannot
+ * see the item gets 404 and learns nothing of its kind.
+ */
+export function checkKindEnabled(actor: Actor, kind: ActKind): void {
+  if (kind === 'STANDARD' && !hasIso(actor)) throw isoNotEnabled();
 }
 
 /** `?asOf=` is for FIRM_ADMIN, CONSULTANT and VIEWER only (api-conventions.md §1). */
@@ -233,6 +315,11 @@ export class Lookup {
 
   obligationOf(instance: InstanceRecord): Row<'obligations'> {
     return this.obligations.get(this.assignments.get(instance.assignmentId)!.obligationId)!;
+  }
+
+  /** The kind of an act by id. */
+  actKindOf(actId: string): ActKind {
+    return actKind(this.acts.get(actId)!);
   }
 
   scored(instance: InstanceRecord): ScoredInstance {
@@ -349,13 +436,26 @@ export function instanceDetail(
   };
 }
 
-/** Instances the actor may see in a client: every unit for client-wide roles, scoped units for OW and AP. */
-export function visibleInstances(actor: Actor, clientId: string): InstanceRecord[] {
+/**
+ * Instances the actor may see in a client: every unit for client-wide roles, scoped units for OW and AP. ISO
+ * activities (instances under STANDARD acts) only while the account has the ISO add-on, and then as `source` asks:
+ * `LAW` for STATUTE acts, `ISO` for STANDARD acts, both when absent (`inSource`, plan §4.4-4.6).
+ */
+export function visibleInstances(
+  actor: Actor,
+  clientId: string,
+  source?: ActivitySource,
+): InstanceRecord[] {
   const memberships = membershipsFor(actor, clientId);
   const allUnits = memberships.some((m) => m.unitIds === null);
   const units = new Set(memberships.flatMap((m) => m.unitIds ?? []));
+  const standard = standardAssignmentIds(actor.firm);
   return actor.firm.data.instances.filter(
-    (i) => i.clientId === clientId && i.archivedAt === null && (allUnits || units.has(i.unitId)),
+    (i) =>
+      i.clientId === clientId &&
+      i.archivedAt === null &&
+      (allUnits || units.has(i.unitId)) &&
+      inSource(actor, standard.has(i.assignmentId) ? 'STANDARD' : 'STATUTE', source),
   );
 }
 
@@ -393,7 +493,7 @@ export function fyRange(fy: string, startMonth: number): { from: string; to: str
 
 type RegisterFilters = Omit<RegisterQuery, 'limit' | 'cursor' | 'count' | 'sort' | 'asOf'>;
 
-/** Applies register filters (api-conventions.md §3) to rows. */
+/** Applies register filters (api-conventions.md §3), `source` included (`inSource`), to rows. */
 export function filterRows(
   rows: RowOut[],
   filters: Partial<RegisterFilters>,
@@ -410,6 +510,7 @@ export function filterRows(
   return rows.filter((row) => {
     const obligation = look.obligations.get(row.obligationId)!;
     return (
+      inSource(actor, look.actKindOf(row.actId), filters.source) &&
       inList(filters.unitId, row.unitId) &&
       inList(filters.departmentId, row.departmentId) &&
       inList(filters.actId, row.actId) &&

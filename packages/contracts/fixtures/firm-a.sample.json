@@ -17,7 +17,11 @@
         "LOW": 1
       },
       "dueSoonDays": 7,
-      "mfaRequiredForFirmRoles": true
+      "mfaRequiredForFirmRoles": true,
+      "isoRisk": {
+        "significantAt": 12,
+        "legalLinkMakesSignificant": true
+      }
     },
     "kind": "CONSULTANCY",
     "status": "ACTIVE",

@@ -32,6 +32,16 @@ export const Resource = z.strictObject({
   type: EntityType,
   clientId: Id.nullable(),
   unitId: Id.optional(),
+  /**
+   * A record that spans several units (an ISO management system, internal audit or certificate, or a record that takes
+   * its management system's units; docs/iso/plan.md §3.3). When present, a unit-scoped membership needs at least one of
+   * them. Optional: absent means the record has no unit list.
+   */
+  unitIds: z
+    .array(Id)
+    .min(1)
+    .refine((ids) => new Set(ids).size === ids.length, { message: 'Units repeat' })
+    .optional(),
   ownerId: Id.optional(),
   approverId: Id.optional(),
 });

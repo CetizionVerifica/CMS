@@ -190,11 +190,12 @@ const CUSTOMER_DOCUMENT: DocumentOptions = {
   title: 'Canopy API',
   server: '/api/v1',
   cookie: SESSION_COOKIE,
-  tags: ['M5', 'M6', 'M7', 'M8', 'M10', 'M15'],
+  tags: ['M5', 'M6', 'M7', 'M8', 'M10', 'M15', 'M16'],
   namedSchemas: NAMED_SCHEMAS,
   description:
     'Generated from @canopy/contracts; do not edit. Conventions: docs/contracts/api-conventions.md. ' +
-    'Role permissions per operation are in x-canopy-roles (all, own, limited); a missing role is 403.',
+    'Role permissions per operation are in x-canopy-roles (all, own, limited); a missing role is 403. ' +
+    'An operation with x-canopy-feature needs that add-on: 403 FEATURE_NOT_ENABLED without it.',
 };
 
 /** Operator session cookie (ADR M15-0001 decision 9); never valid on the customer API. */
@@ -301,6 +302,7 @@ export function buildOpenApi(
       'x-canopy-roles': ep.roles,
       'x-canopy-idempotent': ep.idempotent,
       ...(ep.notes === undefined ? {} : { 'x-canopy-notes': ep.notes }),
+      ...(ep.feature === undefined ? {} : { 'x-canopy-feature': ep.feature }),
     };
     operations.push([ep, id, operation]);
   }

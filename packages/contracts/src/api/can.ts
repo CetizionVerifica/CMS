@@ -34,5 +34,10 @@ function inScope(
   if (resource.clientId === null) return true;
   if (m.role === 'CONSULTANT') return m.consultantClientIds!.includes(resource.clientId);
   if (m.clientId !== resource.clientId) return false;
-  return resource.unitId === undefined || m.unitIds === null || m.unitIds.includes(resource.unitId);
+  if (m.unitIds === null) return true;
+  // A record over several units (docs/iso/plan.md §3.3) needs one of them; a single-unit record needs its unit.
+  if (resource.unitIds !== undefined && !resource.unitIds.some((id) => m.unitIds!.includes(id))) {
+    return false;
+  }
+  return resource.unitId === undefined || m.unitIds.includes(resource.unitId);
 }

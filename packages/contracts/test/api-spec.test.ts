@@ -129,7 +129,9 @@ describe('endpoint table', () => {
   });
 
   it('honours Idempotency-Key on transitions, bulk approve, import commit, export creation and support grants', () => {
-    const idempotent = endpoints.filter(([, ep]) => ep.idempotent).map(([id]) => id);
+    const idempotent = endpoints
+      .filter(([, ep]) => ep.idempotent && ep.feature === undefined)
+      .map(([id]) => id);
     expect(idempotent.sort()).toEqual(
       [
         'approveInstance',
