@@ -1,6 +1,6 @@
 # ISO management systems add-on: plan (v2)
 
-Status: v2.3, 2026-10-25. Decisions: ADR [M16-0001](../adr/M16-0001-iso-management-systems.md), amended by ADR
+Status: v2.4, 2026-10-25. Decisions: ADR [M16-0001](../adr/M16-0001-iso-management-systems.md), amended by ADR
 [M16-0002](../adr/M16-0002-iso-plan-v2.md). v2 answers the 58 findings of the independent review of v1 (trace at the
 end of [packages.md](packages.md)). v2.1 takes in the departures the ISO contracts (ISO-1, contracts 1.8.0) list in
 `docs/contracts/README.md` decision 51 (a-n), and points the API, engine and screen briefs at the M0 mock's own
@@ -8,7 +8,10 @@ readings in `docs/contracts/iso-mock.md` (trace at the end of [packages.md](pack
 (contracts 1.8.1) that fixes the findings of the ISO-1 audit: one action per route, an NC's severity moved to
 reassignment, and a calendar date for `objectiveProgress`. v2.3 gives ISO states one set of plain words for the
 screens and the audit trail (model §4.7), adds ISO-12d for them, passes notes from the ISO-12a and ISO-2c audits to
-later briefs, and has M6 refuse edits to a STANDARD act and `clauseRefs` outside the add-on (ISO-9b).
+later briefs, and has M6 refuse edits to a STANDARD act and `clauseRefs` outside the add-on (ISO-9b). v2.4 accepts
+that those refusals live in the API only, passes on what ISO-2d (#276), ISO-10a (#277) and their audits leave for
+later briefs, splits ISO-14 so the catalogue copy is wired as soon as ISO-9 merges (ISO-14a), and gives the jobs a
+list of the accounts that have a feature (ISO-2f).
 
 Every ISO thread reads, in order: the root `CLAUDE.md`, this file, its own brief in [packages.md](packages.md), the
 parts of [model.md](model.md) and [catalogue.md](catalogue.md) its brief names, then the area `CLAUDE.md` of the paths
@@ -217,7 +220,10 @@ catalogue (catalogue.md §1) into it.
 - **Consumer and sweep.** M9 consumes the event and, when `added` has `isoManagement`, calls the copier through a
   `JobDeps` port (`IsoCatalogueCopier`, like `LibraryCopier`). A sweep every 10 minutes also calls it for every TRIAL
   or ACTIVE account whose features include `isoManagement` and whose copy is not recorded; that covers an account
-  created on a plan that has the flag, and a missed delivery (ISO-10a). `wiring.ts` injects the copier (ISO-14).
+  created on a plan that has the flag, and a missed delivery (ISO-10a). `wiring.ts` injects the copier (ISO-14a, as
+  soon as ISO-9 and ISO-10a have merged: until then a switch-on fails its retries and the sweep logs an error every
+  10 minutes, and nothing is lost). From ISO-10b the sweep lists only the accounts that have the feature, through
+  M3's `listFirmIdsWithFeature` (ISO-2f), instead of reading every account.
 - **Marker.** The copy runs in the account's system context and records itself with
   `app_mark_iso_catalogue_copied()`: a SECURITY DEFINER function owned by `canopy_platform`, callable only in the
   account's own system context, which sets `firm.iso_catalogue_copied_at` once and returns whether it set it. It works
@@ -250,8 +256,12 @@ with their obligations, assignments and instances, the comments, evidence and au
   system-job context may insert a STANDARD act, the library create and update bodies take no `kind`, and M6 refuses
   merges and obligation moves across kinds (ISO-2c, ISO-9b);
 - M6 also refuses any edit, archive or merge of a STANDARD act, whose values are fixed (catalogue §2), and takes a
-  non-empty `clauseRefs` only on an obligation under a STANDARD act while the add-on is on (ISO-9b). The database
-  allows both to staff (ISO-2c), so the API is where they are refused.
+  non-empty `clauseRefs` only on an obligation under a STANDARD act and only while the add-on is on (ISO-9b): 400 on
+  a STATUTE obligation, 403 while the add-on is off. The database allows all of these to staff (ISO-2c), and that is
+  accepted: the two 400 refusals keep the catalogue's shape, the 403 is an off-switch gate like every other in §4.5,
+  and all three are M6 route checks guarded by ISO-9b's route tests. In the database, `act.kind` cannot be used to
+  get round the switch (it never changes, and only the system job inserts a STANDARD act); the switch itself, and
+  merges and moves across kinds, are refused in the API.
 
 Turning it back on brings everything back as it was. The account purge (ADR M15-0002) removes ISO rows and files like
 any other client data.
@@ -324,7 +334,7 @@ package below belongs to exactly one module and its PRs are titled `M<n>: ISO ..
 Files no module owns (`apps/api/src/wiring.ts`, `apps/api/src/main.ts`, `apps/api/CLAUDE.md`, `apps/web/CLAUDE.md`)
 change only in a PR with no module prefix, titled `Tooling: ISO ...`, as earlier wiring changes were (#196, #208, #220,
 #239).
-ISO-14 is that package.
+ISO-14a (the catalogue copy) and ISO-14b (ISO files) are those packages.
 
 ### 5.4 Start order
 
@@ -338,10 +348,10 @@ ISO-14 is that package.
 - M17's `e2e/tests/iso/`, M11's `e2e/tests/shell/`, M12's `e2e/tests/register/` and M13's `e2e/tests/overview/` lie
   inside M14's `e2e/`. A package that changes files there and an M14 thread may run at the same time only while the
   M14 thread does not touch those files (§5.5).
-- Up to five threads at once, as for the main build. The one exception is ISO-1a, which continued the ISO-1 thread
-  while five I3 packages ran (six at once); no further package starts until fewer than five threads run. Each thread
-  marks its PR ready only when it expects it to pass, gets it audited in a separate session, and merges `main` before
-  marking ready.
+- Up to five threads at once, as for the main build, not counting ISO-1a: it continued the ISO-1 thread while five I3
+  packages ran, so six run while it is open, and another package starts only when fewer than five of the others run.
+  Each thread marks its PR ready only when it expects it to pass, gets it audited in a separate session, and merges
+  `main` before marking ready.
 
 ### 5.5 Merging main
 
@@ -359,7 +369,7 @@ before any package that depends on the change starts.
 ## 6. Packages and waves
 
 Briefs: [packages.md](packages.md). Waves are for orientation; the Needs column decides. Status as of 2026-10-25
-(`origin/main` at #266). ISO-3 and ISO-7b started before ISO-1a was added to their Needs; each merges `main` after
+(`origin/main` at #275). ISO-3 and ISO-7b started before ISO-1a was added to their Needs; each merges `main` after
 ISO-1a has merged and before marking ready.
 
 | Wave | Package | Module | Title | Needs | Status |
@@ -380,31 +390,32 @@ ISO-1a has merged and before marking ready.
 | I3 | ISO-11e | M10 | Default branch in the export builder ahead of new export kinds | ISO-1 | started |
 | I3 | ISO-11c | M12 | Source filter on register, approvals, calendar and evidence screens | ISO-1, ISO-7b | |
 | I3 | ISO-6a | M17 | ISO screens 1: gate, overview, systems, checklist, documents, certification | ISO-1, ISO-7, ISO-7b | |
-| I3 | ISO-2c | M3 | Library guards, clause references and the catalogue marker | ISO-2b | started |
-| I3 | ISO-12d | M13 | ISO states in words on the audit trail page | ISO-12a | |
+| I3 | ISO-2c | M3 | Library guards, clause references and the catalogue marker | ISO-2b | merged (#273) |
+| I3 | ISO-12d | M13 | ISO states in words on the audit trail page | ISO-12a | merged (#275) |
 | I3 | ISO-1b | M0 | Join the staged ISO enum values | ISO-1a, ISO-2b, ISO-12a, ISO-11e | |
 | I3 | ISO-16 | M8 | Import matches and creates STATUTE acts only | ISO-2c | |
 | I3 | ISO-5b | M15 | Features-changed event and copy status in the console | ISO-1, ISO-2c, ISO-5 | |
-| I4 | ISO-2d | M3 | ISO tables 1: catalogue copy, systems, checklist, documents, certification, files | ISO-2c | |
+| I4 | ISO-2d | M3 | ISO tables 1: catalogue copy, systems, checklist, documents, certification, files | ISO-2c | started (#276) |
 | I4 | ISO-4b | M5 | ISO policy rows, `hasFeature`, readiness and multi-unit scope | ISO-1a, ISO-2c, ISO-4c | |
-| I4 | ISO-10a | M9 | Copy the ISO catalogue when the add-on comes on | ISO-1, ISO-2c | |
+| I4 | ISO-10a | M9 | Copy the ISO catalogue when the add-on comes on | ISO-1, ISO-2c | started (#277) |
 | I4 | ISO-6b | M17 | ISO screens 2: risks, objectives, actions | ISO-6a, ISO-1b | |
 | I4 | ISO-12c | M13 | Statutory numbers link to Law only | ISO-1, ISO-11c, ISO-12a | |
 | I4 | ISO-9 | M6 | ISO catalogue as code and `copyIsoCatalogue` | ISO-2d | |
 | I4 | ISO-2e | M3 | ISO tables 2: risks, objectives, actions, audits, NCs, reviews | ISO-2d | |
 | I4 | ISO-15 | M7 | ISO file service (`IsoFiles`) | ISO-1b, ISO-2d | |
 | I5 | ISO-8a | M16 | ISO API 1: gate, audit gate test, systems, checklist, documents, certification, files | ISO-1b, ISO-2d, ISO-3, ISO-4b | |
-| I5 | ISO-2f | M3 | Act-kind and feature-aware reads | ISO-2e | |
+| I5 | ISO-2f | M3 | Act-kind and feature-aware reads, accounts by feature | ISO-2e | |
 | I5 | ISO-6c | M17 | ISO screens 3: audits, nonconformities, management reviews | ISO-6b | |
 | I5 | ISO-8b | M16 | ISO API 2: risks, objectives, actions | ISO-8a, ISO-2e | |
 | I5 | ISO-8c | M16 | ISO API 3: internal audits, external-audit findings, nonconformities, management reviews, overview | ISO-8b | |
 | I5 | ISO-9b | M6 | Hide and refuse STANDARD library rows when off; no cross-kind changes | ISO-9, ISO-2f, ISO-4b | |
 | I5 | ISO-11a | M7 | Source filter and the off switch on instances and evidence | ISO-15, ISO-2f, ISO-4b | |
 | I5 | ISO-10b | M9 | Off switch in the existing jobs, STATUTE-only digest, ISO file scan | ISO-10a, ISO-1b, ISO-2d, ISO-2f | |
+| I5 | ISO-14a | none (`Tooling:`) | Wire the ISO catalogue copy | ISO-9, ISO-10a | |
 | I5 | ISO-11b | M10 | Statutory numbers exclude ISO; off switch | ISO-1b, ISO-2e, ISO-2f, ISO-4b, ISO-11e | |
 | I6 | ISO-10c | M9 | ISO reminders | ISO-10b, ISO-2e, ISO-3 | |
 | I6 | ISO-11d | M10 | ISO exports and ISO data in the client archive | ISO-11b, ISO-3 | |
-| I7 | ISO-14 | none (`Tooling:`) | Wire ISO files and the catalogue copy | ISO-8c, ISO-9, ISO-10a, ISO-10c, ISO-15 | |
+| I7 | ISO-14b | none (`Tooling:`) | Wire ISO files | ISO-8c, ISO-10c, ISO-14a, ISO-15 | |
 | I7 | ISO-13 | M14 | Integrated ISO journey and off-switch sweep | every other package | |
 | I7 | ISO-1c | M0 | Make the add-on's optional fields required | ISO-1b, ISO-2c, ISO-4a, ISO-5, ISO-5b, ISO-9, ISO-16 | |
 

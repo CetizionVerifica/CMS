@@ -4,7 +4,8 @@ Part of plan v2 ([plan.md](plan.md)). One brief per package. A thread gets: the 
 below, the parts of [model.md](model.md) and [catalogue.md](catalogue.md) the brief names, and the area `CLAUDE.md` of
 its paths. Rules every brief shares (plan §5):
 
-- Title PRs `M<n>: ISO ...` (ISO-14: `Tooling: ISO ...`) and change only the module's paths, plus shared files.
+- Title PRs `M<n>: ISO ...` (ISO-14a and ISO-14b: `Tooling: ISO ...`) and change only the module's paths, plus
+  shared files.
 - Start only when every package in **Needs** has merged; one thread per module at a time.
 - If the work must depart from the brief, say so in the PR and tell the coordinator; do not edit `docs/iso/`.
 - Every package merges `main` before marking ready (plan §5.5).
@@ -20,7 +21,7 @@ its paths. Rules every brief shares (plan §5):
   real API agree.
 
 Started packages keep their ids and scopes; the first-wave briefs those threads received are summarised here with
-what v2 adds around them. Status is as of 2026-10-25 (`origin/main` at #266); plan §6 holds the current status.
+what v2 adds around them. Status is as of 2026-10-25 (`origin/main` at #275); plan §6 holds the current status.
 
 ---
 
@@ -289,7 +290,7 @@ what v2 adds around them. Status is as of 2026-10-25 (`origin/main` at #266); pl
 - **Notes:** must merge before ISO-1b.
 
 ## ISO-12d · M13 · ISO states in words on the audit trail page
-- **Thread title:** "ISO-12d: audit trail states in words". **Needs:** ISO-12a.
+- **Thread title:** "ISO-12d: audit trail states in words". **Needs:** ISO-12a. **Status:** merged (#275).
 - **Read:** model §4.7, §8; `packages/ui/spec/status-language.md`; the ISO-12a audit on #268 (its two Info notes).
 - **Paths:** `apps/web/app/(shell)/c/[clientId]/audit/`.
 - **Delivers:**
@@ -361,6 +362,7 @@ what v2 adds around them. Status is as of 2026-10-25 (`origin/main` at #266); pl
 
 ## ISO-2c · M3 · Library guards, clause references and the catalogue marker
 - **Thread title:** "ISO-2c: library guards and the ISO catalogue marker". **Needs:** ISO-2b.
+  **Status:** merged (#273).
 - **Read:** plan §4.2-4.4; catalogue §1-2; `packages/db/CLAUDE.md`.
 - **Paths:** `packages/db/`.
 - **Delivers (migrations on existing tables, own PR):**
@@ -449,7 +451,7 @@ what v2 adds around them. Status is as of 2026-10-25 (`origin/main` at #266); pl
   off; the copy-status display, with no flag for a SUSPENDED account and a flag counted from a resume.
 
 ## ISO-2d · M3 · ISO tables 1: catalogue copy, systems, checklist, documents, certification, files
-- **Thread title:** "ISO-2d: ISO tables, part 1". **Needs:** ISO-2c.
+- **Thread title:** "ISO-2d: ISO tables, part 1". **Needs:** ISO-2c. **Status:** started (#276).
 - **Read:** model §1, §2, §3.1-3.4, §3.8-3.9 (audit_finding is created in ISO-2e), §6; `packages/db/CLAUDE.md`.
 - **Paths:** `packages/db/` (new `src/schema/iso.ts`, migrations, repositories, tests; `packages/db/CLAUDE.md` table
   list).
@@ -459,8 +461,11 @@ what v2 adds around them. Status is as of 2026-10-25 (`origin/main` at #266); pl
   `external_audit`, and `iso_file` (one nullable FK column per subject in model §6; the columns for subjects created
   in ISO-2e are added there). Every rule of model §1: client policies, composite FKs, `num_nonnulls` checks, archived
   join rows, purge list. Repositories: catalogue reads and system-context writes; CRUD and list (with unit-scope
-  list filters per plan §3.3, joining the management system's units for records without their own) per record; `isoFiles.create/get/forSubject/pendingScan(tx, limit)/setScanStatus/archive/cleanForClient`,
-  where `pendingScan` does not join instances.
+  list filters per plan §3.3, joining the management system's units for records without their own) per record;
+  `clauseAssessments.addForStandards` (the checklist rows of a new system and of a standard added to one;
+  `managementSystems.create` adds none);
+  `isoFiles.create/get/forSubject/pendingScan(tx, limit)/setScanStatus/archive(tx, id, reason)/cleanForClient`, where
+  `pendingScan` does not join instances.
 - **Tests:** isolation test per table; schema-rules and purge-list tests; FK tests (a client-A record cannot point at
   a client-B unit or ISO record); catalogue writes refused outside the system context; `num_nonnulls` refusals.
 
@@ -478,7 +483,8 @@ what v2 adds around them. Status is as of 2026-10-25 (`origin/main` at #266); pl
 - **Tests:** policy table per role × action, own and not own; unit overlap; readiness before and after the marker.
 
 ## ISO-10a · M9 · Copy the ISO catalogue when the add-on comes on
-- **Thread title:** "ISO-10a: copy the ISO catalogue on switch-on". **Needs:** ISO-1, ISO-2c.
+- **Thread title:** "ISO-10a: copy the ISO catalogue on switch-on". **Needs:** ISO-1, ISO-2c. **Status:** started
+  (#277).
 - **Read:** plan §4.3; `docs/adr/M9-0002-account-jobs.md`.
 - **Paths:** `apps/api/src/jobs/` (`ports.ts`, a new `iso-catalogue.ts` consumer and sweep, `consumers.ts`
   (`CONSUMERS`), `postgres-store.ts` (`FirmTx`), `testing/memory-store.ts`, `runner.ts` `JOBS`, `start.ts` options,
@@ -540,7 +546,11 @@ what v2 adds around them. Status is as of 2026-10-25 (`origin/main` at #266); pl
   in the account's system context: returns `copied: false` without the feature, when already copied, or when the
   account is not TRIAL or ACTIVE (`accountJobs.markIsoCatalogueCopied(tx)` returns false then, ISO-2c, #273); marks
   first, then copies, reusing same-name STANDARD acts and categories, with a CREATE `AuditEvent` (actor SYSTEM) per act,
-  category and obligation. The ADR records the confirmed `exclusionAllowed` list and the editions seeded.
+  category and obligation. The ADR records the confirmed `exclusionAllowed` list and the editions seeded. Writes go
+  through M3's `isoCatalogue.createStandard`, `createClauses`, `createReviewInputDefs` and `createReviewOutputDefs`
+  (ISO-2d, #276), which work only in a system-job context; rows may carry their own ids, so a clause tree goes in one
+  statement. The database refuses `exclusionAllowed` on a clause that is not assessable, and a second definition of a
+  review key for one standard or an item of more than one letter and a digit (catalogue §4, §5).
 - **Tests:** copy into an account that already holds the master library and a same-name statutory Act; copy twice
   (second copies nothing); no STANDARD rows in `copyMasterLibrary`; every catalogue §3 activity once; no clause summary
   matches standard text (review in the PR).
@@ -554,10 +564,11 @@ what v2 adds around them. Status is as of 2026-10-25 (`origin/main` at #266); pl
   `audit_finding`, `nonconformity` (per-client number sequence, incident columns, FK to `compliance_instance` for
   `sourceInstanceId` and `statutoryInstanceId`), `nonconformity_person`, `nonconformity_risk_item`,
   `nonconformity_document`, `iso_action`, `management_review`, `management_review_person`, `review_input`,
-  `review_output`; the remaining `iso_file` subject columns; repositories with unit-scope list filters per plan §3.3,
-  joining the management system's units for records without their own; purge list.
-- **Tests:** as ISO-2d, plus the `num_nonnulls` checks of `audit_finding` and `iso_action`, and the NC number sequence
-  per client.
+  `review_output`; the remaining `iso_file` subject columns, with `iso_file_subject_check` widened to them and
+  `FILE_SUBJECTS` extended (both from ISO-2d, #276); repositories with unit-scope list filters per plan §3.3, joining
+  the management system's units for records without their own; the purge list extended to every new table.
+- **Tests:** as ISO-2d, plus the `num_nonnulls` checks of `audit_finding` and `iso_action`, the NC number sequence
+  per client, and an `iso_file` row on each new subject (and none on two subjects at once).
 
 ## ISO-15 · M7 · ISO file service (`IsoFiles`)
 - **Thread title:** "ISO-15: files for ISO records". **Needs:** ISO-1b, ISO-2d.
@@ -566,12 +577,15 @@ what v2 adds around them. Status is as of 2026-10-25 (`origin/main` at #266); pl
   `db-iso-files.db.test.ts`). The `db-` prefix keeps it out of the unit coverage run and holds it to the floor file by
   file in `vitest.db.config.mjs`, as for `service.ts`.
 - **Delivers:** `createIsoFiles({ storage })` in `modules/evidence/db-iso-files.ts`, re-exported from
-  `modules/evidence/index.ts`, matching the `IsoFiles` port
-  in model §6, which ISO-8a declares in M16 (upload ticket, confirm → PENDING, list by subject, CLEAN-only 5-minute download URL, remove with
-  reason → archived), with the evidence file-type, size and name rules, ISO keys under
+  `modules/evidence/index.ts`, matching the `IsoFiles` port in model §6, which ISO-8a declares in M16 (upload
+  ticket, confirm → PENDING, list by subject, CLEAN-only 5-minute download URL, remove with reason → archived
+  through M3's `isoFiles.archive(tx, id, reason)`), with the evidence file-type, size and name rules, ISO keys under
   `evidence/<firmId>/<clientId>/iso/...`, and the `AuditEvent` on the ISO subject (`EVIDENCE_ADD`,
   `EVIDENCE_DOWNLOAD`, `EVIDENCE_REMOVE`, model §6), all in the caller's tenant transaction. No route: M16 serves the
-  routes and decides who may call each one (unit scope, locks, the incident-file rule).
+  routes and decides who may call each one (unit scope, locks, the incident-file rule). Until ISO-2e merges, M3
+  stores files only on clause assessments, document revisions, external audits and certifications (another subject
+  answers DbError `VALIDATION`), so the tests use those four; `isoFiles.archive` answers `NOT_FOUND` for a file
+  already removed.
 - **Tests:** db tests for each call, the key shape, CLEAN-only download, archive not delete, no signed URL or file
   content logged; `confirm`, `downloadUrl` and `remove` each write exactly one `AuditEvent` of that action on the ISO
   subject (entity type, id, `after` naming the file id and never the file name or a URL) in the caller's
@@ -594,6 +608,21 @@ what v2 adds around them. Status is as of 2026-10-25 (`origin/main` at #266); pl
     machine (`statusBeforeNa`, WITHDRAW_NA) and the climate rule, documents and revisions (model §4.2, EXTERNAL
     editions through RECORD_EDITION), certifications and external audit visits (§4.4 RECORD_HELD and CANCEL; no
     findings, which ISO-8c adds).
+  - What ISO-2d (#276) leaves to M16. A new system, and a standard added to one, get their checklist rows through
+    `clauseAssessments.addForStandards(tx, system, standardIds)` in the same transaction (`managementSystems.create`
+    adds none). On APPROVE and RECORD_EDITION, in one transaction and in this order: the previous APPROVED revision
+    goes to SUPERSEDED (a unique index allows one APPROVED revision per document), this revision goes to APPROVED,
+    then the document's `currentRevisionId` moves to it. A trigger on the document, not a foreign key, checks that
+    `currentRevisionId` names an APPROVED revision of that document, and it fires only when the document is written,
+    never when a revision changes: test that a document never points at a SUPERSEDED revision. One trigger
+    (`management_system_guard`) keeps `standardIds` growing only and the climate decision from going back to null,
+    raising `check_violation` (DbError `VALIDATION`); M16 checks both first and answers `400 VALIDATION`, so a
+    trigger error never reaches a caller.
+  - The id checks the database leaves to M16, on every write, each `400 VALIDATION`: every id in a `standardIds` or
+    `clauseIds` list is in the account's catalogue copy (model §1.4), and a certificate's `standardId` and an
+    external audit's `standardIds` are among its system's `standardIds` (model §3.8), as the mock's
+    `checkStandards` does (`packages/contracts/src/mock/handlers/iso/certifications.ts`). ISO-8b and ISO-8c apply
+    the same rule to their own lists (`obligationIds` on a risk item, `clauseIds` on audits, findings and NCs).
   - File routes through the `IsoFiles` port for the ISO-2d subjects, with unit scope, the lock rule (an IN_REVIEW
     revision's file included) and a hook for per-subject download rules (ISO-8c uses it for incident NCs).
   - One `Resource` builder implementing plan §3.2's "own" rules, and the maker-checker rule of model §4's preamble;
@@ -615,16 +644,23 @@ what v2 adds around them. Status is as of 2026-10-25 (`origin/main` at #266); pl
   unit scope, people, locks and field edits refused on each locked subject, with a fake `IsoFiles`; the `Resource`
   builder for a non-lead auditor and a chair in each role.
 
-## ISO-2f · M3 · Act-kind and feature-aware reads
+## ISO-2f · M3 · Act-kind and feature-aware reads, accounts by feature
 - **Thread title:** "ISO-2f: reads that tell laws from ISO activities". **Needs:** ISO-2e.
-- **Read:** plan §4.4-4.6.
-- **Paths:** `packages/db/src/repositories/` and tests (no migration).
+- **Read:** plan §4.3-4.6; `docs/adr/0003-m3-tenant-isolation-in-postgres.md` (ids-only system reads);
+  `packages/db/migrations/0007_list_firm_ids.sql`.
+- **Paths:** `packages/db/` (repositories, `src/database.ts`, one migration that adds a function and changes no
+  table, tests).
 - **Delivers:** an `actKinds` filter on `instances.register`, the reads behind `/me/approvals` and `/me/tasks`, the
   vault, the calendar, the overview and breakdown reads, the report reads, and `jobs.listScoreItems` (which feeds the
   digest); library and assignment list reads take the same filter; a by-id lookup of an instance's, obligation's or
-  assignment's act kind for the off-switch checks.
+  assignment's act kind for the off-switch checks. `Database.listFirmIdsWithFeature(flag)` beside `listFirmIds()`:
+  the ids, and nothing else, of the TRIAL and ACTIVE accounts whose effective features include `flag` (through
+  `canopy_effective_features`, 0039), from a SECURITY DEFINER function with the same callers as
+  `canopy_list_firm_ids()`, so the jobs read every account only when they must (#277 audit Info 2).
 - **Tests:** each read with STATUTE only, STANDARD only and both; `listScoreItems` leaves a STANDARD instance in range
-  out when asked.
+  out when asked; `listFirmIdsWithFeature` with the flag from the plan, from an override, removed by an override, and
+  on a SUSPENDED, PENDING_DELETION and PROVISIONING account (none listed); the app role can call it and nothing else
+  can.
 
 ## ISO-6c · M17 · ISO screens 3: audits, nonconformities, management reviews
 - **Thread title:** "ISO-6c: ISO screens, part 3". **Needs:** ISO-6b.
@@ -735,10 +771,14 @@ what v2 adds around them. Status is as of 2026-10-25 (`origin/main` at #266); pl
   yet copied; reminders, escalations and the workflow-emails consumer skip STANDARD instances when off (the consumer
   re-reads features when it handles a queued event); the consultant digest's score and counts read STATUTE-act
   instances only, on or off; the scan job also scans PENDING `iso_file` rows (`isoFiles.pendingScan`), with the
-  add-on on or off (plan §4.5), and writes the `AuditEvent` on the ISO subject, with no `evidence.scanned` event.
+  add-on on or off (plan §4.5), and writes the `AuditEvent` on the ISO subject (`isoFileSubject(file)`), with no
+  `evidence.scanned` event. `pendingScan(tx, limit)` takes 1 to 200, so the batch never asks for more; `setScanStatus`
+  checks no state, so the job re-reads the file with `isoFiles.get` and skips one no longer PENDING or archived, as
+  `recordScan` does for evidence. ISO-10a's sweep moves onto `listFirmIdsWithFeature('isoManagement')` (ISO-2f).
 - **Tests:** one due STANDARD instance leaves the digest's score, overdue, due-soon and awaiting-approval figures
   unchanged; no reminder or email for a STANDARD instance when off; an event queued before a switch-off sends nothing;
-  an ISO file goes PENDING → CLEAN, also with the add-on off.
+  an ISO file goes PENDING → CLEAN, also with the add-on off; a file archived before its scan keeps its status; the
+  sweep reads no account without the feature.
 
 ## ISO-11b · M10 · Statutory numbers exclude ISO; off switch
 - **Thread title:** "ISO-11b: dashboards and reports with the ISO add-on". **Needs:** ISO-1b, ISO-2e, ISO-2f, ISO-4b,
@@ -769,7 +809,8 @@ what v2 adds around them. Status is as of 2026-10-25 (`origin/main` at #266); pl
   ISO run's done set comes from `listDoneIso`; `sendKeyString` in
   `apps/api/src/jobs/send.ts` appends `isoSubjectType:isoSubjectId` when they are set (it is the done-set key and the
   source of the mailer's Message-ID in `smtp-mailer.ts`, so each ISO subject gets its own); templates for the nine
-  kinds; skips accounts without the feature or not yet copied (`FirmTx.accountFeatures()`, ISO-10a).
+  kinds; lists accounts with `listFirmIdsWithFeature('isoManagement')` (ISO-2f) and skips those not yet copied
+  (`FirmTx.accountFeatures()`, ISO-10a).
 - **Tests:** one person with two actions due the same day gets two emails, and a second run sends neither again;
   a `send.test.ts` case: two ISO keys that differ only in subject give different strings; time-zone tests for
   Asia/Kolkata; no reminder for closed subjects; the overdue management review repeats every 30 days.
@@ -786,18 +827,29 @@ what v2 adds around them. Status is as of 2026-10-25 (`origin/main` at #266); pl
 - **Tests:** each export's content from fixtures; scope per role; refused when off; archive contents with and without
   the feature.
 
-## ISO-14 · Tooling · Wire ISO files and the catalogue copy
-- **Thread title:** "ISO-14: wire the ISO add-on". **PR title:** `Tooling: ISO ...` (no module owns these files).
-  **Needs:** ISO-8c, ISO-9, ISO-10a, ISO-10c, ISO-15.
-- **Paths:** `apps/api/src/server.ts` (shared), `apps/api/src/wiring.ts`, `apps/api/src/wiring.test.ts`,
-  `apps/api/src/main.ts` if needed, `apps/api/CLAUDE.md` (module list: `iso`; jobs: ISO reminders and the catalogue
-  sweep).
+## ISO-14a · Tooling · Wire the ISO catalogue copy
+- **Thread title:** "ISO-14a: wire the ISO catalogue copy". **PR title:** `Tooling: ISO ...` (no module owns these
+  files). **Needs:** ISO-9, ISO-10a.
+- **Why early:** until the copier is wired, switching the add-on on fails its retries and the sweep logs an error
+  every 10 minutes (#277 audit Info 1). Nothing is lost, and nothing is deployed yet, but the console switch is live
+  (#252). Until ISO-9b, a copied STANDARD act shows in the library even after a switch-off; that holds only for
+  local demo data, and ISO-13 checks the end state.
+- **Paths:** `apps/api/src/wiring.ts`, `apps/api/src/wiring.test.ts`, `apps/api/src/main.ts` if needed,
+  `apps/api/CLAUDE.md` (jobs: the catalogue consumer and sweep).
+- **Delivers:** `wiring.ts` passes `copyIsoCatalogue` (M6, ISO-9) to the jobs as `copyIsoCatalogue`, beside
+  `copyLibrary`, through `startJobsFromEnv` (ISO-10a).
+- **Tests:** `wiring.test.ts`: `jobsFromEnv` passes a copier that calls `copyIsoCatalogue` with the database, the
+  account id and the request id, as the `copyLibrary` test does for `copyMasterLibrary`.
+
+## ISO-14b · Tooling · Wire ISO files
+- **Thread title:** "ISO-14b: wire ISO files". **PR title:** `Tooling: ISO ...`. **Needs:** ISO-8c, ISO-10c,
+  ISO-14a, ISO-15.
+- **Paths:** `apps/api/src/server.ts` (shared), `apps/api/src/main.ts` if needed, `apps/api/CLAUDE.md` (module list:
+  `iso`; jobs: ISO reminders).
 - **Delivers:** `server.ts` passes `createIsoFiles({ storage: options.evidenceStorage })` from M7's public index to
-  M16's routes when evidence storage is configured, as it builds `createEvidenceService`; `wiring.ts` passes
-  `copyIsoCatalogue` to the jobs beside `copyLibrary` (ISO-8a already mounts M16's routes in `server.ts`). No web change: the web app already calls the real API whenever
-  `CANOPY_API_URL` is set.
-- **Tests:** `wiring.test.ts` for the copier; a server test that the ISO file routes mount only with evidence
-  storage.
+  M16's routes when evidence storage is configured, as it builds `createEvidenceService` (ISO-8a already mounts M16's
+  routes in `server.ts`). No web change: the web app already calls the real API whenever `CANOPY_API_URL` is set.
+- **Tests:** a server test that the ISO file routes mount only with evidence storage.
 
 ## ISO-13 · M14 · Integrated ISO journey and off-switch sweep
 - **Thread title:** "ISO-13: ISO journey against the real stack". **Needs:** every other package.
@@ -947,3 +999,20 @@ How plan v2.3 takes in what the audits of #268 (ISO-12a, merged) and #273 (ISO-2
 | #273: `account.isoCatalogueCopiedAt(tx)`, `accountJobs.markIsoCatalogueCopied(tx)` (false outside TRIAL and ACTIVE), `isoCatalogueCopiedAt` on `platformAccounts` records, `clauseRefs` always read back | ISO-5b (with the operator `accountOf` and the flag only in TRIAL or ACTIVE), ISO-9, ISO-10a, ISO-1c; plan §4.3 |
 | #273 Info: staff can still edit or archive a copied STANDARD act | plan §4.4, §7 item 11; catalogue §2; ISO-9b |
 | #273 Info: staff can set `clauseRefs` on any obligation without the add-on | plan §4.4, §7 item 11; catalogue §2; ISO-9b |
+
+### Notes from audited packages (plan v2.4)
+
+| Note | Where it is addressed |
+|---|---|
+| #274 audit Low: STANDARD-act edits and `clauseRefs` are refused only in the API | plan §4.4 accepts it (the 400s keep the catalogue's shape, the 403 is an off-switch gate; all are M6 route checks); ISO-9b's route tests are the guard |
+| #275 audit Info: a labelled status outside the audit page's maps (an export's) would still show its code | nothing to pass on: no non-ISO event on the client trail carries an unmapped labelled code today (the export event holds `kind` and `params`; account events have no client) |
+| #276 (ISO-2d): `iso_file_subject_check` and `FILE_SUBJECTS` cover only the ISO-2d subjects | ISO-2e; ISO-15 (tests on the four ISO-2d subjects) |
+| #276 audit Info 1: a trigger, not a foreign key, checks `currentRevisionId`, and only when the document is written | ISO-8a (supersede, approve, then move the document, in one transaction; test it) |
+| #276 audit Info 2: id lists and a certificate's standard are not checked against the catalogue or the system | model §3.8; ISO-8a (and ISO-8b, ISO-8c for their lists) |
+| #276: one trigger keeps `standardIds` growing only and the climate decision from going back to null | model §3.1; ISO-8a (400 first) |
+| #276: `managementSystems.create` adds no checklist rows; names `addForStandards`, `isoFiles.archive(tx, id, reason)` and the `isoCatalogue.create*` writes | model §3.1; ISO-2d, ISO-8a, ISO-9, ISO-15 |
+| #276: one review definition per standard and key with one item; `exclusionAllowed` only on an assessable clause | catalogue §4, §5; ISO-9 |
+| #276: `pendingScan` takes 1 to 200; `setScanStatus` checks no state | ISO-10b |
+| #277 audit Info 1: until the copier is wired, a switch-on fails its retries and the sweep logs errors | ISO-14 split: ISO-14a (copier, Needs ISO-9, ISO-10a) and ISO-14b (files); plan §4.3, §5.3, §6. Earlier trace rows that name ISO-14 mean ISO-14a for the copier and ISO-14b for files |
+| #277 audit Info 2: the sweep reads every account every 10 minutes | ISO-2f (`listFirmIdsWithFeature`); ISO-10b moves the sweep onto it; ISO-10c uses it; plan §4.3 |
+| Plan check: six packages run while §5.4 said five | plan §5.4 (ISO-1a does not count toward the five) |
