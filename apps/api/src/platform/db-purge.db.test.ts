@@ -57,6 +57,7 @@ describe.skipIf(!url)(ACCOUNT_PURGE, () => {
       swept: 0,
       objects: 0,
       rows: 0,
+      failed: 0,
     });
     expect(steps).toEqual([]);
   });
@@ -81,6 +82,7 @@ describe.skipIf(!url)(ACCOUNT_PURGE, () => {
       swept: 0,
       objects: 6,
       rows: 1,
+      failed: 0,
     });
     expect(steps.slice(original)).toEqual([
       `files evidence/${gone}/`,
@@ -118,6 +120,27 @@ describe.skipIf(!url)(ACCOUNT_PURGE, () => {
     expect(await status(id)).toBe('PENDING_DELETION');
     expect(await runAccountPurge(deps(), 'job:purge:4')).toMatchObject({ due: 1, purged: 1 });
     expect(await status(id)).toBe('DELETED');
+  });
+
+  it('goes on to the next account when one fails, then fails the run with the counts', async () => {
+    const broken = await account('Kestrel Aluminium', 33);
+    const fine = await account('Osprey Weaving', 34);
+    // Earlier tests' accounts are swept again too; each of those is counted, not failed.
+    const oneFails: AccountObjects = {
+      deletePrefix: async (prefix) => {
+        if (prefix.includes(broken)) throw new Error('storage unavailable');
+        return 1;
+      },
+    };
+    await expect(
+      runAccountPurge({ db: t.operatorDb, objects: oneFails }, 'job:purge:iso'),
+    ).rejects.toThrow(
+      /^1 of \d+ accounts failed \(purged 1, \d+ objects, \d+ rows\): storage unavailable$/,
+    );
+    expect(await status(broken)).toBe('PENDING_DELETION');
+    expect(await status(fine)).toBe('DELETED');
+    expect(await runAccountPurge(deps(), 'job:purge:iso2')).toMatchObject({ purged: 1, failed: 0 });
+    expect(await status(broken)).toBe('DELETED');
   });
 
   it('purges an account once when two runs overlap: the second waits for the lock, then skips it', async () => {

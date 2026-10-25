@@ -35,4 +35,6 @@ customer's `/account` routes), `docs/adr/M15-0005-operator-digest.md` (the opera
   only `canopy_operator` may call `platform_purge_account`. It deletes the account's `evidence/`, `imports/` and
   `exports/` prefixes (`purge-objects.ts`) before its rows, and never logs or returns an object key. It holds the
   account's row lock (`db-deletion.ts`) from the files to the rows; anything else that changes a deletion takes that
-  lock first, and the cancel is refused once the 30 days are over.
+  lock first, and the cancel is refused once the 30 days are over. Every storage call has a connect and a request
+  timeout (`throwOnRequestTimeout`, or the SDK only warns), so an outage cannot hold the lock open. One account's
+  failure does not stop the run: the others are purged, then the run fails with the counts and the first error.

@@ -17,7 +17,9 @@ export interface AccountPurgeDeps {
  * transaction that holds its row lock (`lockDeletion`) throughout, after checking again that it is still due, so an
  * operator's cancel cannot slip in between the files and the rows: it waits, then finds the account DELETED. The
  * database's clock decides, as it does in the purge and the cancel. A storage failure rolls the account back to
- * PENDING_DELETION with whatever files are left, and the next night finishes.
+ * PENDING_DELETION with whatever files are left, and the next night finishes. One account's failure does not stop
+ * the others: the run goes on to the next account and, at the end, fails with the counts and the first error, so the
+ * runner logs it.
  *
  * Accounts purged in the last 7 days are swept again, files and rows: a write that committed after the purge's
  * snapshot, or an upload that landed after its prefix was emptied, is removed then. Counts only, never keys or names.
@@ -37,6 +39,17 @@ export async function runAccountPurge(
     swept: swept.length,
     objects: 0,
     rows: 0,
+    failed: 0,
+  };
+  let firstError: unknown;
+  /** Runs one account's step; a failure is counted and kept, and the run moves on. */
+  const isolated = async (step: () => Promise<void>) => {
+    try {
+      await step();
+    } catch (error) {
+      report.failed! += 1;
+      firstError ??= error;
+    }
   };
   const removeFiles = async (accountId: string) => {
     for (const prefix of accountPrefixes(accountId)) {
@@ -47,22 +60,34 @@ export async function runAccountPurge(
     Object.values(counts).reduce((sum, n) => sum + n, 0);
 
   for (const accountId of due) {
-    await deps.db.withOperator(requestId, async (tx) => {
-      const state = await lockDeletion(tx, accountId);
-      // Cancelled, or purged by another instance, since the list was read.
-      if (state?.status !== 'PENDING_DELETION' || !state.graceOver) {
-        report.notDue! += 1;
-        return;
-      }
-      await removeFiles(accountId);
-      report.rows! += total(await platformAccounts.purge(tx, accountId));
-      report.purged! += 1;
-    });
+    await isolated(() =>
+      deps.db.withOperator(requestId, async (tx) => {
+        const state = await lockDeletion(tx, accountId);
+        // Cancelled, or purged by another instance, since the list was read.
+        if (state?.status !== 'PENDING_DELETION' || !state.graceOver) {
+          report.notDue! += 1;
+          return;
+        }
+        await removeFiles(accountId);
+        report.rows! += total(await platformAccounts.purge(tx, accountId));
+        report.purged! += 1;
+      }),
+    );
   }
   for (const accountId of swept) {
-    await removeFiles(accountId);
-    report.rows! += total(
-      await deps.db.withOperator(requestId, (tx) => platformAccounts.purge(tx, accountId)),
+    await isolated(async () => {
+      await removeFiles(accountId);
+      report.rows! += total(
+        await deps.db.withOperator(requestId, (tx) => platformAccounts.purge(tx, accountId)),
+      );
+    });
+  }
+  if (firstError !== undefined) {
+    // Counts and the first message only: the storage and database errors carry no keys or names (purge-objects.ts).
+    const message = firstError instanceof Error ? firstError.message : 'unknown error';
+    throw new Error(
+      `${report.failed} of ${report.due! + report.swept!} accounts failed (purged ${report.purged}, ` +
+        `${report.objects} objects, ${report.rows} rows): ${message}`,
     );
   }
   return report;

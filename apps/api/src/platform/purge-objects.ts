@@ -18,7 +18,17 @@ export interface S3AccountObjectsOptions {
   bucket: string;
   accessKeyId: string;
   secretAccessKey: string;
+  /** Tests shorten these; the server uses `S3_CONNECT_MS` and `S3_REQUEST_MS`. */
+  timeouts?: { connectMs: number; requestMs: number };
 }
+
+/**
+ * A connection that does not open in this long, or a call not answered in full in this long, fails the call, so a
+ * storage outage cannot hold the account's row lock (and the night's run) open indefinitely. List and delete answers
+ * are small. Without `throwOnRequestTimeout` the SDK only logs a warning and keeps waiting.
+ */
+export const S3_CONNECT_MS = 10_000;
+export const S3_REQUEST_MS = 60_000;
 
 /** The two calls the purge makes; tests pass a fake. */
 type S3Send = Pick<S3Client, 'send'>;
@@ -30,6 +40,11 @@ export function createS3AccountObjects(
     region: options.region,
     ...(options.endpoint ? { endpoint: options.endpoint, forcePathStyle: true } : {}),
     credentials: { accessKeyId: options.accessKeyId, secretAccessKey: options.secretAccessKey },
+    requestHandler: {
+      connectionTimeout: options.timeouts?.connectMs ?? S3_CONNECT_MS,
+      requestTimeout: options.timeouts?.requestMs ?? S3_REQUEST_MS,
+      throwOnRequestTimeout: true,
+    },
   }),
 ): AccountObjects {
   const Bucket = options.bucket;
