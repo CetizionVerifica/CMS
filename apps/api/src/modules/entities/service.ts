@@ -110,7 +110,9 @@ const UNIQUE: Partial<Record<ListTable, UniqueRule<Row>>> = {
   acts: {
     constraint: 'act_name_key',
     field: 'name',
-    find: async (tx, r) => (await acts.findAll(tx, { name: str(r, 'name') }))[0] ?? null,
+    // act_name_key is per kind, and staff write only STATUTE acts (ISO-9b), so a clash is with one of those.
+    find: async (tx, r) =>
+      (await acts.findAll(tx, { name: str(r, 'name'), kind: 'STATUTE' }))[0] ?? null,
   },
   categories: {
     constraint: 'category_name_key',
