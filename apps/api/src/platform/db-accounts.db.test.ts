@@ -506,6 +506,91 @@ describe.skipIf(!url)('the operator account routes', () => {
       expect(actions).toEqual(expect.arrayContaining(['PLAN_CHANGE', 'OVERRIDE_CHANGE']));
     });
 
+    it('turns an add-on off for one account although its plan includes it, and keeps limits and note', async () => {
+      const limits = { companies: 3, units: 12, users: 60, storageBytes: null };
+      z(
+        Plan,
+        await send('PUT', '/plans/ISOPILOT', {
+          name: 'ISO pilot',
+          limits,
+          features: ['importer', 'isoManagement'],
+          retired: false,
+        }),
+      );
+      const account = await create({ name: 'Highmoor Fibres', planCode: 'ISOPILOT' });
+      expect(account.entitlements.features).toEqual(['importer', 'isoManagement']);
+
+      const off = z(
+        Account,
+        await send('PUT', `/accounts/${account.id}/override`, {
+          version: 1,
+          override: {
+            limits: { users: 90 },
+            features: ['earlyAccess'],
+            removedFeatures: ['isoManagement'],
+            note: 'ISO paused until renewal',
+          },
+          reason: 'Did not renew the ISO add-on',
+        }),
+      );
+      expect(off.entitlements).toEqual({
+        planCode: 'ISOPILOT',
+        limits: { ...limits, users: 90 },
+        features: ['earlyAccess', 'importer'],
+      });
+      expect(z(Account, await get(`/accounts/${account.id}`)).entitlements.features).toEqual([
+        'earlyAccess',
+        'importer',
+      ]);
+      const [event] = await asOperator(
+        async (tx) =>
+          (await r.operatorAudit.query(tx, { accountId: account.id, action: 'OVERRIDE_CHANGE' }))
+            .items,
+      );
+      expect(event).toMatchObject({
+        reason: 'Did not renew the ISO add-on',
+        before: null,
+        after: {
+          override: {
+            limits: { users: 90 },
+            features: ['earlyAccess'],
+            removedFeatures: ['isoManagement'],
+            note: 'ISO paused until renewal',
+          },
+        },
+      });
+      expect((await accountTrail(account.id)).at(-1)).toMatchObject({
+        actorKind: 'OPERATOR',
+        reason: 'Did not renew the ISO add-on',
+      });
+
+      const both = await send('PUT', `/accounts/${account.id}/override`, {
+        version: 2,
+        override: {
+          limits: {},
+          features: ['isoManagement'],
+          removedFeatures: ['isoManagement'],
+          note: null,
+        },
+        reason: 'Both ways',
+      });
+      expect([both.statusCode, error(both).code]).toEqual([400, 'VALIDATION']);
+
+      const back = z(
+        Account,
+        await send('PUT', `/accounts/${account.id}/override`, {
+          version: 2,
+          override: {
+            limits: { users: 90 },
+            features: ['earlyAccess'],
+            note: 'ISO paused until renewal',
+          },
+          reason: 'Renewed the ISO add-on',
+        }),
+      );
+      expect(back.entitlements.features).toEqual(['earlyAccess', 'importer', 'isoManagement']);
+    });
+
     it("resends the owner's invite while PROVISIONING only", async () => {
       const account = await create({ name: 'Kestrelganj Foundry' });
       const res = await send('POST', `/accounts/${account.id}/owner-invite`);

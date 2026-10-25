@@ -1,5 +1,5 @@
 'use client';
-// One account: its status and actions on top, then details, plan and limits, billing and usage, and support access.
+// One account: its status and actions on top, then details, plan and limits, add-ons, billing and usage, and support access.
 import type { Account } from '@canopy/contracts';
 import { EmptyState, Link } from '@canopy/ui';
 import NextLink from 'next/link';
@@ -10,6 +10,7 @@ import { KIND } from '../../format';
 import { useSession } from '../../session';
 import { useLoad } from '../../use-load';
 import { AccountStatusPill, Loading, LoadError, PageHeader } from '../../ui/parts';
+import { AddOns } from './AddOns';
 import { Billing } from './Billing';
 import { Details } from './Details';
 import { Lifecycle } from './Lifecycle';
@@ -77,6 +78,7 @@ export function AccountDetail({ id }: { id: string }) {
       </div>
       <Details key={`d:${current.version}`} account={current} onChanged={setAccount} />
       <PlanLimits account={current} plans={plans} onChanged={setAccount} />
+      <AddOns account={current} plans={plans} onChanged={setAccount} />
       <Billing account={current} plans={plans} />
       <Support account={current} />
     </>

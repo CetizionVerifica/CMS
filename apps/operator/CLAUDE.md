@@ -26,6 +26,11 @@ Next.js App Router app for PlanetPulse staff: create and run customer accounts. 
   opens the customer app in a new tab (`window.open` with `noopener`); the console never reads what that session sees.
 - **Every consequential action asks for a typed reason** (suspend, resume, convert, plan, limits, deletion). Deletion
   also asks for the account name, typed exactly.
+- **Add-ons** (ADR M16-0001 decision 2): the account page has one switch per `KNOWN_FEATURES` entry. A switch changes
+  only `features` and `removedFeatures`; the "Override limits" drawer changes only the limits and the flags that are
+  not add-ons. The API has no read of the override, so both derive it from the entitlements and the plan
+  (`overrideFrom`) and read the note back from the newest `OVERRIDE_CHANGE` in the operator audit
+  (`override-note.ts`): a save never wipes another part.
 - Brand: "PlanetPulse Operator Console". Never the internal project name in UI text.
 - Times show in India time (`formatInstant`), dates as "31 Mar 2027", money in rupees from paise.
 - The audit download is CSV with a byte-order mark for Excel; cells that could start a formula are defused
