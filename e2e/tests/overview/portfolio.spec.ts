@@ -15,6 +15,7 @@ test.describe('portfolio', () => {
     await expect(page).toHaveTitle('Portfolio · PlanetPulse Compliance');
     await expect(page.getByRole('heading', { level: 1, name: 'Portfolio' })).toBeVisible();
     await expect(page.getByText('5 overdue items across 1 client.')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Add a client' })).toHaveCount(0);
     await checkPage(page);
 
     const table = page.getByRole('table', { name: 'Clients' });
@@ -48,6 +49,10 @@ test.describe('portfolio', () => {
     await expect(rows.nth(2)).toContainText('Demo Metals');
     await expect(rows.nth(3)).toContainText('Northwind Textiles');
     await expect(rows.nth(3).getByRole('link', { name: /overdue at/ })).toHaveCount(0);
+    // Account admins add clients below the table; consultants do not (endpoints.md: client.create is FA only).
+    await expect(page.getByRole('heading', { level: 2, name: 'Add a client' })).toBeVisible();
+    await expect(page.getByLabel(/Client name/)).toBeVisible();
+    await checkPage(page);
     await rows
       .nth(1)
       .getByRole('link', { name: '12 overdue at Sunrise Foods, view in register' })
