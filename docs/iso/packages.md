@@ -11,15 +11,16 @@ its paths. Rules every brief shares (plan §5):
 - Tests with every PR; isolation test for every new table; `AuditEvent` for every state change; fictional names only
   (the ISO fixtures use firm B's Northwind Foods Group and invented people).
 - ADRs go in `docs/adr/M<n>-NNNN-slug.md` with the next free number of the module's own series.
-- The contracts (ISO-1, contracts 1.8.0) are the source of shapes, routes and role lists; the departures they took
-  from model.md and plan §3.2 are `docs/contracts/README.md` decision 51 (a-n), already folded into these files
-  (trace at the end). Where model.md is silent, the M0 mock had to pick a rule; its picks are in
+- The contracts (ISO-1, contracts 1.8.0, and its fix patch ISO-1a, 1.8.1) are the source of shapes, routes and role
+  lists; the departures they took from model.md and plan §3.2 are `docs/contracts/README.md` decision 51 (a-n, and o
+  from ISO-1a), already folded into these files (traces at the end). Every ISO route takes one `can()` action
+  (plan §3.2). Where model.md is silent, the M0 mock had to pick a rule; its picks are in
   `docs/contracts/iso-mock.md`. M4, M16 and M17 keep each pick that touches their work, or record a different one in
   their module's ADR and tell the coordinator, who asks M0 to change the mock so screens tested against it and the
   real API agree.
 
 Started packages keep their ids and scopes; the first-wave briefs those threads received are summarised here with
-what v2 adds around them. Status is as of 2026-10-25 (`origin/main` at #264); plan §6 holds the current status.
+what v2 adds around them. Status is as of 2026-10-25 (`origin/main` at #265); plan §6 holds the current status.
 
 ---
 
@@ -108,8 +109,8 @@ what v2 adds around them. Status is as of 2026-10-25 (`origin/main` at #264); pl
   `MOCK_COMPANY_EMAIL` without it; light mode at 1280 and 375, keyboard-only, axe.
 
 ## ISO-1 · M0 · ISO contracts
-- **Thread title:** "ISO-1: ISO contracts". **Needs:** ISO-0, ISO-4c. **Status:** built as #265 (contracts 1.8.0);
-  its departures, README decision 51 (a-n), are folded into plan v2.1.
+- **Thread title:** "ISO-1: ISO contracts". **Needs:** ISO-0, ISO-4c. **Status:** merged as #265 (contracts 1.8.0);
+  its departures, README decision 51 (a-n), are folded into plan v2.1, and its audit's findings are ISO-1a.
 - **Read:** all of model.md and catalogue.md; plan §3, §4, §5.1-5.2; `docs/contracts/README.md` decisions 39 and 41.
 - **Paths:** `packages/contracts/` (`src/enums.ts`, `src/primitives.ts`, `src/errors.ts`, `src/defaults.ts`,
   `src/engine-api.ts`, `src/schemas/{iso.ts (new),library.ts,tenancy.ts,context.ts,scores.ts,accounts.ts}`,
@@ -167,6 +168,36 @@ what v2 adds around them. Status is as of 2026-10-25 (`origin/main` at #264); pl
   `disposition` is set, the incident `type`/`source`/`outcome`/`lostDays` rules and the climate rationale), mock tests
   for on, off and the header, fixture tests, OpenAPI lint.
 
+## ISO-1a · M0 · ISO contract fixes from the ISO-1 audit
+- **Thread title:** the ISO-1 thread ("Build ISO contracts") continues. **Needs:** ISO-1.
+- **Read:** the ISO-1 audit on #265; plan §3.2; model §1.9, §3.4, §3.7, §3.10, §4.1, §4.5, §5.1.
+- **Paths:** `packages/contracts/`, `docs/contracts/`.
+- **Delivers (patch bump, contracts 1.8.1):**
+  - **One action per route** (Medium 1): the NC PATCH lists `isoNc.work` only, roles CA and OW (own); a new
+    `POST /clients/{clientId}/iso/nonconformities/{id}/reassign` lists `isoNc.reassign`, roles FA, CO and CA, for
+    `ownerId`, `approverId`, `dueOn`, `effectivenessDueOn` and `severity` with a required `reason`; the management
+    review PATCH lists `isoReview.write` only (attendees, minutes), and standards, `plannedOn` and chair move to their
+    own route under `isoReview.plan` while PLANNED. 119 routes. README decision 51 (o), endpoints.md, OpenAPI, mock.
+    A test that no endpoint in `ISO_ENDPOINTS` lists more than one action, and the stub `can()` pinned for FA, CO,
+    CA and OW on both NC routes.
+  - **Severity** (Medium 2) only on the reassign route, with a reason, while OPEN or ROOT_CAUSE_FOUND, never on an NC
+    raised from a finding (model §3.10).
+  - **`objectiveProgress`** (Medium 3) takes the objective's creation day as a `LocalDate` (`createdOn`), not its
+    `createdAt` (model §5.1); the mock's stand-in uses it.
+  - Lows on M0 paths: the extra NC and audit rules declared (`rootCauseMethod` from ADD_ROOT_CAUSE on, `dueOn` not
+    before `reportedOn`, the lead not also an auditor; model §3.7, §3.10, Low 1); `approvedById` null only for a
+    recorded edition (model §3.4, Low 2); the `Resource.unitIds` doc comment says to omit it when a record's unit list
+    is empty (Low 4); a `reason`, required when it changes an owner, approver or due date, on the document, risk item
+    and objective update bodies (model §1.9, Low 5); a test that regenerates `iso.catalogue.json` and pins its 201
+    clauses (Low 6); the mock's sign-in honours `x-mock-features`, so a demo user without the add-on gets no
+    features at sign-in either (Low 7, which ISO-7b needs); 409 `FEATURE_NOT_READY` in the generated OpenAPI beside
+    403 `FEATURE_NOT_ENABLED` (Low 8). Low 3 (`FirmSettings.isoRisk` on stored rows) is ISO-2b's.
+  - The README decisions, CHANGELOG and `iso-mock.md` updated to match.
+- **Tests:** the one-action test; the reassign route per role (an NC owner refused) and its severity window; a
+  chair refused on the review plan route; `objectiveProgress` stand-in at a day boundary in the client's time zone;
+  sign-in with and without the header; the catalogue regeneration test.
+- **Notes:** ISO-3 and ISO-7b merge `main` after ISO-1a before marking ready; ISO-1b and ISO-4b start after it.
+
 ## ISO-2b · M3 · Stage ISO enum values and give the send log an ISO subject
 - **Thread title:** "ISO-2b: staged ISO enum values and the ISO send key". **Needs:** ISO-1, ISO-2a.
 - **Read:** plan §5.1; model §7, §8, §9; `packages/db/CLAUDE.md`.
@@ -199,7 +230,8 @@ what v2 adds around them. Status is as of 2026-10-25 (`origin/main` at #264); pl
   ISO subject.
 
 ## ISO-3 · M4 · ISO engine functions and transition tables
-- **Thread title:** "ISO-3: ISO engine". **Needs:** ISO-1.
+- **Thread title:** "ISO-3: ISO engine". **Needs:** ISO-1, ISO-1a (started before ISO-1a; merges `main` after it,
+  before marking ready, so `satisfies IsoEngineApi` sees `objectiveProgress` with `createdOn`).
 - **Read:** model §4, §5, §7; `packages/engine/CLAUDE.md`; `IsoEngineApi` in `packages/contracts/src/engine-api.ts`;
   `docs/contracts/iso-mock.md` ("Stand-ins for M4 formulas" and the guards it lists by area).
 - **Paths:** `packages/engine/src/{iso-score.ts,iso-status.ts,iso-notifications.ts,iso-review.ts,index.ts,version.ts}`,
@@ -210,9 +242,12 @@ what v2 adds around them. Status is as of 2026-10-25 (`origin/main` at #264); pl
   weights, the certification gates (including RISKS) and their 12-month window, what "covered" means for audits,
   due-soon and overdue rules for NCs, actions, reviews and certificates, the certification cycle, and the reminder
   schedule of model §7 (`ISO_REMINDER_SCHEDULE`, ISO-1). The timing functions take `{ dueSoonDays }`
-  (`FirmSettings.dueSoonDays`, model §5.2). The mock's stand-ins for objective progress, the certification cycle,
-  programme coverage, the overview windows and NC status are the starting point: the ADR says, for each, that the
-  engine keeps it or how it differs, and a difference goes to the coordinator for an M0 mock change.
+  (`FirmSettings.dueSoonDays`, model §5.2); `objectiveProgress` counts from `createdOn`, a `LocalDate` (model §5.1).
+  The mock's stand-ins (`docs/contracts/iso-mock.md`, "Stand-ins for M4 formulas") for objective progress, the
+  certification cycle, programme coverage, the overview (its 12-month and 90-day windows, and its POLICY 5.2.x and
+  OBJECTIVES readings of the certification gates) and NC status are the starting point: the ADR says, for each, that
+  the engine keeps it or how it differs, and a difference goes to the coordinator for an M0 mock change. The review
+  figures' `since` is the caller's (model §5.4), so M16 rules on that stand-in, not M4.
 - **Tests:** explicit dates and values for every function, including month ends, 29 February and FY boundaries; every
   arrow and every refused arrow of every machine; plan §7 items 5 and 6; a NOT_AUDITED row covers nothing; a row with
   no unit, in an audit whose unit list is empty, covers its clause but no unit; `reviewInputFigures` per source and
@@ -222,7 +257,8 @@ what v2 adds around them. Status is as of 2026-10-25 (`origin/main` at #264); pl
   threshold in `vitest.config.mjs` applies by name), 95% elsewhere.
 
 ## ISO-7b · M11 · Mock features per demo user for ISO screens
-- **Thread title:** "ISO-7b: mock add-on state per demo user". **Needs:** ISO-1, ISO-7.
+- **Thread title:** "ISO-7b: mock add-on state per demo user". **Needs:** ISO-1, ISO-1a, ISO-7 (started before
+  ISO-1a; it needs ISO-1a's sign-in fix, so it merges `main` after ISO-1a before marking ready).
 - **Read:** plan §4.4; ISO-1's mock notes.
 - **Paths:** `apps/web/lib/api/mock.ts`, `apps/web/lib/api/mock-delegate.ts`, their tests, `e2e/tests/shell/`.
 - **Delivers:** the delegate forwards the signed-in demo user's `Me.account.features` to M0's mock as
@@ -329,7 +365,7 @@ what v2 adds around them. Status is as of 2026-10-25 (`origin/main` at #264); pl
 - **Notes:** must merge before ISO-1b, as #212 needed M10's default branch before `CLIENT_ARCHIVE_ZIP` joined.
 
 ## ISO-1b · M0 · Join the staged ISO enum values
-- **Thread title:** "ISO-1b: ISO values join the contract enums". **Needs:** ISO-2b, ISO-12a, ISO-11e.
+- **Thread title:** "ISO-1b: ISO values join the contract enums". **Needs:** ISO-1a, ISO-2b, ISO-12a, ISO-11e.
 - **Paths:** `packages/contracts/`, `docs/contracts/`.
 - **Delivers (patch bump):** `ISO_ENTITY_TYPES` join `EntityType`, `ISO_NOTIFICATION_KINDS` join `NotificationKind`,
   `ISO_EXPORT_KINDS` join `ExportKind` (the staged constants stay as subsets); `satisfies Record<ExportKind, string>`
@@ -389,10 +425,11 @@ what v2 adds around them. Status is as of 2026-10-25 (`origin/main` at #264); pl
   a client-B unit or ISO record); catalogue writes refused outside the system context; `num_nonnulls` refusals.
 
 ## ISO-4b · M5 · ISO policy rows, `hasFeature`, readiness and multi-unit scope
-- **Thread title:** "ISO-4b: ISO permissions". **Needs:** ISO-1, ISO-2c, ISO-4c.
+- **Thread title:** "ISO-4b: ISO permissions". **Needs:** ISO-1a, ISO-2c, ISO-4c.
 - **Read:** plan §3, §4.2-4.3; `apps/api/CLAUDE.md` roles.
 - **Paths:** `apps/api/src/auth/`.
-- **Delivers:** one `POLICY` row per ISO action ISO-1 lists (plan §3.2, `isoNc.reassign` included), no wildcard; `inScope` requires an overlap
+- **Delivers:** one `POLICY` row per ISO action ISO-1 and ISO-1a list (plan §3.2, `isoNc.reassign` included; each
+  route has one action, so each row is that route's grant), no wildcard; `inScope` requires an overlap
   with the membership's `unitIds` when `resource.unitIds` is present; `hasFeature(ctx, flag)` (no throw, for lists that
   leave ISO rows out); `requireFeature(ctx, 'isoManagement')` also answers 409 `FEATURE_NOT_READY` while the copy
   is not recorded: a new `AuthStore.isoCatalogueCopied(firmId)` in `db-store.ts` reads `account.isoCatalogueCopiedAt(tx)`
@@ -419,13 +456,16 @@ what v2 adds around them. Status is as of 2026-10-25 (`origin/main` at #264); pl
 ## ISO-6b · M17 · ISO screens 2: risks, objectives, actions
 - **Thread title:** "ISO-6b: ISO screens, part 2". **Needs:** ISO-6a, ISO-1b (the mock accepts the ISO export kinds
   only once they join `ExportKind`).
-- **Read:** model §3.5, §3.6, §3.12, §5.1; `docs/contracts/iso-mock.md` (risks, objectives and actions).
+- **Read:** model §3.5, §3.6, §3.12, §5.1, §10; `docs/contracts/iso-mock.md` ("Risks and objectives", and the last
+  two sentences of "Nonconformities", on actions).
 - **Paths:** `apps/web/app/(shell)/c/[clientId]/iso/{risks,objectives,actions}/`, `e2e/tests/iso/`.
 - **Delivers:** risk register with tabs per kind, the kind-specific fields, existing controls with hierarchy, treatment
   actions, inherent and residual rating and significance (from the API), override with reason, review; objectives
   with standards, linked risks, readings, progress and action plans; the actions list (filter by subject, owner,
   state) and an Actions panel on every subject page; "Download risk register (Excel)" through
-  `POST /clients/{clientId}/exports` with `ISO_RISK_REGISTER_XLSX`.
+  `POST /clients/{clientId}/exports` with `ISO_RISK_REGISTER_XLSX`. Every step button comes from the view's
+  `allowedActions` (model §10), as in ISO-6a; an owner or approver change and a moved date ask for a reason
+  (model §1.9).
 - **Tests:** e2e against the mock: add a hazard with controls and a treatment action, complete it, see the control; an
   objective reading; the actions list as an owner; the risk register download; M11's shell ISO test stays green for
   the pages this package adds; a11y and layout checks as in ISO-6a.
@@ -495,8 +535,8 @@ what v2 adds around them. Status is as of 2026-10-25 (`origin/main` at #264); pl
 - **Thread title:** "ISO-8a: ISO API, part 1". **Needs:** ISO-1b, ISO-2d, ISO-3, ISO-4b.
 - **Read:** plan §3-4; model §1, §3.1-3.4, §3.8, §4 preamble, §4.2, §4.4 (RECORD_HELD and CANCEL), §4.6, §5.1
   (`clauseReadiness`, `climateDeterminationGaps`), §6, §10; `apps/api/CLAUDE.md`; `docs/contracts/README.md`
-  decisions 42-51 and `docs/contracts/iso-mock.md` (shared rules; systems and checklist; documents; certifications;
-  files; core routes with the switch off).
+  decisions 42-51 and `docs/contracts/iso-mock.md` ("Shared rules", including file scans; "Systems and checklist";
+  "Documents"; "Certifications"; the file rules in "Management reviews and files"; "Core routes with the switch off").
 - **Paths:** `apps/api/src/modules/iso/` (routes, services, `ports.ts` with `IsoFiles`, `testing/`,
   `audit-gate.db.test.ts`), `apps/api/src/server.ts` (shared: M16's routes mounted inside the existing
   `options.database` block, as the instance routes are; the file routes only when an `IsoFiles` is given),
@@ -509,7 +549,10 @@ what v2 adds around them. Status is as of 2026-10-25 (`origin/main` at #264); pl
     findings, which ISO-8c adds).
   - File routes through the `IsoFiles` port for the ISO-2d subjects, with unit scope, the lock rule (an IN_REVIEW
     revision's file included) and a hook for per-subject download rules (ISO-8c uses it for incident NCs).
-  - One `Resource` builder implementing plan §3.2's "own" rules, and the maker-checker rule of model §4's preamble.
+  - One `Resource` builder implementing plan §3.2's "own" rules, and the maker-checker rule of model §4's preamble;
+    it sets `Resource.unitIds` from the record's units (plan §3.3) and leaves it out when that list is empty, which
+    means every unit.
+  - A reason on every owner, approver or due-date change (model §1.9).
   - `allowedActions` on every view of a record with a machine, from the same rules the routes enforce (model §10);
     the catalogue reads under `isoSystem.read`; `standardIds` only grows (model §3.1); a certificate's number, issue
     and expiry dates set together (§3.8); a recorded external edition with no `approvedById` (§3.4).
@@ -534,17 +577,20 @@ what v2 adds around them. Status is as of 2026-10-25 (`origin/main` at #264); pl
 
 ## ISO-6c · M17 · ISO screens 3: audits, nonconformities, management reviews
 - **Thread title:** "ISO-6c: ISO screens, part 3". **Needs:** ISO-6b.
-- **Read:** model §3.7, §3.9-3.11, §3.13, §4.1, §4.3, §4.5; catalogue §5; `docs/contracts/iso-mock.md` (audits,
-  nonconformities, management reviews).
+- **Read:** model §1.9, §3.7, §3.9-3.11, §3.13, §4.1, §4.3, §4.5, §10; catalogue §5; `docs/contracts/iso-mock.md`
+  ("Internal audits", "Nonconformities", "Management reviews and files").
 - **Paths:** `apps/web/app/(shell)/c/[clientId]/iso/{audits,nonconformities,management-reviews}/`, `e2e/tests/iso/`.
 - **Delivers:** programme with coverage, internal audits with checklist, independence note, findings (an NC finding
-  raises its NC), report and close; the NC log and NC page with every action of model §4.1, incident fields with the
+  raises its NC), report and close; the NC log and NC page with every action of model §4.1, each offered only when the
+  view's `allowedActions` lists it (model §10), incident fields with the
   personal-data notice, the reportable notice and the statutory-instance link (an instance picker, as for
   `sourceInstanceId`), raising from a finding, a risk item, or with an instance picker (`sourceInstanceId`), and a
-  link to the source; a raise by hand offers every source but the two audit sources (model §4.1); reassigning the
-  owner or approver and moving the dates, with a reason, for account admins, consultants and client admins
-  (`isoNc.reassign`, plan §3.2), the owner editing only the investigation fields; a finding's type changes only as
-  model §3.9 allows; management reviews with inputs shown with their `sourceFigures`, outputs, actions and the pack
+  link to the source; a raise by hand offers every source but the two audit sources (model §4.1); a Reassign form
+  (owner, approver, dates and, while OPEN or ROOT_CAUSE_FOUND, severity, with a reason) on the NC's reassign route
+  for account admins, consultants and client admins (`isoNc.reassign`, plan §3.2), and the owner editing every other
+  field through the NC's PATCH; a finding's type changes only as model §3.9 allows; management reviews with their
+  standards, date and chair changed on their own route while PLANNED (client admins and above), inputs shown with
+  their `sourceFigures`, outputs, actions and the pack
   download; "NC log (Excel)" and "Audit report (PDF)" downloads beside the review pack, through
   `POST /clients/{clientId}/exports`.
 - **Tests:** e2e against the mock: plan and report an audit with an NC finding; take an NC from OPEN to CLOSED and back
@@ -553,8 +599,9 @@ what v2 adds around them. Status is as of 2026-10-25 (`origin/main` at #264); pl
 
 ## ISO-8b · M16 · ISO API 2: risks, objectives, actions
 - **Thread title:** "ISO-8b: ISO API, part 2". **Needs:** ISO-8a, ISO-2e.
-- **Read:** model §3.5, §3.6, §3.12, §5.1, §10; `docs/contracts/iso-mock.md` (shared rules; risks and objectives;
-  stand-ins for M4 formulas, which M16 calls the engine for).
+- **Read:** model §1.9, §3.5, §3.6, §3.12, §5.1, §10; `docs/contracts/iso-mock.md` ("Shared rules"; "Risks and
+  objectives"; the last two sentences of "Nonconformities", on actions on a closed subject and controls from a reopened
+  treatment action; "Stand-ins for M4 formulas", which M16 calls the engine for).
 - **Paths:** `apps/api/src/modules/iso/`.
 - **Delivers:** risk items with kind rules, rating and significance from the engine at write, override, controls,
   review (owner, or FA, CO or CA), the re-rating rule when a treatment action completes; objectives and readings;
@@ -568,26 +615,31 @@ what v2 adds around them. Status is as of 2026-10-25 (`origin/main` at #264); pl
 ## ISO-8c · M16 · ISO API 3: internal audits, external-audit findings, nonconformities, management reviews, overview
 - **Thread title:** "ISO-8c: ISO API, part 3". **Needs:** ISO-8b.
 - **Read:** model §3.7-3.11, §3.13, §4 preamble, §4.1, §4.3, §4.4, §4.5, §5.1-5.2, §5.4, §6, §9 (unit scope only),
-  §10; `docs/contracts/iso-mock.md` (shared rules; internal audits; nonconformities; certifications; management
-  reviews and files; the overview stand-ins).
+  §10; `docs/contracts/iso-mock.md` ("Shared rules"; "Internal audits"; "Nonconformities"; "Certifications";
+  "Management reviews and files"; the "Overview", "NC status" and "Management review figures" stand-ins, where M16
+  passes `since` to `reviewInputFigures`).
 - **Paths:** `apps/api/src/modules/iso/`.
 - **Delivers:**
   - Programmes, internal audits with checklist, independence rule, findings creating NCs in the same transaction.
   - External-audit findings (creating NCs), RECORD_RESPONSE and CLOSE (model §4.4).
   - Nonconformities with every arrow and guard of model §4.1, the disposition rule, incident rules (type and source,
     lost days, the statutory-instance link checked for unit and act kind) and the personal-data rule; a raise by hand
-    refused for the two audit sources; the NC PATCH split between `isoNc.reassign` (owner, approver, dates, with a
-    reason; FA, CO, CA) and `isoNc.work` (investigation fields; CA, OW own), model §4.1; a finding's type moves as
-    model §3.9 allows, the NC's severity following.
+    refused for the two audit sources; the NC's reassign route (`isoNc.reassign`; FA, CO, CA: owner, approver, dates
+    and severity, with a reason, severity only while OPEN or ROOT_CAUSE_FOUND and never on a finding's NC) and its
+    PATCH (`isoNc.work`; CA, OW own: every other field), model §3.10 and §4.1; `rootCauseMethod` at ADD_ROOT_CAUSE,
+    `dueOn` not before `reportedOn`, the lead not also an auditor; a finding's type moves as model §3.9 allows, the
+    NC's severity following.
   - Management reviews with input and output rows from the account's definitions, each input row with its
-    `sourceFigures` from `reviewInputFigures`.
+    `sourceFigures` from `reviewInputFigures`; the review's PATCH (`isoReview.write`, its chair included) and the
+    route for standards, date and chair while PLANNED (`isoReview.plan`), model §4.5.
   - The ISO overview (model §5.1-5.2 engine results with the ids behind each number), under `isoSystem.read`.
   - File routes for internal audits, findings, nonconformities and management reviews with the model §6 lock rules,
     and the incident-file download rule (model §6).
   - Rows in the audit gate test for each new route; `allowedActions` on audits, NCs and reviews; the mock's picks
     kept or replaced by ADR, as ISO-8a.
-- **Tests:** as ISO-8a, plus plan §7 items 6, 8 and 9; an owner cannot reassign their own NC or move its dates, and
-  FA and CO cannot edit its investigation fields; a locked subject refuses add and remove for every role, and
+- **Tests:** as ISO-8a, plus plan §7 items 6, 8 and 9; an NC owner is refused on the reassign route (owner,
+  approver, dates, severity), FA and CO are refused on the NC's PATCH, and severity is refused after ROOT_CAUSE_FOUND
+  and on a finding's NC; a chair is refused on the review's plan route; a locked subject refuses add and remove for every role, and
   field edits; a viewer and an owner of the unit who is not named on an incident NC cannot download its files; a
   plant-A owner sees none of a plant-B-only system's objectives, reviews or unit-less NCs.
 
@@ -783,13 +835,34 @@ How plan v2.1 takes in the departures ISO-1 lists in `docs/contracts/README.md` 
 | e | `RaisableNcSource` leaves out the two audit sources | model §4.1 RAISE; ISO-6c, ISO-8c |
 | f | a finding's `type` moves only within its group, the NC's severity following | model §3.9; ISO-6c, ISO-8c |
 | g | `IsoFile` stored form, `IsoFileView` API form; `IsoAction` one form with `subject` | as model §3.12 and §6 already had it; no change |
-| h | new action `isoNc.reassign` (FA, CO, CA); NC PATCH split by field | plan §3.2 (row and note); model §4.1; ISO-4b, ISO-6c, ISO-8c |
+| h | new action `isoNc.reassign` (FA, CO, CA); NC PATCH split by field | plan §3.2 (row and note); model §4.1; ISO-4b, ISO-6c, ISO-8c; the split became two routes in ISO-1a (o) |
 | i | catalogue and overview reads use `isoSystem.read` | plan §3.2 read row; model §10; ISO-8a, ISO-8c |
-| j | `allowedActions` on views of records with a machine | model §10; ISO-6a, ISO-8a, ISO-8b, ISO-8c |
+| j | `allowedActions` on views of records with a machine | model §10; ISO-6a, ISO-6b, ISO-6c, ISO-8a, ISO-8b, ISO-8c |
 | k | ISO timing functions take `{ dueSoonDays }` | model §5.2; ISO-3 |
 | l | the ISO overview route is M16's | as plan v2 (ISO-8c) already had it; model §10 says so |
 | m | `approvedById` null for a recorded external edition | model §3.4, §4.2 RECORD_EDITION; ISO-6a, ISO-8a |
 | n | `ExportCreateBody.kind` stays `ExportKind` until ISO-1b | ISO-1b brief |
+| o | one action per route: NC reassign and review plan fields get their own routes (ISO-1a, contracts 1.8.1) | plan §3.2 (rows and note); model §4.1, §4.5, §10; ISO-1a, ISO-4b, ISO-6c, ISO-8c |
 
 The mock's own picks where the model is silent (`docs/contracts/iso-mock.md`) are not departures; the shared rules
 at the top and the ISO-3, ISO-6a-c and ISO-8a-c briefs say how those modules treat them.
+
+### ISO-1 audit (plan v2.2)
+
+How plan v2.2 takes in the findings of the audit of #265 (ISO-1).
+
+| Finding | Where it is addressed |
+|---|---|
+| Medium 1: two-action PATCH routes leak rights through the stub `can()` | ISO-1a (one action per route, decision 51 o); plan §3.2; model §4.1, §4.5, §10; ISO-4b, ISO-6c, ISO-8c |
+| Medium 2: an owner can change an NC's severity to skip corrective action | model §3.10, §4.1 (severity on the reassign route, OPEN or ROOT_CAUSE_FOUND only); plan §3.2; ISO-1a, ISO-6c, ISO-8c |
+| Medium 3: `objectiveProgress` takes an `Instant` | model §5.1 (`createdOn`); ISO-1a, ISO-3 |
+| Low 1: undeclared NC and audit rules | model §3.7, §3.10, §4.1; ISO-1a, ISO-8c |
+| Low 2: `approvedById` null on any approved revision | model §3.4; ISO-1a |
+| Low 3: `FirmSettings.isoRisk` missing on stored rows | ISO-2b (taken by its thread) |
+| Low 4: `Resource.unitIds` non-empty | ISO-1a (doc comment); ISO-8a (left out for an empty unit list) |
+| Low 5: owner changes without a reason | model §1.9; ISO-1a, ISO-6b, ISO-8a, ISO-8b |
+| Low 6: no catalogue regeneration test | ISO-1a |
+| Low 7: the mock's sign-in ignores `x-mock-features` | ISO-1a; ISO-7b needs ISO-1a |
+| Low 8: OpenAPI lacks 409 `FEATURE_NOT_READY` | ISO-1a |
+| Info: STANDARD-instance events on the audit trail with the add-on off | already decided: plan §4.4 keeps ISO events on the client audit trail |
+| Info: no single GET for certifications or audit programmes; the endpoints.md sync test checks paths only | left to M0; ISO-6a or ISO-6c asks the coordinator for a single GET if a screen needs one |
