@@ -5,25 +5,39 @@ import {
   Applicability,
   AuditAction,
   AuditActorKind,
+  AuditRecommendation,
   CanopyField,
+  ClauseNaState,
+  ClauseStatus,
   CommentKind,
+  ContextItemKind,
   Criticality,
+  DocumentStatus,
+  DocumentType,
   EntityType,
   ExportKind,
+  ExternalAuditState,
+  ExternalAuditType,
   ImportBatchStatus,
   ImportIssueType,
   ImportRowOutcome,
   ISO_ENTITY_TYPES,
   ISO_EXPORT_KINDS,
   ISO_NOTIFICATION_KINDS,
+  IsoStandardCode,
   IssueDecision,
   IssueSeverity,
   JobStatus,
   Jurisdiction,
+  ManagementSystemStatus,
   NotificationKind,
   ObligationDomain,
   OperatorAuditAction,
   PersonStatus,
+  ReviewInputKey,
+  ReviewInputSource,
+  ReviewOutputKey,
+  RevisionState,
   Role,
   RuleStatus,
   ScanStatus,
@@ -117,4 +131,35 @@ export const supportAccessLevelEnum = pgEnum(
 export const operatorAuditActionEnum = pgEnum(
   'operator_audit_action',
   values(OperatorAuditAction.options),
+);
+
+// The ISO add-on (docs/iso/model.md §2-3.9, migration 0040).
+export const isoStandardCodeEnum = pgEnum('iso_standard_code', values(IsoStandardCode.options));
+export const reviewInputKeyEnum = pgEnum('review_input_key', values(ReviewInputKey.options));
+export const reviewOutputKeyEnum = pgEnum('review_output_key', values(ReviewOutputKey.options));
+export const reviewInputSourceEnum = pgEnum(
+  'review_input_source',
+  values(ReviewInputSource.options),
+);
+export const managementSystemStatusEnum = pgEnum(
+  'management_system_status',
+  values(ManagementSystemStatus.options),
+);
+export const contextItemKindEnum = pgEnum('context_item_kind', values(ContextItemKind.options));
+export const clauseStatusEnum = pgEnum('clause_status', values(ClauseStatus.options));
+export const clauseNaStateEnum = pgEnum('clause_na_state', values(ClauseNaState.options));
+export const documentTypeEnum = pgEnum('document_type', values(DocumentType.options));
+export const documentStatusEnum = pgEnum('document_status', values(DocumentStatus.options));
+export const revisionStateEnum = pgEnum('revision_state', values(RevisionState.options));
+export const externalAuditTypeEnum = pgEnum(
+  'external_audit_type',
+  values(ExternalAuditType.options),
+);
+export const auditRecommendationEnum = pgEnum(
+  'audit_recommendation',
+  values(AuditRecommendation.options),
+);
+export const externalAuditStateEnum = pgEnum(
+  'external_audit_state',
+  values(ExternalAuditState.options),
 );

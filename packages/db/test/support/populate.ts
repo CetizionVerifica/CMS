@@ -574,3 +574,180 @@ export async function populateSupport(
     );
   });
 }
+
+/**
+ * The ISO add-on's tables, part 1 (migration 0040): a catalogue copy per firm (one standard, three clauses, one review
+ * input and output definition) and per client one row of every record table, a file on the checklist row included.
+ * Added to `firm.rows`; written after populateFirm. Inserts name their columns, since ISO-2e adds `iso_file` columns.
+ */
+export async function populateIso(db: Database, firm: PopulatedFirm, label: string): Promise<void> {
+  await db.withTenant(systemContext(firm.firmId, `populate-iso-${label}`), async (tx) => {
+    const add = (table: string, scope: 'client0' | 'client1' | 'firmLevel', id: string) => {
+      firm.rows[table] ??= { client0: [], client1: [], firmLevel: [] };
+      firm.rows[table][scope].push(id);
+    };
+    const byEmail = async (email: string) => {
+      const [row] = await tx
+        .select({ id: s.person.id })
+        .from(s.person)
+        .where(eq(s.person.email, email));
+      if (!row) throw new Error(`no person ${email}`);
+      return row.id;
+    };
+    const ownerId = await byEmail(`owner@${label}.example`);
+    const approverId = await byEmail(`approver@${label}.example`);
+
+    const standardId = await insertNamed(tx, s.isoStandard, {
+      code: 'ISO_9001',
+      edition: '2015+A1:2024',
+      title: 'ISO 9001',
+      topic: 'Quality management',
+    });
+    add('iso_standard', 'firmLevel', standardId);
+    const clause = (
+      number: string,
+      parentId: string | null,
+      assessable: boolean,
+      exclusion: boolean,
+    ) =>
+      insertNamed(tx, s.isoClause, {
+        standardId,
+        number,
+        title: `Clause ${number}`,
+        summary: 'Our own summary.',
+        parentId,
+        hlsKey: number,
+        assessable,
+        exclusionAllowed: exclusion,
+      });
+    const clause4 = await clause('4', null, false, false);
+    const clause41 = await clause('4.1', clause4, true, false);
+    const clause83 = await clause('8.3', null, true, true);
+    for (const id of [clause4, clause41, clause83]) add('iso_clause', 'firmLevel', id);
+    add(
+      'iso_review_input_def',
+      'firmLevel',
+      await insertNamed(tx, s.isoReviewInputDef, {
+        standardId,
+        key: 'PREVIOUS_ACTIONS',
+        clauseNumber: '9.3.2',
+        item: 'a',
+        title: 'Actions from previous reviews',
+        source: 'PREVIOUS_ACTIONS',
+      }),
+    );
+    add(
+      'iso_review_output_def',
+      'firmLevel',
+      await insertNamed(tx, s.isoReviewOutputDef, {
+        standardId,
+        key: 'IMPROVEMENT',
+        clauseNumber: '9.3.3',
+        item: 'a',
+        title: 'Opportunities for improvement',
+      }),
+    );
+
+    for (const [i, clientId] of firm.clientIds.entries()) {
+      const scope = i === 0 ? 'client0' : 'client1';
+      const [unitRow] = await tx
+        .select({ id: s.unit.id })
+        .from(s.unit)
+        .where(eq(s.unit.clientId, clientId));
+      const unitId = unitRow!.id;
+      const systemId = await insertNamed(tx, s.managementSystem, {
+        clientId,
+        name: 'Kestrel quality system',
+        standardIds: [standardId],
+        scopeStatement: 'Rolling mill and finishing.',
+      });
+      add('management_system', scope, systemId);
+      add(
+        'management_system_unit',
+        scope,
+        await insertNamed(tx, s.managementSystemUnit, {
+          clientId,
+          managementSystemId: systemId,
+          unitId,
+        }),
+      );
+      add(
+        'context_item',
+        scope,
+        await insertNamed(tx, s.contextItem, {
+          clientId,
+          managementSystemId: systemId,
+          kind: 'EXTERNAL_ISSUE',
+          text: 'Aluminium prices',
+        }),
+      );
+      const assessmentId = await insertNamed(tx, s.clauseAssessment, {
+        clientId,
+        managementSystemId: systemId,
+        clauseId: clause41,
+        ownerId,
+      });
+      add('clause_assessment', scope, assessmentId);
+      const documentId = await insertNamed(tx, s.controlledDocument, {
+        clientId,
+        managementSystemId: systemId,
+        code: 'QP-01',
+        title: 'Quality policy',
+        type: 'POLICY',
+        clauseIds: [clause41],
+        ownerId,
+        approverId,
+      });
+      add('controlled_document', scope, documentId);
+      add(
+        'document_revision',
+        scope,
+        await insertNamed(tx, s.documentRevision, {
+          clientId,
+          documentId,
+          revision: 'A',
+          preparedById: ownerId,
+        }),
+      );
+      const certificationId = await insertNamed(tx, s.certification, {
+        clientId,
+        managementSystemId: systemId,
+        standardId,
+        body: 'Osprey Certification',
+      });
+      add('certification', scope, certificationId);
+      add(
+        'certification_unit',
+        scope,
+        await insertNamed(tx, s.certificationUnit, { clientId, certificationId, unitId }),
+      );
+      add(
+        'external_audit',
+        scope,
+        await insertNamed(tx, s.externalAudit, {
+          clientId,
+          managementSystemId: systemId,
+          standardIds: [standardId],
+          type: 'STAGE_1',
+          body: 'Osprey Certification',
+          startOn: '2026-11-02',
+          endOn: '2026-11-03',
+        }),
+      );
+      add(
+        'iso_file',
+        scope,
+        await insertNamed(tx, s.isoFile, {
+          clientId,
+          clauseAssessmentId: assessmentId,
+          fileName: 'gap-analysis.pdf',
+          mimeType: 'application/pdf',
+          sizeBytes: 2048,
+          sha256: SHA,
+          storageKey: `evidence/${firm.firmId}/${clientId}/iso/clause_assessment/${assessmentId}/populate-${label}`,
+          uploadedById: ownerId,
+        }),
+      );
+    }
+  });
+}
