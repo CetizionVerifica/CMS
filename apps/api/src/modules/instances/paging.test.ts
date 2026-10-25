@@ -111,7 +111,9 @@ describe('countMatching', () => {
     const { sources, read, reads } = sourcesOf({ a: many, b: [row('2023-01-01', 'b1')] });
     expect(await countMatching(sources, read, () => true)).toBe(COUNT_PAGE_SIZE + 6);
     expect(reads()).toBe(3);
-    expect(await countMatching(sources, read, (r) => r.id.endsWith('1'))).toBe(22);
+    expect(await countMatching(sources, read, (r) => r.id.endsWith('1'))).toBe(
+      many.filter((r) => r.id.endsWith('1')).length + 1,
+    );
   });
 
   it('is 0 with no sources or no rows', async () => {

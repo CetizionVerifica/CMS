@@ -243,6 +243,22 @@ const firstComment = sql<
   string | null
 >`(SELECT c.body FROM comment c WHERE c.instance_id = ${s.complianceInstance.id} AND c.archived_at IS NULL ORDER BY c.created_at ASC, c.id ASC LIMIT 1)`;
 
+/**
+ * The register's largest page for the server's own whole-client reads (the overview, reports and `?count=true`,
+ * which derive every row's status in the engine). API pages stay at `MAX_LIMIT`: the contracts cap `limit` before
+ * a request reaches here. Each page plans an 11-table join under row-level security, so at 10,000 instances 200-row
+ * pages spent seconds planning (security review F16).
+ */
+export const REGISTER_READ_LIMIT = 2000;
+
+function registerLimit(limit: number | undefined): number {
+  if (limit === undefined) return pageLimit(undefined);
+  if (!Number.isInteger(limit) || limit < 1 || limit > REGISTER_READ_LIMIT) {
+    throw new DbError('VALIDATION', `limit must be 1-${REGISTER_READ_LIMIT}`);
+  }
+  return limit;
+}
+
 export const instances = {
   /**
    * Export columns the register rows leave out, for these instances (visible ones only, in id order).
@@ -360,8 +376,9 @@ export const instances = {
   },
 
   /**
-   * The register: flattened rows for one client, ordered by due date then id, keyset-paged. Callers add
-   * `status` and `overdueDays` from `engine.deriveStatus` (no status maths here, root CLAUDE.md rule 3).
+   * The register: flattened rows for one client, ordered by due date then id, keyset-paged, up to
+   * `REGISTER_READ_LIMIT` rows a page. Callers add `status` and `overdueDays` from `engine.deriveStatus` (no status
+   * maths here, root CLAUDE.md rule 3).
    */
   async register(
     tx: TenantTx,
@@ -370,7 +387,7 @@ export const instances = {
     page: { limit?: number; cursor?: string | null } = {},
   ): Promise<Page<RegisterRow>> {
     const f = validate(RegisterFilter, filter);
-    const limit = pageLimit(page.limit);
+    const limit = registerLimit(page.limit);
     const i = s.complianceInstance;
     const conditions = registerConditions(clientId, f);
     if (page.cursor) {
@@ -384,6 +401,18 @@ export const instances = {
       }
       conditions.push(sql`(${i.dueDate}, ${i.id}) > (${after.dueDate}::date, ${after.id}::uuid)`);
     }
+    // The joins run in the order written, from the client's instances out to their labels. Left to search every
+    // order of 11 tables, the planner spent about 130 ms a page on a plan no faster than this one (security review
+    // F16). Only for this query: the setting goes back to what it was once the rows are read.
+    const {
+      rows: [setting],
+    } = await tx
+      .execute<{
+        previous: string;
+      }>(
+        sql`SELECT current_setting('join_collapse_limit') AS previous, set_config('join_collapse_limit', '1', true)`,
+      )
+      .catch(rethrow);
     const rows = await tx
       .select({
         id: i.id,
@@ -433,6 +462,9 @@ export const instances = {
       .where(and(...conditions))
       .orderBy(asc(i.dueDate), asc(i.id))
       .limit(limit + 1)
+      .catch(rethrow);
+    await tx
+      .execute(sql`SELECT set_config('join_collapse_limit', ${setting!.previous}, true)`)
       .catch(rethrow);
     const items = rows.slice(0, limit).map(({ forms, logSheets, ...row }) => ({
       ...row,

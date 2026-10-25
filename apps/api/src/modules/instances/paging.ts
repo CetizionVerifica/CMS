@@ -1,4 +1,4 @@
-import type { RegisterFilter, RegisterRow } from '@canopy/db';
+import { REGISTER_READ_LIMIT, type RegisterFilter, type RegisterRow } from '@canopy/db';
 import { ApiError } from '../../auth/index.js';
 
 /**
@@ -83,8 +83,11 @@ export async function mergedPage<R extends Position, T>(
   return { items, nextCursor: cursor ?? null };
 }
 
-/** Rows per register query when counting: the repository's largest page. */
-export const COUNT_PAGE_SIZE = 200;
+/**
+ * Rows per register query when counting: the repository's largest page for whole-client reads, so a count at
+ * 10,000 instances is a handful of queries rather than fifty (security review F16).
+ */
+export const COUNT_PAGE_SIZE = REGISTER_READ_LIMIT;
 
 /**
  * `?count=true`'s `total`: how many rows of all the sources `keep` accepts. The sources a list reads are
