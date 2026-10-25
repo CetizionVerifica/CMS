@@ -1,8 +1,10 @@
 # ISO management systems add-on: plan (v2)
 
-Status: v2, 2026-10-25. Decisions: ADR [M16-0001](../adr/M16-0001-iso-management-systems.md), amended by ADR
+Status: v2.1, 2026-10-25. Decisions: ADR [M16-0001](../adr/M16-0001-iso-management-systems.md), amended by ADR
 [M16-0002](../adr/M16-0002-iso-plan-v2.md). v2 answers the 58 findings of the independent review of v1 (trace at the
-end of [packages.md](packages.md)).
+end of [packages.md](packages.md)). v2.1 takes in the departures the ISO contracts (ISO-1, contracts 1.8.0) list in
+`docs/contracts/README.md` decision 51 (a-n), and points the API, engine and screen briefs at the M0 mock's own
+readings in `docs/contracts/iso-mock.md` (trace at the end of [packages.md](packages.md)).
 
 Every ISO thread reads, in order: the root `CLAUDE.md`, this file, its own brief in [packages.md](packages.md), the
 parts of [model.md](model.md) and [catalogue.md](catalogue.md) its brief names, then the area `CLAUDE.md` of the paths
@@ -96,7 +98,7 @@ call it (model §4 preamble).
 
 | Action | FA | CO | CA | AP | OW | VI | Covers |
 |---|---|---|---|---|---|---|---|
-| `<resource>.read` for every resource below | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | reads, lists, files' download URLs (an incident NC's files only for the people model §6 names), overview |
+| `<resource>.read` for every resource below | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | reads, lists, files' download URLs (an incident NC's files only for the people model §6 names); the catalogue and the overview, which have no resource of their own, use `isoSystem.read` |
 | `isoSystem.write` | ✓ | ✓ | ✓ | | | | systems, scope, units, context items, climate decision, audit programmes |
 | `isoChecklist.write` | ✓ | ✓ | ✓ | | own | | status, notes, files of a checklist row |
 | `isoChecklist.requestNa` | ✓ | ✓ | ✓ | | own | | REQUEST_NA, WITHDRAW_NA |
@@ -110,7 +112,8 @@ call it (model §4 preamble).
 | `isoAudit.conduct` | ✓ | ✓ | ✓ | own | own | | START, checklist, findings, REPORT, CLOSE (own = lead or auditor on the audit) |
 | `isoCertification.write` | ✓ | ✓ | ✓ | | | | certificates, external audits and their findings |
 | `isoNc.raise` | ✓ | ✓ | ✓ | ✓ | ✓ | | RAISE, for a unit the actor can see |
-| `isoNc.work` | | | ✓ | | own | | ADD_ROOT_CAUSE, PLAN_ACTIONS, SUBMIT, SUBMIT_NO_ACTION |
+| `isoNc.work` | | | ✓ | | own | | ADD_ROOT_CAUSE, PLAN_ACTIONS, SUBMIT, SUBMIT_NO_ACTION, edits of the investigation fields |
+| `isoNc.reassign` | ✓ | ✓ | ✓ | | | | owner, approver, `dueOn` and `effectivenessDueOn` of an NC, with a reason (audited `REASSIGN` or `DUE_DATE_CHANGE`) |
 | `isoNc.verify` | | | ✓ | own | | | VERIFY_EFFECTIVE, VERIFY_NOT_EFFECTIVE |
 | `isoNc.cancel` | | | ✓ | own | | | CANCEL |
 | `isoNc.reopen` | | | ✓ | | | | REOPEN |
@@ -123,7 +126,10 @@ call it (model §4 preamble).
 | `isoFile.write` | ✓ | ✓ | ✓ | own | own | | upload, confirm, remove: whoever may write the subject |
 
 ISO-1 may split or rename an action where a route needs it, keeping the rules above; the coordinator then corrects
-this table (§5.6).
+this table (§5.6). ISO-1 (contracts 1.8.0, README decision 51 h and i) added `isoNc.reassign`, so an NC's owner cannot
+reassign their own NC or move its dates, and gave the catalogue and overview reads `isoSystem.read`. The NC's PATCH
+route lists FA, CO, CA and OW (own): FA and CO change only the `isoNc.reassign` fields, OW only the investigation
+fields, and CA both.
 
 ### 3.3 Unit scope
 
@@ -339,7 +345,7 @@ before any package that depends on the change starts.
 ## 6. Packages and waves
 
 Briefs: [packages.md](packages.md). Waves are for orientation; the Needs column decides. Status as of 2026-10-25
-(`origin/main` at #259).
+(`origin/main` at #264).
 
 | Wave | Package | Module | Title | Needs | Status |
 |---|---|---|---|---|---|
@@ -348,9 +354,9 @@ Briefs: [packages.md](packages.md). Waves are for orientation; the Needs column 
 | I1 | ISO-7 | M11 | Gate the shell on the ISO add-on | ISO-0 | merged (#254, #257) |
 | I1 | ISO-4a | M5 | Check the add-on feature on requests | ISO-0 | merged (#255, #259) |
 | I1 | ISO-5 | M15 | Add an add-ons switch to the operator console | ISO-0, ISO-2a | merged (#252) |
-| I2 | ISO-4c | M5 | Message for FEATURE_NOT_READY ahead of the contracts | ISO-4a | |
-| I2 | ISO-12b | M13 | Show add-ons on the Account page | ISO-0, ISO-7 | |
-| I2 | ISO-1 | M0 | ISO contracts (shapes, endpoints, events, engine API, fixtures, mock) | ISO-0, ISO-4c | on hold until v2 merges |
+| I2 | ISO-4c | M5 | Message for FEATURE_NOT_READY ahead of the contracts | ISO-4a | merged (#261) |
+| I2 | ISO-12b | M13 | Show add-ons on the Account page | ISO-0, ISO-7 | merged (#262) |
+| I2 | ISO-1 | M0 | ISO contracts (shapes, endpoints, events, engine API, fixtures, mock) | ISO-0, ISO-4c | open (#265) |
 | I3 | ISO-2b | M3 | Stage ISO enum values and give the send log an ISO subject | ISO-1, ISO-2a | |
 | I3 | ISO-3 | M4 | ISO engine functions and transition tables | ISO-1 | |
 | I3 | ISO-7b | M11 | Mock features per demo user for ISO screens | ISO-1, ISO-7 | |
