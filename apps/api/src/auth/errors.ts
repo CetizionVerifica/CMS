@@ -1,6 +1,12 @@
 import { ERROR_HTTP_STATUS, type ErrorCode, type ErrorEnvelope } from '@canopy/contracts';
 
-const DEFAULT_MESSAGES: Partial<Record<ErrorCode, string>> = {
+/**
+ * Codes a newer contract adds, given their message here first so the contract PR's every-code test passes when it
+ * merges main (ISO-1, the ISO add-on's contracts). Drop this once M5 is on that version.
+ */
+type PendingErrorCode = 'FEATURE_NOT_READY';
+
+const DEFAULT_MESSAGES: Partial<Record<ErrorCode | PendingErrorCode, string>> = {
   VALIDATION: 'The request is not valid.',
   UNAUTHENTICATED: 'Sign in to continue.',
   MFA_REQUIRED: 'Two-step verification is required.',
@@ -10,6 +16,7 @@ const DEFAULT_MESSAGES: Partial<Record<ErrorCode, string>> = {
   PLAN_LIMIT_REACHED: 'Your plan limit is reached. Contact PlanetPulse to upgrade.',
   FEATURE_NOT_ENABLED:
     "This feature isn't turned on for your account. Contact PlanetPulse to add it.",
+  FEATURE_NOT_READY: 'This add-on is being set up for your account. Try again in a few minutes.',
   NOT_FOUND: 'Not found.',
   STALE_VERSION: 'Someone else changed this; reload and try again.',
   INVALID_TRANSITION: 'This action is not allowed in the current state.',
