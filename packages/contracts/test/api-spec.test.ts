@@ -65,7 +65,11 @@ describe('OpenAPI document', () => {
       } else {
         expect(codes.sort(), id).toEqual([String(ep.status), '403', '409'].sort());
         expect(op.responses['403']!.description, id).toContain('FEATURE_NOT_ENABLED');
+        expect(op.responses['403']!.description, id).toContain('FORBIDDEN');
         expect(op.responses['409']!.description, id).toContain('FEATURE_NOT_READY');
+        if (ep.method !== 'GET') {
+          expect(op.responses['409']!.description, id).toContain('STALE_VERSION');
+        }
       }
     }
     expect(doc.info.description).toContain('409 FEATURE_NOT_READY');

@@ -148,12 +148,21 @@ describe('stub can() on the ISO actions', () => {
     expect(
       can(ctx([approver], asApprover), 'isoSystem.read', { ...system, unitIds: [OTHER_UNIT] }),
     ).toBe(true);
-    // The chair of a review over other units still may not write it.
+    // The stub has no named-person exception (plan §3.3): a resource that lists other units is refused even to its
+    // chair. The provider applies the exception by leaving unitIds out for a record that names the actor, as the
+    // mock's isoScope does, and then the chair may write it.
+    const named: Resource = {
+      type: 'instance',
+      clientId: ID.client,
+      ownerId: ID.approver,
+      approverId: ID.approver,
+    };
     expect(
       can(ctx([scoped], asApprover), 'isoReview.write', {
         ...chairedBy(ID.approver),
         unitIds: [OTHER_UNIT],
       }),
     ).toBe(false);
+    expect(can(ctx([scoped], asApprover), 'isoReview.write', named)).toBe(true);
   });
 });

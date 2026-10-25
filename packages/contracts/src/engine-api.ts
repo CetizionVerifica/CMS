@@ -241,7 +241,9 @@ export interface IsoEngineApi {
   ): PlannedIsoNotification[];
   /**
    * The figures of one review input source between `since` (the last held review covering the input's standards, or
-   * the system's `createdOn`) and `asOf`. `data` is the system's records the source reads; MANUAL has none.
+   * the system's `createdOn`, and never after `asOf`) and `asOf`, with the records as they stood on `asOf`
+   * (docs/contracts/iso-mock.md "Management review figures"). `data` is the system's records the source reads; MANUAL
+   * has none.
    */
   reviewInputFigures(
     source: ReviewInputSource,

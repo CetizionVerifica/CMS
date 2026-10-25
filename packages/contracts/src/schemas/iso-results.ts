@@ -205,11 +205,16 @@ export const ReviewFigure = z.strictObject({
 });
 export type ReviewFigure = z.infer<typeof ReviewFigure>;
 
-/** `reviewInputFigures`: one input source's figures between `since` and `asOf`; none for MANUAL. */
-export const ReviewInputFigures = z.strictObject({
-  source: ReviewInputSource,
-  since: LocalDate,
-  asOf: LocalDate,
-  figures: z.array(ReviewFigure),
-});
+/**
+ * `reviewInputFigures`: one input source's figures between `since` and `asOf` (`since` never after `asOf`), the
+ * records as they stood on `asOf`; none for MANUAL.
+ */
+export const ReviewInputFigures = z
+  .strictObject({
+    source: ReviewInputSource,
+    since: LocalDate,
+    asOf: LocalDate,
+    figures: z.array(ReviewFigure),
+  })
+  .refine((f) => f.since <= f.asOf, { message: 'since is after asOf', path: ['since'] });
 export type ReviewInputFigures = z.infer<typeof ReviewInputFigures>;

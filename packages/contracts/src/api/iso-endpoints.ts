@@ -497,7 +497,7 @@ export const ISO_ENDPOINTS = {
   updateIsoObjective: isoEndpoint({
     method: 'PATCH',
     path: `${ROOT}/objectives/{id}`,
-    summary: 'Change an open objective; moving `dueOn` needs a reason.',
+    summary: 'Change an open objective; moving `dueOn` or changing the owner needs a reason.',
     action: 'isoObjective.write',
     roles: OWNER_WRITERS,
     notes: 'OW only as its owner.',
@@ -607,7 +607,8 @@ export const ISO_ENDPOINTS = {
   updateIsoInternalAudit: isoEndpoint({
     method: 'PATCH',
     path: `${ROOT}/internal-audits/{id}`,
-    summary: 'Change a PLANNED or IN_PROGRESS audit; moving its dates needs a reason.',
+    summary:
+      'Change a PLANNED or IN_PROGRESS audit; moving its dates or changing the lead auditor needs a reason.',
     action: 'isoAudit.plan',
     roles: MANAGERS,
     body: iso.InternalAuditUpdateBody,

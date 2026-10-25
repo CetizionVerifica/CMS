@@ -9065,7 +9065,7 @@
             }
           },
           "403": {
-            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "description": "FEATURE_NOT_ENABLED { feature } when the account does not have isoManagement; otherwise FORBIDDEN { action } or another 403 code of api-conventions.md §5.",
             "content": {
               "application/json": {
                 "schema": {
@@ -9075,7 +9075,7 @@
             }
           },
           "409": {
-            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "description": "FEATURE_NOT_READY { feature } while isoManagement is on but not set up yet.",
             "content": {
               "application/json": {
                 "schema": {
@@ -9166,7 +9166,7 @@
             }
           },
           "403": {
-            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "description": "FEATURE_NOT_ENABLED { feature } when the account does not have isoManagement; otherwise FORBIDDEN { action } or another 403 code of api-conventions.md §5.",
             "content": {
               "application/json": {
                 "schema": {
@@ -9176,7 +9176,7 @@
             }
           },
           "409": {
-            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "description": "FEATURE_NOT_READY { feature } while isoManagement is on but not set up yet.",
             "content": {
               "application/json": {
                 "schema": {
@@ -9258,7 +9258,7 @@
             }
           },
           "403": {
-            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "description": "FEATURE_NOT_ENABLED { feature } when the account does not have isoManagement; otherwise FORBIDDEN { action } or another 403 code of api-conventions.md §5.",
             "content": {
               "application/json": {
                 "schema": {
@@ -9268,7 +9268,7 @@
             }
           },
           "409": {
-            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "description": "FEATURE_NOT_READY { feature } while isoManagement is on but not set up yet.",
             "content": {
               "application/json": {
                 "schema": {
@@ -9388,7 +9388,7 @@
             }
           },
           "403": {
-            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "description": "FEATURE_NOT_ENABLED { feature } when the account does not have isoManagement; otherwise FORBIDDEN { action } or another 403 code of api-conventions.md §5.",
             "content": {
               "application/json": {
                 "schema": {
@@ -9398,7 +9398,7 @@
             }
           },
           "409": {
-            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "description": "FEATURE_NOT_READY { feature } while isoManagement is on but not set up yet.",
             "content": {
               "application/json": {
                 "schema": {
@@ -9483,7 +9483,7 @@
             }
           },
           "403": {
-            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "description": "FEATURE_NOT_ENABLED { feature } when the account does not have isoManagement; otherwise FORBIDDEN { action } or another 403 code of api-conventions.md §5.",
             "content": {
               "application/json": {
                 "schema": {
@@ -9493,7 +9493,7 @@
             }
           },
           "409": {
-            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "description": "FEATURE_NOT_READY { feature } while isoManagement is on but not set up yet; otherwise STALE_VERSION, INVALID_TRANSITION or DUPLICATE (api-conventions.md §5).",
             "content": {
               "application/json": {
                 "schema": {
@@ -9572,7 +9572,7 @@
             }
           },
           "403": {
-            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "description": "FEATURE_NOT_ENABLED { feature } when the account does not have isoManagement; otherwise FORBIDDEN { action } or another 403 code of api-conventions.md §5.",
             "content": {
               "application/json": {
                 "schema": {
@@ -9582,7 +9582,7 @@
             }
           },
           "409": {
-            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "description": "FEATURE_NOT_READY { feature } while isoManagement is on but not set up yet.",
             "content": {
               "application/json": {
                 "schema": {
@@ -9675,7 +9675,7 @@
             }
           },
           "403": {
-            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "description": "FEATURE_NOT_ENABLED { feature } when the account does not have isoManagement; otherwise FORBIDDEN { action } or another 403 code of api-conventions.md §5.",
             "content": {
               "application/json": {
                 "schema": {
@@ -9685,7 +9685,7 @@
             }
           },
           "409": {
-            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "description": "FEATURE_NOT_READY { feature } while isoManagement is on but not set up yet; otherwise STALE_VERSION, INVALID_TRANSITION or DUPLICATE (api-conventions.md §5).",
             "content": {
               "application/json": {
                 "schema": {
@@ -9777,7 +9777,7 @@
             }
           },
           "403": {
-            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "description": "FEATURE_NOT_ENABLED { feature } when the account does not have isoManagement; otherwise FORBIDDEN { action } or another 403 code of api-conventions.md §5.",
             "content": {
               "application/json": {
                 "schema": {
@@ -9787,7 +9787,7 @@
             }
           },
           "409": {
-            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "description": "FEATURE_NOT_READY { feature } while isoManagement is on but not set up yet; otherwise STALE_VERSION, INVALID_TRANSITION or DUPLICATE (api-conventions.md §5).",
             "content": {
               "application/json": {
                 "schema": {
@@ -9893,7 +9893,7 @@
             }
           },
           "403": {
-            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "description": "FEATURE_NOT_ENABLED { feature } when the account does not have isoManagement; otherwise FORBIDDEN { action } or another 403 code of api-conventions.md §5.",
             "content": {
               "application/json": {
                 "schema": {
@@ -9903,7 +9903,7 @@
             }
           },
           "409": {
-            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "description": "FEATURE_NOT_READY { feature } while isoManagement is on but not set up yet.",
             "content": {
               "application/json": {
                 "schema": {
@@ -9997,7 +9997,7 @@
             }
           },
           "403": {
-            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "description": "FEATURE_NOT_ENABLED { feature } when the account does not have isoManagement; otherwise FORBIDDEN { action } or another 403 code of api-conventions.md §5.",
             "content": {
               "application/json": {
                 "schema": {
@@ -10007,7 +10007,7 @@
             }
           },
           "409": {
-            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "description": "FEATURE_NOT_READY { feature } while isoManagement is on but not set up yet; otherwise STALE_VERSION, INVALID_TRANSITION or DUPLICATE (api-conventions.md §5).",
             "content": {
               "application/json": {
                 "schema": {
@@ -10108,7 +10108,7 @@
             }
           },
           "403": {
-            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "description": "FEATURE_NOT_ENABLED { feature } when the account does not have isoManagement; otherwise FORBIDDEN { action } or another 403 code of api-conventions.md §5.",
             "content": {
               "application/json": {
                 "schema": {
@@ -10118,7 +10118,7 @@
             }
           },
           "409": {
-            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "description": "FEATURE_NOT_READY { feature } while isoManagement is on but not set up yet; otherwise STALE_VERSION, INVALID_TRANSITION or DUPLICATE (api-conventions.md §5).",
             "content": {
               "application/json": {
                 "schema": {
@@ -10219,7 +10219,7 @@
             }
           },
           "403": {
-            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "description": "FEATURE_NOT_ENABLED { feature } when the account does not have isoManagement; otherwise FORBIDDEN { action } or another 403 code of api-conventions.md §5.",
             "content": {
               "application/json": {
                 "schema": {
@@ -10229,7 +10229,7 @@
             }
           },
           "409": {
-            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "description": "FEATURE_NOT_READY { feature } while isoManagement is on but not set up yet; otherwise STALE_VERSION, INVALID_TRANSITION or DUPLICATE (api-conventions.md §5).",
             "content": {
               "application/json": {
                 "schema": {
@@ -10352,7 +10352,7 @@
             }
           },
           "403": {
-            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "description": "FEATURE_NOT_ENABLED { feature } when the account does not have isoManagement; otherwise FORBIDDEN { action } or another 403 code of api-conventions.md §5.",
             "content": {
               "application/json": {
                 "schema": {
@@ -10362,7 +10362,7 @@
             }
           },
           "409": {
-            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "description": "FEATURE_NOT_READY { feature } while isoManagement is on but not set up yet.",
             "content": {
               "application/json": {
                 "schema": {
@@ -10467,7 +10467,7 @@
             }
           },
           "403": {
-            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "description": "FEATURE_NOT_ENABLED { feature } when the account does not have isoManagement; otherwise FORBIDDEN { action } or another 403 code of api-conventions.md §5.",
             "content": {
               "application/json": {
                 "schema": {
@@ -10477,7 +10477,7 @@
             }
           },
           "409": {
-            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "description": "FEATURE_NOT_READY { feature } while isoManagement is on but not set up yet; otherwise STALE_VERSION, INVALID_TRANSITION or DUPLICATE (api-conventions.md §5).",
             "content": {
               "application/json": {
                 "schema": {
@@ -10583,7 +10583,7 @@
             }
           },
           "403": {
-            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "description": "FEATURE_NOT_ENABLED { feature } when the account does not have isoManagement; otherwise FORBIDDEN { action } or another 403 code of api-conventions.md §5.",
             "content": {
               "application/json": {
                 "schema": {
@@ -10593,7 +10593,7 @@
             }
           },
           "409": {
-            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "description": "FEATURE_NOT_READY { feature } while isoManagement is on but not set up yet; otherwise STALE_VERSION, INVALID_TRANSITION or DUPLICATE (api-conventions.md §5).",
             "content": {
               "application/json": {
                 "schema": {
@@ -10699,7 +10699,7 @@
             }
           },
           "403": {
-            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "description": "FEATURE_NOT_ENABLED { feature } when the account does not have isoManagement; otherwise FORBIDDEN { action } or another 403 code of api-conventions.md §5.",
             "content": {
               "application/json": {
                 "schema": {
@@ -10709,7 +10709,7 @@
             }
           },
           "409": {
-            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "description": "FEATURE_NOT_READY { feature } while isoManagement is on but not set up yet; otherwise STALE_VERSION, INVALID_TRANSITION or DUPLICATE (api-conventions.md §5).",
             "content": {
               "application/json": {
                 "schema": {
@@ -10813,7 +10813,7 @@
             }
           },
           "403": {
-            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "description": "FEATURE_NOT_ENABLED { feature } when the account does not have isoManagement; otherwise FORBIDDEN { action } or another 403 code of api-conventions.md §5.",
             "content": {
               "application/json": {
                 "schema": {
@@ -10823,7 +10823,7 @@
             }
           },
           "409": {
-            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "description": "FEATURE_NOT_READY { feature } while isoManagement is on but not set up yet; otherwise STALE_VERSION, INVALID_TRANSITION or DUPLICATE (api-conventions.md §5).",
             "content": {
               "application/json": {
                 "schema": {
@@ -10927,7 +10927,7 @@
             }
           },
           "403": {
-            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "description": "FEATURE_NOT_ENABLED { feature } when the account does not have isoManagement; otherwise FORBIDDEN { action } or another 403 code of api-conventions.md §5.",
             "content": {
               "application/json": {
                 "schema": {
@@ -10937,7 +10937,7 @@
             }
           },
           "409": {
-            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "description": "FEATURE_NOT_READY { feature } while isoManagement is on but not set up yet; otherwise STALE_VERSION, INVALID_TRANSITION or DUPLICATE (api-conventions.md §5).",
             "content": {
               "application/json": {
                 "schema": {
@@ -11117,7 +11117,7 @@
             }
           },
           "403": {
-            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "description": "FEATURE_NOT_ENABLED { feature } when the account does not have isoManagement; otherwise FORBIDDEN { action } or another 403 code of api-conventions.md §5.",
             "content": {
               "application/json": {
                 "schema": {
@@ -11127,7 +11127,7 @@
             }
           },
           "409": {
-            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "description": "FEATURE_NOT_READY { feature } while isoManagement is on but not set up yet.",
             "content": {
               "application/json": {
                 "schema": {
@@ -11212,7 +11212,7 @@
             }
           },
           "403": {
-            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "description": "FEATURE_NOT_ENABLED { feature } when the account does not have isoManagement; otherwise FORBIDDEN { action } or another 403 code of api-conventions.md §5.",
             "content": {
               "application/json": {
                 "schema": {
@@ -11222,7 +11222,7 @@
             }
           },
           "409": {
-            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "description": "FEATURE_NOT_READY { feature } while isoManagement is on but not set up yet; otherwise STALE_VERSION, INVALID_TRANSITION or DUPLICATE (api-conventions.md §5).",
             "content": {
               "application/json": {
                 "schema": {
@@ -11303,7 +11303,7 @@
             }
           },
           "403": {
-            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "description": "FEATURE_NOT_ENABLED { feature } when the account does not have isoManagement; otherwise FORBIDDEN { action } or another 403 code of api-conventions.md §5.",
             "content": {
               "application/json": {
                 "schema": {
@@ -11313,7 +11313,7 @@
             }
           },
           "409": {
-            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "description": "FEATURE_NOT_READY { feature } while isoManagement is on but not set up yet.",
             "content": {
               "application/json": {
                 "schema": {
@@ -11406,7 +11406,7 @@
             }
           },
           "403": {
-            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "description": "FEATURE_NOT_ENABLED { feature } when the account does not have isoManagement; otherwise FORBIDDEN { action } or another 403 code of api-conventions.md §5.",
             "content": {
               "application/json": {
                 "schema": {
@@ -11416,7 +11416,7 @@
             }
           },
           "409": {
-            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "description": "FEATURE_NOT_READY { feature } while isoManagement is on but not set up yet; otherwise STALE_VERSION, INVALID_TRANSITION or DUPLICATE (api-conventions.md §5).",
             "content": {
               "application/json": {
                 "schema": {
@@ -11513,7 +11513,7 @@
             }
           },
           "403": {
-            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "description": "FEATURE_NOT_ENABLED { feature } when the account does not have isoManagement; otherwise FORBIDDEN { action } or another 403 code of api-conventions.md §5.",
             "content": {
               "application/json": {
                 "schema": {
@@ -11523,7 +11523,7 @@
             }
           },
           "409": {
-            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "description": "FEATURE_NOT_READY { feature } while isoManagement is on but not set up yet; otherwise STALE_VERSION, INVALID_TRANSITION or DUPLICATE (api-conventions.md §5).",
             "content": {
               "application/json": {
                 "schema": {
@@ -11617,7 +11617,7 @@
             }
           },
           "403": {
-            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "description": "FEATURE_NOT_ENABLED { feature } when the account does not have isoManagement; otherwise FORBIDDEN { action } or another 403 code of api-conventions.md §5.",
             "content": {
               "application/json": {
                 "schema": {
@@ -11627,7 +11627,7 @@
             }
           },
           "409": {
-            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "description": "FEATURE_NOT_READY { feature } while isoManagement is on but not set up yet; otherwise STALE_VERSION, INVALID_TRANSITION or DUPLICATE (api-conventions.md §5).",
             "content": {
               "application/json": {
                 "schema": {
@@ -11705,7 +11705,7 @@
             }
           },
           "403": {
-            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "description": "FEATURE_NOT_ENABLED { feature } when the account does not have isoManagement; otherwise FORBIDDEN { action } or another 403 code of api-conventions.md §5.",
             "content": {
               "application/json": {
                 "schema": {
@@ -11715,7 +11715,7 @@
             }
           },
           "409": {
-            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "description": "FEATURE_NOT_READY { feature } while isoManagement is on but not set up yet.",
             "content": {
               "application/json": {
                 "schema": {
@@ -11809,7 +11809,7 @@
             }
           },
           "403": {
-            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "description": "FEATURE_NOT_ENABLED { feature } when the account does not have isoManagement; otherwise FORBIDDEN { action } or another 403 code of api-conventions.md §5.",
             "content": {
               "application/json": {
                 "schema": {
@@ -11819,7 +11819,7 @@
             }
           },
           "409": {
-            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "description": "FEATURE_NOT_READY { feature } while isoManagement is on but not set up yet; otherwise STALE_VERSION, INVALID_TRANSITION or DUPLICATE (api-conventions.md §5).",
             "content": {
               "application/json": {
                 "schema": {
@@ -11922,7 +11922,7 @@
             }
           },
           "403": {
-            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "description": "FEATURE_NOT_ENABLED { feature } when the account does not have isoManagement; otherwise FORBIDDEN { action } or another 403 code of api-conventions.md §5.",
             "content": {
               "application/json": {
                 "schema": {
@@ -11932,7 +11932,7 @@
             }
           },
           "409": {
-            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "description": "FEATURE_NOT_READY { feature } while isoManagement is on but not set up yet; otherwise STALE_VERSION, INVALID_TRANSITION or DUPLICATE (api-conventions.md §5).",
             "content": {
               "application/json": {
                 "schema": {
@@ -12038,7 +12038,7 @@
             }
           },
           "403": {
-            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "description": "FEATURE_NOT_ENABLED { feature } when the account does not have isoManagement; otherwise FORBIDDEN { action } or another 403 code of api-conventions.md §5.",
             "content": {
               "application/json": {
                 "schema": {
@@ -12048,7 +12048,7 @@
             }
           },
           "409": {
-            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "description": "FEATURE_NOT_READY { feature } while isoManagement is on but not set up yet; otherwise STALE_VERSION, INVALID_TRANSITION or DUPLICATE (api-conventions.md §5).",
             "content": {
               "application/json": {
                 "schema": {
@@ -12154,7 +12154,7 @@
             }
           },
           "403": {
-            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "description": "FEATURE_NOT_ENABLED { feature } when the account does not have isoManagement; otherwise FORBIDDEN { action } or another 403 code of api-conventions.md §5.",
             "content": {
               "application/json": {
                 "schema": {
@@ -12164,7 +12164,7 @@
             }
           },
           "409": {
-            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "description": "FEATURE_NOT_READY { feature } while isoManagement is on but not set up yet; otherwise STALE_VERSION, INVALID_TRANSITION or DUPLICATE (api-conventions.md §5).",
             "content": {
               "application/json": {
                 "schema": {
@@ -12268,7 +12268,7 @@
             }
           },
           "403": {
-            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "description": "FEATURE_NOT_ENABLED { feature } when the account does not have isoManagement; otherwise FORBIDDEN { action } or another 403 code of api-conventions.md §5.",
             "content": {
               "application/json": {
                 "schema": {
@@ -12278,7 +12278,7 @@
             }
           },
           "409": {
-            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "description": "FEATURE_NOT_READY { feature } while isoManagement is on but not set up yet; otherwise STALE_VERSION, INVALID_TRANSITION or DUPLICATE (api-conventions.md §5).",
             "content": {
               "application/json": {
                 "schema": {
@@ -12381,7 +12381,7 @@
             }
           },
           "403": {
-            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "description": "FEATURE_NOT_ENABLED { feature } when the account does not have isoManagement; otherwise FORBIDDEN { action } or another 403 code of api-conventions.md §5.",
             "content": {
               "application/json": {
                 "schema": {
@@ -12391,7 +12391,7 @@
             }
           },
           "409": {
-            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "description": "FEATURE_NOT_READY { feature } while isoManagement is on but not set up yet; otherwise STALE_VERSION, INVALID_TRANSITION or DUPLICATE (api-conventions.md §5).",
             "content": {
               "application/json": {
                 "schema": {
@@ -12572,7 +12572,7 @@
             }
           },
           "403": {
-            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "description": "FEATURE_NOT_ENABLED { feature } when the account does not have isoManagement; otherwise FORBIDDEN { action } or another 403 code of api-conventions.md §5.",
             "content": {
               "application/json": {
                 "schema": {
@@ -12582,7 +12582,7 @@
             }
           },
           "409": {
-            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "description": "FEATURE_NOT_READY { feature } while isoManagement is on but not set up yet.",
             "content": {
               "application/json": {
                 "schema": {
@@ -12667,7 +12667,7 @@
             }
           },
           "403": {
-            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "description": "FEATURE_NOT_ENABLED { feature } when the account does not have isoManagement; otherwise FORBIDDEN { action } or another 403 code of api-conventions.md §5.",
             "content": {
               "application/json": {
                 "schema": {
@@ -12677,7 +12677,7 @@
             }
           },
           "409": {
-            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "description": "FEATURE_NOT_READY { feature } while isoManagement is on but not set up yet; otherwise STALE_VERSION, INVALID_TRANSITION or DUPLICATE (api-conventions.md §5).",
             "content": {
               "application/json": {
                 "schema": {
@@ -12758,7 +12758,7 @@
             }
           },
           "403": {
-            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "description": "FEATURE_NOT_ENABLED { feature } when the account does not have isoManagement; otherwise FORBIDDEN { action } or another 403 code of api-conventions.md §5.",
             "content": {
               "application/json": {
                 "schema": {
@@ -12768,7 +12768,7 @@
             }
           },
           "409": {
-            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "description": "FEATURE_NOT_READY { feature } while isoManagement is on but not set up yet.",
             "content": {
               "application/json": {
                 "schema": {
@@ -12861,7 +12861,7 @@
             }
           },
           "403": {
-            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "description": "FEATURE_NOT_ENABLED { feature } when the account does not have isoManagement; otherwise FORBIDDEN { action } or another 403 code of api-conventions.md §5.",
             "content": {
               "application/json": {
                 "schema": {
@@ -12871,7 +12871,7 @@
             }
           },
           "409": {
-            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "description": "FEATURE_NOT_READY { feature } while isoManagement is on but not set up yet; otherwise STALE_VERSION, INVALID_TRANSITION or DUPLICATE (api-conventions.md §5).",
             "content": {
               "application/json": {
                 "schema": {
@@ -12965,7 +12965,7 @@
             }
           },
           "403": {
-            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "description": "FEATURE_NOT_ENABLED { feature } when the account does not have isoManagement; otherwise FORBIDDEN { action } or another 403 code of api-conventions.md §5.",
             "content": {
               "application/json": {
                 "schema": {
@@ -12975,7 +12975,7 @@
             }
           },
           "409": {
-            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "description": "FEATURE_NOT_READY { feature } while isoManagement is on but not set up yet; otherwise STALE_VERSION, INVALID_TRANSITION or DUPLICATE (api-conventions.md §5).",
             "content": {
               "application/json": {
                 "schema": {
@@ -13072,7 +13072,7 @@
             }
           },
           "403": {
-            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "description": "FEATURE_NOT_ENABLED { feature } when the account does not have isoManagement; otherwise FORBIDDEN { action } or another 403 code of api-conventions.md §5.",
             "content": {
               "application/json": {
                 "schema": {
@@ -13082,7 +13082,7 @@
             }
           },
           "409": {
-            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "description": "FEATURE_NOT_READY { feature } while isoManagement is on but not set up yet; otherwise STALE_VERSION, INVALID_TRANSITION or DUPLICATE (api-conventions.md §5).",
             "content": {
               "application/json": {
                 "schema": {
@@ -13176,7 +13176,7 @@
             }
           },
           "403": {
-            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "description": "FEATURE_NOT_ENABLED { feature } when the account does not have isoManagement; otherwise FORBIDDEN { action } or another 403 code of api-conventions.md §5.",
             "content": {
               "application/json": {
                 "schema": {
@@ -13186,7 +13186,7 @@
             }
           },
           "409": {
-            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "description": "FEATURE_NOT_READY { feature } while isoManagement is on but not set up yet; otherwise STALE_VERSION, INVALID_TRANSITION or DUPLICATE (api-conventions.md §5).",
             "content": {
               "application/json": {
                 "schema": {
@@ -13265,7 +13265,7 @@
             }
           },
           "403": {
-            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "description": "FEATURE_NOT_ENABLED { feature } when the account does not have isoManagement; otherwise FORBIDDEN { action } or another 403 code of api-conventions.md §5.",
             "content": {
               "application/json": {
                 "schema": {
@@ -13275,7 +13275,7 @@
             }
           },
           "409": {
-            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "description": "FEATURE_NOT_READY { feature } while isoManagement is on but not set up yet.",
             "content": {
               "application/json": {
                 "schema": {
@@ -13369,7 +13369,7 @@
             }
           },
           "403": {
-            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "description": "FEATURE_NOT_ENABLED { feature } when the account does not have isoManagement; otherwise FORBIDDEN { action } or another 403 code of api-conventions.md §5.",
             "content": {
               "application/json": {
                 "schema": {
@@ -13379,7 +13379,7 @@
             }
           },
           "409": {
-            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "description": "FEATURE_NOT_READY { feature } while isoManagement is on but not set up yet; otherwise STALE_VERSION, INVALID_TRANSITION or DUPLICATE (api-conventions.md §5).",
             "content": {
               "application/json": {
                 "schema": {
@@ -13482,7 +13482,7 @@
             }
           },
           "403": {
-            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "description": "FEATURE_NOT_ENABLED { feature } when the account does not have isoManagement; otherwise FORBIDDEN { action } or another 403 code of api-conventions.md §5.",
             "content": {
               "application/json": {
                 "schema": {
@@ -13492,7 +13492,7 @@
             }
           },
           "409": {
-            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "description": "FEATURE_NOT_READY { feature } while isoManagement is on but not set up yet; otherwise STALE_VERSION, INVALID_TRANSITION or DUPLICATE (api-conventions.md §5).",
             "content": {
               "application/json": {
                 "schema": {
@@ -13595,7 +13595,7 @@
             }
           },
           "403": {
-            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "description": "FEATURE_NOT_ENABLED { feature } when the account does not have isoManagement; otherwise FORBIDDEN { action } or another 403 code of api-conventions.md §5.",
             "content": {
               "application/json": {
                 "schema": {
@@ -13605,7 +13605,7 @@
             }
           },
           "409": {
-            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "description": "FEATURE_NOT_READY { feature } while isoManagement is on but not set up yet; otherwise STALE_VERSION, INVALID_TRANSITION or DUPLICATE (api-conventions.md §5).",
             "content": {
               "application/json": {
                 "schema": {
@@ -13759,7 +13759,7 @@
             }
           },
           "403": {
-            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "description": "FEATURE_NOT_ENABLED { feature } when the account does not have isoManagement; otherwise FORBIDDEN { action } or another 403 code of api-conventions.md §5.",
             "content": {
               "application/json": {
                 "schema": {
@@ -13769,7 +13769,7 @@
             }
           },
           "409": {
-            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "description": "FEATURE_NOT_READY { feature } while isoManagement is on but not set up yet.",
             "content": {
               "application/json": {
                 "schema": {
@@ -13854,7 +13854,7 @@
             }
           },
           "403": {
-            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "description": "FEATURE_NOT_ENABLED { feature } when the account does not have isoManagement; otherwise FORBIDDEN { action } or another 403 code of api-conventions.md §5.",
             "content": {
               "application/json": {
                 "schema": {
@@ -13864,7 +13864,7 @@
             }
           },
           "409": {
-            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "description": "FEATURE_NOT_READY { feature } while isoManagement is on but not set up yet; otherwise STALE_VERSION, INVALID_TRANSITION or DUPLICATE (api-conventions.md §5).",
             "content": {
               "application/json": {
                 "schema": {
@@ -13945,7 +13945,7 @@
             }
           },
           "403": {
-            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "description": "FEATURE_NOT_ENABLED { feature } when the account does not have isoManagement; otherwise FORBIDDEN { action } or another 403 code of api-conventions.md §5.",
             "content": {
               "application/json": {
                 "schema": {
@@ -13955,7 +13955,7 @@
             }
           },
           "409": {
-            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "description": "FEATURE_NOT_READY { feature } while isoManagement is on but not set up yet.",
             "content": {
               "application/json": {
                 "schema": {
@@ -13996,7 +13996,7 @@
       },
       "patch": {
         "operationId": "updateIsoObjective",
-        "summary": "Change an open objective; moving `dueOn` needs a reason.",
+        "summary": "Change an open objective; moving `dueOn` or changing the owner needs a reason.",
         "tags": ["M16"],
         "parameters": [
           {
@@ -14033,7 +14033,7 @@
         },
         "responses": {
           "200": {
-            "description": "Change an open objective; moving `dueOn` needs a reason.",
+            "description": "Change an open objective; moving `dueOn` or changing the owner needs a reason.",
             "headers": {
               "X-Request-Id": {
                 "$ref": "#/components/headers/RequestId"
@@ -14048,7 +14048,7 @@
             }
           },
           "403": {
-            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "description": "FEATURE_NOT_ENABLED { feature } when the account does not have isoManagement; otherwise FORBIDDEN { action } or another 403 code of api-conventions.md §5.",
             "content": {
               "application/json": {
                 "schema": {
@@ -14058,7 +14058,7 @@
             }
           },
           "409": {
-            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "description": "FEATURE_NOT_READY { feature } while isoManagement is on but not set up yet; otherwise STALE_VERSION, INVALID_TRANSITION or DUPLICATE (api-conventions.md §5).",
             "content": {
               "application/json": {
                 "schema": {
@@ -14155,7 +14155,7 @@
             }
           },
           "403": {
-            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "description": "FEATURE_NOT_ENABLED { feature } when the account does not have isoManagement; otherwise FORBIDDEN { action } or another 403 code of api-conventions.md §5.",
             "content": {
               "application/json": {
                 "schema": {
@@ -14165,7 +14165,7 @@
             }
           },
           "409": {
-            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "description": "FEATURE_NOT_READY { feature } while isoManagement is on but not set up yet; otherwise STALE_VERSION, INVALID_TRANSITION or DUPLICATE (api-conventions.md §5).",
             "content": {
               "application/json": {
                 "schema": {
@@ -14246,7 +14246,7 @@
             }
           },
           "403": {
-            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "description": "FEATURE_NOT_ENABLED { feature } when the account does not have isoManagement; otherwise FORBIDDEN { action } or another 403 code of api-conventions.md §5.",
             "content": {
               "application/json": {
                 "schema": {
@@ -14256,7 +14256,7 @@
             }
           },
           "409": {
-            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "description": "FEATURE_NOT_READY { feature } while isoManagement is on but not set up yet.",
             "content": {
               "application/json": {
                 "schema": {
@@ -14350,7 +14350,7 @@
             }
           },
           "403": {
-            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "description": "FEATURE_NOT_ENABLED { feature } when the account does not have isoManagement; otherwise FORBIDDEN { action } or another 403 code of api-conventions.md §5.",
             "content": {
               "application/json": {
                 "schema": {
@@ -14360,7 +14360,7 @@
             }
           },
           "409": {
-            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "description": "FEATURE_NOT_READY { feature } while isoManagement is on but not set up yet; otherwise STALE_VERSION, INVALID_TRANSITION or DUPLICATE (api-conventions.md §5).",
             "content": {
               "application/json": {
                 "schema": {
@@ -14463,7 +14463,7 @@
             }
           },
           "403": {
-            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "description": "FEATURE_NOT_ENABLED { feature } when the account does not have isoManagement; otherwise FORBIDDEN { action } or another 403 code of api-conventions.md §5.",
             "content": {
               "application/json": {
                 "schema": {
@@ -14473,7 +14473,7 @@
             }
           },
           "409": {
-            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "description": "FEATURE_NOT_READY { feature } while isoManagement is on but not set up yet; otherwise STALE_VERSION, INVALID_TRANSITION or DUPLICATE (api-conventions.md §5).",
             "content": {
               "application/json": {
                 "schema": {
@@ -14591,7 +14591,7 @@
             }
           },
           "403": {
-            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "description": "FEATURE_NOT_ENABLED { feature } when the account does not have isoManagement; otherwise FORBIDDEN { action } or another 403 code of api-conventions.md §5.",
             "content": {
               "application/json": {
                 "schema": {
@@ -14601,7 +14601,7 @@
             }
           },
           "409": {
-            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "description": "FEATURE_NOT_READY { feature } while isoManagement is on but not set up yet.",
             "content": {
               "application/json": {
                 "schema": {
@@ -14686,7 +14686,7 @@
             }
           },
           "403": {
-            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "description": "FEATURE_NOT_ENABLED { feature } when the account does not have isoManagement; otherwise FORBIDDEN { action } or another 403 code of api-conventions.md §5.",
             "content": {
               "application/json": {
                 "schema": {
@@ -14696,7 +14696,7 @@
             }
           },
           "409": {
-            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "description": "FEATURE_NOT_READY { feature } while isoManagement is on but not set up yet; otherwise STALE_VERSION, INVALID_TRANSITION or DUPLICATE (api-conventions.md §5).",
             "content": {
               "application/json": {
                 "schema": {
@@ -14788,7 +14788,7 @@
             }
           },
           "403": {
-            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "description": "FEATURE_NOT_ENABLED { feature } when the account does not have isoManagement; otherwise FORBIDDEN { action } or another 403 code of api-conventions.md §5.",
             "content": {
               "application/json": {
                 "schema": {
@@ -14798,7 +14798,7 @@
             }
           },
           "409": {
-            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "description": "FEATURE_NOT_READY { feature } while isoManagement is on but not set up yet; otherwise STALE_VERSION, INVALID_TRANSITION or DUPLICATE (api-conventions.md §5).",
             "content": {
               "application/json": {
                 "schema": {
@@ -14979,7 +14979,7 @@
             }
           },
           "403": {
-            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "description": "FEATURE_NOT_ENABLED { feature } when the account does not have isoManagement; otherwise FORBIDDEN { action } or another 403 code of api-conventions.md §5.",
             "content": {
               "application/json": {
                 "schema": {
@@ -14989,7 +14989,7 @@
             }
           },
           "409": {
-            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "description": "FEATURE_NOT_READY { feature } while isoManagement is on but not set up yet.",
             "content": {
               "application/json": {
                 "schema": {
@@ -15074,7 +15074,7 @@
             }
           },
           "403": {
-            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "description": "FEATURE_NOT_ENABLED { feature } when the account does not have isoManagement; otherwise FORBIDDEN { action } or another 403 code of api-conventions.md §5.",
             "content": {
               "application/json": {
                 "schema": {
@@ -15084,7 +15084,7 @@
             }
           },
           "409": {
-            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "description": "FEATURE_NOT_READY { feature } while isoManagement is on but not set up yet; otherwise STALE_VERSION, INVALID_TRANSITION or DUPLICATE (api-conventions.md §5).",
             "content": {
               "application/json": {
                 "schema": {
@@ -15163,7 +15163,7 @@
             }
           },
           "403": {
-            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "description": "FEATURE_NOT_ENABLED { feature } when the account does not have isoManagement; otherwise FORBIDDEN { action } or another 403 code of api-conventions.md §5.",
             "content": {
               "application/json": {
                 "schema": {
@@ -15173,7 +15173,7 @@
             }
           },
           "409": {
-            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "description": "FEATURE_NOT_READY { feature } while isoManagement is on but not set up yet.",
             "content": {
               "application/json": {
                 "schema": {
@@ -15214,7 +15214,7 @@
       },
       "patch": {
         "operationId": "updateIsoInternalAudit",
-        "summary": "Change a PLANNED or IN_PROGRESS audit; moving its dates needs a reason.",
+        "summary": "Change a PLANNED or IN_PROGRESS audit; moving its dates or changing the lead auditor needs a reason.",
         "tags": ["M16"],
         "parameters": [
           {
@@ -15251,7 +15251,7 @@
         },
         "responses": {
           "200": {
-            "description": "Change a PLANNED or IN_PROGRESS audit; moving its dates needs a reason.",
+            "description": "Change a PLANNED or IN_PROGRESS audit; moving its dates or changing the lead auditor needs a reason.",
             "headers": {
               "X-Request-Id": {
                 "$ref": "#/components/headers/RequestId"
@@ -15266,7 +15266,7 @@
             }
           },
           "403": {
-            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "description": "FEATURE_NOT_ENABLED { feature } when the account does not have isoManagement; otherwise FORBIDDEN { action } or another 403 code of api-conventions.md §5.",
             "content": {
               "application/json": {
                 "schema": {
@@ -15276,7 +15276,7 @@
             }
           },
           "409": {
-            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "description": "FEATURE_NOT_READY { feature } while isoManagement is on but not set up yet; otherwise STALE_VERSION, INVALID_TRANSITION or DUPLICATE (api-conventions.md §5).",
             "content": {
               "application/json": {
                 "schema": {
@@ -15371,7 +15371,7 @@
             }
           },
           "403": {
-            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "description": "FEATURE_NOT_ENABLED { feature } when the account does not have isoManagement; otherwise FORBIDDEN { action } or another 403 code of api-conventions.md §5.",
             "content": {
               "application/json": {
                 "schema": {
@@ -15381,7 +15381,7 @@
             }
           },
           "409": {
-            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "description": "FEATURE_NOT_READY { feature } while isoManagement is on but not set up yet; otherwise STALE_VERSION, INVALID_TRANSITION or DUPLICATE (api-conventions.md §5).",
             "content": {
               "application/json": {
                 "schema": {
@@ -15479,7 +15479,7 @@
             }
           },
           "403": {
-            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "description": "FEATURE_NOT_ENABLED { feature } when the account does not have isoManagement; otherwise FORBIDDEN { action } or another 403 code of api-conventions.md §5.",
             "content": {
               "application/json": {
                 "schema": {
@@ -15489,7 +15489,7 @@
             }
           },
           "409": {
-            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "description": "FEATURE_NOT_READY { feature } while isoManagement is on but not set up yet; otherwise STALE_VERSION, INVALID_TRANSITION or DUPLICATE (api-conventions.md §5).",
             "content": {
               "application/json": {
                 "schema": {
@@ -15587,7 +15587,7 @@
             }
           },
           "403": {
-            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "description": "FEATURE_NOT_ENABLED { feature } when the account does not have isoManagement; otherwise FORBIDDEN { action } or another 403 code of api-conventions.md §5.",
             "content": {
               "application/json": {
                 "schema": {
@@ -15597,7 +15597,7 @@
             }
           },
           "409": {
-            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "description": "FEATURE_NOT_READY { feature } while isoManagement is on but not set up yet; otherwise STALE_VERSION, INVALID_TRANSITION or DUPLICATE (api-conventions.md §5).",
             "content": {
               "application/json": {
                 "schema": {
@@ -15695,7 +15695,7 @@
             }
           },
           "403": {
-            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "description": "FEATURE_NOT_ENABLED { feature } when the account does not have isoManagement; otherwise FORBIDDEN { action } or another 403 code of api-conventions.md §5.",
             "content": {
               "application/json": {
                 "schema": {
@@ -15705,7 +15705,7 @@
             }
           },
           "409": {
-            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "description": "FEATURE_NOT_READY { feature } while isoManagement is on but not set up yet; otherwise STALE_VERSION, INVALID_TRANSITION or DUPLICATE (api-conventions.md §5).",
             "content": {
               "application/json": {
                 "schema": {
@@ -15784,7 +15784,7 @@
             }
           },
           "403": {
-            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "description": "FEATURE_NOT_ENABLED { feature } when the account does not have isoManagement; otherwise FORBIDDEN { action } or another 403 code of api-conventions.md §5.",
             "content": {
               "application/json": {
                 "schema": {
@@ -15794,7 +15794,7 @@
             }
           },
           "409": {
-            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "description": "FEATURE_NOT_READY { feature } while isoManagement is on but not set up yet.",
             "content": {
               "application/json": {
                 "schema": {
@@ -15888,7 +15888,7 @@
             }
           },
           "403": {
-            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "description": "FEATURE_NOT_ENABLED { feature } when the account does not have isoManagement; otherwise FORBIDDEN { action } or another 403 code of api-conventions.md §5.",
             "content": {
               "application/json": {
                 "schema": {
@@ -15898,7 +15898,7 @@
             }
           },
           "409": {
-            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "description": "FEATURE_NOT_READY { feature } while isoManagement is on but not set up yet; otherwise STALE_VERSION, INVALID_TRANSITION or DUPLICATE (api-conventions.md §5).",
             "content": {
               "application/json": {
                 "schema": {
@@ -16002,7 +16002,7 @@
             }
           },
           "403": {
-            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "description": "FEATURE_NOT_ENABLED { feature } when the account does not have isoManagement; otherwise FORBIDDEN { action } or another 403 code of api-conventions.md §5.",
             "content": {
               "application/json": {
                 "schema": {
@@ -16012,7 +16012,7 @@
             }
           },
           "409": {
-            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "description": "FEATURE_NOT_READY { feature } while isoManagement is on but not set up yet; otherwise STALE_VERSION, INVALID_TRANSITION or DUPLICATE (api-conventions.md §5).",
             "content": {
               "application/json": {
                 "schema": {
@@ -16094,7 +16094,7 @@
             }
           },
           "403": {
-            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "description": "FEATURE_NOT_ENABLED { feature } when the account does not have isoManagement; otherwise FORBIDDEN { action } or another 403 code of api-conventions.md §5.",
             "content": {
               "application/json": {
                 "schema": {
@@ -16104,7 +16104,7 @@
             }
           },
           "409": {
-            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "description": "FEATURE_NOT_READY { feature } while isoManagement is on but not set up yet.",
             "content": {
               "application/json": {
                 "schema": {
@@ -16198,7 +16198,7 @@
             }
           },
           "403": {
-            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "description": "FEATURE_NOT_ENABLED { feature } when the account does not have isoManagement; otherwise FORBIDDEN { action } or another 403 code of api-conventions.md §5.",
             "content": {
               "application/json": {
                 "schema": {
@@ -16208,7 +16208,7 @@
             }
           },
           "409": {
-            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "description": "FEATURE_NOT_READY { feature } while isoManagement is on but not set up yet; otherwise STALE_VERSION, INVALID_TRANSITION or DUPLICATE (api-conventions.md §5).",
             "content": {
               "application/json": {
                 "schema": {
@@ -16312,7 +16312,7 @@
             }
           },
           "403": {
-            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "description": "FEATURE_NOT_ENABLED { feature } when the account does not have isoManagement; otherwise FORBIDDEN { action } or another 403 code of api-conventions.md §5.",
             "content": {
               "application/json": {
                 "schema": {
@@ -16322,7 +16322,7 @@
             }
           },
           "409": {
-            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "description": "FEATURE_NOT_READY { feature } while isoManagement is on but not set up yet; otherwise STALE_VERSION, INVALID_TRANSITION or DUPLICATE (api-conventions.md §5).",
             "content": {
               "application/json": {
                 "schema": {
@@ -16441,7 +16441,7 @@
             }
           },
           "403": {
-            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "description": "FEATURE_NOT_ENABLED { feature } when the account does not have isoManagement; otherwise FORBIDDEN { action } or another 403 code of api-conventions.md §5.",
             "content": {
               "application/json": {
                 "schema": {
@@ -16451,7 +16451,7 @@
             }
           },
           "409": {
-            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "description": "FEATURE_NOT_READY { feature } while isoManagement is on but not set up yet.",
             "content": {
               "application/json": {
                 "schema": {
@@ -16536,7 +16536,7 @@
             }
           },
           "403": {
-            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "description": "FEATURE_NOT_ENABLED { feature } when the account does not have isoManagement; otherwise FORBIDDEN { action } or another 403 code of api-conventions.md §5.",
             "content": {
               "application/json": {
                 "schema": {
@@ -16546,7 +16546,7 @@
             }
           },
           "409": {
-            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "description": "FEATURE_NOT_READY { feature } while isoManagement is on but not set up yet; otherwise STALE_VERSION, INVALID_TRANSITION or DUPLICATE (api-conventions.md §5).",
             "content": {
               "application/json": {
                 "schema": {
@@ -16638,7 +16638,7 @@
             }
           },
           "403": {
-            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "description": "FEATURE_NOT_ENABLED { feature } when the account does not have isoManagement; otherwise FORBIDDEN { action } or another 403 code of api-conventions.md §5.",
             "content": {
               "application/json": {
                 "schema": {
@@ -16648,7 +16648,7 @@
             }
           },
           "409": {
-            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "description": "FEATURE_NOT_READY { feature } while isoManagement is on but not set up yet; otherwise STALE_VERSION, INVALID_TRANSITION or DUPLICATE (api-conventions.md §5).",
             "content": {
               "application/json": {
                 "schema": {
@@ -16793,7 +16793,7 @@
             }
           },
           "403": {
-            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "description": "FEATURE_NOT_ENABLED { feature } when the account does not have isoManagement; otherwise FORBIDDEN { action } or another 403 code of api-conventions.md §5.",
             "content": {
               "application/json": {
                 "schema": {
@@ -16803,7 +16803,7 @@
             }
           },
           "409": {
-            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "description": "FEATURE_NOT_READY { feature } while isoManagement is on but not set up yet.",
             "content": {
               "application/json": {
                 "schema": {
@@ -16888,7 +16888,7 @@
             }
           },
           "403": {
-            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "description": "FEATURE_NOT_ENABLED { feature } when the account does not have isoManagement; otherwise FORBIDDEN { action } or another 403 code of api-conventions.md §5.",
             "content": {
               "application/json": {
                 "schema": {
@@ -16898,7 +16898,7 @@
             }
           },
           "409": {
-            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "description": "FEATURE_NOT_READY { feature } while isoManagement is on but not set up yet; otherwise STALE_VERSION, INVALID_TRANSITION or DUPLICATE (api-conventions.md §5).",
             "content": {
               "application/json": {
                 "schema": {
@@ -16977,7 +16977,7 @@
             }
           },
           "403": {
-            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "description": "FEATURE_NOT_ENABLED { feature } when the account does not have isoManagement; otherwise FORBIDDEN { action } or another 403 code of api-conventions.md §5.",
             "content": {
               "application/json": {
                 "schema": {
@@ -16987,7 +16987,7 @@
             }
           },
           "409": {
-            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "description": "FEATURE_NOT_READY { feature } while isoManagement is on but not set up yet.",
             "content": {
               "application/json": {
                 "schema": {
@@ -17080,7 +17080,7 @@
             }
           },
           "403": {
-            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "description": "FEATURE_NOT_ENABLED { feature } when the account does not have isoManagement; otherwise FORBIDDEN { action } or another 403 code of api-conventions.md §5.",
             "content": {
               "application/json": {
                 "schema": {
@@ -17090,7 +17090,7 @@
             }
           },
           "409": {
-            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "description": "FEATURE_NOT_READY { feature } while isoManagement is on but not set up yet; otherwise STALE_VERSION, INVALID_TRANSITION or DUPLICATE (api-conventions.md §5).",
             "content": {
               "application/json": {
                 "schema": {
@@ -17185,7 +17185,7 @@
             }
           },
           "403": {
-            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "description": "FEATURE_NOT_ENABLED { feature } when the account does not have isoManagement; otherwise FORBIDDEN { action } or another 403 code of api-conventions.md §5.",
             "content": {
               "application/json": {
                 "schema": {
@@ -17195,7 +17195,7 @@
             }
           },
           "409": {
-            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "description": "FEATURE_NOT_READY { feature } while isoManagement is on but not set up yet; otherwise STALE_VERSION, INVALID_TRANSITION or DUPLICATE (api-conventions.md §5).",
             "content": {
               "application/json": {
                 "schema": {
@@ -17290,7 +17290,7 @@
             }
           },
           "403": {
-            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "description": "FEATURE_NOT_ENABLED { feature } when the account does not have isoManagement; otherwise FORBIDDEN { action } or another 403 code of api-conventions.md §5.",
             "content": {
               "application/json": {
                 "schema": {
@@ -17300,7 +17300,7 @@
             }
           },
           "409": {
-            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "description": "FEATURE_NOT_READY { feature } while isoManagement is on but not set up yet; otherwise STALE_VERSION, INVALID_TRANSITION or DUPLICATE (api-conventions.md §5).",
             "content": {
               "application/json": {
                 "schema": {
@@ -17395,7 +17395,7 @@
             }
           },
           "403": {
-            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "description": "FEATURE_NOT_ENABLED { feature } when the account does not have isoManagement; otherwise FORBIDDEN { action } or another 403 code of api-conventions.md §5.",
             "content": {
               "application/json": {
                 "schema": {
@@ -17405,7 +17405,7 @@
             }
           },
           "409": {
-            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "description": "FEATURE_NOT_READY { feature } while isoManagement is on but not set up yet; otherwise STALE_VERSION, INVALID_TRANSITION or DUPLICATE (api-conventions.md §5).",
             "content": {
               "application/json": {
                 "schema": {
@@ -17500,7 +17500,7 @@
             }
           },
           "403": {
-            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "description": "FEATURE_NOT_ENABLED { feature } when the account does not have isoManagement; otherwise FORBIDDEN { action } or another 403 code of api-conventions.md §5.",
             "content": {
               "application/json": {
                 "schema": {
@@ -17510,7 +17510,7 @@
             }
           },
           "409": {
-            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "description": "FEATURE_NOT_READY { feature } while isoManagement is on but not set up yet; otherwise STALE_VERSION, INVALID_TRANSITION or DUPLICATE (api-conventions.md §5).",
             "content": {
               "application/json": {
                 "schema": {
@@ -17589,7 +17589,7 @@
             }
           },
           "403": {
-            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "description": "FEATURE_NOT_ENABLED { feature } when the account does not have isoManagement; otherwise FORBIDDEN { action } or another 403 code of api-conventions.md §5.",
             "content": {
               "application/json": {
                 "schema": {
@@ -17599,7 +17599,7 @@
             }
           },
           "409": {
-            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "description": "FEATURE_NOT_READY { feature } while isoManagement is on but not set up yet.",
             "content": {
               "application/json": {
                 "schema": {
@@ -17693,7 +17693,7 @@
             }
           },
           "403": {
-            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "description": "FEATURE_NOT_ENABLED { feature } when the account does not have isoManagement; otherwise FORBIDDEN { action } or another 403 code of api-conventions.md §5.",
             "content": {
               "application/json": {
                 "schema": {
@@ -17703,7 +17703,7 @@
             }
           },
           "409": {
-            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "description": "FEATURE_NOT_READY { feature } while isoManagement is on but not set up yet; otherwise STALE_VERSION, INVALID_TRANSITION or DUPLICATE (api-conventions.md §5).",
             "content": {
               "application/json": {
                 "schema": {
@@ -17804,7 +17804,7 @@
             }
           },
           "403": {
-            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "description": "FEATURE_NOT_ENABLED { feature } when the account does not have isoManagement; otherwise FORBIDDEN { action } or another 403 code of api-conventions.md §5.",
             "content": {
               "application/json": {
                 "schema": {
@@ -17814,7 +17814,7 @@
             }
           },
           "409": {
-            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "description": "FEATURE_NOT_READY { feature } while isoManagement is on but not set up yet; otherwise STALE_VERSION, INVALID_TRANSITION or DUPLICATE (api-conventions.md §5).",
             "content": {
               "application/json": {
                 "schema": {
@@ -18028,7 +18028,7 @@
             }
           },
           "403": {
-            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "description": "FEATURE_NOT_ENABLED { feature } when the account does not have isoManagement; otherwise FORBIDDEN { action } or another 403 code of api-conventions.md §5.",
             "content": {
               "application/json": {
                 "schema": {
@@ -18038,7 +18038,7 @@
             }
           },
           "409": {
-            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "description": "FEATURE_NOT_READY { feature } while isoManagement is on but not set up yet.",
             "content": {
               "application/json": {
                 "schema": {
@@ -18126,7 +18126,7 @@
             }
           },
           "403": {
-            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "description": "FEATURE_NOT_ENABLED { feature } when the account does not have isoManagement; otherwise FORBIDDEN { action } or another 403 code of api-conventions.md §5.",
             "content": {
               "application/json": {
                 "schema": {
@@ -18136,7 +18136,7 @@
             }
           },
           "409": {
-            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "description": "FEATURE_NOT_READY { feature } while isoManagement is on but not set up yet; otherwise STALE_VERSION, INVALID_TRANSITION or DUPLICATE (api-conventions.md §5).",
             "content": {
               "application/json": {
                 "schema": {
@@ -18217,7 +18217,7 @@
             }
           },
           "403": {
-            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "description": "FEATURE_NOT_ENABLED { feature } when the account does not have isoManagement; otherwise FORBIDDEN { action } or another 403 code of api-conventions.md §5.",
             "content": {
               "application/json": {
                 "schema": {
@@ -18227,7 +18227,7 @@
             }
           },
           "409": {
-            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "description": "FEATURE_NOT_READY { feature } while isoManagement is on but not set up yet.",
             "content": {
               "application/json": {
                 "schema": {
@@ -18320,7 +18320,7 @@
             }
           },
           "403": {
-            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "description": "FEATURE_NOT_ENABLED { feature } when the account does not have isoManagement; otherwise FORBIDDEN { action } or another 403 code of api-conventions.md §5.",
             "content": {
               "application/json": {
                 "schema": {
@@ -18330,7 +18330,7 @@
             }
           },
           "409": {
-            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "description": "FEATURE_NOT_READY { feature } while isoManagement is on but not set up yet; otherwise STALE_VERSION, INVALID_TRANSITION or DUPLICATE (api-conventions.md §5).",
             "content": {
               "application/json": {
                 "schema": {
@@ -18425,7 +18425,7 @@
             }
           },
           "403": {
-            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "description": "FEATURE_NOT_ENABLED { feature } when the account does not have isoManagement; otherwise FORBIDDEN { action } or another 403 code of api-conventions.md §5.",
             "content": {
               "application/json": {
                 "schema": {
@@ -18435,7 +18435,7 @@
             }
           },
           "409": {
-            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "description": "FEATURE_NOT_READY { feature } while isoManagement is on but not set up yet; otherwise STALE_VERSION, INVALID_TRANSITION or DUPLICATE (api-conventions.md §5).",
             "content": {
               "application/json": {
                 "schema": {
@@ -18530,7 +18530,7 @@
             }
           },
           "403": {
-            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "description": "FEATURE_NOT_ENABLED { feature } when the account does not have isoManagement; otherwise FORBIDDEN { action } or another 403 code of api-conventions.md §5.",
             "content": {
               "application/json": {
                 "schema": {
@@ -18540,7 +18540,7 @@
             }
           },
           "409": {
-            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "description": "FEATURE_NOT_READY { feature } while isoManagement is on but not set up yet; otherwise STALE_VERSION, INVALID_TRANSITION or DUPLICATE (api-conventions.md §5).",
             "content": {
               "application/json": {
                 "schema": {
@@ -18634,7 +18634,7 @@
             }
           },
           "403": {
-            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "description": "FEATURE_NOT_ENABLED { feature } when the account does not have isoManagement; otherwise FORBIDDEN { action } or another 403 code of api-conventions.md §5.",
             "content": {
               "application/json": {
                 "schema": {
@@ -18644,7 +18644,7 @@
             }
           },
           "409": {
-            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "description": "FEATURE_NOT_READY { feature } while isoManagement is on but not set up yet; otherwise STALE_VERSION, INVALID_TRANSITION or DUPLICATE (api-conventions.md §5).",
             "content": {
               "application/json": {
                 "schema": {
@@ -18738,7 +18738,7 @@
             }
           },
           "403": {
-            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "description": "FEATURE_NOT_ENABLED { feature } when the account does not have isoManagement; otherwise FORBIDDEN { action } or another 403 code of api-conventions.md §5.",
             "content": {
               "application/json": {
                 "schema": {
@@ -18748,7 +18748,7 @@
             }
           },
           "409": {
-            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "description": "FEATURE_NOT_READY { feature } while isoManagement is on but not set up yet; otherwise STALE_VERSION, INVALID_TRANSITION or DUPLICATE (api-conventions.md §5).",
             "content": {
               "application/json": {
                 "schema": {
@@ -18842,7 +18842,7 @@
             }
           },
           "403": {
-            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "description": "FEATURE_NOT_ENABLED { feature } when the account does not have isoManagement; otherwise FORBIDDEN { action } or another 403 code of api-conventions.md §5.",
             "content": {
               "application/json": {
                 "schema": {
@@ -18852,7 +18852,7 @@
             }
           },
           "409": {
-            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "description": "FEATURE_NOT_READY { feature } while isoManagement is on but not set up yet; otherwise STALE_VERSION, INVALID_TRANSITION or DUPLICATE (api-conventions.md §5).",
             "content": {
               "application/json": {
                 "schema": {
@@ -18946,7 +18946,7 @@
             }
           },
           "403": {
-            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "description": "FEATURE_NOT_ENABLED { feature } when the account does not have isoManagement; otherwise FORBIDDEN { action } or another 403 code of api-conventions.md §5.",
             "content": {
               "application/json": {
                 "schema": {
@@ -18956,7 +18956,7 @@
             }
           },
           "409": {
-            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "description": "FEATURE_NOT_READY { feature } while isoManagement is on but not set up yet; otherwise STALE_VERSION, INVALID_TRANSITION or DUPLICATE (api-conventions.md §5).",
             "content": {
               "application/json": {
                 "schema": {
@@ -19051,7 +19051,7 @@
             }
           },
           "403": {
-            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "description": "FEATURE_NOT_ENABLED { feature } when the account does not have isoManagement; otherwise FORBIDDEN { action } or another 403 code of api-conventions.md §5.",
             "content": {
               "application/json": {
                 "schema": {
@@ -19061,7 +19061,7 @@
             }
           },
           "409": {
-            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "description": "FEATURE_NOT_READY { feature } while isoManagement is on but not set up yet; otherwise STALE_VERSION, INVALID_TRANSITION or DUPLICATE (api-conventions.md §5).",
             "content": {
               "application/json": {
                 "schema": {
@@ -19156,7 +19156,7 @@
             }
           },
           "403": {
-            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "description": "FEATURE_NOT_ENABLED { feature } when the account does not have isoManagement; otherwise FORBIDDEN { action } or another 403 code of api-conventions.md §5.",
             "content": {
               "application/json": {
                 "schema": {
@@ -19166,7 +19166,7 @@
             }
           },
           "409": {
-            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "description": "FEATURE_NOT_READY { feature } while isoManagement is on but not set up yet; otherwise STALE_VERSION, INVALID_TRANSITION or DUPLICATE (api-conventions.md §5).",
             "content": {
               "application/json": {
                 "schema": {
@@ -19260,7 +19260,7 @@
             }
           },
           "403": {
-            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "description": "FEATURE_NOT_ENABLED { feature } when the account does not have isoManagement; otherwise FORBIDDEN { action } or another 403 code of api-conventions.md §5.",
             "content": {
               "application/json": {
                 "schema": {
@@ -19270,7 +19270,7 @@
             }
           },
           "409": {
-            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "description": "FEATURE_NOT_READY { feature } while isoManagement is on but not set up yet; otherwise STALE_VERSION, INVALID_TRANSITION or DUPLICATE (api-conventions.md §5).",
             "content": {
               "application/json": {
                 "schema": {
@@ -19464,7 +19464,7 @@
             }
           },
           "403": {
-            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "description": "FEATURE_NOT_ENABLED { feature } when the account does not have isoManagement; otherwise FORBIDDEN { action } or another 403 code of api-conventions.md §5.",
             "content": {
               "application/json": {
                 "schema": {
@@ -19474,7 +19474,7 @@
             }
           },
           "409": {
-            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "description": "FEATURE_NOT_READY { feature } while isoManagement is on but not set up yet.",
             "content": {
               "application/json": {
                 "schema": {
@@ -19559,7 +19559,7 @@
             }
           },
           "403": {
-            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "description": "FEATURE_NOT_ENABLED { feature } when the account does not have isoManagement; otherwise FORBIDDEN { action } or another 403 code of api-conventions.md §5.",
             "content": {
               "application/json": {
                 "schema": {
@@ -19569,7 +19569,7 @@
             }
           },
           "409": {
-            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "description": "FEATURE_NOT_READY { feature } while isoManagement is on but not set up yet; otherwise STALE_VERSION, INVALID_TRANSITION or DUPLICATE (api-conventions.md §5).",
             "content": {
               "application/json": {
                 "schema": {
@@ -19650,7 +19650,7 @@
             }
           },
           "403": {
-            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "description": "FEATURE_NOT_ENABLED { feature } when the account does not have isoManagement; otherwise FORBIDDEN { action } or another 403 code of api-conventions.md §5.",
             "content": {
               "application/json": {
                 "schema": {
@@ -19660,7 +19660,7 @@
             }
           },
           "409": {
-            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "description": "FEATURE_NOT_READY { feature } while isoManagement is on but not set up yet.",
             "content": {
               "application/json": {
                 "schema": {
@@ -19753,7 +19753,7 @@
             }
           },
           "403": {
-            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "description": "FEATURE_NOT_ENABLED { feature } when the account does not have isoManagement; otherwise FORBIDDEN { action } or another 403 code of api-conventions.md §5.",
             "content": {
               "application/json": {
                 "schema": {
@@ -19763,7 +19763,7 @@
             }
           },
           "409": {
-            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "description": "FEATURE_NOT_READY { feature } while isoManagement is on but not set up yet; otherwise STALE_VERSION, INVALID_TRANSITION or DUPLICATE (api-conventions.md §5).",
             "content": {
               "application/json": {
                 "schema": {
@@ -19860,7 +19860,7 @@
             }
           },
           "403": {
-            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "description": "FEATURE_NOT_ENABLED { feature } when the account does not have isoManagement; otherwise FORBIDDEN { action } or another 403 code of api-conventions.md §5.",
             "content": {
               "application/json": {
                 "schema": {
@@ -19870,7 +19870,7 @@
             }
           },
           "409": {
-            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "description": "FEATURE_NOT_READY { feature } while isoManagement is on but not set up yet; otherwise STALE_VERSION, INVALID_TRANSITION or DUPLICATE (api-conventions.md §5).",
             "content": {
               "application/json": {
                 "schema": {
@@ -19965,7 +19965,7 @@
             }
           },
           "403": {
-            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "description": "FEATURE_NOT_ENABLED { feature } when the account does not have isoManagement; otherwise FORBIDDEN { action } or another 403 code of api-conventions.md §5.",
             "content": {
               "application/json": {
                 "schema": {
@@ -19975,7 +19975,7 @@
             }
           },
           "409": {
-            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "description": "FEATURE_NOT_READY { feature } while isoManagement is on but not set up yet; otherwise STALE_VERSION, INVALID_TRANSITION or DUPLICATE (api-conventions.md §5).",
             "content": {
               "application/json": {
                 "schema": {
@@ -20070,7 +20070,7 @@
             }
           },
           "403": {
-            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "description": "FEATURE_NOT_ENABLED { feature } when the account does not have isoManagement; otherwise FORBIDDEN { action } or another 403 code of api-conventions.md §5.",
             "content": {
               "application/json": {
                 "schema": {
@@ -20080,7 +20080,7 @@
             }
           },
           "409": {
-            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "description": "FEATURE_NOT_READY { feature } while isoManagement is on but not set up yet; otherwise STALE_VERSION, INVALID_TRANSITION or DUPLICATE (api-conventions.md §5).",
             "content": {
               "application/json": {
                 "schema": {
@@ -20224,7 +20224,7 @@
             }
           },
           "403": {
-            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "description": "FEATURE_NOT_ENABLED { feature } when the account does not have isoManagement; otherwise FORBIDDEN { action } or another 403 code of api-conventions.md §5.",
             "content": {
               "application/json": {
                 "schema": {
@@ -20234,7 +20234,7 @@
             }
           },
           "409": {
-            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "description": "FEATURE_NOT_READY { feature } while isoManagement is on but not set up yet.",
             "content": {
               "application/json": {
                 "schema": {
@@ -20322,7 +20322,7 @@
             }
           },
           "403": {
-            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "description": "FEATURE_NOT_ENABLED { feature } when the account does not have isoManagement; otherwise FORBIDDEN { action } or another 403 code of api-conventions.md §5.",
             "content": {
               "application/json": {
                 "schema": {
@@ -20332,7 +20332,7 @@
             }
           },
           "409": {
-            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "description": "FEATURE_NOT_READY { feature } while isoManagement is on but not set up yet; otherwise STALE_VERSION, INVALID_TRANSITION or DUPLICATE (api-conventions.md §5).",
             "content": {
               "application/json": {
                 "schema": {
@@ -20411,7 +20411,7 @@
             }
           },
           "403": {
-            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "description": "FEATURE_NOT_ENABLED { feature } when the account does not have isoManagement; otherwise FORBIDDEN { action } or another 403 code of api-conventions.md §5.",
             "content": {
               "application/json": {
                 "schema": {
@@ -20421,7 +20421,7 @@
             }
           },
           "409": {
-            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "description": "FEATURE_NOT_READY { feature } while isoManagement is on but not set up yet.",
             "content": {
               "application/json": {
                 "schema": {
@@ -20514,7 +20514,7 @@
             }
           },
           "403": {
-            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "description": "FEATURE_NOT_ENABLED { feature } when the account does not have isoManagement; otherwise FORBIDDEN { action } or another 403 code of api-conventions.md §5.",
             "content": {
               "application/json": {
                 "schema": {
@@ -20524,7 +20524,7 @@
             }
           },
           "409": {
-            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "description": "FEATURE_NOT_READY { feature } while isoManagement is on but not set up yet; otherwise STALE_VERSION, INVALID_TRANSITION or DUPLICATE (api-conventions.md §5).",
             "content": {
               "application/json": {
                 "schema": {
@@ -20622,7 +20622,7 @@
             }
           },
           "403": {
-            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "description": "FEATURE_NOT_ENABLED { feature } when the account does not have isoManagement; otherwise FORBIDDEN { action } or another 403 code of api-conventions.md §5.",
             "content": {
               "application/json": {
                 "schema": {
@@ -20632,7 +20632,7 @@
             }
           },
           "409": {
-            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "description": "FEATURE_NOT_READY { feature } while isoManagement is on but not set up yet; otherwise STALE_VERSION, INVALID_TRANSITION or DUPLICATE (api-conventions.md §5).",
             "content": {
               "application/json": {
                 "schema": {
@@ -20727,7 +20727,7 @@
             }
           },
           "403": {
-            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "description": "FEATURE_NOT_ENABLED { feature } when the account does not have isoManagement; otherwise FORBIDDEN { action } or another 403 code of api-conventions.md §5.",
             "content": {
               "application/json": {
                 "schema": {
@@ -20737,7 +20737,7 @@
             }
           },
           "409": {
-            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "description": "FEATURE_NOT_READY { feature } while isoManagement is on but not set up yet; otherwise STALE_VERSION, INVALID_TRANSITION or DUPLICATE (api-conventions.md §5).",
             "content": {
               "application/json": {
                 "schema": {
@@ -20832,7 +20832,7 @@
             }
           },
           "403": {
-            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "description": "FEATURE_NOT_ENABLED { feature } when the account does not have isoManagement; otherwise FORBIDDEN { action } or another 403 code of api-conventions.md §5.",
             "content": {
               "application/json": {
                 "schema": {
@@ -20842,7 +20842,7 @@
             }
           },
           "409": {
-            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "description": "FEATURE_NOT_READY { feature } while isoManagement is on but not set up yet; otherwise STALE_VERSION, INVALID_TRANSITION or DUPLICATE (api-conventions.md §5).",
             "content": {
               "application/json": {
                 "schema": {
@@ -20940,7 +20940,7 @@
             }
           },
           "403": {
-            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "description": "FEATURE_NOT_ENABLED { feature } when the account does not have isoManagement; otherwise FORBIDDEN { action } or another 403 code of api-conventions.md §5.",
             "content": {
               "application/json": {
                 "schema": {
@@ -20950,7 +20950,7 @@
             }
           },
           "409": {
-            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "description": "FEATURE_NOT_READY { feature } while isoManagement is on but not set up yet; otherwise STALE_VERSION, INVALID_TRANSITION or DUPLICATE (api-conventions.md §5).",
             "content": {
               "application/json": {
                 "schema": {
@@ -21032,7 +21032,7 @@
             }
           },
           "403": {
-            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "description": "FEATURE_NOT_ENABLED { feature } when the account does not have isoManagement; otherwise FORBIDDEN { action } or another 403 code of api-conventions.md §5.",
             "content": {
               "application/json": {
                 "schema": {
@@ -21042,7 +21042,7 @@
             }
           },
           "409": {
-            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "description": "FEATURE_NOT_READY { feature } while isoManagement is on but not set up yet.",
             "content": {
               "application/json": {
                 "schema": {
@@ -21147,7 +21147,7 @@
             }
           },
           "403": {
-            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "description": "FEATURE_NOT_ENABLED { feature } when the account does not have isoManagement; otherwise FORBIDDEN { action } or another 403 code of api-conventions.md §5.",
             "content": {
               "application/json": {
                 "schema": {
@@ -21157,7 +21157,7 @@
             }
           },
           "409": {
-            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "description": "FEATURE_NOT_READY { feature } while isoManagement is on but not set up yet; otherwise STALE_VERSION, INVALID_TRANSITION or DUPLICATE (api-conventions.md §5).",
             "content": {
               "application/json": {
                 "schema": {
@@ -21239,7 +21239,7 @@
             }
           },
           "403": {
-            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "description": "FEATURE_NOT_ENABLED { feature } when the account does not have isoManagement; otherwise FORBIDDEN { action } or another 403 code of api-conventions.md §5.",
             "content": {
               "application/json": {
                 "schema": {
@@ -21249,7 +21249,7 @@
             }
           },
           "409": {
-            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "description": "FEATURE_NOT_READY { feature } while isoManagement is on but not set up yet.",
             "content": {
               "application/json": {
                 "schema": {
@@ -21354,7 +21354,7 @@
             }
           },
           "403": {
-            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "description": "FEATURE_NOT_ENABLED { feature } when the account does not have isoManagement; otherwise FORBIDDEN { action } or another 403 code of api-conventions.md §5.",
             "content": {
               "application/json": {
                 "schema": {
@@ -21364,7 +21364,7 @@
             }
           },
           "409": {
-            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "description": "FEATURE_NOT_READY { feature } while isoManagement is on but not set up yet; otherwise STALE_VERSION, INVALID_TRANSITION or DUPLICATE (api-conventions.md §5).",
             "content": {
               "application/json": {
                 "schema": {
@@ -21450,7 +21450,7 @@
             }
           },
           "403": {
-            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "description": "FEATURE_NOT_ENABLED { feature } when the account does not have isoManagement; otherwise FORBIDDEN { action } or another 403 code of api-conventions.md §5.",
             "content": {
               "application/json": {
                 "schema": {
@@ -21460,7 +21460,7 @@
             }
           },
           "409": {
-            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "description": "FEATURE_NOT_READY { feature } while isoManagement is on but not set up yet; otherwise STALE_VERSION, INVALID_TRANSITION or DUPLICATE (api-conventions.md §5).",
             "content": {
               "application/json": {
                 "schema": {
@@ -21546,7 +21546,7 @@
             }
           },
           "403": {
-            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "description": "FEATURE_NOT_ENABLED { feature } when the account does not have isoManagement; otherwise FORBIDDEN { action } or another 403 code of api-conventions.md §5.",
             "content": {
               "application/json": {
                 "schema": {
@@ -21556,7 +21556,7 @@
             }
           },
           "409": {
-            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "description": "FEATURE_NOT_READY { feature } while isoManagement is on but not set up yet; otherwise STALE_VERSION, INVALID_TRANSITION or DUPLICATE (api-conventions.md §5).",
             "content": {
               "application/json": {
                 "schema": {
@@ -21666,7 +21666,7 @@
             }
           },
           "403": {
-            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "description": "FEATURE_NOT_ENABLED { feature } when the account does not have isoManagement; otherwise FORBIDDEN { action } or another 403 code of api-conventions.md §5.",
             "content": {
               "application/json": {
                 "schema": {
@@ -21676,7 +21676,7 @@
             }
           },
           "409": {
-            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "description": "FEATURE_NOT_READY { feature } while isoManagement is on but not set up yet.",
             "content": {
               "application/json": {
                 "schema": {
@@ -21759,7 +21759,7 @@
             }
           },
           "403": {
-            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "description": "FEATURE_NOT_ENABLED { feature } when the account does not have isoManagement; otherwise FORBIDDEN { action } or another 403 code of api-conventions.md §5.",
             "content": {
               "application/json": {
                 "schema": {
@@ -21769,7 +21769,7 @@
             }
           },
           "409": {
-            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "description": "FEATURE_NOT_READY { feature } while isoManagement is on but not set up yet.",
             "content": {
               "application/json": {
                 "schema": {
@@ -21865,7 +21865,7 @@
             }
           },
           "403": {
-            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "description": "FEATURE_NOT_ENABLED { feature } when the account does not have isoManagement; otherwise FORBIDDEN { action } or another 403 code of api-conventions.md §5.",
             "content": {
               "application/json": {
                 "schema": {
@@ -21875,7 +21875,7 @@
             }
           },
           "409": {
-            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "description": "FEATURE_NOT_READY { feature } while isoManagement is on but not set up yet; otherwise STALE_VERSION, INVALID_TRANSITION or DUPLICATE (api-conventions.md §5).",
             "content": {
               "application/json": {
                 "schema": {
@@ -21968,7 +21968,7 @@
             }
           },
           "403": {
-            "description": "FEATURE_NOT_ENABLED { feature }: the account does not have isoManagement.",
+            "description": "FEATURE_NOT_ENABLED { feature } when the account does not have isoManagement; otherwise FORBIDDEN { action } or another 403 code of api-conventions.md §5.",
             "content": {
               "application/json": {
                 "schema": {
@@ -21978,7 +21978,7 @@
             }
           },
           "409": {
-            "description": "FEATURE_NOT_READY { feature }: isoManagement is on but not set up yet.",
+            "description": "FEATURE_NOT_READY { feature } while isoManagement is on but not set up yet.",
             "content": {
               "application/json": {
                 "schema": {

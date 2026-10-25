@@ -260,7 +260,7 @@ with sign-off per "How to change a contract".
     corrective action. Severity and outcome, which SUBMIT_NO_ACTION reads, change only while OPEN or ROOT_CAUSE_FOUND
     (`409 INVALID_TRANSITION` after, so a closed MAJOR or LOST_TIME/FATALITY nonconformity always had its actions).
     Severity never changes here on a nonconformity raised from a finding, whose type sets it (`400 VALIDATION` in any
-    state, checked before the window). `lostDays` moves with the outcome; alone it is the owner's PATCH while the
+    open state, checked before the window; CLOSED or CANCELLED answers `409 INVALID_TRANSITION` first). `lostDays` moves with the outcome; alone it is the owner's PATCH while the
     outcome stays LOST_TIME. Since 1.8.1 it has its own route (o).
     (i) The catalogue and overview reads use `isoSystem.read`: the catalogue is the account's reference data and the
     overview spans every resource, so neither has a resource of its own. Every role may read them.

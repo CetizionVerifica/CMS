@@ -208,7 +208,7 @@ to or from LOST_TIME), always with a reason; severity and outcome change only wh
 severity never on a finding's nonconformity. A finding's MAJOR_NC/MINOR_NC move follows the same window and is
 refused to the nonconformity's owner (403). `PATCH /management-reviews/{id}` is `isoReview.write`
 (attendees and minutes) and the new `POST /management-reviews/{id}/replan` (`ManagementReviewReplanBody`) is
-`isoReview.plan` for standards, date and chair while PLANNED. 119 routes. The reason rule (decision 51 p): every
+`isoReview.plan` for standards, date and chair while PLANNED. Both new routes honour `Idempotency-Key`. 119 routes. The reason rule (decision 51 p): every
 field edit audited as `REASSIGN` or `DUE_DATE_CHANGE` needs a reason, so `ClauseAssessmentUpdateBody`,
 `DocumentUpdateBody`, `RiskItemUpdateBody`, `ObjectiveUpdateBody`, `InternalAuditUpdateBody` and
 `ExternalAuditUpdateBody` take one where they did not or require it for more fields. `IsoEngineApi.objectiveProgress`
@@ -222,5 +222,6 @@ row's units even for an approver who owns the row; the ISO overview scopes findi
 `PATCH /objectives/{id}` refuse a target on the wrong side of the baseline for INCREASE or DECREASE. The mock also
 leaves finding descriptions out of audit events, refuses an edit that would make a no-action nonconformity need
 action, names the step on clause N/A events, audits a system's status as an UPDATE, and measures a held review's
-figures at its `heldOn`. Tests pin the catalogue to its generator (201 clauses, 137 assessable) and the
+figures as the records stood on its `heldOn`, from their audit trail, with a window that never runs backwards
+(`iso-mock.md`). Tests pin the catalogue to its generator (201 clauses, 137 assessable) and the
 `objectiveProgress` stand-in at a client-local day boundary.

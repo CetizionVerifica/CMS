@@ -486,6 +486,92 @@ const within = (f: FigureScope, date: string | null) =>
 
 const dayOf = (f: FigureScope, instant: string) => localDate(instant, f.timeZone);
 
+// State on as-of (iso-mock.md "Management review figures"): the state figures read each record as it stood on as-of,
+// from its audit trail, so a held review keeps the picture of the day it was held.
+
+/** Created by as-of, by its client-local day. */
+const existed = (f: FigureScope, row: { createdAt: string }) => dayOf(f, row.createdAt) <= f.asOf;
+
+/** The first audited change of `field` of a record on a day after as-of. */
+function changeAfter(
+  f: FigureScope,
+  entityType: IsoEntity,
+  id: string,
+  field: string,
+): IsoAuditEvent | undefined {
+  return f.firm.isoAuditEvents
+    .filter(
+      (e) =>
+        e.entityType === entityType &&
+        e.entityId === id &&
+        e.before !== null &&
+        field in e.before &&
+        dayOf(f, e.at) > f.asOf,
+    )
+    .sort((a, b) => a.at.localeCompare(b.at))[0];
+}
+
+/** A field's value on as-of: the `before` of its first audited change after as-of, else its value now. */
+function fieldAt<R extends { id: string }, K extends keyof R & string>(
+  f: FigureScope,
+  entityType: IsoEntity,
+  row: R,
+  field: K,
+): R[K] {
+  const change = changeAfter(f, entityType, row.id, field);
+  return change === undefined ? row[field] : (change.before![field] as R[K]);
+}
+
+/**
+ * Cancelled by as-of: its state on as-of was CANCELLED. Without a later step, a cancel counts from its last change
+ * (a cancelled nonconformity or action takes no edits).
+ */
+function cancelledBy(
+  f: FigureScope,
+  entityType: IsoEntity,
+  row: { id: string; state: string; updatedAt: string },
+): boolean {
+  const change = changeAfter(f, entityType, row.id, 'state');
+  if (change !== undefined) return change.before!.state === 'CANCELLED';
+  return row.state === 'CANCELLED' && dayOf(f, row.updatedAt) <= f.asOf;
+}
+
+/** On or before as-of. */
+const byAsOf = (f: FigureScope, date: string | null) => date !== null && date <= f.asOf;
+
+/** An action's state on as-of, or null before it was created. */
+function actionStateAt(f: FigureScope, a: Action): Action['state'] | null {
+  if (!existed(f, a)) return null;
+  if (cancelledBy(f, 'iso_action', a)) return 'CANCELLED';
+  return byAsOf(f, fieldAt(f, 'iso_action', a, 'doneOn')) ? 'DONE' : 'OPEN';
+}
+
+/** Open on as-of with its due date on as-of before it. */
+const overdueAt = (f: FigureScope, a: Action) =>
+  actionStateAt(f, a) === 'OPEN' && fieldAt(f, 'iso_action', a, 'dueOn') < f.asOf;
+
+/**
+ * A nonconformity as it stood on as-of, in the fields the figures read: severity, incident detail, `closedOn`, and a
+ * state that is CANCELLED exactly when it was cancelled by then (one cancelled later with no step in the trail reads
+ * as OPEN).
+ */
+function ncAt(f: FigureScope, n: Nc): Nc {
+  const at = <K extends keyof Nc & string>(field: K) => fieldAt(f, 'nonconformity', n, field);
+  const cancelled = cancelledBy(f, 'nonconformity', n);
+  const state = at('state');
+  return {
+    ...n,
+    severity: at('severity'),
+    incident: at('incident'),
+    closedOn: at('closedOn'),
+    state: cancelled ? 'CANCELLED' : state === 'CANCELLED' ? 'OPEN' : state,
+  };
+}
+
+/** Reported by as-of and neither closed nor cancelled by then (`n` as `ncAt` gives it). */
+const ncOpenAt = (f: FigureScope, n: Nc) =>
+  n.reportedOn <= f.asOf && !byAsOf(f, n.closedOn) && n.state !== 'CANCELLED';
+
 /** Held reviews of the system before this one (bounded by its own `heldOn`, or today) that covered one of `codes`. */
 function earlierReviews(
   firm: FirmState,
@@ -507,7 +593,7 @@ function earlierReviews(
 /**
  * `since` for an input (model §5.4): per standard of the input, the `heldOn` of the last earlier held review covering
  * it, or else the system's creation day in the client's time zone; the earliest of those, so the figures leave out
- * nothing a standard has not been reviewed on yet.
+ * nothing a standard has not been reviewed on yet, and never after as-of.
  */
 function sinceFor(f: Omit<FigureScope, 'since'>): string {
   const earlier = earlierReviews(f.firm, f.review, f.codes, f.asOf);
@@ -517,10 +603,12 @@ function sinceFor(f: Omit<FigureScope, 'since'>): string {
       .filter((r) => r.standards.includes(code))
       .reduce((latest, r) => (r.heldOn! > latest ? r.heldOn! : latest), createdOn),
   );
-  return [...last].sort()[0]!;
+  const since = [...last].sort()[0]!;
+  // A review held before its system was set up in the app reviews just its own day.
+  return since < f.asOf ? since : f.asOf;
 }
 
-/** PREVIOUS_ACTIONS: the actions of earlier held reviews, by state, and those overdue now. */
+/** PREVIOUS_ACTIONS: the actions of earlier held reviews by their state on as-of, and those overdue on as-of. */
 function previousActionFigures(f: FigureScope): Figure[] {
   const reviews = new Set(ids(earlierReviews(f.firm, f.review, f.codes, f.asOf)));
   const actions = liveIso(f.firm, 'actions', f.review.clientId).filter(
@@ -529,16 +617,17 @@ function previousActionFigures(f: FigureScope): Figure[] {
       reviews.has(a.subject.id) &&
       canSee(f.actor, actionReach(f.firm, a)),
   );
-  const open = actions.filter((a) => a.state === 'OPEN');
+  const inState = (state: Action['state']) =>
+    ids(actions.filter((a) => actionStateAt(f, a) === state));
   return [
-    figure('actionsOpen', ids(open)),
-    figure('actionsOverdue', ids(open.filter((a) => a.dueOn < f.asOf))),
-    figure('actionsDone', ids(actions.filter((a) => a.state === 'DONE'))),
-    figure('actionsCancelled', ids(actions.filter((a) => a.state === 'CANCELLED'))),
+    figure('actionsOpen', inState('OPEN')),
+    figure('actionsOverdue', ids(actions.filter((a) => overdueAt(f, a)))),
+    figure('actionsDone', inState('DONE')),
+    figure('actionsCancelled', inState('CANCELLED')),
   ];
 }
 
-/** CONTEXT: issues and interested parties added, changed or removed in the window, and the climate decision. */
+/** CONTEXT: issues and interested parties added, changed or removed in the window, and the climate decision on as-of. */
 function contextFigures(f: FigureScope): Figure[] {
   const items = f.firm.iso.contextItems.filter(
     (c) =>
@@ -553,7 +642,9 @@ function contextFigures(f: FigureScope): Figure[] {
   );
   const party = (c: { kind: string }) => c.kind === 'INTERESTED_PARTY';
   const system = f.system;
-  const decided = system.climateChangeRelevant === null ? [] : [system.id];
+  const relevant = fieldAt(f, 'management_system', system, 'climateChangeRelevant');
+  const decidedOn = fieldAt(f, 'management_system', system, 'climateDecidedOn');
+  const decided = relevant !== null && byAsOf(f, decidedOn) ? [system.id] : [];
   return [
     figure('issuesAdded', ids(added.filter((c) => !party(c)))),
     figure('issuesChanged', ids(changed.filter((c) => !party(c)))),
@@ -564,18 +655,24 @@ function contextFigures(f: FigureScope): Figure[] {
       ids(items.filter((c) => c.archivedAt !== null && within(f, dayOf(f, c.archivedAt)))),
     ),
     figure('climateDecided', decided),
-    figure('climateRelevant', system.climateChangeRelevant === true ? [system.id] : []),
-    figure('climateDecidedInPeriod', within(f, system.climateDecidedOn) ? [system.id] : []),
+    figure('climateRelevant', relevant === true ? decided : []),
+    figure('climateDecidedInPeriod', within(f, decidedOn) ? decided : []),
   ];
 }
 
 /** Rating fields: an audited change of one of them is a re-rating. */
 const RATING_FIELDS = ['likelihood', 'severity', 'residualLikelihood', 'residualSeverity'];
 
-/** RISKS: items added or re-rated in the window, significant items by kind, treatment actions done and open. */
+/**
+ * RISKS: items added or re-rated in the window, items significant on as-of by kind, treatment actions done in the
+ * window and open on as-of.
+ */
 function riskFigures(f: FigureScope): Figure[] {
   const items = liveIso(f.firm, 'riskItems', f.review.clientId).filter(
-    (i) => i.managementSystemId === f.system.id && canSee(f.actor, riskReach(f.firm, i)),
+    (i) =>
+      i.managementSystemId === f.system.id &&
+      existed(f, i) &&
+      canSee(f.actor, riskReach(f.firm, i)),
   );
   const added = items.filter((i) => within(f, dayOf(f, i.createdAt)));
   const rerated = new Set(
@@ -592,7 +689,7 @@ function riskFigures(f: FigureScope): Figure[] {
   const treatments = liveIso(f.firm, 'actions', f.review.clientId).filter(
     (a) => a.subject.type === 'RISK_ITEM' && itemIds.has(a.subject.id),
   );
-  const significant = items.filter((i) => i.significant);
+  const significant = items.filter((i) => fieldAt(f, 'risk_item', i, 'significant'));
   return [
     figure('itemsAdded', ids(added)),
     figure('itemsRerated', ids(items.filter((i) => !added.includes(i) && rerated.has(i.id)))),
@@ -601,63 +698,76 @@ function riskFigures(f: FigureScope): Figure[] {
     ),
     figure(
       'treatmentActionsDone',
-      ids(treatments.filter((a) => a.state === 'DONE' && within(f, a.doneOn))),
+      ids(treatments.filter((a) => within(f, fieldAt(f, 'iso_action', a, 'doneOn')))),
     ),
-    figure('treatmentActionsOpen', ids(treatments.filter((a) => a.state === 'OPEN'))),
+    figure('treatmentActionsOpen', ids(treatments.filter((a) => actionStateAt(f, a) === 'OPEN'))),
   ];
 }
 
 /**
- * OBJECTIVES: `objectiveProgress` of each objective of the input's standards (one listing several counts once here):
- * open ones on track, off track or without a reading (on track reads the periods ended by as-of), those closed in the
- * window by outcome, and the readings recorded in the window, whatever their period.
+ * OBJECTIVES: `objectiveProgress` of each objective of the input's standards (one listing several counts once here),
+ * as it stood on as-of: those open then, on track, off track or without a reading (on track reads the readings
+ * recorded by as-of for periods ended by then), those closed in the window by outcome, and the readings recorded in
+ * the window, whatever their period.
  */
 function objectiveFigures(f: FigureScope): Figure[] {
   const objectives = liveIso(f.firm, 'objectives', f.review.clientId).filter(
     (o) =>
       o.managementSystemId === f.system.id &&
+      existed(f, o) &&
       o.standards.some((code) => f.codes.includes(code)) &&
       canSee(f.actor, objectiveReach(f.firm, o)),
   );
   const readings = liveIso(f.firm, 'readings', f.review.clientId);
   const readingsOf = (o: Objective) => readings.filter((r) => r.objectiveId === o.id);
-  const open = objectives.filter((o) => o.closedOn === null);
-  const track = new Map(
-    open.map((o) => [
-      o.id,
-      objectiveOnTrack(
-        o,
-        readingsOf(o).filter((r) => r.periodEnd <= f.asOf),
-        f.asOf,
-        f.timeZone,
-      ),
-    ]),
-  );
-  const closed = objectives.filter((o) => within(f, o.closedOn));
+  const closedOn = new Map(objectives.map((o) => [o.id, fieldAt(f, 'objective', o, 'closedOn')]));
+  const open = objectives.filter((o) => !byAsOf(f, closedOn.get(o.id)!));
+  /** The objective and its readings as they stood on as-of. */
+  const onTrack = (o: Objective) =>
+    objectiveOnTrack(
+      {
+        ...o,
+        target: fieldAt(f, 'objective', o, 'target'),
+        baseline: fieldAt(f, 'objective', o, 'baseline'),
+        direction: fieldAt(f, 'objective', o, 'direction'),
+        dueOn: fieldAt(f, 'objective', o, 'dueOn'),
+      },
+      readingsOf(o)
+        .filter((r) => existed(f, r) && r.periodEnd <= f.asOf)
+        .map((r) => ({ ...r, value: fieldAt(f, 'objective_reading', r, 'value') })),
+      f.asOf,
+      f.timeZone,
+    );
+  const track = new Map(open.map((o) => [o.id, onTrack(o)]));
+  const closed = objectives.filter((o) => within(f, closedOn.get(o.id)!));
+  const outcome = (o: Objective) => fieldAt(f, 'objective', o, 'outcome');
   const recorded = objectives.flatMap(readingsOf).filter((r) => within(f, dayOf(f, r.createdAt)));
   return [
     figure('objectivesOpen', ids(open)),
     figure('onTrack', ids(open.filter((o) => track.get(o.id) === true))),
     figure('offTrack', ids(open.filter((o) => track.get(o.id) === false))),
     figure('withoutReading', ids(open.filter((o) => track.get(o.id) === null))),
-    figure('achieved', ids(closed.filter((o) => o.outcome === 'ACHIEVED'))),
-    figure('notAchieved', ids(closed.filter((o) => o.outcome === 'NOT_ACHIEVED'))),
+    figure('achieved', ids(closed.filter((o) => outcome(o) === 'ACHIEVED'))),
+    figure('notAchieved', ids(closed.filter((o) => outcome(o) === 'NOT_ACHIEVED'))),
     figure('readingsRecorded', ids(recorded)),
   ];
 }
 
-/** The system's nonconformities of the input's standards that the actor may see. */
+/** The system's nonconformities of the input's standards that the actor may see, as they stood on as-of. */
 const ncsFor = (f: FigureScope) =>
-  liveIso(f.firm, 'nonconformities', f.review.clientId).filter(
-    (n) =>
-      n.managementSystemId === f.system.id &&
-      n.standards.some((code) => f.codes.includes(code)) &&
-      canSee(f.actor, ncReach(f.firm, n)),
-  );
+  liveIso(f.firm, 'nonconformities', f.review.clientId)
+    .filter(
+      (n) =>
+        n.managementSystemId === f.system.id &&
+        n.standards.some((code) => f.codes.includes(code)) &&
+        canSee(f.actor, ncReach(f.firm, n)),
+    )
+    .map((n) => ncAt(f, n));
 
 /**
  * NONCONFORMITIES: raised and closed in the window, by source and severity; VERIFY_NOT_EFFECTIVE steps in the window
- * (the number of steps, with the nonconformities behind them); those open now and their overdue corrective actions.
+ * (the number of steps, with the nonconformities behind them); those open on as-of and their corrective actions
+ * overdue on as-of.
  */
 function ncFigures(f: FigureScope): Figure[] {
   const ncs = ncsFor(f);
@@ -671,13 +781,9 @@ function ncFigures(f: FigureScope): Figure[] {
       e.after?.action === 'VERIFY_NOT_EFFECTIVE' &&
       within(f, dayOf(f, e.at)),
   );
-  const open = ncs.filter((n) => n.state !== 'CLOSED' && n.state !== 'CANCELLED');
+  const open = ncs.filter((n) => ncOpenAt(f, n));
   const overdue = liveIso(f.firm, 'actions', f.review.clientId).filter(
-    (a) =>
-      a.subject.type === 'NONCONFORMITY' &&
-      ncIds.has(a.subject.id) &&
-      a.state === 'OPEN' &&
-      a.dueOn < f.asOf,
+    (a) => a.subject.type === 'NONCONFORMITY' && ncIds.has(a.subject.id) && overdueAt(f, a),
   );
   const by = (prefix: string, rows: Nc[]) => [
     ...NcSeverity.options.map((s) =>
@@ -703,8 +809,8 @@ function ncFigures(f: FigureScope): Figure[] {
 }
 
 /**
- * INCIDENTS (`incidentCounts`, the overview's rule `incidentsIn`): by the client-local day of `occurredAt`, cancelled
- * ones left out, in total, by type and by outcome.
+ * INCIDENTS (`incidentCounts`, the overview's rule `incidentsIn`): by the client-local day of `occurredAt`, those
+ * cancelled by as-of left out, in total, by type and by outcome on as-of.
  */
 function incidentFigures(f: FigureScope): Figure[] {
   const incidents = incidentsIn(ncsFor(f), { from: f.since, to: f.asOf }, f.timeZone);

@@ -1196,7 +1196,6 @@ describe('reassignIsoNonconformity', () => {
       { ownerId: PERSON.divya }, // not an owner role
       { ownerId: PERSON.gita }, // disabled
       { ownerId: PERSON.joseph }, // another client's owner
-      { approverId: PERSON.sameer }, // owner and approver are one person
       { approverId: PERSON.rohan }, // not an approver role
       { dueOn: addDays(TODAY, -1) }, // before reportedOn
     ];
@@ -1209,6 +1208,17 @@ describe('reassignIsoNonconformity', () => {
         400,
       );
     }
+    // Maker-checker: a client admin may hold either role, never both.
+    const same = await fails(
+      app,
+      'reassignIsoNonconformity',
+      onNc(nc, { ownerId: PERSON.kabir, approverId: PERSON.kabir, reason: REASON }, PERSON.kabir),
+      'VALIDATION',
+      400,
+    );
+    expect(same.error.details!.issues).toEqual([
+      { path: ['body', 'approverId'], message: 'The approver is not the owner' },
+    ]);
     expect(isoEvents(app, nc.id).map((e) => e.action)).toEqual(['CREATE']);
     expect(ncRow(nc.id).version).toBe(nc.version);
   });
@@ -2658,12 +2668,13 @@ describe('updateIsoAction', () => {
     const before = actionRow(action.id).version;
     await actStep('updateIsoAction', action, { text: 'Lock the template and train the packers' });
     expect(actionRow(action.id).version).toBe(before);
-    const noReason = await call(
-      app,
-      'updateIsoAction',
-      onAction(action, { dueOn: addDays(TODAY, 30) }),
-    );
-    expect(noReason.status).toBe(422);
+    // A new due date or owner without a reason, or with a blank one, changes nothing.
+    const events = isoEvents(app, action.id).length;
+    for (const body of [{ dueOn: addDays(TODAY, 30) }, { ownerId: PERSON.sameer, reason: ' ' }]) {
+      await fails(app, 'updateIsoAction', onAction(action, body), 'REASON_REQUIRED', 422);
+    }
+    expect(isoEvents(app, action.id)).toHaveLength(events);
+    expect(actionRow(action.id).version).toBe(before);
     for (const as of [PERSON.divya, PERSON.rohan, PERSON.vikram]) {
       await fails(app, 'updateIsoAction', onAction(action, { text: 'x' }, as), 'FORBIDDEN', 403);
     }

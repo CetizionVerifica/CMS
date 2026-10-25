@@ -3,6 +3,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { ISO_FILE_SUBJECT_COLUMNS, ReviewInputKey, ReviewOutputKey } from '../src/schemas/iso.js';
 import { fixtureId } from '../src/fixtures/index.js';
+import { ReviewInputFigures } from '../src/schemas/iso-results.js';
 import type { IsoRow } from '../src/mock/store.js';
 import {
   type App,
@@ -2053,6 +2054,112 @@ describe('review input figures', () => {
     expect(figureOf(input, 'raised').ids).toContain(onTheDay.id);
     expect(figureOf(input, 'raised').ids).not.toContain(dayAfter.id);
     for (const row of [onTheDay, dayAfter]) row.archivedAt = NOW;
+  });
+
+  it('reads every state figure of a held review as it stood on the day it was held', async () => {
+    // Firm B's review held on 2024-10-28; today is 2024-11-15. Rows seeded with no trail read by their dates.
+    const held = fixtureId('firm-b:iso:review:2024');
+    const ims = fixtureId('firm-b:iso:system:ims');
+    const early = { createdAt: '2024-09-01T06:30:00Z', updatedAt: '2024-09-01T06:30:00Z' };
+    const later = seedNc(ims, { ...early, reportedOn: '2024-11-10' });
+    const closedLater = seedNc(ims, { ...early, ...closedNc('2024-11-05'), updatedAt: NOW });
+    const cancelledLater = seedNc(ims, {
+      ...early,
+      state: 'CANCELLED',
+      cancelReason: 'Raised twice',
+      updatedAt: '2024-11-05T06:30:00Z',
+    });
+    const cancelledBefore = seedNc(ims, {
+      ...early,
+      state: 'CANCELLED',
+      cancelReason: 'Raised twice',
+      updatedAt: '2024-10-20T06:30:00Z',
+    });
+    const onNc = { type: 'NONCONFORMITY' as const, id: closedLater.id };
+    const doneLater = seedAction(onNc, {
+      ...early,
+      dueOn: '2024-10-20',
+      state: 'DONE',
+      doneOn: '2024-11-05',
+    });
+    const doneBefore = seedAction(onNc, {
+      ...early,
+      dueOn: '2024-10-20',
+      state: 'DONE',
+      doneOn: '2024-10-25',
+    });
+    const dueLater = seedAction(onNc, { ...early, dueOn: '2024-11-01' });
+    // With a trail: the severity moved today reads as before, and so does an objective closed today.
+    const moved = seedNc(ims, { ...early });
+    await ok(app, 'reassignIsoNonconformity', {
+      as: PERSON.meera,
+      params: { id: moved.id },
+      body: { version: moved.version, severity: 'MAJOR', reason: 'A customer return' },
+    });
+    const closedToday = seedObjective(ims, { ...early });
+    await ok(app, 'closeIsoObjective', {
+      as: PERSON.meera,
+      params: { id: closedToday.id },
+      body: { version: closedToday.version, closedOn: TODAY, outcome: 'ACHIEVED' },
+    });
+    const closedBefore = seedObjective(ims, {
+      ...early,
+      closedOn: '2024-10-15',
+      outcome: 'NOT_ACHIEVED',
+    });
+    const createdLater = seedObjective(ims, { createdAt: '2024-11-10T06:30:00Z' });
+
+    const ncs = byKey(await inputs(held), 'NONCONFORMITIES');
+    const open = figureOf(ncs, 'open').ids;
+    expect(open).toEqual(expect.arrayContaining([closedLater.id, cancelledLater.id, moved.id]));
+    expect(open).not.toContain(later.id);
+    expect(open).not.toContain(cancelledBefore.id);
+    expect(figureOf(ncs, 'closed').ids).not.toContain(closedLater.id);
+    expect(figureOf(ncs, 'raisedMinor').ids).toContain(moved.id);
+    expect(figureOf(ncs, 'raisedMajor').ids).not.toContain(moved.id);
+    const overdue = figureOf(ncs, 'correctiveActionsOverdue').ids;
+    expect(overdue).toContain(doneLater.id);
+    expect(overdue).not.toContain(doneBefore.id);
+    expect(overdue).not.toContain(dueLater.id);
+
+    const objectives = byKey(await inputs(held), 'OBJECTIVES');
+    const openObjectives = figureOf(objectives, 'objectivesOpen').ids;
+    expect(openObjectives).toContain(closedToday.id);
+    expect(openObjectives).not.toContain(closedBefore.id);
+    expect(openObjectives).not.toContain(createdLater.id);
+    expect(figureOf(objectives, 'achieved').ids).not.toContain(closedToday.id);
+    expect(figureOf(objectives, 'notAchieved').ids).toContain(closedBefore.id);
+
+    // A planned review reads them as they are today.
+    const planned = await plan(ims);
+    const now = byKey(await inputs(planned.id), 'NONCONFORMITIES');
+    expect(figureOf(now, 'open').ids).toContain(later.id);
+    expect(figureOf(now, 'open').ids).not.toContain(closedLater.id);
+    for (const row of [later, closedLater, cancelledLater, cancelledBefore, moved]) {
+      row.archivedAt = NOW;
+    }
+    for (const row of [closedToday, closedBefore, createdLater]) row.archivedAt = NOW;
+    for (const row of [doneLater, doneBefore, dueLater]) row.archivedAt = NOW;
+    firm().iso.managementReviews.find((r) => r.id === planned.id)!.archivedAt = NOW;
+  });
+
+  it('gives a review held before its system was set up a window of its own day', async () => {
+    const ims = fixtureId('firm-b:iso:system:ims');
+    const review = await plan(ims, { plannedOn: '2024-03-15' });
+    await noteAll(review.id);
+    await hold(review.id, PERSON.kabir, { heldOn: '2024-03-15' });
+    for (const input of await inputs(review.id)) {
+      if (input.sourceFigures === null) continue;
+      expect(input.sourceFigures, input.key).toMatchObject({
+        since: '2024-03-15',
+        asOf: '2024-03-15',
+      });
+    }
+    expect(figureOf(byKey(await inputs(review.id), 'NONCONFORMITIES'), 'open').value).toBe(0);
+    stored(review.id).archivedAt = NOW;
+    // The contract refuses a window that runs backwards.
+    const backwards = { source: 'CONTEXT', since: '2024-04-10', asOf: '2024-03-15', figures: [] };
+    expect(ReviewInputFigures.safeParse(backwards).success).toBe(false);
   });
 
   it('leaves a cancelled incident out of the review figures, as the overview does', async () => {

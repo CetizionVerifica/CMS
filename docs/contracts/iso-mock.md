@@ -52,8 +52,16 @@ README decisions 42-51. M4 owns every formula marked "stand-in".
 - **NC status** is OVERDUE when the earliest of `dueOn` (before AWAITING_VERIFICATION) and its OPEN actions' due
   dates is before today.
 - **Management review figures**: `since` is the standard's last HELD or CLOSED review of the same system before this
-  one, else the system's creation day. As-of is the review's `heldOn` once it is held (the window it reviewed), else
-  today (a PLANNED review, or a CANCELLED one, which was never held). Figures count only records the caller can see
+  one, else the system's creation day, and never after as-of (a review held before its system was set up in the app
+  reviews just its own day). As-of is the review's `heldOn` once it is held (the window it reviewed), else today (a
+  PLANNED review, or a CANCELLED one, which was never held). Every figure reads the records as they stood on as-of:
+  a record counts once it was created by then (a nonconformity once reported), and a field takes the `before` value of
+  its first audited change on a later day, else its value now. So open, overdue, done, cancelled, significance,
+  severity, incident outcome, an objective's target and readings, and the climate decision are those of as-of; a row
+  with no trail is read by its dates (`closedOn`, `doneOn`, and for a cancel its last change, since a cancelled record
+  takes no edits). Archived records appear in no figure but `contextItemsRemoved`, whatever the day, since their ids no
+  longer open. COMPLIANCE_EVALUATION reads the instances' workflow as it is now, as the core score's as-of does.
+  Figures count only records the caller can see
   and whose standards overlap the review's; an internal audit's standards are those of its clauses (its system's when
   it lists none), and findings follow their audit. INCIDENTS uses the overview's rule, so cancelled NCs are left out
   of both. `readingsRecorded` counts every reading recorded in the window, whatever its period; on-track reads only
@@ -91,7 +99,8 @@ covering its unit, whether raised by hand, from an internal finding or from an e
 owner's and a CA's (investigation fields); the reassign route is FA's, CO's and CA's (owner, approver, dates,
 severity and the incident outcome, with a reason). Severity and outcome change only while OPEN or ROOT_CAUSE_FOUND;
 `lostDays` moves with the outcome on reassign, and alone only on the PATCH while the outcome stays LOST_TIME. A
-finding's NC refuses a severity change, and an NC without incident fields refuses an outcome, `400` in any state.
+finding's NC refuses a severity change, and an NC without incident fields refuses an outcome, `400` in any open
+state (CLOSED or CANCELLED answers `409 INVALID_TRANSITION` first).
 VERIFY_EFFECTIVE re-checks the SUBMIT_NO_ACTION rule on an NC submitted with none (the later of SUBMIT and
 SUBMIT_NO_ACTION in its trail), to catch rows changed outside these routes. VERIFY_NOT_EFFECTIVE
 may come before `effectivenessDueOn`; VERIFY_EFFECTIVE waits for it. `effectivenessDueOn` can move but never be cleared

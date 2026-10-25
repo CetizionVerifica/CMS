@@ -241,8 +241,9 @@ unchanged, so send only the fields that change. A date or owner a step sets itse
 date when a treatment action puts a control in place) needs none. Every create, edit, state change, list change and file add, remove or download writes an `AuditEvent` with
 the model §8 entity type (`ISO_ENTITY_TYPES`, staged: no route writes one before ISO-1b joins them to `EntityType`).
 Views of records with a machine carry `allowedActions`, the steps the signed-in person may take now. Machine steps
-honour `Idempotency-Key` (api-conventions.md §2), RAISE and PLAN included, and so do a risk item's REVIEW and closing an
-objective; DRAFT_REVISION, like every other create, does not.
+honour `Idempotency-Key` (api-conventions.md §2), RAISE and PLAN included, and so do a risk item's REVIEW, closing an
+objective, a nonconformity's reassign and a management review's replan; DRAFT_REVISION, like every other create, does
+not.
 
 **Files** go in `iso_file`, never in `evidence` (model §6): the evidence upload rules (types, 25 MB, a 5-minute
 presigned PUT), PENDING until scanned, download only when CLEAN through a 5-minute signed URL, removal with a reason
@@ -320,7 +321,7 @@ on the URL.
 | GET | `/clients/{clientId}/iso/objectives` (managementSystemId, q, standard, ownerId, open) | `isoObjective.read` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | with progress; AP/OW limited to their units (plan §3.3) |
 | POST | `/clients/{clientId}/iso/objectives` | `isoObjective.write` | ✓ | ✓ | ✓ | | own | | `201`; one or more standards of its system; OW only as its owner |
 | GET | `/clients/{clientId}/iso/objectives/{id}` | `isoObjective.read` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | with progress |
-| PATCH | `/clients/{clientId}/iso/objectives/{id}` | `isoObjective.write` | ✓ | ✓ | ✓ | | own | | while open; moving `dueOn` needs a reason |
+| PATCH | `/clients/{clientId}/iso/objectives/{id}` | `isoObjective.write` | ✓ | ✓ | ✓ | | own | | while open; moving `dueOn` or changing the owner needs a reason |
 | POST | `/clients/{clientId}/iso/objectives/{id}/close` `{ version, closedOn, outcome }` | `isoObjective.write` | ✓ | ✓ | ✓ | | own | | readings and actions stop |
 | GET | `/clients/{clientId}/iso/objectives/{id}/readings` | `isoObjective.read` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | by period; AP/OW limited to their units (plan §3.3) |
 | POST | `/clients/{clientId}/iso/objectives/{id}/readings` | `isoObjective.write` | ✓ | ✓ | ✓ | | own | | `201`; on an open objective; OW only as the objective owner |
@@ -335,7 +336,7 @@ on the URL.
 | GET | `/clients/{clientId}/iso/internal-audits` (managementSystemId, q, programmeId, state, unitId, leadAuditorId, from, to) | `isoAudit.read` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | by planned start; AP/OW limited to their units (plan §3.3) |
 | POST | `/clients/{clientId}/iso/internal-audits` | `isoAudit.plan` | ✓ | ✓ | ✓ | | | | `201`, PLANNED; an auditor who is also an auditee needs an independence note |
 | GET | `/clients/{clientId}/iso/internal-audits/{id}` | `isoAudit.read` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | with the actions on offer |
-| PATCH | `/clients/{clientId}/iso/internal-audits/{id}` | `isoAudit.plan` | ✓ | ✓ | ✓ | | | | while PLANNED or IN_PROGRESS; moving its dates needs a reason |
+| PATCH | `/clients/{clientId}/iso/internal-audits/{id}` | `isoAudit.plan` | ✓ | ✓ | ✓ | | | | while PLANNED or IN_PROGRESS; moving its dates or changing the lead auditor needs a reason |
 | POST | `/clients/{clientId}/iso/internal-audits/{id}/start` | `isoAudit.conduct` | ✓ | ✓ | ✓ | own | own | | START; AP/OW only as its lead auditor or an auditor |
 | POST | `/clients/{clientId}/iso/internal-audits/{id}/report` `{ version, summary, reportedOn?, reportedToIds? }` | `isoAudit.conduct` | ✓ | ✓ | ✓ | own | own | | REPORT: someone reported to and a result for every clause of the audit |
 | POST | `/clients/{clientId}/iso/internal-audits/{id}/close` | `isoAudit.conduct` | ✓ | ✓ | ✓ | own | own | | CLOSE once every nonconformity it raised has left OPEN |
@@ -372,7 +373,7 @@ on the URL.
 | POST | `/clients/{clientId}/iso/nonconformities` | `isoNc.raise` | ✓ | ✓ | ✓ | ✓ | ✓ | | `201`; RAISE a nonconformity, incident or near miss for a unit the actor can see; not with an audit source (those come from findings) |
 | GET | `/clients/{clientId}/iso/nonconformities/{id}` | `isoNc.read` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | with its timing, the finding that raised it and the actions on offer |
 | PATCH | `/clients/{clientId}/iso/nonconformities/{id}` | `isoNc.work` | | | ✓ | | own | | until CLOSED or CANCELLED: the investigation fields (`NcUpdateBody`: description, unit, standards, clauses, source instance, incident details but the outcome (`lostDays` only while the outcome stays LOST_TIME), containment, correction, disposition, root cause, risk and system changes); OW only as its owner |
-| POST | `/clients/{clientId}/iso/nonconformities/{id}/reassign` `{ version, ownerId?, approverId?, dueOn?, effectivenessDueOn?, severity?, incident?: { outcome, lostDays? }, reason }` | `isoNc.reassign` | ✓ | ✓ | ✓ | | | | until CLOSED or CANCELLED, with a reason; severity and the incident outcome only while OPEN or ROOT_CAUSE_FOUND (else `409 INVALID_TRANSITION`); `lostDays` comes with an outcome moving to LOST_TIME, is cleared moving from it, and never changes alone here; in any state `400 VALIDATION` for severity on a nonconformity raised from a finding and for an incident on one without incident fields |
+| POST | `/clients/{clientId}/iso/nonconformities/{id}/reassign` `{ version, ownerId?, approverId?, dueOn?, effectivenessDueOn?, severity?, incident?: { outcome, lostDays? }, reason }` | `isoNc.reassign` | ✓ | ✓ | ✓ | | | | until CLOSED or CANCELLED, with a reason; severity and the incident outcome only while OPEN or ROOT_CAUSE_FOUND (else `409 INVALID_TRANSITION`); `lostDays` comes with an outcome moving to LOST_TIME, is cleared moving from it, and never changes alone here; in any open state `400 VALIDATION` for severity on a nonconformity raised from a finding and for an incident on one without incident fields (CLOSED or CANCELLED answers `409 INVALID_TRANSITION` first) |
 | POST | `/clients/{clientId}/iso/nonconformities/{id}/root-cause` | `isoNc.work` | | | ✓ | | own | | ADD_ROOT_CAUSE: containment, correction, root cause and similar occurrences |
 | POST | `/clients/{clientId}/iso/nonconformities/{id}/plan-actions` `{ version, effectivenessDueOn }` | `isoNc.work` | | | ✓ | | own | | PLAN_ACTIONS: at least one OPEN action |
 | POST | `/clients/{clientId}/iso/nonconformities/{id}/submit-no-action` | `isoNc.work` | | | ✓ | | own | | SUBMIT_NO_ACTION for a minor case, with the reason, risk review and system change |

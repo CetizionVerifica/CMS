@@ -1201,8 +1201,8 @@ export const nonconformitiesHandlers: PartialHandlers<Ids> = {
   /**
    * `isoNc.reassign` (FA, CO, CA) until CLOSED or CANCELLED, with a reason: owner and approver (REASSIGN), `dueOn` and
    * `effectivenessDueOn` (DUE_DATE_CHANGE), and severity and the incident outcome (UPDATE) while OPEN or
-   * ROOT_CAUSE_FOUND (model §3.10). In any state, before that window, a finding's nonconformity refuses severity and
-   * one with no incident (a finding's among them) refuses an outcome (400). `lostDays` moves with the outcome only.
+   * ROOT_CAUSE_FOUND (model §3.10). In any open state, before that window, a finding's nonconformity refuses severity
+   * and one with no incident (a finding's among them) refuses an outcome (400); CLOSED or CANCELLED is 409 first. `lostDays` moves with the outcome only.
    */
   reassignIsoNonconformity(ctx) {
     const actor = actorOf(ctx);

@@ -23,7 +23,8 @@ Owner: M0. Applies to every endpoint in `endpoints.md`. Types are in `domain-mod
   pattern, `POST /clients/{clientId}/iso/<records>/{id}/<step>` with `version` (endpoints.md §10).
 - `Idempotency-Key` header (UUID) is honoured on transitions, bulk approve, import commit and export creation for 24 h: a repeat with the same key returns the first response.
   The same holds for the ISO machine steps (raising a nonconformity and planning a management review included), a
-  risk item's review and closing an objective; `ENDPOINTS` marks each route that honours it (`idempotent`).
+  risk item's review, closing an objective, a nonconformity's reassign and a management review's replan; `ENDPOINTS`
+  marks each route that honours it (`idempotent`).
 - Writes respond with the full updated resource (so the client never refetches to learn the new `version`).
 - Archive = `POST /<resource>/{id}/archive` (with `reason`); restore = `POST /<resource>/{id}/restore`. There is no `DELETE` except removing evidence from an instance, which archives it. An ISO file is removed with
   `POST /clients/{clientId}/iso/files/{id}/remove` and a reason, which archives it too.
