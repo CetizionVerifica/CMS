@@ -40,7 +40,9 @@ import {
   type ExistingInstance,
   type ImportPlan,
   type PlanInstance,
+  recommendedDecisions,
 } from '@canopy/importer';
+import ExcelJS from 'exceljs';
 import type { FastifyInstance } from 'fastify';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -814,5 +816,162 @@ describe.skipIf(!url)('import API on Postgres', { timeout: 180_000 }, () => {
       ['2023-05-01', '2023-05-31', '2023-05-15'],
     ];
     expect(periods).toEqual({ forwards: expected, backwards: expected, later: expected });
+  });
+  it('matches and creates STATUTE acts only, so ISO standard acts and their obligations stay as they are', async () => {
+    const register = 'Income Tax Act, 1961 and Income Tax Rules, 1962';
+    const iso = 'ISO 14001 environmental management';
+    const ref = 'TAX-CL-033-6067-60218';
+    // The sample register with one Act renamed like the catalogue's STANDARD act (docs/iso/catalogue.md §2).
+    const book = new ExcelJS.Workbook();
+    await book.xlsx.load(bytes.slice().buffer);
+    const sheet = book.worksheets[0]!;
+    const actColumn = (sheet.getRow(1).values as unknown[]).indexOf('Act');
+    let renamed = 0;
+    sheet.eachRow((row, n) => {
+      const cell = row.getCell(actColumn);
+      if (n > 1 && cell.value === register) {
+        cell.value = iso;
+        renamed++;
+      }
+    });
+    expect(renamed).toBeGreaterThan(0);
+    const content = new Uint8Array(await book.xlsx.writeBuffer());
+
+    const admin = createAdminDatabase({ connectionString: databaseUrl() });
+    const firmId = await admin.createFirm({ name: 'Firm ISO' });
+    await admin.close();
+    const ctx = systemContext(firmId, 'seed-iso');
+    // What the ISO catalogue copy leaves (system context): the STANDARD act, and an obligation under it whose
+    // source ID the register also uses.
+    const seeded = await db.withTenant(ctx, async (tx) => {
+      const client = await clients.create(tx, {
+        name: 'Northwind Foods Group',
+        settings: DEFAULT_CLIENT_SETTINGS,
+      });
+      const person = await people.create(tx, {
+        displayName: 'Admin ISO',
+        nameNormalized: 'admin iso',
+        email: null,
+        status: 'UNCLAIMED',
+      });
+      const act = await acts.create(tx, {
+        name: iso,
+        shortName: 'ISO 14001',
+        jurisdiction: 'CENTRAL',
+        stateCode: null,
+        aliases: [],
+        kind: 'STANDARD',
+      });
+      const category = await categories.create(tx, { name: 'ISO management systems', aliases: [] });
+      const obligation = await obligations.create(tx, {
+        externalRef: ref,
+        domain: 'OTHER',
+        jurisdiction: 'CENTRAL',
+        stateCode: null,
+        actId: act.id,
+        categoryId: category.id,
+        title: 'Emergency drill',
+        description: 'Run and record an emergency drill',
+        applicabilityText: null,
+        criticality: 'MEDIUM',
+        timelineType: 'TIME_BASED',
+        recurrenceRule: { kind: 'ONE_TIME', dueDate: LocalDate.parse('2022-04-30') },
+        ruleStatus: 'CONFIRMED',
+        evidenceRequired: true,
+        forms: [],
+        logSheets: [],
+        libraryVersion: 1,
+      });
+      return { client, person, act, obligation };
+    });
+    const firm = { firmId, clientId: seeded.client.id, personId: seeded.person.id };
+    const h = headers(firm);
+    const call = (method: 'GET' | 'POST' | 'PUT' | 'PATCH', path: string, payload?: object) =>
+      app.inject({ method, url: `/api/v1${path}`, payload, headers: h });
+
+    /** Uploads `content`, decides it with the "recommended" profile and commits; returns the dry run. */
+    async function importIt(fileName: string) {
+      const ticket = ImportUploadTicket.parse(
+        (
+          await call('POST', `/clients/${firm.clientId}/imports`, {
+            fileName,
+            sizeBytes: content.byteLength,
+          })
+        ).json(),
+      );
+      files.put(uploadKey(firmId, ticket.batchId), content);
+      const preview = ImportUploaded.parse(
+        (
+          await call('POST', `/imports/${ticket.batchId}/uploaded`, { sha256: sha(content) })
+        ).json(),
+      );
+      await call('PUT', `/imports/${ticket.batchId}/mapping`, {
+        sheetName: preview.sheets[0]?.name,
+        mapping: preview.suggestedMapping,
+      });
+      await call('POST', `/imports/${ticket.batchId}/parse`);
+      await Promise.all(running.splice(0));
+      const issues = async () =>
+        z
+          .strictObject({ items: z.array(ImportIssueGroup) })
+          .parse((await call('GET', `/imports/${ticket.batchId}/issues?decision=PENDING`)).json())
+          .items;
+      // One group at a time, as the seed does: each decision re-runs the analysis.
+      for (let group = (await issues())[0]; group; group = (await issues())[0]) {
+        const decision = recommendedDecisions([group])[group.groupKey]?.decision;
+        expect(decision === 'ACCEPTED' || decision === 'REJECTED').toBe(true);
+        await call('PATCH', `/imports/${ticket.batchId}/issues/${group.groupKey}`, { decision });
+      }
+      const report = DryRunReport.parse(
+        (await call('POST', `/imports/${ticket.batchId}/dry-run`)).json(),
+      );
+      expect((await call('POST', `/imports/${ticket.batchId}/commit`)).statusCode).toBe(202);
+      await Promise.all(running.splice(0));
+      const batch = ImportBatch.parse((await call('GET', `/imports/${ticket.batchId}`)).json());
+      expect(batch.status).toBe('COMMITTED');
+      return report;
+    }
+
+    // The golden counts (docs/requirements/excel-analysis.md §5): the STANDARD act counts for nothing.
+    const first = await importIt('iso-named.xlsx');
+    expect(first.create).toMatchObject({
+      acts: 33,
+      obligations: 119,
+      assignments: 119,
+      instances: 422,
+    });
+    expect(first.update).toEqual({ obligations: 0, assignments: 0, instances: 0 });
+
+    const library = () =>
+      db.withTenant(ctx, async (tx) => ({
+        acts: (await acts.findAll(tx, {})).map((a) => `${a.kind} ${a.name} v${a.version}`).sort(),
+        standard: await acts.require(tx, seeded.act.id),
+        isoObligation: await obligations.require(tx, seeded.obligation.id),
+        byRef: (await obligations.findAll(tx, { externalRef: ref })).map((o) => o.actId).sort(),
+        isoHistory: (await auditEvents.forEntity(tx, 'obligation', seeded.obligation.id)).length,
+      }));
+    const after = await library();
+    // A STATUTE act of the same name beside the STANDARD one, which keeps its values.
+    expect(after.acts.filter((a) => a.endsWith(`${iso} v1`))).toEqual([
+      `STANDARD ${iso} v1`,
+      `STATUTE ${iso} v1`,
+    ]);
+    expect(after.acts).toHaveLength(34);
+    expect(after.standard).toEqual(seeded.act);
+    // The ISO obligation is not the register's: the import made its own under the STATUTE act.
+    expect(after.isoObligation).toEqual(seeded.obligation);
+    expect(after.isoHistory).toBe(0);
+    const statute = await db.withTenant(ctx, async (tx) =>
+      (await acts.findAll(tx, { kind: 'STATUTE', name: iso })).map((a) => a.id),
+    );
+    expect(statute).toHaveLength(1);
+    expect(after.byRef).toEqual([seeded.act.id, statute[0]!].sort());
+
+    // Importing it again finds everything already there and changes nothing.
+    const again = await importIt('iso-named-again.xlsx');
+    expect(again.create).toMatchObject({ acts: 0, obligations: 0, assignments: 0, instances: 0 });
+    expect(again.update).toEqual({ obligations: 0, assignments: 0, instances: 0 });
+    expect(again.unchanged.instances).toBe(first.create.instances);
+    expect(await library()).toEqual(after);
   });
 });

@@ -122,14 +122,20 @@ function byName<T extends { name: string }>(rows: readonly T[]): Map<string, T> 
 
 async function loadClient(tx: TenantTx, clientId: string): Promise<ClientState> {
   // One transaction runs one query at a time, so these are sequential.
-  const actRows = await all((p) => acts.list(tx, p));
+  // An import matches and creates STATUTE acts only (docs/iso/catalogue.md §2): STANDARD acts, and the obligations
+  // under them, are left out of what it knows, so a register Act named like an ISO standard gets a STATUTE act.
+  const listedActs = await all((p) => acts.list(tx, p));
+  const standardActIds = new Set(listedActs.filter((a) => a.kind === 'STANDARD').map((a) => a.id));
+  const actRows = listedActs.filter((a) => !standardActIds.has(a.id));
   const categoryRows = await all((p) => categories.list(tx, p));
   const departmentRows = await all((p) => departments.list(tx, clientId, p));
   const personRows = await all((p) => people.list(tx, p));
   const companyRows = await all((p) => companies.list(tx, clientId, p));
   const unitRows = await all((p) => units.list(tx, clientId, p));
   const locationRows = await all((p) => locations.list(tx, p));
-  const obligationRows = await all((p) => obligations.list(tx, p));
+  const obligationRows = (await all((p) => obligations.list(tx, p))).filter(
+    (o) => !standardActIds.has(o.actId),
+  );
   const assignmentRows = await assignments.findAll(tx, { clientId });
   const instanceRows = await all((p) => instances.register(tx, clientId, {}, p));
 
@@ -394,6 +400,7 @@ async function commitPlan(tx: TenantTx, request: CommitRequest): Promise<CommitR
         jurisdiction: planned.jurisdiction,
         stateCode: planned.stateCode,
         aliases: planned.aliases,
+        kind: 'STATUTE',
       });
       stored.acts.set(created.name, created);
       await audit.record('act', created.id, null, { name: created.name, aliases: created.aliases });

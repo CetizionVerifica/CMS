@@ -12,6 +12,9 @@
 - Plan limits: commit refuses with 403 PLAN_LIMIT_REACHED when the companies or units it would create pass the plan's
   limit (`ImportTx.planAllowance`, under the account's usage lock). The background half checks again in its own
   transaction and fails the batch with `failureCode: 'PLAN_LIMIT_REACHED'` if the account filled up meanwhile.
+- ISO standard acts (ISO-16, docs/iso/catalogue.md §2): an import matches and creates STATUTE acts only. `loadClient`
+  leaves STANDARD acts, and the obligations under them, out of what the analysis and the commit know, so a register
+  Act named like an ISO standard gets its own STATUTE act and never touches the ISO catalogue copy.
 - `files.ts`: upload storage. `s3ImportFiles` for S3-compatible storage, `MemoryImportFiles` for tests.
 - `routes.ts`: thin routes, parsed with the contract schemas.
 - `seed.ts`: the `pnpm db:seed` hook (`canopy.seed` in apps/api/package.json). It runs these steps over the anonymised
