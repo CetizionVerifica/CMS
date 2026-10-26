@@ -112,6 +112,7 @@ export default async function IsoCertificationPage({ params, searchParams }: Pro
           openAuditId={first(search.audit) ?? null}
           canManage={mayCall('updateIsoExternalAudit', gate.roles)}
           today={today}
+          timeZone={gate.client.timeZone}
         />
       </div>
     </>

@@ -50,6 +50,7 @@ export type ExternalAuditsProps = {
   openAuditId: string | null;
   canManage: boolean;
   today: string;
+  timeZone: string;
 };
 
 type Row = { id: string; title: string; audit: ExternalAuditView };
@@ -288,7 +289,7 @@ function NewAudit({
 function AuditDrawer(
   props: ExternalAuditsProps & { audit: ExternalAuditView; onClose: () => void },
 ) {
-  const { clientId, audit, standards, canManage, onClose } = props;
+  const { clientId, audit, standards, canManage, timeZone, onClose } = props;
   const ids = { id: audit.id };
   const can = (a: ExternalAuditView['allowedActions'][number]) => audit.allowedActions.includes(a);
   const [editing, setEditing] = useState(false);
@@ -375,6 +376,7 @@ function AuditDrawer(
           subject={{ type: 'external_audit', id: audit.id }}
           editable={canManage && auditOpen(audit)}
           heading="Report and files"
+          timeZone={timeZone}
           helper={
             can('RECORD_HELD')
               ? "Attach the body's report before recording the visit held."

@@ -7,7 +7,7 @@ import { Button, DateInput, formatDate, Input, Textarea } from '@canopy/ui';
 import { useState } from 'react';
 
 import { isoWrite } from '../../_lib/actions';
-import { nameOf, type PersonOption } from '../../_lib/people';
+import { clientDate, nameOf, type PersonOption } from '../../_lib/people';
 import { word } from '../../_lib/words';
 import type { ClauseOption } from '../../_components/ClausePicker';
 import { FilesPanel } from '../../_components/FilesPanel';
@@ -30,6 +30,7 @@ export type DocumentRecordProps = {
   /** May edit a DRAFT revision's label and note: managers, and the document's owner. */
   canEditDraft: boolean;
   today: string;
+  timeZone: string;
 };
 
 export function DocumentRecord(props: DocumentRecordProps) {
@@ -181,6 +182,7 @@ function Revision({
   rev,
   people,
   canEditDraft,
+  timeZone,
 }: DocumentRecordProps & { rev: RevisionView }) {
   const [editing, setEditing] = useState(false);
   const external = doc.type === 'EXTERNAL';
@@ -213,8 +215,8 @@ function Revision({
         Prepared by {nameOf(people, rev.preparedById)}
         {approved && rev.approvedAt
           ? external
-            ? `. Recorded ${formatDate(rev.approvedAt.slice(0, 10))}, issued by ${doc.issuer ?? 'the issuer'}`
-            : `. Approved by ${nameOf(people, rev.approvedById)} on ${formatDate(rev.approvedAt.slice(0, 10))}`
+            ? `. Recorded ${formatDate(clientDate(rev.approvedAt, timeZone))}, issued by ${doc.issuer ?? 'the issuer'}`
+            : `. Approved by ${nameOf(people, rev.approvedById)} on ${formatDate(clientDate(rev.approvedAt, timeZone))}`
           : ''}
         .
       </p>
@@ -286,6 +288,7 @@ function Revision({
         subject={{ type: 'document_revision', id: rev.id }}
         editable={filesOpen}
         heading={`Files of ${label}`}
+        timeZone={timeZone}
         helper={filesOpen ? 'Attach exactly one file before submitting.' : undefined}
       />
       {editing ? (

@@ -23,6 +23,11 @@ export function clientToday(timeZone: string, now = new Date()): string {
   }).format(now);
 }
 
+/** The client-local calendar date of a UTC timestamp (root CLAUDE.md rule 4), as `YYYY-MM-DD`. */
+export function clientDate(timestamp: string, timeZone: string): string {
+  return clientToday(timeZone, new Date(timestamp));
+}
+
 /** An href with its query; empty values left out. */
 export function hrefWith(path: string, query: Record<string, string | undefined>): string {
   const search = new URLSearchParams();

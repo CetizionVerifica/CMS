@@ -211,6 +211,7 @@ const audits = (
       openAuditId={openAuditId}
       canManage
       today="2024-11-15"
+      timeZone="Asia/Kolkata"
       {...over}
     />,
   );

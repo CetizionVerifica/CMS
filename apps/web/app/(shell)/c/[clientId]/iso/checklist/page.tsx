@@ -148,6 +148,7 @@ export default async function IsoChecklistPage({ params, searchParams }: Props) 
         editable={{ all: mayCall('updateIsoChecklistRow', gate.roles), personId: gate.personId }}
         canReassign={manager}
         today={clientToday(gate.client.timeZone)}
+        timeZone={gate.client.timeZone}
       />
     </>
   );

@@ -82,6 +82,7 @@ export default async function IsoDocumentPage({ params }: Props) {
         canReassign={mayCall('updateIsoDocument', gate.roles)}
         canEditDraft={mayCall('updateIsoRevision', gate.roles, owner)}
         today={clientToday(gate.client.timeZone)}
+        timeZone={gate.client.timeZone}
       />
     </>
   );

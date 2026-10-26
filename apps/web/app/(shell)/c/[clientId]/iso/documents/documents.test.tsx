@@ -235,6 +235,7 @@ function record(
       canReassign={opts.canReassign ?? true}
       canEditDraft={opts.canEditDraft ?? true}
       today="2024-11-15"
+      timeZone="Asia/Kolkata"
     />,
   );
 }
@@ -246,7 +247,14 @@ describe('DocumentRecord', () => {
     record(pr07, [
       revision({ allowedActions: ['SUBMIT'], sendBackReason: 'Add the hold tag.' }),
       revision({ id: 'a', revision: 'A', state: 'APPROVED', approvedById: NISHA, approvedAt: T }),
-      revision({ id: 'o', revision: '0', state: 'SUPERSEDED', approvedById: NISHA, approvedAt: T }),
+      // 01:30 on 1 Nov in Kolkata, still 31 Oct in UTC.
+      revision({
+        id: 'o',
+        revision: '0',
+        state: 'SUPERSEDED',
+        approvedById: NISHA,
+        approvedAt: '2024-10-31T20:00:00Z',
+      }),
     ]);
     expect(screen.getByText(`${options[10]!.label}; A clause no longer listed`)).toBeTruthy();
     expect(screen.getByText('Sent back: Add the hold tag.')).toBeTruthy();

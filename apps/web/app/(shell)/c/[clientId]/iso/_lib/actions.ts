@@ -47,14 +47,17 @@ async function send<N extends EndpointName>(
 ): Promise<Outcome<CallResponse<N>>> {
   const endpoint = ENDPOINTS[name];
   const params = pathParams(name, clientId, ids);
-  const body = endpoint.body ? endpoint.body.parse(request.body ?? {}) : undefined;
-  const query = endpoint.query ? endpoint.query.parse(request.query ?? {}) : undefined;
+  const body = endpoint.body?.safeParse(request.body ?? {});
+  const query = endpoint.query?.safeParse(request.query ?? {});
+  if (body?.success === false || query?.success === false) {
+    return { ok: false, code: 'VALIDATION', message: failureMessage('VALIDATION') };
+  }
   try {
     const api = await sessionApi();
     const { data } = await api.call(name, {
       params,
-      ...(body === undefined ? {} : { body: body as CallRequest<N>['body'] }),
-      ...(query === undefined ? {} : { query: request.query }),
+      ...(body === undefined ? {} : { body: body.data as CallRequest<N>['body'] }),
+      ...(query === undefined ? {} : { query: query.data as CallRequest<N>['query'] }),
     });
     return { ok: true, data };
   } catch (error) {

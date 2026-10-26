@@ -96,6 +96,7 @@ export type ChecklistViewProps = {
   /** May change a row's owner (managers). */
   canReassign: boolean;
   today: string;
+  timeZone: string;
 };
 
 export function ChecklistView(props: ChecklistViewProps) {
@@ -152,7 +153,7 @@ const NA_STEPS: Record<
   REQUEST_NA: {
     label: 'Request not applicable',
     title: (c) => `Request that clause ${c} does not apply?`,
-    body: 'An approver or client admin decides. Until then the clause counts as not applicable but not excluded.',
+    body: 'An approver or client admin decides. Until then it counts as not started in readiness.',
     reason: {
       label: 'Why the clause does not apply',
       helper: 'Kept as the justification an auditor reads.',
@@ -198,6 +199,7 @@ function RowDrawer({
   editable,
   canReassign,
   today,
+  timeZone,
   item,
   onClose,
   onPrev,
@@ -393,6 +395,7 @@ function RowDrawer({
           subject={{ type: 'clause_assessment', id: row.id }}
           editable={canEdit}
           helper="Evidence that the clause is met."
+          timeZone={timeZone}
         />
       </div>
     </Drawer>

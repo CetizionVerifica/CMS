@@ -8,6 +8,7 @@ import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useId, useState } from 'react';
 
 import { isoRead, isoWrite } from '../_lib/actions';
+import { clientDate } from '../_lib/people';
 import { uploadIsoFile } from '../_lib/upload';
 import { FormAlert } from './controls';
 import { IsoPill, type Tone } from './IsoStates';
@@ -25,12 +26,15 @@ export function FilesPanel({
   editable,
   heading = 'Files',
   helper,
+  timeZone,
 }: {
   clientId: string;
   subject: IsoFileSubject;
   editable: boolean;
   heading?: string;
   helper?: string;
+  /** The client's time zone: an upload shows as the client's local date. */
+  timeZone: string;
 }) {
   const router = useRouter();
   const inputId = useId();
@@ -92,7 +96,9 @@ export function FilesPanel({
           {files.map((f) => (
             <li key={f.id} className="flex flex-wrap items-center gap-2 px-3 py-2">
               <span className="min-w-0 flex-1 break-all text-body text-ink">{f.fileName}</span>
-              <span className="text-meta text-muted">{formatDate(f.uploadedAt.slice(0, 10))}</span>
+              <span className="text-meta text-muted">
+                {formatDate(clientDate(f.uploadedAt, timeZone))}
+              </span>
               <IsoPill tone={SCAN[f.scanStatus].tone}>{SCAN[f.scanStatus].words}</IsoPill>
               {f.scanStatus === 'CLEAN' ? (
                 <Button

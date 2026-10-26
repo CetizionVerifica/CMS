@@ -170,7 +170,7 @@ describe('isoWrite and isoRead', () => {
     expect(stale.message).not.toBe('');
   });
 
-  it('refuses a route that isn’t an ISO write, ids that aren’t ids and a body its schema refuses', async () => {
+  it('refuses a route that isn’t an ISO write and ids that aren’t ids, and words a body its schema refuses', async () => {
     await signIn('consultant@demo.test');
     await expect(isoWrite(CLIENT, 'listIsoSystems' as never, {}, {} as never)).rejects.toThrow(
       'Not an ISO write route',
@@ -179,6 +179,10 @@ describe('isoWrite and isoRead', () => {
       isoWrite(CLIENT, 'updateIsoChecklistRow', { id: 'nope', rowId: 'nope' }, { version: 1 }),
     ).rejects.toThrow();
     await expect(isoWrite('not-a-client', 'createIsoDocument', {}, {} as never)).rejects.toThrow();
+    await expect(isoWrite(CLIENT, 'createIsoDocument', {}, {} as never)).resolves.toMatchObject({
+      ok: false,
+      code: 'VALIDATION',
+    });
     await expect(isoRead(CLIENT, 'getIsoOverview' as never, {})).rejects.toThrow(
       'Not an ISO read a screen may make',
     );

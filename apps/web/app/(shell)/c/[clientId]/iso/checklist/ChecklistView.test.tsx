@@ -62,6 +62,7 @@ function view(
       editable={{ all: opts.all ?? true, personId: ME }}
       canReassign={opts.reassign ?? true}
       today="2024-11-15"
+      timeZone="Asia/Kolkata"
     />,
   );
 }

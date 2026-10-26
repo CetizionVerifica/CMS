@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { ApiError } from '../../../../../../lib/api/client';
 import { failureMessage } from './outcome';
-import { clientToday, first, hrefWith, listParam, nameOf, namesOf } from './people';
+import { clientDate, clientToday, first, hrefWith, listParam, nameOf, namesOf } from './people';
 import { BEING_SET_UP, refusalFor } from './refusal';
 import { sha256Hex, storageHasNoHost, uploadIsoFile, type IsoUploadCalls } from './upload';
 
@@ -55,6 +55,8 @@ describe('people and URL helpers', () => {
     const late = new Date('2024-11-15T20:00:00Z');
     expect(clientToday('Asia/Kolkata', late)).toBe('2024-11-16');
     expect(clientToday('UTC', late)).toBe('2024-11-15');
+    expect(clientDate('2026-10-26T20:00:00Z', 'Asia/Kolkata')).toBe('2026-10-27');
+    expect(clientDate('2026-10-26T20:00:00Z', 'UTC')).toBe('2026-10-26');
   });
   it('builds hrefs and reads search params', () => {
     expect(hrefWith('/x', { a: '1', b: undefined, c: '' })).toBe('/x?a=1');

@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 
 import { serverApi } from '../../../../../../lib/api/server';
 import { PageEmpty, PageHeader } from '../../../../../../lib/patterns';
-import { clauses, people, standards, systems, units } from '../_lib/data';
+import { clauses, standards, systems, units } from '../_lib/data';
 import { isoGate, isoLoad, isoMetadata } from '../_lib/gate';
 import { mayCall } from '../_lib/may';
 import { clientToday } from '../_lib/people';
@@ -32,7 +32,6 @@ export default async function IsoOverviewPage({ params }: Props) {
       units(api, clientId),
       clauses(api, clientId),
       api.call('listIsoReviewDefs', { params: { clientId } }).then((r) => r.data),
-      people(api, clientId),
     ]);
     const contexts = await Promise.all(
       systemList.map((s) =>

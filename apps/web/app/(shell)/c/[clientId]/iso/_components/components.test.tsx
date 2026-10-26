@@ -303,7 +303,8 @@ const file = (over: Partial<IsoFileView> = {}): IsoFileView =>
     id: '00000000-0000-5000-8000-000000000f01',
     fileName: 'report.pdf',
     scanStatus: 'CLEAN',
-    uploadedAt: '2024-11-05T05:30:00Z',
+    // 00:30 on 5 Nov in Kolkata, still 4 Nov in UTC.
+    uploadedAt: '2024-11-04T19:00:00Z',
     ...over,
   }) as IsoFileView;
 
@@ -319,10 +320,19 @@ describe('FilesPanel', () => {
     const assign = vi.fn();
     vi.stubGlobal('location', { ...window.location, assign });
     actions.isoWrite.mockResolvedValue(ok(null));
-    render(<FilesPanel clientId="c1" subject={subject} editable heading="Report" />);
+    render(
+      <FilesPanel
+        timeZone="Asia/Kolkata"
+        clientId="c1"
+        subject={subject}
+        editable
+        heading="Report"
+      />,
+    );
     expect(screen.getByRole('status').textContent).toBe('Loading files…');
     expect(await screen.findByText('report.pdf')).toBeTruthy();
     expect(screen.getByText('Being checked')).toBeTruthy();
+    expect(screen.getAllByText('5 Nov 2024')).toHaveLength(2);
     expect(screen.queryByRole('button', { name: 'Download held.pdf' })).toBeNull();
     await userEvent.click(screen.getByRole('button', { name: 'Download report.pdf' }));
     await waitFor(() => expect(assign).toHaveBeenCalledWith('https://storage.invalid/get'));
@@ -350,7 +360,15 @@ describe('FilesPanel', () => {
         ? ok({ uploadId: 'u1', url: 'https://storage.invalid/put', headers: {}, expiresAt: 'x' })
         : ok(file()),
     );
-    render(<FilesPanel clientId="c1" subject={subject} editable helper="Attach the report." />);
+    render(
+      <FilesPanel
+        timeZone="Asia/Kolkata"
+        clientId="c1"
+        subject={subject}
+        editable
+        helper="Attach the report."
+      />,
+    );
     expect(await screen.findByText('No files yet.')).toBeTruthy();
     expect(screen.getByText('Attach the report.')).toBeTruthy();
     await act(() =>
@@ -372,7 +390,7 @@ describe('FilesPanel', () => {
 
   it('says what went wrong, and offers no changes on a locked record', async () => {
     actions.isoRead.mockResolvedValue(fail('You can’t do this here.'));
-    render(<FilesPanel clientId="c1" subject={subject} editable={false} />);
+    render(<FilesPanel timeZone="Asia/Kolkata" clientId="c1" subject={subject} editable={false} />);
     expect(await screen.findByRole('alert')).toBeTruthy();
     expect(screen.queryByLabelText('Add a file')).toBeNull();
 
@@ -381,7 +399,15 @@ describe('FilesPanel', () => {
       name === 'listIsoFiles' ? ok({ items: [file()] }) : fail('Gone.'),
     );
     actions.isoWrite.mockResolvedValue(fail('Too big.'));
-    render(<FilesPanel clientId="c1" subject={subject} editable heading="Other" />);
+    render(
+      <FilesPanel
+        timeZone="Asia/Kolkata"
+        clientId="c1"
+        subject={subject}
+        editable
+        heading="Other"
+      />,
+    );
     const panel = await screen.findByRole('region', { name: 'Other' });
     await within(panel).findByText('report.pdf');
     await userEvent.click(within(panel).getByRole('button', { name: 'Download report.pdf' }));
