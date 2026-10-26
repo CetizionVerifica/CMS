@@ -37,7 +37,6 @@ import {
   type ReviewInputSource,
   ReviewOutputKey,
   reviewRiskKinds,
-  RiskKind,
 } from '../../../schemas/iso.js';
 import {
   type Actor,
@@ -606,11 +605,10 @@ const isRerating = (e: AuditRecord) =>
   !('sourceActionId' in e.after) &&
   RATING_FIELDS.some((field) => field in e.after!);
 
-/** The event that sets the climate decision: a management system UPDATE naming either of its fields. */
+/** A climate decision: a management system UPDATE naming a climate field, which only the climate route writes. */
+const CLIMATE_FIELDS = ['climateChangeRelevant', 'climateChangeRationale', 'climateDecidedOn'];
 const setsClimate = (e: AuditRecord) =>
-  e.action === 'UPDATE' &&
-  e.after !== null &&
-  ('climateChangeRelevant' in e.after || 'climateDecidedOn' in e.after);
+  e.action === 'UPDATE' && e.after !== null && CLIMATE_FIELDS.some((field) => field in e.after!);
 
 /** The system's nonconformities of the input's standards. */
 const ncsOf = (g: GatherScope) =>
@@ -632,6 +630,7 @@ const GATHER: { [S in FigureSource]: (g: GatherScope) => Data<S> } = {
     const items = rowsOf(g, 'contextItems').filter((c) => c.managementSystemId === g.system.id);
     const { system } = g;
     const updates = eventsOf(g, 'context_item', new Set(ids(items)), (e) => e.action === 'UPDATE');
+    const decisions = eventsOf(g, 'management_system', new Set([system.id]), setsClimate);
     return {
       contextItems: items.map((c) => ({ id: c.id, kind: c.kind, ...daysOf(g, c) })),
       contextChanges: eventDays(g, updates),
@@ -639,11 +638,12 @@ const GATHER: { [S in FigureSource]: (g: GatherScope) => Data<S> } = {
         id: system.id,
         climateChangeRelevant: system.climateChangeRelevant,
         climateDecidedOn: system.climateDecidedOn,
-        climateStepOn:
-          system.climateChangeRelevant === null
-            ? null
-            : stepDay(g, 'management_system', system, setsClimate),
       },
+      // A system seeded or loaded decided but without its trail takes its `updatedAt` as its one decision.
+      climateDecisions:
+        decisions.length > 0 || system.climateChangeRelevant === null
+          ? eventDays(g, decisions)
+          : [{ entityId: system.id, on: dayOf(g, system.updatedAt) }],
     };
   },
 
@@ -654,6 +654,7 @@ const GATHER: { [S in FigureSource]: (g: GatherScope) => Data<S> } = {
     );
     const itemIds = new Set(ids(items));
     return {
+      kinds,
       riskItems: items.map((i) => ({
         id: i.id,
         kind: i.kind,
@@ -882,7 +883,8 @@ const COMPUTE: { [S in FigureSource]: (d: Data<S>, w: Window) => Figure[] } = {
 
   /**
    * Issues and interested parties added, changed (an audited UPDATE in the window) or removed in the window, and the
-   * climate decision once its day (the later of `climateDecidedOn` and the event that set it) is by as-of.
+   * climate decision: decided from the first decision by as-of (a decision never returns to undecided), relevant as it
+   * is now, and decided in the period when any decision falls in the window.
    */
   CONTEXT: (d, w) => {
     const live = d.contextItems.filter((c) => liveOn(w, c));
@@ -891,11 +893,8 @@ const COMPUTE: { [S in FigureSource]: (d: Data<S>, w: Window) => Figure[] } = {
     const changed = live.filter((c) => !added.includes(c) && updated.has(c.id));
     const party = (c: { kind: string }) => c.kind === 'INTERESTED_PARTY';
     const { system } = d;
-    const decidedDay =
-      system.climateChangeRelevant === null
-        ? null
-        : later(system.climateDecidedOn, system.climateStepOn);
-    const decided = byAsOf(w, decidedDay) ? [system.id] : [];
+    const days = d.climateDecisions.map((c) => c.on);
+    const decided = days.some((day) => byAsOf(w, day)) ? [system.id] : [];
     return [
       figure('issuesAdded', ids(added.filter((c) => !party(c)))),
       figure('issuesChanged', ids(changed.filter((c) => !party(c)))),
@@ -907,14 +906,14 @@ const COMPUTE: { [S in FigureSource]: (d: Data<S>, w: Window) => Figure[] } = {
       ),
       figure('climateDecided', decided),
       figure('climateRelevant', system.climateChangeRelevant === true ? decided : []),
-      figure('climateDecidedInPeriod', within(w, decidedDay) ? decided : []),
+      figure('climateDecidedInPeriod', days.some((day) => within(w, day)) ? [system.id] : []),
     ];
   },
 
   /**
-   * Items added or re-rated in the window, items significant (as stored now) by kind, and the treatment actions of the
-   * items live on as-of, done in the window by their settled day and open on as-of. The data holds only the kinds the
-   * input's key reads, so the other kinds count none.
+   * Items added or re-rated in the window, items significant (as stored now) for each kind the input's key reads (no
+   * key for another kind), and the treatment actions of the items live on as-of, done in the window by their settled
+   * day and open on as-of.
    */
   RISKS: (d, w) => {
     const items = d.riskItems.filter((i) => liveOn(w, i));
@@ -926,7 +925,7 @@ const COMPUTE: { [S in FigureSource]: (d: Data<S>, w: Window) => Figure[] } = {
     return [
       figure('itemsAdded', ids(added)),
       figure('itemsRerated', ids(items.filter((i) => !added.includes(i) && rerated.has(i.id)))),
-      ...RiskKind.options.map((kind) =>
+      ...d.kinds.map((kind) =>
         figure(figureKey('significant', kind), ids(significant.filter((i) => i.kind === kind))),
       ),
       figure('treatmentActionsDone', ids(settledIn(w, treatments, 'DONE'))),
@@ -1004,7 +1003,7 @@ const COMPUTE: { [S in FigureSource]: (d: Data<S>, w: Window) => Figure[] } = {
   },
 
   /**
-   * Incidents placed in the window by the later of their `occurredAt` day and their NC's counting day, cancelled ones
+   * Incidents placed in the window by their NC's counting day (their `occurredAt` day is never later), cancelled ones
    * left out, in total, by type and by outcome (as `incidentCounts` groups them), with the lost days.
    */
   INCIDENTS: (d, w) => {
@@ -1013,7 +1012,7 @@ const COMPUTE: { [S in FigureSource]: (d: Data<S>, w: Window) => Figure[] } = {
         n.incident !== null &&
         n.state !== 'CANCELLED' &&
         notArchivedBy(w, n) &&
-        within(w, later(localDate(n.incident.occurredAt, d.timeZone), countingDay(n))),
+        within(w, countingDay(n)),
     );
     const lostTime = incidents.filter((n) => n.incident!.lostDays !== null);
     return [
@@ -1281,51 +1280,47 @@ function readableIds(actor: Actor, clientId: string): Readable {
 
 /**
  * The figures as one reader gets them: every value as counted, each figure's ids cut to those they may read in the
- * table `REVIEW_FIGURE_KEYS` names for it (none for a key it does not list).
+ * table `REVIEW_FIGURE_KEYS` names for it (none for a key it does not list). `cut` says whether any id was dropped.
  */
-function forReader(figures: Figures, readable: Readable): Figures {
+function forReader(figures: Figures, readable: Readable): { figures: Figures; cut: boolean } {
   const keys: Record<string, ReviewFigureKeyInfo> =
     figures.source === 'MANUAL' ? {} : REVIEW_FIGURE_KEYS[figures.source];
-  return {
-    ...figures,
-    figures: figures.figures.map((fig) => {
-      const entityType = keys[fig.key]?.entityType ?? null;
-      return { ...fig, ids: fig.ids.filter((id) => readable(entityType, id)) };
-    }),
-  };
+  let cut = false;
+  const shown = figures.figures.map((fig) => {
+    const entityType = keys[fig.key]?.entityType ?? null;
+    const ids = fig.ids.filter((id) => readable(entityType, id));
+    cut ||= ids.length < fig.ids.length;
+    return { ...fig, ids };
+  });
+  return { figures: { ...figures, figures: shown }, cut };
 }
 
 /**
- * Whether a reader sees every unit of the review's system (model §3.13 item 4): a client-wide role, or an approver or
- * owner whose units cover the system's (a system with no units covers every unit of the client).
- */
-function seesWholeSystem(actor: Actor, system: System): boolean {
-  const memberships = membershipsFor(actor, system.clientId);
-  if (memberships.some((m) => m.unitIds === null)) return true;
-  const units = new Set(memberships.flatMap((m) => m.unitIds ?? []));
-  return systemUnitIds(actor.firm, system).every((u) => units.has(u));
-}
-
-/**
- * An input's figures by its review's state (model §3.13): computed as of the client's today while PLANNED, the stored
- * copy once HELD or CLOSED (null for a row without one), none for a CANCELLED review or a MANUAL input. An INCIDENTS
- * row that has figures is withheld from a reader who does not see the whole system and neither chairs nor attends.
+ * An input's figures and notes by its review's state (model §3.13): computed as of the client's today while PLANNED,
+ * the stored copy once HELD or CLOSED (null for a row without one), none for a CANCELLED review or a MANUAL input.
+ * Incidents are the limit (item 4): an INCIDENTS row whose ids the reader may not all read is withheld, figures and
+ * notes, unless the reader chairs or attends the review. It reads the incidents the row counts, not the system's units,
+ * which can be narrowed after an incident was counted.
  */
 function figuresOf(
   actor: Actor,
   review: Review,
-  system: System,
   row: Input,
   def: InputDef,
   ctx: { now: string; readable: Readable },
-): Pick<InputOut, 'sourceFigures' | 'figuresStoredAt' | 'figuresWithheld'> {
-  const none = { sourceFigures: null, figuresStoredAt: null, figuresWithheld: false };
+): Pick<InputOut, 'sourceFigures' | 'figuresStoredAt' | 'figuresWithheld' | 'notes'> {
+  const none = {
+    sourceFigures: null,
+    figuresStoredAt: null,
+    figuresWithheld: false,
+    notes: row.notes,
+  };
   if (def.source === 'MANUAL' || review.state === 'CANCELLED') return none;
   let shown: { sourceFigures: Figures; figuresStoredAt: string | null };
   if (review.state === 'PLANNED') {
     const today = localDate(ctx.now, timeZoneOf(actor.firm, review.clientId));
     shown = {
-      sourceFigures: computeFigures(actor.firm, review, system, def, today),
+      sourceFigures: computeFigures(actor.firm, review, systemOf(actor.firm, review), def, today),
       figuresStoredAt: null,
     };
   } else {
@@ -1333,16 +1328,13 @@ function figuresOf(
     if (stored === null) return none;
     shown = { sourceFigures: stored, figuresStoredAt: row.figuresStoredAt ?? null };
   }
+  const { figures, cut } = forReader(shown.sourceFigures, ctx.readable);
   const takesPart =
     review.chairId === actor.person.id || review.attendeeIds.includes(actor.person.id);
-  if (def.source === 'INCIDENTS' && !takesPart && !seesWholeSystem(actor, system)) {
-    return { ...none, figuresWithheld: true };
+  if (def.source === 'INCIDENTS' && cut && !takesPart) {
+    return { ...none, figuresWithheld: true, notes: null };
   }
-  return {
-    sourceFigures: forReader(shown.sourceFigures, ctx.readable),
-    figuresStoredAt: shown.figuresStoredAt,
-    figuresWithheld: false,
-  };
+  return { ...none, sourceFigures: figures, figuresStoredAt: shown.figuresStoredAt };
 }
 
 // ---------- views ----------
@@ -1378,7 +1370,7 @@ function inputView(
     title: def.title,
     source: def.source,
     clauseRefs: clauseRefs(firm, defs, def),
-    ...figuresOf(actor, review, system, input, def, ctx),
+    ...figuresOf(actor, review, input, def, ctx),
   };
 }
 

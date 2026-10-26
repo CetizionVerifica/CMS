@@ -9885,10 +9885,12 @@
       "entityId": "860e2b33-5267-5b4e-92f6-710c448780f4",
       "before": {
         "climateChangeRelevant": null,
+        "climateChangeRationale": null,
         "climateDecidedOn": null
       },
       "after": {
         "climateChangeRelevant": true,
+        "climateChangeRationale": "Hotter summers and an irregular monsoon affect wheat supply, cooling loads on the ovens and heat stress on the production floor.",
         "climateDecidedOn": "2024-05-06"
       },
       "reason": null

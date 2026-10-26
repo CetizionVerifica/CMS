@@ -1269,8 +1269,9 @@ const counts = <T extends EntityType>(entityType: T) => ({ entityType, countsIds
 
 /**
  * Every figure key `reviewInputFigures` emits, by source (model §5.4), with what it means (`ReviewFigureKeyInfo`). The
- * engine emits each key of its source on every call, except `statutoryScore` when nothing is due in the window, and
- * every key it emits is listed here. A stored figure keeps its key for good (9001 7.5.3), so keys are only ever added:
+ * engine emits each key of its source on every call, except `statutoryScore` when nothing is due in the window and the
+ * `significant<Kind>` keys of RISKS for a kind the input's key does not read (`reviewRiskKinds`), and every key it
+ * emits is listed here. A stored figure keeps its key for good (9001 7.5.3), so keys are only ever added:
  * a key whose meaning changes gets a new name. M17 and M10 word every key listed; M3's `isoVisibleIds` (ISO-2h) takes
  * each figure's entity type from here.
  */
@@ -1294,6 +1295,7 @@ export const REVIEW_FIGURE_KEYS = {
   RISKS: {
     itemsAdded: counts('risk_item'),
     itemsRerated: counts('risk_item'),
+    // Only for the kinds the input's key reads (`reviewRiskKinds`).
     significantRisk: counts('risk_item'),
     significantOpportunity: counts('risk_item'),
     significantAspect: counts('risk_item'),
@@ -1382,19 +1384,20 @@ export type ReviewFigureKey<
 
 /**
  * The risk kinds a RISKS input reads (model §5.4, catalogue §5): `SIGNIFICANT_ASPECTS` aspects only;
- * `RISKS_AND_OPPORTUNITIES` and `RISK_ACTIONS` risks and opportunities, and hazards when ISO 45001 is among the input's
- * standards (the review's standards that ask for it). So a 14001 review's two RISKS rows never count the same item.
- * Any other key reads no risk items. In `RiskKind` order; the caller gathers only these kinds (M3, ISO-2h).
+ * `RISKS_AND_OPPORTUNITIES` risks and opportunities, and hazards when ISO 45001 is among the input's standards (the
+ * review's standards that ask for it); `RISK_ACTIONS` (9001 only) risks and opportunities. So a 14001 review's two RISKS
+ * rows never count the same item. Any other key reads no risk items. In `RiskKind` order; the caller gathers only these
+ * kinds (M3, ISO-2h), and the figures have a `significant<Kind>` key for these kinds only.
  */
 export function reviewRiskKinds(
   key: ReviewInputKey,
   standards: readonly IsoStandardCode[],
 ): RiskKind[] {
   if (key === 'SIGNIFICANT_ASPECTS') return ['ASPECT'];
-  if (key !== 'RISKS_AND_OPPORTUNITIES' && key !== 'RISK_ACTIONS') return [];
-  return standards.includes('ISO_45001')
-    ? ['RISK', 'OPPORTUNITY', 'HAZARD']
-    : ['RISK', 'OPPORTUNITY'];
+  if (key === 'RISKS_AND_OPPORTUNITIES' && standards.includes('ISO_45001')) {
+    return ['RISK', 'OPPORTUNITY', 'HAZARD'];
+  }
+  return key === 'RISKS_AND_OPPORTUNITIES' || key === 'RISK_ACTIONS' ? ['RISK', 'OPPORTUNITY'] : [];
 }
 
 /**

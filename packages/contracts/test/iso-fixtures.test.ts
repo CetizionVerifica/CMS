@@ -800,8 +800,10 @@ describe('the audit trail sample (ISO-1b, ISO-1a3)', () => {
     );
     expect(climate).toHaveLength(1);
     expect(day(climate[0]!.at)).toBe(system.climateDecidedOn);
+    // As the climate route writes it: every climate field it changed, from undecided.
     expect(climate[0]!.after).toEqual({
       climateChangeRelevant: system.climateChangeRelevant,
+      climateChangeRationale: system.climateChangeRationale,
       climateDecidedOn: system.climateDecidedOn,
     });
   });

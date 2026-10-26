@@ -2400,7 +2400,7 @@ export function buildFirmBIso(): Fixture {
     before: Record<string, unknown>,
     reason: string | null = null,
   ) => trail(newRequest(), when, actorId, 'TRANSITION', entity, after, before, reason);
-  // The climate decision (a field edit: the route audits it as an UPDATE of the system).
+  // The climate decision (a field edit: the climate route audits the fields it changed as an UPDATE of the system).
   trail(
     newRequest(),
     at(system.climateDecidedOn!),
@@ -2409,9 +2409,10 @@ export function buildFirmBIso(): Fixture {
     { type: 'management_system', id: systemId },
     {
       climateChangeRelevant: system.climateChangeRelevant,
+      climateChangeRationale: system.climateChangeRationale,
       climateDecidedOn: system.climateDecidedOn,
     },
-    { climateChangeRelevant: null, climateDecidedOn: null },
+    { climateChangeRelevant: null, climateChangeRationale: null, climateDecidedOn: null },
   );
   for (const audit of internalAudits.filter((a) => a.reportedOn !== null)) {
     step(

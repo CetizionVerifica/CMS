@@ -83,21 +83,27 @@ README decisions 42-51. M4 owns every formula marked "stand-in".
     record counts from its creation day. A date the user enters places its record by the later of that date and the
     day of the step that set it, the latest such step, so a record settled or entered after a review was recorded,
     dated before it, counts in the next review instead of in neither: an action's settled day is the later of
-    `doneOn` and its COMPLETE step when DONE, and its CANCEL step when CANCELLED, and it is OPEN on as-of until then;
-    an objective's CLOSE step with `closedOn` (open on as-of until then); an internal audit's REPORT step with
-    `reportedOn`; an external audit's RECORD_HELD step, or a later `UPDATE` naming `endOn`, with `endOn`; and the
-    management system `UPDATE` naming `climateChangeRelevant` or `climateDecidedOn`, with `climateDecidedOn`. A row
-    seeded or loaded without its trail takes its `updatedAt` as the step's time. A nonconformity, incidents included,
-    is raised and counts from its counting day, the later of its creation day and its `reportedOn` (which may be
-    backdated); an incident is placed by the later of its `occurredAt` day and that counting day; a finding by the
-    later of its audit's day and its own creation day, whether or not its audit counts in the window. DONE and
-    CANCELLED actions (PREVIOUS_ACTIONS, treatment actions) count only when their settled day is in the window, so an
-    action settled before `since` is not counted again. A record reopened since is read as it is now: REOPEN clears an
-    action's `doneOn` and a nonconformity's `closedOn`, so live figures for any as-of read either as open. A record
-    archived after as-of counts as live; one archived on or before as-of counts only in `contextItemsRemoved`, which
-    lists the items archived in the window. `correctiveActionsOverdue` counts only the actions of nonconformities open
-    on as-of. `readingsRecorded` counts the readings created in the window, whatever their period; on-track reads the
-    readings created by as-of for periods ended by then.
+    `doneOn` and its COMPLETE step when DONE, and its CANCEL step when CANCELLED (the latest, so one completed,
+    reopened and completed again counts by the later COMPLETE), and it is OPEN on as-of until then; an objective's
+    CLOSE step with `closedOn` (open on as-of until then); an internal audit's REPORT step with `reportedOn`; an
+    external audit's RECORD_HELD step, or a later `UPDATE` naming `endOn`, with `endOn`. A row seeded or loaded
+    without its trail takes its `updatedAt` as the step's time. A nonconformity, incidents included, is raised and
+    counts from its counting day, the later of its creation day and its `reportedOn` (which may be backdated), and an
+    incident is placed by that day too (its `occurredAt` day is never later, below); a finding by the later of its
+    audit's day and its own creation day, whether or not its audit counts in the window. DONE and CANCELLED actions
+    (PREVIOUS_ACTIONS, treatment actions) count only when their settled day is in the window, so an action settled
+    before `since` is not counted again. A record reopened since is read as it is now: REOPEN clears an action's
+    `doneOn` and a nonconformity's `closedOn`, so live figures for any as-of read either as open. A record archived
+    after as-of counts as live; one archived on or before as-of counts only in `contextItemsRemoved`, which lists the
+    items archived in the window. `correctiveActionsOverdue` counts only the actions of nonconformities open on as-of.
+    `readingsRecorded` counts the readings created in the window, whatever their period; on-track reads the readings
+    created by as-of for periods ended by then.
+  - **Climate.** Each management system `UPDATE` naming `climateChangeRelevant`, `climateChangeRationale` or
+    `climateDecidedOn` is a decision on its own day (only the climate route writes them, and only when a field
+    changes, so a new rationale alone is one too). `climateDecided` counts from the first decision on or before as-of,
+    so a decision changed after as-of still counts; `climateDecidedInPeriod` counts when any decision falls in the
+    window; `climateRelevant` reads the decision as it is now. A system seeded or loaded decided but with no decision
+    in its trail takes its `updatedAt` as its one decision.
   - **Events.** Counts with no date field of their own take the client-local days of audited events in the window: a
     context item's `UPDATE` (changed; an item added in the window counts only as added), a risk item's `UPDATE` whose
     `after` names `likelihood`, `severity`, `residualLikelihood` or `residualSeverity` (re-rated; the clearing of a
@@ -108,7 +114,9 @@ README decisions 42-51. M4 owns every formula marked "stand-in".
     the instances' workflow, as the core score's as-of does.
   - **Records.** Each source reads the records of the review's system whose standards overlap the input's. A RISKS
     input reads the kinds of its key (`reviewRiskKinds`): SIGNIFICANT_ASPECTS aspects only, RISKS_AND_OPPORTUNITIES
-    and RISK_ACTIONS risks and opportunities, and hazards too when ISO 45001 is among the input's standards. An
+    risks and opportunities, and hazards too when ISO 45001 is among the input's standards, and RISK_ACTIONS risks and
+    opportunities. It has a `significant<Kind>` figure only for those kinds, so a 14001 review's two RISKS rows never
+    count, or show a zero for, each other's items. An
     internal audit's standards are those of its clauses (its system's when it lists none), and a finding's those of
     its clauses (its audit's when it lists none), so a 9001-only input counts no finding on a 14001 clause.
     INCIDENTS uses the overview's rule, so cancelled NCs are left out of both. PREVIOUS_ACTIONS reads the review
@@ -117,9 +125,11 @@ README decisions 42-51. M4 owns every formula marked "stand-in".
     value, and the ids only of the records they may read in the table `REVIEW_FIGURE_KEYS` names for the key (none
     for the score), so a value can be larger than its list of ids. A record archived since, a compliance instance
     included, keeps its id in the stored copy for whoever may read it, but the id no longer opens, so M17 shows it
-    without a link. Incidents are the limit (model §3.13 item 4): an INCIDENTS row that has figures answers
-    `figuresWithheld: true`, with no `sourceFigures` or `figuresStoredAt`, to an approver or owner whose units do not
-    cover every unit of the system and who is neither the chair nor an attendee.
+    without a link. Incidents are the limit (model §3.13 item 4): when cutting an INCIDENTS row's ids for a reader
+    drops any id, the row answers `figuresWithheld: true`, with no `sourceFigures`, `figuresStoredAt` or `notes`,
+    unless the reader chairs or attends the review. The mock reads the ids the row counts, so a system whose units
+    were narrowed after an incident was counted still withholds it from an owner of the remaining units; a row with
+    no figures, and a client-wide reader, never are.
 
 ## Area by area
 
@@ -154,7 +164,9 @@ owner's and a CA's (investigation fields); the reassign route is FA's, CO's and 
 severity and the incident outcome, with a reason). Severity and outcome change only while OPEN or ROOT_CAUSE_FOUND;
 `lostDays` moves with the outcome on reassign, and alone only on the PATCH while the outcome stays LOST_TIME. A
 finding's NC refuses a severity change, and an NC without incident fields refuses an outcome, `400` in any open
-state (CLOSED or CANCELLED answers `409 INVALID_TRANSITION` first).
+state (CLOSED or CANCELLED answers `409 INVALID_TRANSITION` first). An incident's `occurredAt` may not be after now,
+nor its client-local day after the NC's `reportedOn` (`400 VALIDATION` on RAISE and on the PATCH, model §3.11); the
+mock checks it only when RAISE or the PATCH sets a new time, so a row loaded before 1.8.4 keeps its time until then.
 VERIFY_EFFECTIVE re-checks the SUBMIT_NO_ACTION rule on an NC submitted with none (the later of SUBMIT and
 SUBMIT_NO_ACTION in its trail), to catch rows changed outside these routes. VERIFY_NOT_EFFECTIVE
 may come before `effectivenessDueOn`; VERIFY_EFFECTIVE waits for it. `effectivenessDueOn` can move but never be cleared

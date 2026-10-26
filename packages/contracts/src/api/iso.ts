@@ -1417,9 +1417,10 @@ export type ReviewClauseRef = z.infer<typeof ReviewClauseRef>;
  * reader may read (plan §3.3), so a reader limited to some units can see fewer ids than the value counts.
  *
  * Incidents are the limit (model §3.13 item 4): `figuresWithheld` is true on an INCIDENTS row that has figures when
- * its reader is an approver or owner whose units do not cover every unit of the system (a system with no units covers
- * every unit of the client) and who is neither the review's chair nor an attendee. That reader gets no `sourceFigures`
- * and no `figuresStoredAt`, and the screen and the pack say the figures are withheld; the notes still show.
+ * cutting its ids for the reader would drop any id (an incident the reader may not read) and the reader is neither the
+ * review's chair nor an attendee. That reader gets no `sourceFigures`, `figuresStoredAt` or `notes` (the notes record
+ * what the meeting said about those incidents), and the screen and the pack say the figures and notes are withheld. A
+ * row with no figures, or whose incidents the reader may all read, is never withheld, so a client-wide reader never is.
  */
 export const ReviewInputView = z
   .strictObject(ReviewInput.shape)
@@ -1441,10 +1442,15 @@ export const ReviewInputView = z
     path: ['sourceFigures'],
     message: 'A MANUAL input has no figures',
   })
-  .refine((v) => !v.figuresWithheld || (v.source === 'INCIDENTS' && v.sourceFigures === null), {
-    path: ['figuresWithheld'],
-    message: 'Only an INCIDENTS row is withheld, and then without figures',
-  });
+  .refine(
+    (v) =>
+      !v.figuresWithheld ||
+      (v.source === 'INCIDENTS' && v.sourceFigures === null && v.notes === null),
+    {
+      path: ['figuresWithheld'],
+      message: 'Only an INCIDENTS row is withheld, and then without figures or notes',
+    },
+  );
 export type ReviewInputView = z.infer<typeof ReviewInputView>;
 
 export const ReviewOutputView = ReviewOutput.safeExtend({

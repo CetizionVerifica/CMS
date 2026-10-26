@@ -32,6 +32,7 @@ import type {
   ReviewInputKey,
   ReviewInputSource,
   RiskItem,
+  RiskKind,
 } from './schemas/iso.js';
 import type {
   AuditProgrammeCoverage,
@@ -169,9 +170,9 @@ export interface ReviewFigureEventDay {
 
 /**
  * An action as the figures read it. `settledOn` is the client-local day of its latest COMPLETE or CANCEL step (the
- * latest when it was reopened and settled again), set for every DONE or CANCELLED action and null for an OPEN one. Its
- * settled day is the later of `doneOn` and `settledOn` when DONE, and `settledOn` when CANCELLED; it counts as OPEN on
- * as-of until that day (docs/iso/model.md §5.4).
+ * latest when it was reopened and settled again, so COMPLETE, REOPEN, COMPLETE counts by the later COMPLETE), set for
+ * every DONE or CANCELLED action and null for an OPEN one. Its settled day is the later of `doneOn` and `settledOn` when
+ * DONE, and `settledOn` when CANCELLED; it counts as OPEN on as-of until that day (docs/iso/model.md §5.4).
  */
 export type ReviewFigureAction = Pick<IsoAction, 'id' | 'subject' | 'state' | 'dueOn' | 'doneOn'> &
   ReviewFigureDays & { settledOn: LocalDate | null };
@@ -183,7 +184,8 @@ export type ReviewFigureAction = Pick<IsoAction, 'id' | 'subject' | 'state' | 'd
  * reads each record as it is now, except where one of its dates gives its state on as-of; the event-day lists give the
  * window counts that have no date field of their own. A date a user enters is placed by the later of that date and the
  * day of the step that set it (the `...StepOn` and `settledOn` days, each the latest such step), so a record entered
- * after one review is recorded, but dated before it, counts in the next one. MANUAL reads nothing.
+ * after one review is recorded, but dated before it, counts in the next one; each climate decision is placed by its
+ * own event's day. MANUAL reads nothing.
  */
 export interface ReviewFigureData {
   /**
@@ -195,17 +197,23 @@ export interface ReviewFigureData {
     contextItems: (Pick<ContextItem, 'id' | 'kind'> & ReviewFigureDays)[];
     /** The days of the context items' UPDATE events (changed). */
     contextChanges: ReviewFigureEventDay[];
+    /** `climateChangeRelevant` is read as it is now. */
+    system: Pick<ManagementSystem, 'id' | 'climateChangeRelevant' | 'climateDecidedOn'>;
     /**
-     * `climateStepOn`: the day of the latest audited event that set the climate decision (a management system UPDATE
-     * whose `after` names `climateChangeRelevant` or `climateDecidedOn`), null while undecided. The decision counts
-     * from the later of that day and `climateDecidedOn`.
+     * The days of the climate decisions: every management system UPDATE whose `after` names `climateChangeRelevant`,
+     * `climateChangeRationale` or `climateDecidedOn` (only the climate route writes them), each a decision on its own
+     * day (`climateDecidedOn` is never later). `climateDecided` counts from the first on or before as-of, since a
+     * decision never returns to undecided; `climateDecidedInPeriod` when one falls in the window.
      */
-    system: Pick<ManagementSystem, 'id' | 'climateChangeRelevant' | 'climateDecidedOn'> & {
-      climateStepOn: LocalDate | null;
-    };
+    climateDecisions: ReviewFigureEventDay[];
   };
   RISKS: {
-    /** Only the kinds the input's key reads (`reviewRiskKinds`), so a 14001 review's two RISKS rows share no item. */
+    /**
+     * The kinds the input's key reads (`reviewRiskKinds`), in `RiskKind` order: the figures have a `significant<Kind>`
+     * key for these kinds only, so a 14001 review's two RISKS rows never count, or show a zero for, each other's items.
+     */
+    kinds: RiskKind[];
+    /** Only the items of `kinds`. */
     riskItems: (Pick<RiskItem, 'id' | 'kind' | 'significant'> & ReviewFigureDays)[];
     /**
      * The days of the risk items' UPDATE events whose `after` names `likelihood`, `severity`, `residualLikelihood` or
@@ -247,12 +255,12 @@ export interface ReviewFigureData {
   };
   INCIDENTS: {
     /**
-     * The incident NCs, cancelled ones left out. Each is placed by the later of its `occurredAt` day and its NC's
-     * counting day (the later of `createdOn` and `reportedOn`).
+     * The incident NCs, cancelled ones left out. Each is placed by its NC's counting day (the later of `createdOn` and
+     * `reportedOn`); its `occurredAt` day is never later (model §3.11).
      */
     nonconformities: (Pick<Nonconformity, 'id' | 'state' | 'reportedOn' | 'incident'> &
       ReviewFigureDays)[];
-    /** The client's time zone: incidents count by `occurredAt`, as `incidentCounts` does. */
+    /** The client's time zone, for `occurredAt`, as `incidentCounts` takes it. */
     timeZone: string;
   };
   AUDIT_RESULTS: {
