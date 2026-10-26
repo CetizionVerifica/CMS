@@ -39,6 +39,7 @@ describe('loadMoreEvidence', () => {
     await expect(loadMoreEvidence(CLIENT, 'scanStatus=SHINY', 'abc')).rejects.toThrow();
     await expect(loadMoreEvidence(CLIENT, 'limit=1', 'abc')).rejects.toThrow();
     await expect(loadMoreEvidence(CLIENT, '', '')).rejects.toThrow();
+    await expect(loadMoreEvidence(CLIENT, 'source=BOTH', 'abc')).rejects.toThrow();
   });
 
   it('loads the next page as the signed-in person', async () => {

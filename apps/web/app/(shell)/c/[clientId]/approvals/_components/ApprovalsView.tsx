@@ -2,13 +2,15 @@
 // The approvals inbox's interactive part: the TaskList in approver mode (J/K move, Enter opens, A approves, S sends
 // back with a reason), more pages on request, and the instance drawer over the list. Opening, moving and closing the
 // drawer only change the path, in the browser, as on the register.
-import type { InstanceDetail, InstanceRow } from '@canopy/contracts';
+import type { ActivitySource, InstanceDetail, InstanceRow } from '@canopy/contracts';
 import { Button, ConfirmDialog, formatNumber, TaskList, toast } from '@canopy/ui';
 import { usePathname, useRouter } from 'next/navigation';
-import { useCallback, useEffect, useRef, useState, type MouseEvent } from 'react';
+import { useCallback, useEffect, useRef, useState, useTransition, type MouseEvent } from 'react';
 
 import { InstanceDrawer } from '../../register/_components/InstanceDrawer';
+import { SourceToggle } from '../../register/_components/SourceToggle';
 import { rowOf } from '../../register/_lib/instance-api';
+import { withSource } from '../../register/_lib/source';
 import { runInstanceAction } from '../../register/instance-actions';
 import { loadMoreApprovals } from '../actions';
 import {
@@ -30,6 +32,10 @@ export type ApprovalsViewProps = {
   canManage: boolean;
   /** The client's IANA time zone. */
   timeZone: string;
+  /** The account has the ISO add-on: the Source filter is shown. */
+  iso?: boolean;
+  /** The Source filter from the URL; absent = both. */
+  source?: ActivitySource;
 };
 
 /** Answers that mean the row moved on since the page loaded: the list is re-read so the person sees it as it is. */
@@ -38,10 +44,18 @@ const MOVED_ON = new Set(['STALE_VERSION', 'INVALID_TRANSITION', 'NOT_FOUND']);
 const plural = (n: number, one: string, many: string) =>
   `${formatNumber(n)} ${n === 1 ? one : many}`;
 
-/** The count line under the header: here, and across every client when more wait elsewhere. */
-export function waitingLine(here: number, everywhere: number, scope: QueueScope): string {
+/**
+ * The count line under the header: here, and across every client when more wait elsewhere. With a Source filter the
+ * count across clients (which counts both) is left out, as it would not compare with the filtered count here.
+ */
+export function waitingLine(
+  here: number,
+  everywhere: number,
+  scope: QueueScope,
+  filtered = false,
+): string {
   const line = `${plural(here, 'item', 'items')} waiting for ${scope === 'mine' ? 'your ' : ''}approval here`;
-  return everywhere > here
+  return everywhere > here && !filtered
     ? `${line}, ${formatNumber(everywhere)} across all your clients.`
     : `${line}.`;
 }
@@ -54,9 +68,14 @@ export function ApprovalsView({
   waitingEverywhere,
   canManage,
   timeZone,
+  iso = false,
+  source,
 }: ApprovalsViewProps) {
   const router = useRouter();
   const pathname = usePathname();
+  /** The page's query, kept on every inbox and drawer path: just its Source filter. */
+  const query = withSource('', source).toString();
+  const [navigating, startNavigation] = useTransition();
   // Rows loaded with "Show more" stay until the server sends a new first page (after a refresh).
   const [rows, setRows] = useState(page.rows);
   const [nextCursor, setNextCursor] = useState(page.nextCursor);
@@ -77,7 +96,7 @@ export function ApprovalsView({
     if (!nextCursor) return;
     setLoadingMore(true);
     try {
-      const more = await loadMoreApprovals(clientId, scope, nextCursor);
+      const more = await loadMoreApprovals(clientId, scope, nextCursor, source);
       setRows((prev) => [...prev, ...more.rows.filter((r) => !prev.some((p) => p.id === r.id))]);
       setNextCursor(more.nextCursor);
     } catch {
@@ -85,7 +104,7 @@ export function ApprovalsView({
     } finally {
       setLoadingMore(false);
     }
-  }, [clientId, nextCursor, scope]);
+  }, [clientId, nextCursor, scope, source]);
 
   /** Takes a row out of the list once it has been decided, and refreshes the page so the badge catches up. */
   const settle = useCallback(
@@ -145,7 +164,7 @@ export function ApprovalsView({
   const openId = openApprovalId(pathname);
   const index = openId ? rows.findIndex((r) => r.id === openId) : -1;
   const showInstance = (id: string, replace = false) => {
-    const href = approvalsHref(clientId, id);
+    const href = approvalsHref(clientId, id, query);
     if (replace) window.history.replaceState(null, '', href);
     else window.history.pushState(null, '', href);
   };
@@ -189,14 +208,30 @@ export function ApprovalsView({
   };
 
   return (
-    <div ref={listRef} className="flex max-w-3xl flex-col gap-3">
+    <div
+      ref={listRef}
+      className="flex max-w-3xl flex-col gap-3"
+      aria-busy={navigating || undefined}
+    >
+      {iso ? (
+        <SourceToggle
+          value={source}
+          onChange={(next) =>
+            startNavigation(() =>
+              router.replace(approvalsHref(clientId, undefined, withSource('', next).toString()), {
+                scroll: false,
+              }),
+            )
+          }
+        />
+      ) : null}
       <h2 tabIndex={-1} className="text-body text-muted outline-none">
-        {waitingLine(total, waitingEverywhere, scope)}
+        {waitingLine(total, waitingEverywhere, scope, source !== undefined)}
       </h2>
       <TaskList
         label="Waiting for approval"
         mode="approver"
-        items={rows.map((r) => taskItem(clientId, r))}
+        items={rows.map((r) => taskItem(clientId, r, query))}
         processingIds={processing}
         onApprove={(id) => {
           const row = find(id);
@@ -235,7 +270,9 @@ export function ApprovalsView({
         timeZone={timeZone}
         canManage={canManage}
         personId={personId}
-        onClose={() => window.history.pushState(null, '', approvalsHref(clientId))}
+        onClose={() =>
+          window.history.pushState(null, '', approvalsHref(clientId, undefined, query))
+        }
         backLabel="Back to approvals"
         onPrev={sibling(-1)}
         onNext={sibling(1)}

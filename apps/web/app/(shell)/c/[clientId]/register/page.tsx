@@ -9,6 +9,7 @@ import { homeHref } from '../../../../../lib/shell/model';
 import { loadShell } from '../../../../../lib/shell/server';
 import { RegisterView } from './_components/RegisterView';
 import { apiQueryFromParams, registerPeriod } from './_lib/query';
+import { isoOn } from './_lib/source';
 import { loadFacets, loadPage } from './_lib/register-api';
 
 type Props = {
@@ -59,7 +60,8 @@ export default async function RegisterPage({ params, searchParams }: Props) {
   if (!client || !me) notFound();
   const roles = model.roles.byClient[clientId] ?? [];
 
-  const query = apiQueryFromParams(search, registerPeriod(search, client)).toString();
+  const iso = isoOn(model.features);
+  const query = apiQueryFromParams(search, registerPeriod(search, client), iso).toString();
   const api = await serverApi();
   let page;
   try {
@@ -89,6 +91,7 @@ export default async function RegisterPage({ params, searchParams }: Props) {
         canExport={roles.some((r) => EXPORTERS.includes(r))}
         canManage={roles.some((r) => MANAGERS.includes(r))}
         timeZone={client.timeZone}
+        iso={iso}
       />
     </>
   );

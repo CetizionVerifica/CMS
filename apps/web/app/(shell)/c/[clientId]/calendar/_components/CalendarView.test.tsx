@@ -148,3 +148,36 @@ describe('CalendarView', () => {
     expect(screen.queryByRole('table')).toBeNull();
   });
 });
+
+describe('CalendarView’s Source filter (ISO add-on)', () => {
+  it('is absent without the add-on', () => {
+    renderCalendar();
+    expect(screen.queryByRole('group', { name: 'Source' })).toBeNull();
+  });
+
+  it('writes the chosen source into the URL, keeping the period and the view', async () => {
+    renderCalendar({ iso: true, query: 'fy=2024-25&m=2024-11&view=list' });
+    const group = screen.getByRole('group', { name: 'Source' });
+    expect(
+      within(group).getByRole('button', { name: 'Law and ISO' }).getAttribute('aria-pressed'),
+    ).toBe('true');
+    await userEvent.click(within(group).getByRole('button', { name: 'Law' }));
+    expect(nav.push).toHaveBeenLastCalledWith(`${PATH}?fy=2024-25&m=2024-11&view=list&source=LAW`, {
+      scroll: false,
+    });
+  });
+
+  it('keeps the source when moving months, and clears it with Law and ISO', async () => {
+    renderCalendar({ iso: true, source: 'ISO', query: 'fy=2024-25&m=2024-11&source=ISO' });
+    const group = screen.getByRole('group', { name: 'Source' });
+    expect(within(group).getByRole('button', { name: 'ISO' }).getAttribute('aria-pressed')).toBe(
+      'true',
+    );
+    await userEvent.click(screen.getByRole('button', { name: 'Next month' }));
+    expect(nav.push).toHaveBeenLastCalledWith(`${PATH}?fy=2024-25&source=ISO&m=2024-12`, {
+      scroll: false,
+    });
+    await userEvent.click(within(group).getByRole('button', { name: 'Law and ISO' }));
+    expect(nav.push).toHaveBeenLastCalledWith(`${PATH}?fy=2024-25&m=2024-11`, { scroll: false });
+  });
+});
