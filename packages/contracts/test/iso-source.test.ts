@@ -3,6 +3,7 @@
 // every core route naming one answers 403 FEATURE_NOT_ENABLED; while it is on, the register, queues, vault and
 // calendar take `source` (LAW, ISO, absent = both). Statutory numbers count STATUTE-act instances either way.
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { ISO_ENTITY_TYPES } from '../src/enums.js';
 import { isoCatalogueId } from '../src/fixtures/index.js';
 import { instanceKind } from '../src/mock/core.js';
 import type { Row } from '../src/mock/store.js';
@@ -802,6 +803,135 @@ describe('routes naming an ISO activity', () => {
 });
 
 // ---------- the library ----------
+
+// ---------- ISO exports and the client audit trail (ISO-1b, contracts 1.8.3) ----------
+
+describe('the ISO export kinds', () => {
+  interface Job {
+    id: string;
+    kind: string;
+    status: string;
+    fileName: string;
+    params: { filters: string };
+  }
+  const NC_LOG = { kind: 'ISO_NC_LOG_XLSX', filters: 'state=OPEN' };
+
+  it('are created with their ISO list filters while the add-on is on', async () => {
+    const auditId = firm().iso.internalAudits[0]!.id;
+    const reviewId = firm().iso.managementReviews[0]!.id;
+    for (const [body, name] of [
+      [NC_LOG, /^iso-nc-log-xlsx-.*\.xlsx$/],
+      [{ kind: 'ISO_RISK_REGISTER_XLSX', filters: 'kind=HAZARD' }, /\.xlsx$/],
+      [{ kind: 'ISO_AUDIT_REPORT_PDF', filters: `internalAuditId=${auditId}` }, /\.pdf$/],
+      [{ kind: 'ISO_REVIEW_PACK_PDF', filters: `managementReviewId=${reviewId}` }, /\.pdf$/],
+    ] as const) {
+      const job = await ok<Job>(app, 'createExport', { as: PERSON.kabir, body });
+      expect(job).toMatchObject({
+        kind: body.kind,
+        status: 'DONE',
+        params: { filters: body.filters },
+      });
+      expect(job.fileName).toMatch(name);
+      expect(firm().data.auditEvents.at(-1)).toMatchObject({
+        action: 'EXPORT',
+        entityType: 'export',
+        entityId: job.id,
+        after: { kind: body.kind },
+      });
+    }
+    // An ISO kind takes its ISO list's filters, not the register's.
+    await fails(
+      app,
+      'createExport',
+      { as: PERSON.kabir, body: { kind: 'ISO_NC_LOG_XLSX', filters: 'status=OVERDUE' } },
+      'VALIDATION',
+      400,
+    );
+  });
+
+  it('answer 403 FEATURE_NOT_ENABLED on create, job read and download while off, after the role check', async () => {
+    const job = await ok<Job>(app, 'createExport', { as: PERSON.kabir, body: NC_LOG });
+    const events = firm().data.auditEvents.length;
+    await notEnabled('createExport', { as: PERSON.kabir, body: NC_LOG, headers: OFF });
+    await notEnabled('getExport', { as: PERSON.kabir, params: { id: job.id }, headers: OFF });
+    await notEnabled('exportDownloadUrl', {
+      as: PERSON.kabir,
+      params: { id: job.id },
+      headers: OFF,
+    });
+    expect(firm().data.auditEvents).toHaveLength(events);
+    await fails(
+      app,
+      'createExport',
+      { as: PERSON.rohan, body: NC_LOG, headers: OFF },
+      'FORBIDDEN',
+      403,
+    );
+    // The statutory kinds, and the client archive that always holds ISO data, stay open while off (plan §4.4).
+    const register = await ok<Job>(app, 'createExport', {
+      as: PERSON.kabir,
+      body: { kind: 'REGISTER_XLSX' },
+      headers: OFF,
+    });
+    await ok(app, 'exportDownloadUrl', {
+      as: PERSON.kabir,
+      params: { id: register.id },
+      headers: OFF,
+    });
+    await ok(app, 'createExport', {
+      as: PERSON.meera,
+      body: { kind: 'CLIENT_ARCHIVE_ZIP' },
+      headers: OFF,
+    });
+    // Back on, the ISO job reads and downloads again.
+    await ok(app, 'exportDownloadUrl', { as: PERSON.kabir, params: { id: job.id } });
+  });
+});
+
+describe('the client audit trail', () => {
+  interface Event {
+    id: string;
+    entityType: string;
+    entityId: string;
+    action: string;
+  }
+  const trail = (query: Record<string, string> = {}, headers = {}) =>
+    all<Event>('clientAudit', { as: PERSON.kabir, query, headers });
+
+  it('lists the ISO records’ events, the fixture sample included, with the add-on on or off', async () => {
+    const on = await trail();
+    for (const type of ISO_ENTITY_TYPES) {
+      expect(
+        on.some((e) => e.entityType === type),
+        type,
+      ).toBe(true);
+    }
+    expect(ids(await trail({}, OFF))).toEqual(ids(on));
+    const nc = await trail({ entityType: 'nonconformity' });
+    expect(nc.length).toBeGreaterThan(0);
+    expect(nc.every((e) => e.entityType === 'nonconformity')).toBe(true);
+    const nearMiss = firm().iso.nonconformities.find((n) => n.number === 6)!;
+    expect(nc).toContainEqual(expect.objectContaining({ entityId: nearMiss.id, action: 'CREATE' }));
+    // Nobody outside Northwind sees them.
+    expect(
+      firm()
+        .data.auditEvents.filter((e) =>
+          (ISO_ENTITY_TYPES as readonly string[]).includes(e.entityType),
+        )
+        .every((e) => e.clientId === NORTHWIND),
+    ).toBe(true);
+  });
+
+  it('lists a change made through an ISO route', async () => {
+    const item = await ok<{ id: string }>(app, 'createIsoContextItem', {
+      as: PERSON.kabir,
+      params: { id: firm().iso.managementSystems[0]!.id },
+      body: { kind: 'EXTERNAL_ISSUE', text: 'A new packaging levy is proposed.' },
+    });
+    const rows = await trail({ entityType: 'context_item', entityId: item.id });
+    expect(rows.map((e) => e.action)).toEqual(['CREATE']);
+  });
+});
 
 describe('the library', () => {
   it('lists STANDARD acts and their obligations only while on', async () => {

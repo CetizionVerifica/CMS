@@ -1728,7 +1728,7 @@ describe('updateIsoExternalFinding', () => {
     const onNc = { clientId: nc.clientId, id: nc.id };
     /** Refuses a type move and changes nothing: no event, the finding and its NC as they were. */
     const refused = async (as: string, type: string, code: string, status: number) => {
-      const events = firmB(app).isoAuditEvents.length;
+      const events = firmB(app).data.auditEvents.length;
       const was = { state: nc.state, severity: nc.severity, version: nc.version };
       const out = await fails(
         app,
@@ -1737,7 +1737,7 @@ describe('updateIsoExternalFinding', () => {
         code,
         status,
       );
-      expect(firmB(app).isoAuditEvents).toHaveLength(events);
+      expect(firmB(app).data.auditEvents).toHaveLength(events);
       expect(firmB(app).iso.findings.find((f) => f.id === finding.id)).toMatchObject({
         type: finding.type,
         version: finding.version,
@@ -2039,7 +2039,9 @@ describe('the finding audit trail', () => {
       before: { description: '[not recorded]' },
       after: { description: '[not recorded]' },
     });
-    const trail = JSON.stringify(firmB(app).isoAuditEvents.filter((e) => e.clientId === NORTHWIND));
+    const trail = JSON.stringify(
+      firmB(app).data.auditEvents.filter((e) => e.clientId === NORTHWIND),
+    );
     expect(trail).not.toContain(raisedText);
     expect(trail).not.toContain(editedText);
   });

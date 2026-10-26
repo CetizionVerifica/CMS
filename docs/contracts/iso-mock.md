@@ -20,6 +20,13 @@ README decisions 42-51. M4 owns every formula marked "stand-in".
   finding descriptions are never copied into audit events (non-negotiable 6): a RAISE (by hand, or from an internal or
   external finding, which adds `auditFindingId`) and a finding's `CREATE` leave them out, and an edit of a
   nonconformity's or a finding's description or an incident's location shows `[not recorded]` on both sides.
+- **The client audit trail.** Since 1.8.3 the ISO events are in firm B's `auditEvents` with the client's other events,
+  so `GET /clients/{clientId}/audit` lists and filters them, with the add-on on or off (plan §4.4). The fixture's
+  sample trail (fixtures.md §8) loads with them.
+- **ISO exports.** The mock writes no file: an ISO export kind is checked (its filters against `ISO_EXPORT_FILTERS`, by
+  the body schema), kept as a `DONE` job named `iso-...-<today>.xlsx` or `.pdf` and audited as `EXPORT`. While the
+  add-on is off, its create, job read and download URL answer `403 FEATURE_NOT_ENABLED` after the role check; the
+  mock does not check that the audit or review a PDF names exists or is in the reader's units (M10 does, ISO-11d).
 - **File scans.** A confirmed file is `PENDING` and becomes `CLEAN` (or `INFECTED` for an "eicar" name) on the next
   read of its subject's files or download URL, or when a step relies on it: a revision's SUBMIT or RECORD_EDITION, an
   external audit's RECORD_HELD.

@@ -169,8 +169,10 @@ AP and OW dashboards are limited to their units (and owners see the same numbers
 Statutory numbers (portfolio, overview, breakdowns, the act-wise, department-wise and overdue reports, the certificate
 PDF) count STATUTE-act instances only, with the ISO add-on on or off (`docs/iso/plan.md` §4.6); while it is on,
 `PortfolioRow.dueThisWeekFilter.source` is `LAW`, so the linked register lists exactly the items counted. The ISO
-export kinds (`ISO_EXPORT_KINDS`) are staged: `kind` refuses them until ISO-1b joins them to `ExportKind`, after which
-their `filters` are checked against the ISO list queries (`ISO_EXPORT_FILTERS`), not the register's.
+export kinds (`ISO_EXPORT_KINDS`, part of `ExportKind` since 1.8.3) take the ISO list filters (`ISO_EXPORT_FILTERS`),
+not the register's: the NC log and risk register their list's query without paging, the audit report
+`internalAuditId=` and the review pack `managementReviewId=`. They are ISO data: while the add-on is off, creating one
+and reading or downloading its job answer `403 FEATURE_NOT_ENABLED`, after the role check (`docs/iso/plan.md` §4.5).
 `REGISTER_XLSX` uses the 19 sample headers in the same order so it re-imports with no changes.
 `CLIENT_ARCHIVE_ZIP` is the account export, one client at a time: FA only (`403 FORBIDDEN` for anyone else), no
 `filters`, `unitId` or `fy`; a zip of the client's whole register (every FY, the `REGISTER_XLSX` layout) and its clean
@@ -239,7 +241,8 @@ review or response date) needs a `reason`, and the event carries it (README deci
 one are listed in `src/api/iso.ts` per body, and a body that names one needs the reason even if the value is
 unchanged, so send only the fields that change. A date or owner a step sets itself (RECORD_HELD's dates, a risk's review
 date when a treatment action puts a control in place) needs none. Every create, edit, state change, list change and file add, remove or download writes an `AuditEvent` with
-the model §8 entity type (`ISO_ENTITY_TYPES`, staged: no route writes one before ISO-1b joins them to `EntityType`).
+the model §8 entity type (`ISO_ENTITY_TYPES`, part of `EntityType` since 1.8.3); `GET /clients/{clientId}/audit`
+lists those events with the client's other events, with the add-on on or off (`docs/iso/plan.md` §4.4).
 Views of records with a machine carry `allowedActions`, the steps the signed-in person may take now. Machine steps
 honour `Idempotency-Key` (api-conventions.md §2), RAISE and PLAN included, and so do a risk item's REVIEW, closing an
 objective, a nonconformity's reassign and a management review's replan; DRAFT_REVISION, like every other create, does

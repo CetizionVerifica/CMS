@@ -2134,6 +2134,259 @@ export function buildFirmBIso(): Fixture {
     }
   }
 
+  // ---------- the audit trail: a sample, each event as the mock's route writes it ----------
+
+  // ISO records' events joined the client audit trail in contracts 1.8.3 (ISO-1b). The sample names every ISO entity
+  // type: the system's set-up with its checklist rows, one record of each other kind created, and one form's first
+  // revision from draft to approval. It leaves out every step the mock's rules or the held review's figures read (a
+  // context or risk UPDATE, an NC's later steps, an audit's REPORT, an external audit's RECORD_HELD, an action's
+  // COMPLETE or CANCEL), so they read the records as they did before (docs/contracts/fixtures.md §8).
+  type Event = Row<'auditEvents'>;
+  const auditEvents: Rows<'auditEvents'> = [];
+  let request = 0;
+  /** Starts a request: the events written until the next one share its id. */
+  const newRequest = () => `fixture-iso-${(request += 1)}`;
+  const trail = (
+    requestId: string,
+    when: string,
+    actorId: string,
+    action: Event['action'],
+    entity: { type: Event['entityType']; id: string },
+    after: Record<string, unknown>,
+    before: Record<string, unknown> | null = null,
+  ) => {
+    auditEvents.push({
+      id: k(`audit:${auditEvents.length + 1}`),
+      firmId: FIRM_B_ID,
+      clientId: NORTHWIND,
+      at: when,
+      requestId,
+      actorId,
+      actorKind: 'PERSON',
+      action,
+      entityType: entity.type,
+      entityId: entity.id,
+      before,
+      after,
+      reason: null,
+    });
+  };
+  const BASE = new Set(['id', 'firmId', 'clientId', 'createdAt', 'updatedAt', 'archivedAt']);
+  /** A record's own fields, as a CREATE that writes them all records them. */
+  const own = (row: object) =>
+    Object.fromEntries(Object.entries(row).filter(([key]) => !BASE.has(key) && key !== 'version'));
+  /** A record's CREATE, in a request of its own, at its `createdAt`. */
+  const created = (
+    row: { id?: string | undefined; createdAt?: string | undefined },
+    type: Event['entityType'],
+    actorId: string,
+    after: Record<string, unknown>,
+  ) => trail(newRequest(), row.createdAt!, actorId, 'CREATE', { type, id: row.id! }, after);
+  const find = <T extends { id?: string | undefined }>(rows: T[], key: string) => {
+    const found = rows.find((r) => r.id === k(key));
+    if (found === undefined) throw new Error(`No ISO row ${key}`);
+    return found;
+  };
+  const KABIR = who('kabir');
+
+  // The system, set up as PLANNING with all three standards, writes one checklist row per assessable clause.
+  const setUp = newRequest();
+  trail(
+    setUp,
+    system.createdAt!,
+    KABIR,
+    'CREATE',
+    { type: 'management_system', id: systemId },
+    {
+      name: system.name,
+      standardIds: system.standardIds,
+      scopeStatement: system.scopeStatement,
+      unitIds: system.unitIds,
+      status: 'PLANNING',
+      reviewIntervalMonths: system.reviewIntervalMonths,
+    },
+  );
+  for (const row of clauseAssessments) {
+    trail(
+      setUp,
+      system.createdAt!,
+      KABIR,
+      'CREATE',
+      { type: 'clause_assessment', id: row.id! },
+      { managementSystemId: systemId, clauseId: row.clauseId, status: 'NOT_STARTED' },
+    );
+  }
+  for (const key of ['context:packaging', 'context:regulator']) {
+    const item = find(contextItems, key);
+    created(item, 'context_item', KABIR, {
+      managementSystemId: systemId,
+      kind: item.kind,
+      text: item.text,
+      needs: item.needs,
+      climateRelated: item.climateRelated,
+      reviewedOn: item.reviewedOn,
+    });
+  }
+  // The energy objective links its risk item only once that item is recorded (2024-05-14).
+  const energy = find(objectives, 'objective:energy');
+  created(energy, 'objective', KABIR, { ...own(energy), riskItemIds: [] });
+  const solar = find(actions, 'action:rooftop-solar');
+  created(solar, 'iso_action', KABIR, {
+    subject: solar.subject,
+    ownerId: solar.ownerId,
+    dueOn: solar.dueOn,
+    state: 'OPEN',
+    controlHierarchy: solar.controlHierarchy,
+    outputKey: solar.outputKey,
+  });
+  const programme = find(auditProgrammes, 'programme:2024-25');
+  created(programme, 'audit_programme', KABIR, {
+    managementSystemId: systemId,
+    fy: programme.fy,
+    notes: programme.notes,
+  });
+  const q1 = find(internalAudits, 'audit:q1-quality');
+  created(q1, 'internal_audit', KABIR, {
+    programmeId: q1.programmeId,
+    title: q1.title,
+    plannedStart: q1.plannedStart,
+    plannedEnd: q1.plannedEnd,
+    clauseIds: q1.clauseIds,
+    unitIds: q1.unitIds,
+    leadAuditorId: q1.leadAuditorId,
+    auditorIds: q1.auditorIds,
+    auditeeIds: q1.auditeeIds,
+    reportedToIds: q1.reportedToIds,
+    independenceNote: q1.independenceNote,
+    state: 'PLANNED',
+  });
+
+  // The oven temperature log: created, its first revision drafted by its owner, submitted and approved.
+  const ovenLog = find(documents, 'document:NFG-FRM-03');
+  const ovenLogRevision = revisions.find((r) => r.documentId === ovenLog.id)!;
+  created(ovenLog, 'controlled_document', KABIR, {
+    managementSystemId: systemId,
+    code: ovenLog.code,
+    title: ovenLog.title,
+    type: ovenLog.type,
+    clauseIds: ovenLog.clauseIds,
+    ownerId: ovenLog.ownerId,
+    approverId: ovenLog.approverId,
+    reviewDueOn: ovenLog.reviewDueOn,
+  });
+  created(ovenLogRevision, 'document_revision', ovenLogRevision.preparedById, {
+    action: 'DRAFT_REVISION',
+    documentId: ovenLog.id,
+    revision: ovenLogRevision.revision,
+    state: 'DRAFT',
+  });
+  const flourStock = find(riskControls, 'control:flour-stock');
+  created(flourStock, 'risk_control', KABIR, own(flourStock));
+  trail(
+    newRequest(),
+    at('2024-05-16'),
+    ovenLogRevision.preparedById,
+    'TRANSITION',
+    { type: 'document_revision', id: ovenLogRevision.id! },
+    { action: 'SUBMIT', state: 'IN_REVIEW', sendBackReason: null },
+    { state: 'DRAFT', sendBackReason: null },
+  );
+  const approval = newRequest();
+  trail(
+    approval,
+    ovenLogRevision.approvedAt!,
+    ovenLogRevision.approvedById!,
+    'TRANSITION',
+    { type: 'document_revision', id: ovenLogRevision.id! },
+    {
+      action: 'APPROVE',
+      state: 'APPROVED',
+      approvedById: ovenLogRevision.approvedById,
+      approvedAt: ovenLogRevision.approvedAt,
+    },
+    { state: 'IN_REVIEW', approvedById: null, approvedAt: null },
+  );
+  trail(
+    approval,
+    ovenLogRevision.approvedAt!,
+    ovenLogRevision.approvedById!,
+    'UPDATE',
+    { type: 'controlled_document', id: ovenLog.id! },
+    { currentRevisionId: ovenLogRevision.id },
+    { currentRevisionId: null },
+  );
+  // Unchanged since it was recorded, so the route's CREATE (never reviewed yet, no override) is the record itself.
+  const packagingWaste = find(riskItems, 'risk:packaging-waste');
+  created(packagingWaste, 'risk_item', KABIR, own(packagingWaste));
+
+  const lateSignaturesFinding = findings.find((f) => f.id === lateSignatures)!;
+  created(lateSignaturesFinding, 'audit_finding', q1.leadAuditorId, {
+    internalAuditId: q1.id,
+    type: lateSignaturesFinding.type,
+    clauseIds: lateSignaturesFinding.clauseIds,
+    unitId: lateSignaturesFinding.unitId,
+    nonconformityId: lateSignaturesFinding.nonconformityId,
+  });
+  const firstEnergyReading = readings.find((r) => r.objectiveId === energy.id)!;
+  created(firstEnergyReading, 'objective_reading', firstEnergyReading.recordedById, {
+    ...own(firstEnergyReading),
+  });
+  const qualityCertificate = find(certifications, 'certification:9001');
+  created(qualityCertificate, 'certification', KABIR, own(qualityCertificate));
+  const surveillance = find(externalAudits, 'external:surveillance-1');
+  created(surveillance, 'external_audit', KABIR, own(surveillance));
+
+  const firstReview = managementReviews[0]!;
+  const defKey = <D extends { id?: string | undefined; key: string }>(defs: D[], id: string) =>
+    defs.find((d) => d.id === id)!.key;
+  created(firstReview, 'management_review', KABIR, {
+    managementSystemId: systemId,
+    standards: firstReview.standards,
+    plannedOn: firstReview.plannedOn,
+    chairId: firstReview.chairId,
+    attendeeIds: firstReview.attendeeIds,
+    state: 'PLANNED',
+    inputKeys: ReviewInputKey.options.filter((key) =>
+      reviewInputs.some((r) => defKey(catalogue.reviewInputDefs, r.inputDefId) === key),
+    ),
+    outputKeys: ReviewOutputKey.options.filter((key) =>
+      reviewOutputs.some((r) => defKey(catalogue.reviewOutputDefs, r.outputDefId) === key),
+    ),
+  });
+
+  // A near miss reported by hand: its RAISE names the incident's type, outcome and reportability, never the person.
+  const nearMiss = nonconformities.find((n) => n.number === 6)!;
+  created(nearMiss, 'nonconformity', nearMiss.reportedById, {
+    action: 'RAISE',
+    number: nearMiss.number,
+    source: nearMiss.source,
+    severity: nearMiss.severity,
+    standards: nearMiss.standards,
+    clauseIds: nearMiss.clauseIds,
+    unitId: nearMiss.unitId,
+    sourceInstanceId: nearMiss.sourceInstanceId,
+    raisedFromRiskItemId: nearMiss.raisedFromRiskItemId,
+    ownerId: nearMiss.ownerId,
+    approverId: nearMiss.approverId,
+    dueOn: nearMiss.dueOn,
+    state: 'OPEN',
+    incident: {
+      type: nearMiss.incident!.type,
+      outcome: nearMiss.incident!.outcome,
+      reportable: nearMiss.incident!.reportable,
+    },
+  });
+  const q3 = find(internalAudits, 'audit:q3-office');
+  const recordsQuestion = auditChecklistItems.find(
+    (i) => i.internalAuditId === q3.id && i.version === 1,
+  )!;
+  created(recordsQuestion, 'audit_checklist_item', q3.leadAuditorId, {
+    internalAuditId: q3.id,
+    clauseId: recordsQuestion.clauseId,
+    unitId: recordsQuestion.unitId,
+    question: recordsQuestion.question,
+  });
+
   return {
     source: 'synthetic: Northwind Foods Group ISO 9001, 14001 and 45001 (fictional)',
     firmId: FIRM_B_ID,
@@ -2162,5 +2415,6 @@ export function buildFirmBIso(): Fixture {
     reviewInputs,
     reviewOutputs,
     files,
+    auditEvents,
   };
 }

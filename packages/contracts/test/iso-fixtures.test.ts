@@ -4,7 +4,7 @@
 import { readFileSync } from 'node:fs';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { NonconformityView, ObjectiveView } from '../src/api/iso.js';
-import type { IsoStandardCode } from '../src/enums.js';
+import { ISO_ENTITY_TYPES, type IsoEntityType, type IsoStandardCode } from '../src/enums.js';
 import {
   FIRM_B_AS_OF,
   fixtureId,
@@ -198,6 +198,7 @@ describe('firm-b.iso.json', () => {
       add('assignment', [a.defaultOwnerId, a.defaultApproverId], a.unitId);
     for (const i of iso.instances) add('instance', [i.ownerId, i.approverId], i.unitId);
     for (const e of iso.evidence) add('evidence', [e.uploadedById]);
+    for (const e of iso.auditEvents) add('audit event', [e.actorId]);
     const checked = named.filter((n) => n.personId !== null);
     expect(checked.length).toBeGreaterThan(300);
     for (const n of checked)
@@ -653,6 +654,7 @@ describe('files and dates', () => {
       }
     }
     for (const n of iso.nonconformities) check('incident', n.incident?.occurredAt);
+    for (const e of iso.auditEvents) check('audit event', e.at);
     for (const r of iso.readings) check('reading', r.periodEnd);
     for (const a of iso.internalAudits.filter(
       (x) => x.state !== 'PLANNED' && x.state !== 'CANCELLED',
@@ -671,6 +673,104 @@ describe('files and dates', () => {
     const text = JSON.stringify(raw).toLowerCase();
     for (const name of denied.names) expect(text).not.toContain(name);
     for (const word of denied.words) expect(text).not.toMatch(new RegExp(`\\b${word}\\b`));
+  });
+});
+
+describe('the audit trail sample (ISO-1b)', () => {
+  const TABLE = {
+    management_system: 'managementSystems',
+    certification: 'certifications',
+    external_audit: 'externalAudits',
+    context_item: 'contextItems',
+    clause_assessment: 'clauseAssessments',
+    controlled_document: 'documents',
+    document_revision: 'revisions',
+    risk_item: 'riskItems',
+    risk_control: 'riskControls',
+    objective: 'objectives',
+    objective_reading: 'readings',
+    audit_programme: 'auditProgrammes',
+    internal_audit: 'internalAudits',
+    audit_checklist_item: 'auditChecklistItems',
+    audit_finding: 'findings',
+    nonconformity: 'nonconformities',
+    iso_action: 'actions',
+    management_review: 'managementReviews',
+  } as const satisfies Record<IsoEntityType, TableName>;
+  const recordOf = (e: (typeof iso.auditEvents)[number]) =>
+    rowsOf(TABLE[e.entityType as IsoEntityType]).find((r) => r.id === e.entityId);
+
+  it('names every ISO entity type, oldest first, each event on a Northwind record of its type', () => {
+    const types = new Set(iso.auditEvents.map((e) => e.entityType));
+    expect([...types].sort()).toEqual([...ISO_ENTITY_TYPES].sort());
+    const at = iso.auditEvents.map((e) => e.at);
+    expect(at).toEqual([...at].sort());
+    for (const e of iso.auditEvents) {
+      expect(e.actorKind, e.id).toBe('PERSON');
+      expect(recordOf(e)?.clientId, `${e.entityType} ${e.entityId}`).toBe(NORTHWIND);
+    }
+  });
+
+  it('writes each CREATE when its record was created, and one CREATE per record at most', () => {
+    const creates = iso.auditEvents.filter((e) => e.action === 'CREATE');
+    expect(count(creates.map((e) => e.entityId))).toBe(creates.length);
+    for (const e of creates) expect(e.at, e.entityType).toBe(recordOf(e)!.createdAt);
+    // The system's set-up writes its checklist rows in the same request.
+    const setUp = creates.find((e) => e.entityType === 'management_system')!;
+    const rows = creates.filter((e) => e.requestId === setUp.requestId);
+    expect(rows).toHaveLength(1 + iso.clauseAssessments.length);
+  });
+
+  it('starts each created record where its route starts it', () => {
+    // A CREATE records the values a create route sets itself, whatever the record holds now.
+    const START: Partial<Record<IsoEntityType, Record<string, unknown>>> = {
+      management_system: { status: 'PLANNING' },
+      clause_assessment: { status: 'NOT_STARTED' },
+      document_revision: { action: 'DRAFT_REVISION', state: 'DRAFT' },
+      risk_item: { lastReviewedOn: null, significantOverride: null, significanceReason: null },
+      objective: { closedOn: null, outcome: null },
+      internal_audit: { state: 'PLANNED' },
+      nonconformity: { action: 'RAISE', state: 'OPEN' },
+      iso_action: { state: 'OPEN' },
+      management_review: { state: 'PLANNED' },
+    };
+    for (const e of iso.auditEvents.filter((x) => x.action === 'CREATE')) {
+      const start = START[e.entityType as IsoEntityType];
+      if (start !== undefined) expect(e.after, e.entityType).toMatchObject(start);
+    }
+  });
+
+  it('takes one form’s first revision from draft to approval by two different people', () => {
+    const steps = iso.auditEvents.filter((e) => e.entityType === 'document_revision');
+    expect(steps.map((e) => e.after?.action)).toEqual(['DRAFT_REVISION', 'SUBMIT', 'APPROVE']);
+    expect(new Set(steps.map((e) => e.entityId)).size).toBe(1);
+    const revision = byId(iso.revisions, steps[0]!.entityId)!;
+    expect(revision.state).toBe('APPROVED');
+    expect(steps[1]!.actorId).toBe(revision.preparedById);
+    expect(steps[2]!.actorId).toBe(revision.approvedById);
+    expect(steps[2]!.actorId).not.toBe(steps[1]!.actorId);
+  });
+
+  it('leaves out every step the mock’s rules and the review figures read', () => {
+    // Context and risk UPDATEs, NC steps after RAISE, audit REPORTs, RECORD_HELD and action COMPLETE or CANCEL.
+    for (const e of iso.auditEvents) {
+      if (['context_item', 'risk_item'].includes(e.entityType)) expect(e.action).toBe('CREATE');
+      if (
+        ['nonconformity', 'internal_audit', 'external_audit', 'iso_action'].includes(e.entityType)
+      ) {
+        expect(e.action, e.entityType).toBe('CREATE');
+      }
+    }
+  });
+
+  it('copies no incident personal data and no finding description into an event (model §3.11)', () => {
+    const text = JSON.stringify(iso.auditEvents);
+    for (const nc of iso.nonconformities.filter((n) => n.incident !== null)) {
+      expect(text).not.toContain(nc.incident!.location);
+      expect(text).not.toContain(nc.description);
+      expect(text).not.toContain(nc.incident!.occurredAt);
+    }
+    for (const f of iso.findings) expect(text).not.toContain(f.description);
   });
 });
 

@@ -17,7 +17,7 @@ const detail = tolerant(ENDPOINTS.getInstance.response).parse(await response.jso
 | File | What |
 |---|---|
 | `src/primitives.ts` | `Id`, `LocalDate` (branded, real calendar dates only), `Instant` (UTC `Z`), `MonthDay`, `FyLabel`, text and code types, `baseShape` / `versionedShape` |
-| `src/enums.ts` | Every enum in `docs/contracts/domain-model.md` §2, plus `IMPORT_ISSUE_SEVERITY`, `FIRM_ROLES`, `CLIENT_ROLES`, and the staged ISO constants `ISO_ENTITY_TYPES`, `ISO_NOTIFICATION_KINDS`, `ISO_EXPORT_KINDS` (domain-model.md §10) |
+| `src/enums.ts` | Every enum in `docs/contracts/domain-model.md` §2, plus `IMPORT_ISSUE_SEVERITY`, `FIRM_ROLES`, `CLIENT_ROLES`, and the ISO constants `ISO_ENTITY_TYPES`, `ISO_NOTIFICATION_KINDS`, `ISO_EXPORT_KINDS`, staged until 1.8.3 and now the last values of their enums (domain-model.md §10) |
 | `src/errors.ts` | `ErrorCode`, `ERROR_HTTP_STATUS`, `ErrorEnvelope` |
 | `src/defaults.ts` | `DEFAULT_FIRM_SETTINGS`, `DEFAULT_CLIENT_SETTINGS` (PLAN.md §7), `DEFAULT_ISO_RISK_RULE`, the ISO reminder shapes and `ISO_REMINDER_SCHEDULE` |
 | `src/schemas/*` | Entity schemas: tenancy, library (incl. `RecurrenceRule`), work, import, scores, request context, accounts (plans, support grants, operator audit); `iso.ts` (the ISO catalogue, every ISO record, the machines' enums, `IsoFile`) and `iso-results.ts` (what the ISO engine returns) |

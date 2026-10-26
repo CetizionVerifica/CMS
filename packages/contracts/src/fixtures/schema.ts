@@ -243,5 +243,10 @@ export const IsoFixtureSet = z.strictObject({
   instances: z.array(ComplianceInstance),
   evidence: z.array(Evidence),
   ...IsoTablesShape,
+  /**
+   * A sample of the ISO records' audit trail, oldest first, each event as the mock's route writes it (contracts 1.8.3,
+   * ISO-1b): it joins firm B's `auditEvents`, so the client audit trail lists it.
+   */
+  auditEvents: z.array(AuditEvent),
 });
 export type IsoFixtureSet = z.infer<typeof IsoFixtureSet>;

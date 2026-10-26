@@ -54,7 +54,7 @@ import {
   readinessScore,
   uncoveredByAudits,
 } from '../../iso/derive.js';
-import type { FirmState, IsoAuditEvent, IsoRow } from '../../store.js';
+import type { FirmState, AuditRecord, IsoRow } from '../../store.js';
 
 type Ids =
   | 'listIsoStandards'
@@ -85,7 +85,7 @@ type AssessmentView = z.input<typeof ClauseAssessmentView>;
 type SystemOverview = z.input<typeof IsoSystemOverview>;
 type Count = z.input<typeof IdCount>;
 type Gate = z.input<typeof GateResult>;
-type AuditAction = IsoAuditEvent['action'];
+type AuditAction = AuditRecord['action'];
 
 // ---------- catalogue order ----------
 
