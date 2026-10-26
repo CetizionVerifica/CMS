@@ -18,6 +18,7 @@ async function fillOwner(user: ReturnType<typeof userEvent.setup>) {
 }
 
 describe('a new account', () => {
+  // Typing the owner's three fields key by key takes up to 20 s on a busy CI runner, past the package's 20 s default.
   it('offers only plans that are not retired, provisions once per form and opens the account', async () => {
     const api = fakeApi({
       'GET /plans': list(PLANS),
@@ -44,7 +45,7 @@ describe('a new account', () => {
       activeNow: false,
       owner: { displayName: 'Asha Rao', email: 'asha@kestrel.example' },
     });
-  });
+  }, 60_000);
 
   it('keeps the same key on a retry and shows the API field errors', async () => {
     let calls = 0;
@@ -72,7 +73,7 @@ describe('a new account', () => {
       .filter((s) => s.method === 'POST')
       .map((s) => s.headers.get('idempotency-key'));
     expect(keys[0]).toBe(keys[1]);
-  });
+  }, 60_000);
 
   it('cancels back to the list and reports plans that did not load', async () => {
     const navigate = vi.fn();
