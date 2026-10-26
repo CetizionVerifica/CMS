@@ -15,7 +15,7 @@ import {
   type ClauseAssessmentRow,
   type TenantTx,
 } from '@canopy/db';
-import { isoMayCheck, isoTransition } from '@canopy/engine';
+import { climateDeterminationGaps, isoMayCheck, isoTransition } from '@canopy/engine';
 import {
   authorize,
   canSee,
@@ -547,7 +547,7 @@ export function systemsHandlers(core: Core): IsoHandlers<Ids> {
           if (
             patch.status === 'IMPLEMENTED' &&
             clause.number === '4.1' &&
-            system.climateChangeRelevant === null
+            climateDeterminationGaps(system, [], []).includes('UNDECIDED')
           ) {
             invalid(
               'status',

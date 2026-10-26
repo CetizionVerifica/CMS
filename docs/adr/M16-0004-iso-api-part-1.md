@@ -8,7 +8,8 @@ Status: accepted, 2026-10-26. Package ISO-8a (`docs/iso/packages.md`). Plan: `do
 ISO-8a serves the first 45 ISO routes from Postgres: catalogue reads, management systems, context, the climate
 decision, the clause checklist with its N/A machine, controlled documents and revisions, certificates, external audit
 visits (RECORD_HELD and CANCEL) and ISO files. The brief keeps each of the mock's picks for these areas, or records
-here where the real routes answer differently. Six places differ. None changes a contract shape.
+here where the real routes answer differently. Six places differ, and decision 7 records one of the mock's picks kept
+on purpose. None changes a contract shape.
 
 ## Decisions
 
@@ -43,6 +44,12 @@ here where the real routes answer differently. Six places differ. None changes a
    naming the same person succeeds. M7's assignee check has the same limit. The fix is an M3 read that answers
    "does this person hold one of these roles in this client and unit" without showing the rows; until it lands, client
    roles name client members.
+
+7. **A report still being scanned.** RECORD_HELD counts a report file that is PENDING or CLEAN, as the mock does, so
+   a visit can be recorded held while its report is still being scanned (seconds, as a rule). If the scan then finds
+   the file INFECTED, the visit stays HELD but has no readable report. The client admin uploads the report again; the
+   external audit stays open to files until it is CLOSED or CANCELLED. Asking for a CLEAN file would make people wait
+   on the scan for a record they already hold on paper.
 
 ## Consequences
 

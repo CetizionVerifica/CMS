@@ -38,6 +38,9 @@ export interface Calendar {
 
 export type AuditAction = AuditEvent['action'];
 
+/** The audit actions a machine step is written as: TRANSITION, and CREATE for a step that adds a row (DRAFT_REVISION). */
+const STEP_ACTIONS: readonly AuditAction[] = ['CREATE', 'TRANSITION'];
+
 export interface IsoAuditEvent {
   action: AuditAction;
   entityType: IsoEntityType;
@@ -156,9 +159,24 @@ export function createCore(options: IsoRouteOptions) {
       });
     },
 
-    /** A record's machine steps, oldest first, for the maker-checker rule (model §4 preamble). */
+    /**
+     * A record's machine steps, oldest first, for the maker-checker rule (model §4 preamble): every step event, however
+     * many other events (file downloads among them) the record has.
+     */
     async steps(tx: TenantTx, entityType: IsoEntityType, entityId: string): Promise<Step[]> {
-      const events = await auditEvents.forEntity(tx, entityType, entityId, { limit: 200 });
+      const events: AuditEvent[] = [];
+      let after: string | null = null;
+      do {
+        const page = await auditEvents.query(tx, {
+          entityType,
+          entityId,
+          action: [...STEP_ACTIONS],
+          limit: 200,
+          after,
+        });
+        events.push(...page.items);
+        after = page.nextCursor;
+      } while (after !== null);
       return events
         .reverse()
         .flatMap((e) =>

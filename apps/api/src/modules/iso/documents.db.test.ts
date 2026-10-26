@@ -1,3 +1,4 @@
+import { auditEvents } from '@canopy/db';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { attach, createHarness, type Harness, type Reply, type Who } from './testing/fixture.js';
 
@@ -320,6 +321,36 @@ describe('the revision machine (model §4.2)', () => {
       actor_id: h.f.people.otherAdmin,
       after: expect.objectContaining({ action: 'APPROVE', delegated: true }),
     });
+  });
+
+  it('reads every step for maker-checker, however many other events the revision has', async () => {
+    const doc = await document();
+    const rev = await submitted(doc.id as string, 'A', 'clientAdmin');
+    // More file downloads than one page of the trail, all after the SUBMIT.
+    await h.asSystem(async (tx) => {
+      for (let i = 0; i < 250; i += 1) {
+        await auditEvents.append(tx, {
+          clientId: h.f.clientId,
+          requestId: `download-${i}`,
+          actorId: h.f.people.viewer,
+          actorKind: 'PERSON',
+          action: 'EVIDENCE_DOWNLOAD',
+          entityType: 'document_revision',
+          entityId: rev.id,
+          before: null,
+          after: { fileId: rev.id },
+          reason: null,
+        });
+      }
+    });
+    const path = `/documents/${doc.id}/revisions/${rev.id}`;
+    expect(
+      (await h.send('clientAdmin', 'POST', `${path}/approve`, { version: rev.version })).status,
+    ).toBe(403);
+    const mine = (await h.ok('clientAdmin', 'GET', `/documents/${doc.id}/revisions`))
+      .items as Revision[];
+    expect(mine[0]!.allowedActions).toEqual(['SEND_BACK']);
+    await h.ok('otherAdmin', 'POST', `${path}/approve`, { version: rev.version });
   });
 
   it('SEND_BACK needs a reason and returns the revision to DRAFT', async () => {
