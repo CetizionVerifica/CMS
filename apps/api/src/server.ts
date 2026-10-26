@@ -26,6 +26,7 @@ import type { EvidenceStorage } from './modules/evidence/storage.js';
 import { imports, type ImportOptions } from './modules/imports/index.js';
 import { registerInstanceRoutes } from './modules/instances/routes.js';
 import { createInstanceService } from './modules/instances/service.js';
+import { registerIsoRoutes, type IsoFiles } from './modules/iso/index.js';
 import {
   registerCustomerAccountRoutes,
   registerPlatform,
@@ -61,6 +62,8 @@ export interface ServerOptions {
   readonly database?: Database;
   /** M7 · Evidence file storage; with `database`, the evidence routes are mounted too. */
   readonly evidenceStorage?: EvidenceStorage;
+  /** M16 · The ISO file service; with `database`, the ISO file routes are mounted too. */
+  readonly isoFiles?: IsoFiles;
   /** M15 · The operator API under /api/platform/v1, mounted when given (`PLATFORM_ENABLED=true`). */
   readonly platform?: PlatformOptions;
 }
@@ -173,6 +176,12 @@ export function buildServer(options: ServerOptions = {}): FastifyInstance {
         registerAuditRoutes(api, createAuditService({ db: database }));
         // M15: the customer's own account and support access (ADR M15-0004).
         registerCustomerAccountRoutes(api, { db: database, clock: options.clock });
+        // M16: the ISO add-on, every route behind `isoManagement` (ADR M16-0001).
+        registerIsoRoutes(api, {
+          db: database,
+          ...(options.clock === undefined ? {} : { clock: options.clock }),
+          ...(options.isoFiles === undefined ? {} : { files: options.isoFiles }),
+        });
         if (options.evidenceStorage) {
           const storage = options.evidenceStorage;
           registerEvidenceRoutes(
