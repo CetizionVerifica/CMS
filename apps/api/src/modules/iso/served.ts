@@ -1,17 +1,17 @@
 import type { ENDPOINTS } from '@canopy/contracts';
 
 /**
- * The ISO add-on endpoints M16 serves so far, by contract id: ISO-8a's; ISO-8b and ISO-8c add theirs. M14's security
- * spec (`e2e/integrated/04-security.spec.ts`) reads it to sweep these routes and keep the rest on its unmounted list.
- * `served.test.ts` holds it equal to the routes `registerIsoRoutes` mounts. No imports beyond contract types, so the
- * e2e package can load it on its own.
+ * The ISO add-on endpoints M16 serves so far, by contract id (ISO-8a's; ISO-8b and ISO-8c add theirs): those always
+ * mounted, and the file routes, mounted only when the server is given an `IsoFiles` (ISO-15 wires it). M14's security
+ * spec (`e2e/integrated/04-security.spec.ts`) reads them to sweep these routes and keep the rest on its unmounted list.
+ * `served.test.ts` holds them equal to the routes `registerIsoRoutes` mounts. No imports beyond contract types, so the
+ * e2e package can load this file on its own.
  */
 export const ISO_SERVED_ENDPOINTS = [
   'approveIsoClauseNa',
   'approveIsoRevision',
   'archiveIsoContextItem',
   'cancelIsoExternalAudit',
-  'confirmIsoFile',
   'createIsoCertification',
   'createIsoContextItem',
   'createIsoDocument',
@@ -21,15 +21,12 @@ export const ISO_SERVED_ENDPOINTS = [
   'getIsoDocument',
   'getIsoExternalAudit',
   'getIsoSystem',
-  'isoFileDownloadUrl',
-  'isoFileUploadUrl',
   'listIsoCertifications',
   'listIsoChecklist',
   'listIsoClauses',
   'listIsoContextItems',
   'listIsoDocuments',
   'listIsoExternalAudits',
-  'listIsoFiles',
   'listIsoReviewDefs',
   'listIsoRevisions',
   'listIsoStandards',
@@ -38,7 +35,6 @@ export const ISO_SERVED_ENDPOINTS = [
   'recordIsoEdition',
   'recordIsoExternalAuditHeld',
   'rejectIsoClauseNa',
-  'removeIsoFile',
   'requestIsoClauseNa',
   'reviewIsoDocument',
   'sendBackIsoRevision',
@@ -54,4 +50,13 @@ export const ISO_SERVED_ENDPOINTS = [
   'withdrawIsoClauseNa',
 ] as const satisfies readonly (keyof typeof ENDPOINTS)[];
 
-export type IsoServedEndpoint = (typeof ISO_SERVED_ENDPOINTS)[number];
+/** Mounted only with an `IsoFiles`. */
+export const ISO_FILE_ENDPOINTS = [
+  'confirmIsoFile',
+  'isoFileDownloadUrl',
+  'isoFileUploadUrl',
+  'listIsoFiles',
+  'removeIsoFile',
+] as const satisfies readonly (keyof typeof ENDPOINTS)[];
+
+export type IsoServedEndpoint = (typeof ISO_SERVED_ENDPOINTS | typeof ISO_FILE_ENDPOINTS)[number];

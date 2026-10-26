@@ -3,4 +3,4 @@
 export { registerIsoRoutes } from './routes.js';
 export type { IsoRouteOptions } from './types.js';
 export type { IsoFileCaller, IsoFileConfirm, IsoFiles, IsoFileUpload } from './ports.js';
-export { ISO_SERVED_ENDPOINTS, type IsoServedEndpoint } from './served.js';
+export { ISO_FILE_ENDPOINTS, ISO_SERVED_ENDPOINTS, type IsoServedEndpoint } from './served.js';
