@@ -30,3 +30,11 @@ export async function refuseWhenOff(ctx: RequestContext, kind: ActKind | null): 
     );
   }
 }
+
+/** True when every one of `kinds` is STANDARD and the add-on is off: none of those rows can be seen or changed. */
+export async function hiddenWhileOff(
+  ctx: RequestContext,
+  kinds: readonly (ActKind | null)[],
+): Promise<boolean> {
+  return kinds.length > 0 && kinds.every((k) => k === 'STANDARD') && !(await isoOn(ctx));
+}
