@@ -106,9 +106,36 @@ describe('PortfolioTable', () => {
     expect(within(alpha).getByText('No activity yet')).toBeTruthy();
   });
 
-  it('shows due this week as a number', () => {
+  it('shows due this week as a number when the API does not say which rows it counted', () => {
     const table = renderTable();
     const beta = within(table).getByRole('link', { name: 'Beta Foods' }).closest('tr')!;
     expect(within(beta).getByText('3')).toBeTruthy();
+    expect(within(table).queryByRole('link', { name: /due this week/ })).toBeNull();
+  });
+
+  it('links due this week to the register filtered to those rows, saying Law with the ISO add-on', () => {
+    const filter = {
+      dueFrom: LocalDate.parse('2023-03-15'),
+      dueTo: LocalDate.parse('2023-03-21'),
+      workflowState: ['OPEN' as const, 'SENT_BACK' as const],
+    };
+    const items = portfolioItems(
+      [
+        { ...row(1, 'Alpha Metals', 0, null, null), dueThisWeek: 0, dueThisWeekFilter: filter },
+        { ...row(2, 'Beta Foods', 4, 72.4, null), dueThisWeekFilter: filter },
+      ],
+      {},
+      ['isoManagement'],
+    );
+    render(<PortfolioTable items={items} />);
+    const table = screen.getByRole('table', { name: 'Clients' });
+    const due = within(table).getByRole('link', {
+      name: '3 due this week at Beta Foods, view in register',
+    });
+    expect(due.getAttribute('href')).toBe(
+      `/c/${id(2)}/register?workflowState=OPEN%2CSENT_BACK&dueFrom=2023-03-15&dueTo=2023-03-21&source=LAW`,
+    );
+    expect(due.textContent).toBe('3');
+    expect(within(table).queryByRole('link', { name: /due this week at Alpha Metals/ })).toBeNull();
   });
 });

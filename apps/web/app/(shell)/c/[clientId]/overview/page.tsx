@@ -60,6 +60,7 @@ export default async function OverviewPage({ params, searchParams }: Props) {
       byDepartment: byDepartment.data,
       byAct: byAct.data,
       byCriticality: byCriticality.data,
+      features: model.features,
     });
   } catch (error) {
     await redirectIfSignedOut(error);
