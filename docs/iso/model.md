@@ -41,11 +41,12 @@ Every ISO table follows `packages/db/CLAUDE.md` and ADR 0003. On top of that:
 5. **People.** Every person reference (owner, approver, NA approver, lead auditor, auditor, auditee, reported-to, chair,
    attendee, investigator, reporter, disposition authoriser) must hold a live role in the record's client, and cover the
    record's unit when it has one, as `checkAssignee` does for instances (`apps/api/src/modules/instances/service.ts`).
-   M16 checks this on every create and update and answers `400 VALIDATION` otherwise. A client-role actor cannot read a
-   firm admin's or consultant's membership (the `membership` policy), so from ISO-8c M16 makes the check through M3's
-   role lookup (ISO-2i), which answers yes or no without showing rows; until then a client role can name only members of
-   the client (ADR M16-0004 decision 6). Jobs send ISO mail only through `recipients(personIds, clientId)`, which drops
-   non-members.
+   M16 checks this on every create and update and answers `400 VALIDATION` otherwise. The person must also be neither
+   archived nor DISABLED (ISO-8a's check). A client-role actor cannot read a firm admin's or consultant's membership or
+   person row (the `membership` and `person` policies), so from ISO-8c M16 makes the whole check, the person's own state
+   included, through M3's role lookup (ISO-2i, ISO-2j), which answers yes or no without showing rows; until then a
+   client role can name only members of the client (ADR M16-0004 decision 6). Jobs send ISO mail only through
+   `recipients(personIds, clientId)`, which drops non-members.
 6. **Versions.** Every ISO record that a route updates has `version` and takes optimistic concurrency like instances
    (`409 STALE_VERSION`).
 7. **Stored engine results.** `RiskItem.rating`, `residualRating` and `significant` are stored when the item is
