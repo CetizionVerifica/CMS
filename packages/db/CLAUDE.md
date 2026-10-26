@@ -161,13 +161,18 @@ Decisions and their reasons: `docs/adr/0003-m3-tenant-isolation-in-postgres.md`.
 - Act kinds (ISO-2f, docs/iso/plan.md §4.6): the register, the evidence vault, `jobs.listScoreItems` and the act,
   obligation and assignment lists take `actKinds` (`['STATUTE']` for statutory numbers; absent reads both, an empty
   list matches nothing). `actKindOf.instance|obligation|assignment` gives the kind behind one row, or null when it is
-  not visible, for the add-on's off-switch checks.
+  not visible, for the add-on's off-switch checks; `actKindOf.instances(tx, ids)` answers many instances in one read
+  per 1,000 ids (a `Map`, unseen ids left out; ISO-2j).
+- ISO file scans (ISO-2j): `isoFiles.settleScan(tx, id, status)` writes a result only on a live PENDING file (in the
+  UPDATE's WHERE) and returns whether it wrote, so a remove that commits first is not overwritten.
 - ISO lists by id (ISO-2i): the nonconformity, risk, objective and document filters take `ids` (1 to 200, each once),
   AND'd with the other filters and the unit scope before keyset paging; with `ids` the document list drops its
-  ACTIVE-only default. The document list's `q` matches code, title, issuer and external reference.
+  ACTIVE-only default; internal audits take `ids` too (ISO-2j). The document list's `q` matches code, title, issuer and
+  external reference. ISO-2j adds `standards` (any of) on nonconformities, and on actions `managementSystemIds` (the
+  subject's system; a finding's through its audit), `subjectId`, `q` on the text and `dueFrom`.
 - Role lookup (ISO-2i, model §1 rule 5): `memberships.holdsRole(tx, { personId, roles, clientId, unitId? })` says
-  whether a person holds a live role in a client covering the unit, including memberships the context cannot read
-  (a firm admin's or consultant's, for a client role). It calls `canopy_person_holds_role` (migration 0044), owned by
+  whether a live person (not archived or DISABLED; migration 0045) holds a live role in a client covering the unit,
+  including memberships the context cannot read (a firm admin's or consultant's, for a client role). It calls `canopy_person_holds_role` (migration 0044), owned by
   `canopy_lookup` with a firm-limited `role_lookup` policy on `membership` and column grants; false for a client the
   context may not see.
 - In a single-table select, Drizzle leaves columns unqualified, so a correlated subquery inside `sql` binds them to

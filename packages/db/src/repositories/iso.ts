@@ -776,6 +776,22 @@ export const isoFiles = {
   },
   setScanStatus: (tx: TenantTx, id: string, scanStatus: ScanStatus): Promise<IsoFile> =>
     fileEntity.set(tx, id, { scanStatus: validate(ScanStatus, scanStatus) }),
+  /**
+   * Records a scan result on a live PENDING file only, in the UPDATE's own WHERE, and says whether it wrote (ISO-2j).
+   * A remove that commits between the scanner's read and this write, or a second result, is left as it is.
+   */
+  async settleScan(tx: TenantTx, id: string, scanStatus: ScanStatus): Promise<boolean> {
+    const fileId = validate(Id, id);
+    const status = validate(ScanStatus.exclude(['PENDING']), scanStatus);
+    const f = s.isoFile;
+    const rows = await tx
+      .update(f)
+      .set({ scanStatus: status })
+      .where(and(eq(f.id, fileId), isNull(f.archivedAt), eq(f.scanStatus, 'PENDING')))
+      .returning({ id: f.id })
+      .catch(rethrow);
+    return rows.length === 1;
+  },
   /** Removes a live file from view with its reason; the row and the object stay (no hard deletes). */
   async archive(tx: TenantTx, id: string, reason: string): Promise<IsoFile> {
     const removeReason = validate(IsoFile.shape.removeReason.unwrap(), reason);
