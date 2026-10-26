@@ -1,7 +1,9 @@
 import { createHash } from 'node:crypto';
 
+import { ISO_SERVED_ENDPOINTS } from '@canopy/api/src/modules/iso/served.js';
+import { copyIsoCatalogue } from '@canopy/api/src/modules/library/db-iso-catalogue-copy.js';
 import { ENDPOINTS } from '@canopy/contracts';
-import { systemContext, tenantSettings } from '@canopy/db';
+import { createDatabase, systemContext, tenantSettings } from '@canopy/db';
 import { expect, request, test } from '@playwright/test';
 import pg from 'pg';
 
@@ -36,16 +38,19 @@ type Endpoint = {
 };
 const endpoints = Object.entries(ENDPOINTS as Record<string, Endpoint>);
 
+/** The ISO add-on endpoints M16 serves so far (ISO-8a); the rest of the add-on stays on UNMOUNTED until it ships. */
+const ISO_SERVED: ReadonlySet<string> = new Set(ISO_SERVED_ENDPOINTS);
+
 /**
  * Contract endpoints the API does not serve yet, with why. Every check below expects them to answer 404 (no route) and
  * fails once one answers anything else, so it must come off this list the day it ships and be checked like the rest.
  */
 const UNMOUNTED: Record<string, string> = Object.fromEntries(
   endpoints
-    .filter(([, e]) => 'feature' in e)
+    .filter(([name, e]) => 'feature' in e && !ISO_SERVED.has(name))
     .map(([name, e]) => [
       name,
-      `${String(e.feature)} add-on: M16 mounts its routes (docs/iso/plan.md ISO-8)`,
+      `${String(e.feature)} add-on: M16 mounts its routes in ISO-8b and ISO-8c (docs/iso/plan.md ISO-8)`,
     ]),
 );
 
@@ -181,6 +186,72 @@ const BODIES: Record<string, (ids: Ids) => unknown> = {
   commitImport: () => undefined,
   revokeInvite: () => undefined,
   cancelImport: () => undefined,
+  // The ISO add-on (ISO-8a): firm A's system, checklist row, context item, document and revision, certificate,
+  // and external audit, with firm A's standard, unit and people in the body where the write names them.
+  createIsoSystem: ({ id }) => ({ name: 'Probe system', standardIds: [id.standards] }),
+  updateIsoSystem: ({ v }) => ({ version: v.systems, name: 'Probe system' }),
+  setIsoClimateDecision: ({ v }) => ({
+    version: v.systems,
+    climateChangeRelevant: false,
+    climateChangeRationale: PROBE,
+    climateDecidedOn: '2023-04-01',
+  }),
+  createIsoContextItem: () => ({ kind: 'INTERNAL_ISSUE', text: PROBE }),
+  updateIsoContextItem: ({ v }) => ({ version: v.context, text: PROBE }),
+  archiveIsoContextItem: ({ v }) => ({ version: v.context, reason: PROBE }),
+  updateIsoChecklistRow: ({ v }) => ({ version: v.checklist, status: 'PARTIAL' }),
+  requestIsoClauseNa: ({ v }) => ({ version: v.checklist, reason: PROBE }),
+  approveIsoClauseNa: ({ v }) => ({ version: v.checklist }),
+  rejectIsoClauseNa: ({ v }) => ({ version: v.checklist, reason: PROBE }),
+  withdrawIsoClauseNa: ({ v }) => ({ version: v.checklist, reason: PROBE }),
+  createIsoDocument: ({ id }) => ({
+    managementSystemId: id.systems,
+    code: 'PROBE-1',
+    title: 'Probe procedure',
+    type: 'PROCEDURE',
+    ownerId: id.people,
+    approverId: id.otherPerson,
+  }),
+  updateIsoDocument: ({ v }) => ({ version: v.documents, title: 'Probe procedure' }),
+  reviewIsoDocument: ({ v }) => ({
+    version: v.documents,
+    note: PROBE,
+    nextReviewDueOn: '2099-03-31',
+  }),
+  obsoleteIsoDocument: ({ v }) => ({ version: v.documents, reason: PROBE }),
+  draftIsoRevision: () => ({ revision: 'P1' }),
+  updateIsoRevision: ({ v }) => ({ version: v.revisions, revision: 'P1' }),
+  submitIsoRevision: ({ v }) => ({ version: v.revisions }),
+  approveIsoRevision: ({ v }) => ({ version: v.revisions }),
+  sendBackIsoRevision: ({ v }) => ({ version: v.revisions, reason: PROBE }),
+  recordIsoEdition: ({ v }) => ({ version: v.revisions }),
+  createIsoCertification: ({ id }) => ({
+    managementSystemId: id.systems,
+    standardId: id.standards,
+    body: 'Probe Certification Body',
+  }),
+  updateIsoCertification: ({ v }) => ({
+    version: v.certifications,
+    body: 'Probe Certification Body',
+  }),
+  createIsoExternalAudit: ({ id }) => ({
+    managementSystemId: id.systems,
+    standardIds: [id.standards],
+    type: 'STAGE_1',
+    body: 'Probe Certification Body',
+    startOn: '2099-01-10',
+    endOn: '2099-01-11',
+  }),
+  updateIsoExternalAudit: ({ v }) => ({
+    version: v['external-audits'],
+    body: 'Probe Certification Body',
+  }),
+  recordIsoExternalAuditHeld: ({ v }) => ({
+    version: v['external-audits'],
+    startOn: '2099-01-10',
+    endOn: '2099-01-11',
+  }),
+  cancelIsoExternalAudit: ({ v }) => ({ version: v['external-audits'], reason: PROBE }),
   // Names firm A's person and client in the body rather than the path.
   createInvite: ({ id }) => ({
     personId: id.people,
@@ -246,6 +317,10 @@ async function firmAIds(): Promise<Ids> {
   });
   expect(template.status, JSON.stringify(template.body)).toBe(201);
   const unit = (await first(`/clients/${clients.kestrel}/units`)) as Rec & { locationId: string };
+  const iso = await isoRecordsOf(admin, clients.kestrel, {
+    owner: people.owner,
+    approver: people.approver,
+  });
   // A support grant only the account admin can make, so firm B's revoke has a real grant of firm A's to aim at.
   const accountAdmin = await apiAs('firmAdmin');
   const grant = await accountAdmin.post('/account/support-grants', { level: 'READ_ONLY', days: 1 });
@@ -276,6 +351,7 @@ async function firmAIds(): Promise<Ids> {
     otherCategory: await nth('/library/categories', 1),
     evidence: { id: await evidenceOf(instance.id), version: 1 },
     'support-grants': grant.body as Rec,
+    ...iso,
   };
   await admin.dispose();
   return {
@@ -283,6 +359,113 @@ async function firmAIds(): Promise<Ids> {
     v: Object.fromEntries(Object.entries(records).map(([k, r]) => [k, r.version])),
   };
 }
+
+/**
+ * Turns the ISO add-on on for both seed firms, as the console's add-on switch does (an account override), and copies the
+ * catalogue the way M9's consumer would, so the ISO routes answer past FEATURE_NOT_ENABLED and FEATURE_NOT_READY. Firm B
+ * gets it too, so its calls reach the tenant check rather than stopping at the add-on gate. `isoOff` takes the flag
+ * back off after this file, so the later journeys run as before; the copied catalogue stays, as it would in an account.
+ */
+const isoAdded: string[] = [];
+async function isoOn(): Promise<void> {
+  const ownerUrl = databaseUrl(process.env.DATABASE_URL!, E2E_DATABASE);
+  const owner = new pg.Client({ connectionString: ownerUrl });
+  await owner.connect();
+  for (const firmId of [FIRM_A, FIRM_B]) {
+    if (isoAdded.includes(firmId)) continue;
+    const added = await owner.query(
+      `INSERT INTO platform.account_override (account_id, features) VALUES ($1, ARRAY['isoManagement'])
+       ON CONFLICT (account_id) DO NOTHING`,
+      [firmId],
+    );
+    if (added.rowCount !== 1) throw new Error(`firm ${firmId} already has an account override`);
+    isoAdded.push(firmId);
+  }
+  await owner.end();
+  const db = createDatabase({ connectionString: ownerUrl, max: 1, privilegedLogin: 'allow' });
+  for (const firmId of [FIRM_A, FIRM_B]) await copyIsoCatalogue(db, firmId, 'e2e-iso');
+  await db.close();
+}
+
+async function isoOff(): Promise<void> {
+  if (isoAdded.length === 0) return;
+  const owner = new pg.Client({
+    connectionString: databaseUrl(process.env.DATABASE_URL!, E2E_DATABASE),
+  });
+  await owner.connect();
+  await owner.query(`DELETE FROM platform.account_override WHERE account_id = ANY($1::uuid[])`, [
+    isoAdded.splice(0),
+  ]);
+  await owner.end();
+}
+
+/**
+ * Firm A's ISO records, made through the API as its consultant: a management system on the catalogue's first standard,
+ * its first checklist row, a context item, a document and its draft revision, a certificate, and an external audit
+ * (the file routes stay unmounted until ISO-15). Keyed by the path segment before each id, as `fill` reads them.
+ */
+async function isoRecordsOf(
+  admin: ApiSession,
+  clientId: string,
+  people: { owner: string; approver: string },
+): Promise<Record<string, { id: string; version: number }>> {
+  await isoOn();
+  type Rec = { id: string; version: number };
+  const iso = `/clients/${clientId}/iso`;
+  const made = async (path: string, body: unknown, status = 201) => {
+    const res = await admin.post(`${iso}${path}`, body);
+    expect(res.status, `POST ${path}: ${JSON.stringify(res.body)}`).toBe(status);
+    return res.body as Rec;
+  };
+  const listed = async (path: string) => {
+    const res = await admin.get(`${iso}${path}`);
+    expect(res.status, `GET ${path}: ${JSON.stringify(res.body)}`).toBe(200);
+    const item = itemsOf(res.body)[0] as Rec | undefined;
+    if (!item) throw new Error(`firm A has no ISO record at ${path}`);
+    return item;
+  };
+  const suffix = crypto.randomUUID().slice(0, 8);
+  const standard = await listed('/catalogue/standards');
+  const system = await made('/systems', {
+    name: `Quality system ${suffix}`,
+    standardIds: [standard.id],
+  });
+  const document = await made('/documents', {
+    managementSystemId: system.id,
+    code: `QP-${suffix}`,
+    title: 'Control of documented information',
+    type: 'PROCEDURE',
+    ownerId: people.owner,
+    approverId: people.approver,
+  });
+  const certificate = await made('/certifications', {
+    managementSystemId: system.id,
+    standardId: standard.id,
+    body: 'Northfield Certification',
+  });
+  return {
+    standards: standard,
+    systems: system,
+    checklist: await listed(`/systems/${system.id}/checklist`),
+    context: await made(`/systems/${system.id}/context`, {
+      kind: 'EXTERNAL_ISSUE',
+      text: 'Supplier lead times',
+    }),
+    documents: document,
+    revisions: await made(`/documents/${document.id}/revisions`, { revision: 'A' }),
+    certifications: certificate,
+    'external-audits': await made('/external-audits', {
+      managementSystemId: system.id,
+      standardIds: [standard.id],
+      type: 'STAGE_1',
+      body: 'Northfield Certification',
+      startOn: '2099-01-10',
+      endOn: '2099-01-11',
+    }),
+  };
+}
+
+test.afterAll(isoOff);
 
 /** Uploads a file (a small PDF by default) to an instance as the client admin, the way the drawer does; its evidence id. */
 async function evidenceOf(
