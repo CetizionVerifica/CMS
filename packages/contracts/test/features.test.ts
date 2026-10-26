@@ -10,12 +10,18 @@ import {
   effectiveFeatures,
   EntityType,
   ERROR_HTTP_STATUS,
+  ExportKind,
   FeatureFlag,
   ISO_ENTITY_TYPES,
+  ISO_EXPORT_KINDS,
+  ISO_NOTIFICATION_KINDS,
   IsoEntityType,
+  IsoExportKind,
+  IsoNotificationKind,
   KNOWN_FEATURES,
   KnownFeature,
   Me,
+  NotificationKind,
   Obligation,
   tolerant,
 } from '../src/index.js';
@@ -170,13 +176,30 @@ describe('obligation clause references', () => {
   });
 });
 
-describe('ISO entity types', () => {
-  it('are staged apart from EntityType until the database stores them', () => {
-    expect(IsoEntityType.options).toEqual([...ISO_ENTITY_TYPES]);
-    expect(new Set(ISO_ENTITY_TYPES).size).toBe(ISO_ENTITY_TYPES.length);
-    for (const type of ISO_ENTITY_TYPES) {
-      expect(EntityType.options as readonly string[]).not.toContain(type);
-      expect(type).toMatch(/^[a-z]+(_[a-z]+)*$/);
-    }
+describe('the ISO values in the contract enums (ISO-1b, contracts 1.8.3)', () => {
+  // Each staged list joins its enum as its last values, in its own order, so the Postgres enums built from
+  // `new Set([...X.options, ...staged])` (packages/db/src/schema/enums.ts) keep their order.
+  it.each([
+    ['EntityType', EntityType, ISO_ENTITY_TYPES, IsoEntityType],
+    ['NotificationKind', NotificationKind, ISO_NOTIFICATION_KINDS, IsoNotificationKind],
+    ['ExportKind', ExportKind, ISO_EXPORT_KINDS, IsoExportKind],
+  ] as const)('%s ends with its ISO values, which stay a subset', (_, all, staged, subset) => {
+    const options = all.options as readonly string[];
+    expect(options.slice(-staged.length)).toEqual([...staged]);
+    expect(new Set(options).size).toBe(options.length);
+    expect(subset.options).toEqual([...staged]);
+    for (const value of staged) expect(all.safeParse(value).success, value).toBe(true);
+  });
+
+  it('keeps the values before them as they were', () => {
+    expect(EntityType.options.slice(0, -ISO_ENTITY_TYPES.length).at(-1)).toBe('account');
+    expect(NotificationKind.options.slice(0, -ISO_NOTIFICATION_KINDS.length).at(-1)).toBe(
+      'MFA_ENROLLED',
+    );
+    expect(ExportKind.options.slice(0, -ISO_EXPORT_KINDS.length).at(-1)).toBe('CLIENT_ARCHIVE_ZIP');
+  });
+
+  it('names ISO entity types in snake case', () => {
+    for (const type of ISO_ENTITY_TYPES) expect(type).toMatch(/^[a-z]+(_[a-z]+)*$/);
   });
 });

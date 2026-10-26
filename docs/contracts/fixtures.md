@@ -160,8 +160,10 @@ Harbour Retail Group and firm A get no ISO rows. Nothing happens after `FIRM_B_A
 | ISO files | 16 | 15 CLEAN, 1 PENDING, 2 removed with a reason, each on one subject |
 | STANDARD assignments | 7 | `WORKPLACE-INSPECTION`, `EMERGENCY-DRILL`, `CALIBRATION` and `ENV-MONITORING` at Pune Plant (Rohan owner, Nisha approver); `AWARENESS`, `WORKER-CONSULTATION` and `DATA-ANALYSIS` at Bengaluru Office (Sameer owner, Divya approver) |
 | STANDARD instances | 34 | FY 2024-25, due 2024-04-30 to 2025-03-31: 14 APPROVED, 19 OPEN, 1 SUBMITTED; 15 CLEAN evidence rows, one per done instance |
+| Audit events | 158 | a sample of the ISO trail (1.8.3), oldest first, each as the mock's route writes it: the system's set-up as PLANNING with its 137 checklist rows in one request; one record of each other entity type created; the oven temperature log's first revision drafted and submitted by Rohan and approved by Nisha. No context or risk UPDATE, no NC step after RAISE, no audit REPORT, RECORD_HELD or action COMPLETE or CANCEL, so the mock's rules and the held review's stored figures read the records as before. No incident personal data (time, location, person, lost days, investigators) and no nonconformity or finding description: the near miss's RAISE keeps only the incident's type, outcome and reportability (model §3.11) |
 
-The assignments, instances and evidence join firm B's register data; the ISO records fill the mock's ISO tables. The
+The assignments, instances and evidence join firm B's register data, and the audit events firm B's `auditEvents`, so
+`GET /clients/{clientId}/audit` lists them; the ISO records fill the mock's ISO tables. The
 STANDARD rows are chosen so that no test on firm B's register changes: none waits in Nisha's approvals, Rohan's
 earliest open rows are statutory, nothing falls in the portfolio's "due this week", the vault's newest file stays
 statutory, and every score and report counts STATUTE acts only (`test/iso-fixtures.test.ts`). `test/fixtures.test.ts`

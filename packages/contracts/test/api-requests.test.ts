@@ -378,6 +378,38 @@ describe('import bodies', () => {
       ok(ExportCreateBody, { kind: 'REGISTER_XLSX', fy: '2025-26', filters: 'status=OVERDUE' }),
     ).toBe(true);
   });
+
+  it('takes the ISO export kinds since 1.8.3, with their ISO list filters, not the register’s', () => {
+    const id = '11111111-1111-4111-8111-111111111111';
+    expect(ok(ExportCreateBody, { kind: 'ISO_NC_LOG_XLSX' })).toBe(true);
+    expect(ok(ExportCreateBody, { kind: 'ISO_NC_LOG_XLSX', filters: 'state=OPEN,CLOSED' })).toBe(
+      true,
+    );
+    expect(ok(ExportCreateBody, { kind: 'ISO_RISK_REGISTER_XLSX', filters: 'kind=HAZARD' })).toBe(
+      true,
+    );
+    expect(
+      ok(ExportCreateBody, { kind: 'ISO_AUDIT_REPORT_PDF', filters: `internalAuditId=${id}` }),
+    ).toBe(true);
+    expect(
+      ok(ExportCreateBody, { kind: 'ISO_REVIEW_PACK_PDF', filters: `managementReviewId=${id}` }),
+    ).toBe(true);
+    // A register filter is not an ISO list's; a PDF names its record; paging is never a filter.
+    for (const [kind, filters] of [
+      ['ISO_NC_LOG_XLSX', 'status=OVERDUE'],
+      ['ISO_NC_LOG_XLSX', 'state=LATE'],
+      ['ISO_NC_LOG_XLSX', 'limit=10'],
+      ['ISO_RISK_REGISTER_XLSX', 'kind=HAZARDOUS'],
+      ['ISO_AUDIT_REPORT_PDF', ''],
+      ['ISO_AUDIT_REPORT_PDF', `managementReviewId=${id}`],
+      ['ISO_REVIEW_PACK_PDF', 'managementReviewId=not-an-id'],
+    ]) {
+      const result = ExportCreateBody.safeParse({ kind, filters });
+      expect(result.success, `${kind} ${filters}`).toBe(false);
+      expect(result.error?.issues.every((i) => i.path[0] === 'filters')).toBe(true);
+    }
+    expect(ok(ExportCreateBody, { kind: 'ISO_SOMETHING_XLSX' })).toBe(false);
+  });
 });
 
 describe('responses', () => {

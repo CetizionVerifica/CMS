@@ -2,7 +2,12 @@
 // the instance ids behind it, computed by the mock's copy of the engine rules (derive.ts). Statutory numbers count
 // STATUTE-act instances only, with the ISO add-on on or off; the calendar takes `source` (docs/iso/plan.md §4.6).
 import { RegisterQuery } from '../../api/workflow.js';
-import type { ActivitySource, BreakdownBy, ExportKind } from '../../enums.js';
+import {
+  type ActivitySource,
+  type BreakdownBy,
+  type ExportKind,
+  ISO_EXPORT_KINDS,
+} from '../../enums.js';
 import {
   type Actor,
   asOfFor,
@@ -12,6 +17,7 @@ import {
   fyRange,
   hasIso,
   instanceRow,
+  isoNotEnabled,
   Lookup,
   MockError,
   notFound,
@@ -22,7 +28,7 @@ import {
 } from '../core.js';
 import { daysBetween } from '../derive.js';
 import { addDays } from '../periods.js';
-import { actorOf, type PartialHandlers } from '../handler.js';
+import { actorOf, type HandlerContext, type PartialHandlers } from '../handler.js';
 import type { InstanceRecord } from '../store.js';
 import { SIGNED_URL_TTL_SECONDS } from '../../api/common.js';
 
@@ -106,11 +112,32 @@ const EXPORT_EXTENSION = {
   DEPARTMENT_REPORT_XLSX: 'xlsx',
   OVERDUE_REPORT_XLSX: 'xlsx',
   CLIENT_ARCHIVE_ZIP: 'zip',
+  ISO_NC_LOG_XLSX: 'xlsx',
+  ISO_RISK_REGISTER_XLSX: 'xlsx',
+  ISO_AUDIT_REPORT_PDF: 'pdf',
+  ISO_REVIEW_PACK_PDF: 'pdf',
 } satisfies Record<ExportKind, string>;
 
-function findExport(actor: Actor, id: string | undefined) {
+const isIsoKind = (kind: ExportKind) => (ISO_EXPORT_KINDS as readonly string[]).includes(kind);
+
+/**
+ * The ISO export kinds are ISO data: creating one, reading its job or its download URL answers 403
+ * FEATURE_NOT_ENABLED while the add-on is off (plan §4.4-4.5).
+ */
+function checkKindOn(actor: Actor, kind: ExportKind): void {
+  if (isIsoKind(kind) && !hasIso(actor)) throw isoNotEnabled();
+}
+
+/** The export `id` names, after the role check and then the ISO off switch. */
+function openExport(
+  ctx: HandlerContext<'getExport' | 'exportDownloadUrl'>,
+  id: string | undefined,
+) {
+  const actor = actorOf(ctx);
   const job = actor.firm.exports.find((e) => e.id === id);
   if (job === undefined) throw notFound();
+  ctx.authorize({ clientId: job.clientId });
+  checkKindOn(actor, job.kind);
   return job;
 }
 
@@ -257,11 +284,14 @@ export const dashboardHandlers: PartialHandlers<
     ) {
       throw new MockError('FORBIDDEN', 'Not allowed: export.create', { action: 'export.create' });
     }
-    // A register export follows the register, `source` and the ISO off switch included (plan §4.5). The mock
-    // writes no file, so its filters are only checked and kept.
-    const filters = Object.fromEntries(new URLSearchParams(ctx.body.filters));
-    const parsed = RegisterQuery.safeParse(filters);
-    if (!parsed.success) {
+    checkKindOn(actor, ctx.body.kind);
+    // A register export follows the register, `source` and the ISO off switch included (plan §4.5); the body schema
+    // checked an ISO kind's filters against its ISO list's query. The mock writes no file, so filters are only checked
+    // and kept.
+    const parsed = isIsoKind(ctx.body.kind)
+      ? null
+      : RegisterQuery.safeParse(Object.fromEntries(new URLSearchParams(ctx.body.filters)));
+    if (parsed?.success === false) {
       throw new MockError('VALIDATION', 'filters is not a valid register query', {
         issues: parsed.error.issues.map((issue) => ({
           path: ['filters', ...issue.path.map(String)],
@@ -299,14 +329,11 @@ export const dashboardHandlers: PartialHandlers<
   },
 
   getExport(ctx) {
-    const job = findExport(actorOf(ctx), ctx.params.id);
-    ctx.authorize({ clientId: job.clientId });
-    return job;
+    return openExport(ctx, ctx.params.id);
   },
 
   exportDownloadUrl(ctx) {
-    const job = findExport(actorOf(ctx), ctx.params.id);
-    ctx.authorize({ clientId: job.clientId });
+    const job = openExport(ctx, ctx.params.id);
     return { url: fileUrl(`exports/${job.id}`), expiresAt: expiresAt(ctx.clock.now()) };
   },
 };

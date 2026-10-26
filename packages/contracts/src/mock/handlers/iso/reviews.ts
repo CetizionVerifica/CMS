@@ -69,7 +69,7 @@ import {
   touchIso,
 } from '../../iso/common.js';
 import { incidentsIn, localDate, objectiveOnTrack } from '../../iso/derive.js';
-import type { FirmState, IsoAuditEvent, IsoRow } from '../../store.js';
+import type { FirmState, AuditRecord, IsoRow } from '../../store.js';
 
 type Ids =
   | 'listIsoManagementReviews'
@@ -122,7 +122,7 @@ const HELD: readonly Review['state'][] = ['HELD', 'CLOSED'];
  * Audit groups of a review edit (model §8): moving its date is a due-date change and a new chair a reassignment, each
  * with the reason, and its standards (with the input and output rows that follow them), attendees and minutes an UPDATE.
  */
-const EDIT_GROUPS: [IsoAuditEvent['action'], (keyof Review)[]][] = [
+const EDIT_GROUPS: [AuditRecord['action'], (keyof Review)[]][] = [
   ['DUE_DATE_CHANGE', ['plannedOn']],
   ['REASSIGN', ['chairId']],
   ['UPDATE', ['standards', 'attendeeIds', 'minutes']],
@@ -519,8 +519,8 @@ const actionStateAt = (f: FigureScope, a: Action): Action['state'] =>
 const overdueAt = (f: FigureScope, a: Action) => actionStateAt(f, a) === 'OPEN' && a.dueOn < f.asOf;
 
 /** The days of a record's audited events of one kind in the window (model §5.4's event-day lists). */
-const eventsIn = (f: FigureScope, test: (e: IsoAuditEvent) => boolean) =>
-  f.firm.isoAuditEvents.filter((e) => test(e) && within(f, dayOf(f, e.at)));
+const eventsIn = (f: FigureScope, test: (e: AuditRecord) => boolean) =>
+  f.firm.data.auditEvents.filter((e) => test(e) && within(f, dayOf(f, e.at)));
 
 /**
  * Held reviews of the system before this one that covered one of `codes`: HELD or CLOSED, with `heldOn` on or before
@@ -625,7 +625,7 @@ const RATING_FIELDS = ['likelihood', 'severity', 'residualLikelihood', 'residual
  * A re-rating (model §5.4): a risk item's UPDATE whose `after` names a rating field. The clearing of the residual
  * rating when a treatment action puts the last control in place names its action (`sourceActionId`) and is not one.
  */
-const isRerating = (e: IsoAuditEvent) =>
+const isRerating = (e: AuditRecord) =>
   e.entityType === 'risk_item' &&
   e.action === 'UPDATE' &&
   e.after !== null &&

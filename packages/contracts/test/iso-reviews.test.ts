@@ -185,14 +185,14 @@ const byKey = <T extends { key: string }>(rows: T[], key: string) =>
 const figureOf = (input: InputView, key: string) =>
   input.sourceFigures!.figures.find((f) => f.key === key)!;
 
-type IsoEvent = ReturnType<typeof firm>['isoAuditEvents'][number];
+type IsoEvent = ReturnType<typeof firm>['data']['auditEvents'][number];
 
 /** An audit event in Firm B's trail as the routes write one, for a row seeded with no trail. */
 function seedEvent(
   event: Pick<IsoEvent, 'at' | 'action' | 'entityType' | 'entityId' | 'before' | 'after'> &
     Partial<Pick<IsoEvent, 'reason'>>,
 ) {
-  firm().isoAuditEvents.push({
+  firm().data.auditEvents.push({
     id: seedId(),
     firmId: FIRM_B,
     clientId: NORTHWIND,
@@ -1797,7 +1797,7 @@ describe('review input figures', () => {
       significant: false,
       createdAt: at('2024-05-01'),
     }).id;
-    firm().isoAuditEvents.push({
+    firm().data.auditEvents.push({
       id: seedId(),
       firmId: FIRM_B,
       clientId: NORTHWIND,
@@ -1866,7 +1866,7 @@ describe('review input figures', () => {
       },
     }).id;
     for (const day of ['2024-06-01', '2024-09-01']) {
-      firm().isoAuditEvents.push({
+      firm().data.auditEvents.push({
         id: seedId(),
         firmId: FIRM_B,
         clientId: NORTHWIND,

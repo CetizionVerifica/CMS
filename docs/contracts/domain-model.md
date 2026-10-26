@@ -52,8 +52,8 @@ Rules: no `any`; unknown keys rejected at the edge; strings trimmed; empty strin
 | `ImportRowOutcome` | `PENDING`, `CREATE`, `UPDATE`, `UNCHANGED`, `SKIPPED`, `ERROR` | Set by dry run, confirmed by commit. |
 | `ImportIssueType` | see §6 | |
 | `IssueSeverity` | `INFO`, `WARNING`, `ERROR` | `ERROR` blocks the row; `WARNING` needs a decision; `INFO` is shown only. |
-| `NotificationKind` | `OWNER_REMINDER`, `APPROVER_ESCALATION`, `CONSULTANT_DIGEST`, `INVITE`, `MAGIC_LINK`, `EXPORT_READY`, `APPROVAL_REQUESTED`, `SENT_BACK`, `TRIAL_ENDING`, `RENEWAL_DUE`, `MFA_ENROLLED` | `TRIAL_ENDING` goes to a TRIAL account's admins 7 days and 1 day before the trial ends; `RENEWAL_DUE` to an ACTIVE account's admins 30 and 7 days before its latest subscription ends; `MFA_ENROLLED` to a person when MFA is set up on their account. ISO reminder kinds are staged apart (`ISO_NOTIFICATION_KINDS`, §10). |
-| `ExportKind` | `REGISTER_XLSX`, `CERTIFICATE_PDF`, `ACT_REPORT_XLSX`, `DEPARTMENT_REPORT_XLSX`, `OVERDUE_REPORT_XLSX`, `CLIENT_ARCHIVE_ZIP` | `CLIENT_ARCHIVE_ZIP`: account admins only; the client's register and evidence. ISO export kinds are staged apart (`ISO_EXPORT_KINDS`, §10). |
+| `NotificationKind` | `OWNER_REMINDER`, `APPROVER_ESCALATION`, `CONSULTANT_DIGEST`, `INVITE`, `MAGIC_LINK`, `EXPORT_READY`, `APPROVAL_REQUESTED`, `SENT_BACK`, `TRIAL_ENDING`, `RENEWAL_DUE`, `MFA_ENROLLED` | `TRIAL_ENDING` goes to a TRIAL account's admins 7 days and 1 day before the trial ends; `RENEWAL_DUE` to an ACTIVE account's admins 30 and 7 days before its latest subscription ends; `MFA_ENROLLED` to a person when MFA is set up on their account. Since 1.8.3 the nine ISO reminder kinds (`ISO_NOTIFICATION_KINDS`, §10) follow `MFA_ENROLLED`. |
+| `ExportKind` | `REGISTER_XLSX`, `CERTIFICATE_PDF`, `ACT_REPORT_XLSX`, `DEPARTMENT_REPORT_XLSX`, `OVERDUE_REPORT_XLSX`, `CLIENT_ARCHIVE_ZIP`, then the four ISO kinds (`ISO_EXPORT_KINDS`, §10, since 1.8.3) | `CLIENT_ARCHIVE_ZIP`: account admins only; the client's register and evidence. The ISO kinds answer `403 FEATURE_NOT_ENABLED` while the add-on is off. |
 | `JobStatus` | `QUEUED`, `RUNNING`, `DONE`, `FAILED` | Exports and imports. |
 | `AccountKind` | `ENTERPRISE`, `CONSULTANCY` | §9. An enterprise account has one client. |
 | `AccountStatus` | `PROVISIONING`, `TRIAL`, `ACTIVE`, `SUSPENDED`, `PENDING_DELETION`, `DELETED` | §9; moves in `ACCOUNT_TRANSITIONS`. |
@@ -280,9 +280,9 @@ interface AuditEvent {                              // append-only; no updatedAt
 The ISO add-on's entity types (`ISO_ENTITY_TYPES`, v2 from 1.8.0: `management_system`, `certification`,
 `external_audit`, `context_item`, `clause_assessment`, `controlled_document`, `document_revision`, `risk_item`,
 `risk_control`, `objective`, `objective_reading`, `audit_programme`, `internal_audit`, `audit_checklist_item`,
-`audit_finding`, `nonconformity`, `iso_action`, `management_review`) are staged: they join `entityType` in ISO-1b,
-once M3 stores them in the `entity_type` Postgres enum and the audit trail page has words for them, as `account` did
-(README decisions 39 and 42). Against 1.7.0, `corrective_action` and `review_action` are gone (one `iso_action`), and
+`audit_finding`, `nonconformity`, `iso_action`, `management_review`) are the last values of `entityType` since
+1.8.3 (ISO-1b, README decision 53). They were staged until M3 stored them in the `entity_type` Postgres enum and the
+audit trail page had words for them, as `account` was (README decisions 39 and 42). Against 1.7.0, `corrective_action` and `review_action` are gone (one `iso_action`), and
 `external_audit`, `risk_control` and `audit_checklist_item` are new. There is no `iso_file` type: an ISO file is
 audited on its subject. Review inputs, outputs, incident fields and list changes are UPDATEs on the record they
 belong to (`docs/iso/model.md` §8).
@@ -410,8 +410,8 @@ The M0 stub `can()` (`can` in `@canopy/contracts`, from contracts 1.3.0) allows 
 certificate, or a record that takes its management system's units (`docs/iso/plan.md` §3.3). It is optional, and
 non-empty and distinct when present. A unit-scoped membership then needs at least one of those units; the stub's
 `inScope` checks it, and M5 does the same in ISO-4b. The ISO API passes it only when the list is known and not empty,
-and checks the named-person exception itself (endpoints.md §10). Before ISO-1b no `can()` resource names an ISO entity
-type.
+and checks the named-person exception itself (endpoints.md §10). Since 1.8.3 (ISO-1b) a `can()` resource may name an
+ISO entity type.
 
 ## 9. Accounts and the platform operator (ADR M15-0001)
 
@@ -687,21 +687,22 @@ changes with `409 INVALID_TRANSITION` and `action: 'UPDATE'`.
 | `ReviewInputSource` | `PREVIOUS_ACTIONS`, `CONTEXT`, `RISKS`, `OBJECTIVES`, `NONCONFORMITIES`, `INCIDENTS`, `AUDIT_RESULTS`, `COMPLIANCE_EVALUATION`, `MANUAL` |
 | `IsoFileSubjectType` | the 11 entity types a file can be attached to (below) |
 
-### Staged constants (plan §5.1)
+### Formerly staged constants (plan §5.1)
 
-These live in `src/enums.ts` outside the contract enums until ISO-1b, after M3 stores them in the Postgres enums
-(ISO-2b), M13 labels the entity types (ISO-12a) and M10's export switch takes new kinds (ISO-11e):
+These were staged in `src/enums.ts` outside the contract enums until M3 stored them in the Postgres enums (ISO-2b),
+M13 labelled the entity types (ISO-12a) and M10's export switch took new kinds (ISO-11e). Since 1.8.3 (ISO-1b) each is
+the last values of its enum, in this order, and stays exported as the subset:
 
-| Constant | Values | Joins in ISO-1b |
+| Constant | Values | Last values of |
 |---|---|---|
 | `ISO_ENTITY_TYPES` (`IsoEntityType`) | the 18 v2 types in §5 | `EntityType` |
 | `ISO_NOTIFICATION_KINDS` (`IsoNotificationKind`) | `ISO_ACTION_DUE`, `ISO_ACTION_OVERDUE`, `ISO_REVIEW_DUE`, `ISO_AUDIT_STARTING`, `ISO_CERTIFICATE_EXPIRING`, `ISO_SURVEILLANCE_DUE`, `ISO_EXTERNAL_RESPONSE_DUE`, `ISO_MANAGEMENT_REVIEW_DUE`, `ISO_EFFECTIVENESS_DUE` | `NotificationKind` |
 | `ISO_EXPORT_KINDS` (`IsoExportKind`) | `ISO_NC_LOG_XLSX`, `ISO_RISK_REGISTER_XLSX`, `ISO_AUDIT_REPORT_PDF`, `ISO_REVIEW_PACK_PDF` | `ExportKind` |
 
-Until then no route writes an `AuditEvent` with an ISO entity type and no `can()` resource names one; the mock keeps
-its ISO audit events apart (README decision 49). `ExportCreateBody` refuses the ISO kinds (its `kind` is `ExportKind`);
-once they join, it checks their `filters` against `ISO_EXPORT_FILTERS` (the NC and risk list queries without paging,
-`{ internalAuditId }` for the audit report, `{ managementReviewId }` for the review pack) instead of
+Before 1.8.3 no route wrote an `AuditEvent` with an ISO entity type and no `can()` resource named one, and the mock
+kept its ISO audit events apart; now they are in the client audit trail. `ExportCreateBody` takes the ISO kinds (its
+`kind` is `ExportKind`) and checks their `filters` against `ISO_EXPORT_FILTERS` (the NC and risk list queries without
+paging, `{ internalAuditId }` for the audit report, `{ managementReviewId }` for the review pack) instead of
 `RegisterFilterQuery`.
 
 ### Machines

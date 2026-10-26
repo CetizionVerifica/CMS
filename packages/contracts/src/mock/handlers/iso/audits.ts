@@ -35,7 +35,7 @@ import {
   touchIso,
 } from '../../iso/common.js';
 import { uncoveredByAudits } from '../../iso/derive.js';
-import type { FirmState, IsoAuditEvent, IsoRow } from '../../store.js';
+import type { FirmState, AuditRecord, IsoRow } from '../../store.js';
 import { patchIsoUnrecorded } from './nonconformities.js';
 
 type Ids =
@@ -401,7 +401,7 @@ const PLAN_FIELDS = [
  * Audit groups of an audit edit (model §8): moving its dates is a due-date change (with the reason), a new lead auditor
  * a reassignment, and changes to its title, clauses, units, people lists and note an UPDATE.
  */
-const EDIT_GROUPS: [IsoAuditEvent['action'], (keyof Audit)[]][] = [
+const EDIT_GROUPS: [AuditRecord['action'], (keyof Audit)[]][] = [
   ['DUE_DATE_CHANGE', ['plannedStart', 'plannedEnd']],
   ['REASSIGN', ['leadAuditorId']],
   [
