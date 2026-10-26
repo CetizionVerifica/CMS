@@ -94,9 +94,9 @@ README decisions 42-51. M4 owns every formula marked "stand-in".
     (an internal audit's CLOSE, an external audit's RECORD_RESPONSE, a system PATCH) moves it. A nonconformity, incidents included, is raised and
     counts from its counting day, the later of its creation day and its `reportedOn` (which may be backdated), and an
     incident is placed by that day too (its `occurredAt` day is never later, below); a finding by the later of its
-    audit's day and its own creation day, whether or not its audit counts in the window. DONE and CANCELLED actions
-    (PREVIOUS_ACTIONS, treatment actions) count only when their settled day is in the window, so an action settled
-    before `since` is not counted again. A record reopened since is read as it is now: REOPEN clears an action's
+    audit's day and its own creation day, whether or not its audit counts in the window. DONE and CANCELLED review
+    actions (PREVIOUS_ACTIONS), and DONE treatment actions (RISKS, which has no cancelled figure), count only when
+    their settled day is in the window, so an action settled before `since` is not counted again. A record reopened since is read as it is now: REOPEN clears an action's
     `doneOn` and a nonconformity's `closedOn`, so live figures for any as-of read either as open. A record archived
     after as-of counts as live; one archived on or before as-of counts only in `contextItemsRemoved`, which lists the
     items archived in the window. `correctiveActionsOverdue` counts only the actions of nonconformities open on as-of.

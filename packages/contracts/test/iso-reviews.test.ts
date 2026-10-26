@@ -2667,6 +2667,20 @@ describe('review input figures', () => {
       plannedEnd: '2024-09-17',
       state: 'IN_PROGRESS',
     });
+    // A finding entered during that audit, before it is reported: placed with its audit, not by its own day.
+    const duringAudit = seedFinding({
+      ...dated('2024-09-16'),
+      internalAuditId: reportedLater.id,
+      type: 'OBSERVATION',
+    });
+    // An audit still in progress: its findings count in no review yet.
+    const stillOpen = seedAudit(programme.id, {
+      ...dated('2024-09-01'),
+      plannedStart: '2024-10-08',
+      plannedEnd: '2024-10-09',
+      state: 'IN_PROGRESS',
+    });
+    seedFinding({ ...dated('2024-10-08'), internalAuditId: stillOpen.id, type: 'OBSERVATION' });
 
     const second = await plan(fresh.id, { plannedOn: '2024-10-01' });
     await noteAll(second.id);
@@ -2681,6 +2695,7 @@ describe('review input figures', () => {
       responded.id,
     ]);
     expectFigure(byKey(recorded, 'AUDIT_RESULTS'), 'internalAuditsReported', []);
+    expectFigure(byKey(recorded, 'AUDIT_RESULTS'), 'findingsObservation', []);
     expectFigure(byKey(recorded, 'OBJECTIVES'), 'objectivesOpen', [achieved.id, notAchieved.id]);
     expectFigure(byKey(recorded, 'CONTEXT_CHANGES'), 'climateDecided', []);
     expectFigure(byKey(recorded, 'INCIDENTS'), 'incidents', []);
@@ -2751,6 +2766,7 @@ describe('review input figures', () => {
     expectFigure(audits, 'externalAuditsHeld', [heldLater.id]);
     expectFigure(audits, 'internalAuditsReported', [reportedLater.id]);
     expectFigure(audits, 'findingsMinorNc', [lateFinding.id]);
+    expectFigure(audits, 'findingsObservation', [duringAudit.id]);
     const objectives = byKey(all, 'OBJECTIVES');
     expectFigure(objectives, 'objectivesOpen', []);
     expectFigure(objectives, 'achieved', [achieved.id]);
@@ -2855,6 +2871,30 @@ describe('review input figures', () => {
     expect(next.sourceFigures!.since).toBe('2024-10-01');
     expectFigure(next, 'climateDecided', [fresh.id]);
     expectFigure(next, 'climateDecidedInPeriod', [fresh.id]);
+  });
+
+  it('counts an objective closed after a review was recorded, with closedOn before its as-of, as open on it (ISO-1a3)', async () => {
+    const fresh = freshSystem();
+    const objective = seedObjective(fresh.id, {
+      createdAt: '2024-07-01T06:30:00Z',
+      updatedAt: '2024-07-01T06:30:00Z',
+    });
+    // Closed today, dated 2024-09-28: its CLOSE step's day, today, places it.
+    await ok(app, 'closeIsoObjective', {
+      as: PERSON.kabir,
+      params: { id: objective.id },
+      body: { version: objective.version, closedOn: '2024-09-28', outcome: 'ACHIEVED' },
+    });
+    const held = await plan(fresh.id, { plannedOn: '2024-10-01' });
+    await noteAll(held.id);
+    await hold(held.id, PERSON.kabir, { heldOn: '2024-10-01' });
+    const then = byKey(await inputs(held.id), 'OBJECTIVES');
+    expectFigure(then, 'objectivesOpen', [objective.id]);
+    expectFigure(then, 'withoutReading', [objective.id]);
+    expectFigure(then, 'achieved', []);
+    const next = byKey(await inputs((await plan(fresh.id)).id), 'OBJECTIVES');
+    expectFigure(next, 'objectivesOpen', []);
+    expectFigure(next, 'achieved', [objective.id]);
   });
 
   it('keeps the decision a system was seeded with, placed by its date and creation day, under later decisions (ISO-1a3)', async () => {

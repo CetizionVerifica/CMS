@@ -353,8 +353,9 @@ with sign-off per "How to change a contract".
     decision counts by its own day (CONTEXT's `climateDecisions`; every call that changes a climate field, a new
     rationale alone included, plus the decision a system was seeded with): `climateDecided` from the first decision on
     or before as-of, so a decision changed later still counts, `climateDecidedInPeriod` when any falls in the window,
-    `climateRelevant` as it is now. PREVIOUS_ACTIONS and treatment actions count DONE and
-    CANCELLED by the settled day in the window; a nonconformity, and the incident on it, by its counting day (the
+    `climateRelevant` as it is now. PREVIOUS_ACTIONS counts DONE and CANCELLED review actions by their settled day in
+    the window, and RISKS DONE treatment actions likewise (a cancelled one is in no RISKS figure), each OPEN on as-of
+    until that day; a nonconformity, and the incident on it, by its counting day (the
     later of its creation day and `reportedOn`), so the mock now refuses an `occurredAt` after now or with a day after
     `reportedOn`; a finding by the later of its audit's day and its own creation day; `correctiveActionsOverdue` counts
     only the actions of nonconformities open on as-of. A review held before its system's creation day stores no
