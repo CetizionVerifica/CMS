@@ -105,6 +105,13 @@ export function addMonths(
   return { year: Math.floor(index / 12), month: (index % 12) + 1 };
 }
 
+/** `date` plus `months` calendar months, the day clamped to the month's end (29 Feb + 12 months is 28 Feb). */
+export function addMonthsToDate(date: LocalDate, months: number): LocalDate {
+  const { year, month, day } = toParts(date);
+  const target = addMonths(year, month, months);
+  return clampedDate(target.year, target.month, day);
+}
+
 function checkFyStartMonth(fyStartMonth: number): void {
   if (!Number.isInteger(fyStartMonth) || fyStartMonth < 1 || fyStartMonth > 12) {
     throw new RangeError(`fyStartMonth must be an integer 1-12, got ${fyStartMonth}`);

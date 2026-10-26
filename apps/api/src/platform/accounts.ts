@@ -2,8 +2,10 @@ import {
   ACCOUNT_DELETION_GRACE_DAYS,
   canMoveAccount,
   DEFAULT_TRIAL_DAYS,
+  KNOWN_FEATURES,
   OWNER_INVITE_HOURS,
   type Account,
+  type AccountOverride,
   type AccountProfile,
   type AccountStatus,
   type Entitlements,
@@ -77,6 +79,7 @@ export function accountOf(
     },
     trialEndsOn: record.trialEndsOn,
     libraryCopiedAt: record.libraryCopiedAt,
+    isoCatalogueCopiedAt: record.isoCatalogueCopiedAt ?? null,
     onboardedAt: record.onboardedAt,
     deletionRequestedAt: record.deletionRequestedAt,
     purgeAfter,
@@ -123,3 +126,40 @@ export function after(records: AccountRecord[], cursor: string | undefined): Acc
   }
   return records.filter((r) => r.createdAt < createdAt || (r.createdAt === createdAt && r.id < id));
 }
+
+const KNOWN_CODES: readonly string[] = KNOWN_FEATURES.map((f) => f.code);
+
+/**
+ * The override to store from a PUT body (plan §4.1, ISO-5b). A known feature (an add-on) changes only when the body
+ * names it: in `features` it is on, in `removedFeatures` it is off. One named in neither keeps its stored state, so
+ * a caller that saves only limits or other flags never switches an add-on. Every other flag is as the body says.
+ */
+export function overrideToStore(
+  body: AccountOverride,
+  stored: AccountOverride | null,
+): AccountOverride {
+  const named = new Set([...body.features, ...(body.removedFeatures ?? [])]);
+  const kept = (list: readonly string[] | undefined) =>
+    (list ?? []).filter((f) => KNOWN_CODES.includes(f) && !named.has(f));
+  return {
+    ...body,
+    features: [...body.features, ...kept(stored?.features)],
+    removedFeatures: [...(body.removedFeatures ?? []), ...kept(stored?.removedFeatures)],
+  };
+}
+
+/** The flags that turned on and off between two feature lists, or null when none did. */
+export function featureChange(
+  before: readonly string[],
+  after: readonly string[],
+): { added: string[]; removed: string[] } | null {
+  const added = after.filter((f) => !before.includes(f)).sort();
+  const removed = before.filter((f) => !after.includes(f)).sort();
+  return added.length || removed.length ? { added, removed } : null;
+}
+
+/** `account.features_changed` (docs/contracts/events.md "Accounts"): M9 copies the ISO catalogue on it. */
+export const featuresChanged = (
+  accountId: string,
+  change: { added: string[]; removed: string[] },
+) => ({ type: 'account.features_changed', data: { accountId, ...change } });

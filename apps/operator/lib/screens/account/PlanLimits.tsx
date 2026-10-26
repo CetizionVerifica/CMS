@@ -53,8 +53,11 @@ export function overrideBody(
   return {
     override: {
       limits,
-      features: [...current.features.filter(isKnownFeature), ...typed],
-      removedFeatures: current.removedFeatures.filter((f) => !typed.includes(f)),
+      // Add-ons are left out of both lists: the API keeps a known flag named in neither as it is (ISO-5b).
+      features: typed,
+      removedFeatures: current.removedFeatures.filter(
+        (f) => !isKnownFeature(f) && !typed.includes(f),
+      ),
       note: form.note.trim() || null,
     },
   };

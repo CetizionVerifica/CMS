@@ -14,7 +14,9 @@ import type { Action, Can, Membership, RequestContext, Resource, Role } from '@c
  * Scope per membership (endpoints.md §1):
  * - FIRM_ADMIN: every client of the firm, and firm-level resources (`clientId: null`).
  * - CONSULTANT: clients in `consultantClientIds`, and firm-level resources.
- * - Client roles: their own client only; APPROVER and OWNER only their `unitIds` (all units when null).
+ * - Client roles: their own client only; APPROVER and OWNER only their `unitIds` (all units when null). A resource
+ *   with a `unitId` needs that unit; one with `unitIds` (an ISO record over several units, docs/iso/plan.md §3.3)
+ *   needs at least one of them. The caller checks the plan's named-person exception itself.
  *   Firm-level resources only for rows marked `firmWide` (the library and locations, which every role reads).
  * A client-level resource must also be in `ctx.clientIds`.
  *
@@ -34,8 +36,11 @@ const FIRM_ADMIN = { FIRM_ADMIN: 'all' } as const;
 const FIRM_STAFF = { ...FIRM_ADMIN, CONSULTANT: 'all' } as const;
 const MANAGERS = { ...FIRM_STAFF, CLIENT_ADMIN: 'all' } as const;
 const EVERYONE = { ...MANAGERS, APPROVER: 'all', OWNER: 'all', VIEWER: 'all' } as const;
-const ON_OWN_INSTANCES = { ...MANAGERS, APPROVER: 'own', OWNER: 'own' } as const;
+const ON_OWN_RECORDS = { ...MANAGERS, APPROVER: 'own', OWNER: 'own' } as const;
 const REPORT_READERS = { ...MANAGERS, APPROVER: 'all', VIEWER: 'all' } as const;
+const OWNER_WRITERS = { ...MANAGERS, OWNER: 'own' } as const;
+const CLIENT_ADMIN_OR_OWN_APPROVER = { CLIENT_ADMIN: 'all', APPROVER: 'own' } as const;
+const CLIENT_ADMIN_OR_OWN_OWNER = { CLIENT_ADMIN: 'all', OWNER: 'own' } as const;
 
 /** One row per action in docs/contracts/endpoints.md. `<resource>.*` covers every verb of a resource. */
 export const POLICY: Readonly<Record<Action, PolicyRule>> = {
@@ -82,13 +87,13 @@ export const POLICY: Readonly<Record<Action, PolicyRule>> = {
   // §4 Workflow, evidence, comments, audit
   'instance.read': { grants: EVERYONE },
   'instance.submit': { grants: { OWNER: 'own' } },
-  'instance.approve': { grants: { CLIENT_ADMIN: 'all', APPROVER: 'own' } },
+  'instance.approve': { grants: CLIENT_ADMIN_OR_OWN_APPROVER },
   'instance.reopen': { grants: MANAGERS },
   'instance.reassign': { grants: MANAGERS },
   'instance.dueDate': { grants: MANAGERS },
-  'comment.read': { grants: { ...ON_OWN_INSTANCES, VIEWER: 'all' } },
-  'comment.write': { grants: ON_OWN_INSTANCES },
-  'evidence.write': { grants: ON_OWN_INSTANCES },
+  'comment.read': { grants: { ...ON_OWN_RECORDS, VIEWER: 'all' } },
+  'comment.write': { grants: ON_OWN_RECORDS },
+  'evidence.write': { grants: ON_OWN_RECORDS },
   'evidence.read': { grants: EVERYONE },
   'evidence.download': { grants: EVERYONE },
   // OWNER only before approval; M7's state machine enforces that part.
@@ -106,6 +111,50 @@ export const POLICY: Readonly<Record<Action, PolicyRule>> = {
   'report.read': { grants: REPORT_READERS },
   'export.create': { grants: REPORT_READERS },
   'export.read': { grants: REPORT_READERS },
+
+  // §10 The ISO add-on (docs/iso/plan.md §3.2). One row per action and no `iso*.*` wildcard: each ISO route lists one
+  // action, so its row is that route's grant. `own` is the person named in that role on the record; M16 builds the
+  // `Resource` per action (owner and approver of the subject, or the actor in both when they are the lead auditor,
+  // auditor or chair). The add-on gate (`config.feature`) runs before these.
+  'isoSystem.read': { grants: EVERYONE },
+  'isoSystem.write': { grants: MANAGERS },
+  'isoChecklist.read': { grants: EVERYONE },
+  'isoChecklist.write': { grants: OWNER_WRITERS },
+  'isoChecklist.requestNa': { grants: OWNER_WRITERS },
+  // Never the requester: M16's guard.
+  'isoChecklist.decideNa': { grants: { CLIENT_ADMIN: 'all', APPROVER: 'all' } },
+  'isoDocument.read': { grants: EVERYONE },
+  'isoDocument.write': { grants: OWNER_WRITERS },
+  'isoDocument.approve': { grants: CLIENT_ADMIN_OR_OWN_APPROVER },
+  'isoRisk.read': { grants: EVERYONE },
+  'isoRisk.write': { grants: OWNER_WRITERS },
+  'isoRisk.override': { grants: MANAGERS },
+  'isoObjective.read': { grants: EVERYONE },
+  'isoObjective.write': { grants: OWNER_WRITERS },
+  'isoAudit.read': { grants: EVERYONE },
+  'isoAudit.plan': { grants: MANAGERS },
+  'isoAudit.conduct': { grants: ON_OWN_RECORDS },
+  'isoCertification.read': { grants: EVERYONE },
+  'isoCertification.write': { grants: MANAGERS },
+  'isoNc.read': { grants: EVERYONE },
+  // For a unit the actor can see: the unit scope below.
+  'isoNc.raise': { grants: { ...MANAGERS, APPROVER: 'all', OWNER: 'all' } },
+  'isoNc.work': { grants: CLIENT_ADMIN_OR_OWN_OWNER },
+  'isoNc.reassign': { grants: MANAGERS },
+  'isoNc.verify': { grants: CLIENT_ADMIN_OR_OWN_APPROVER },
+  'isoNc.cancel': { grants: CLIENT_ADMIN_OR_OWN_APPROVER },
+  'isoNc.reopen': { grants: { CLIENT_ADMIN: 'all' } },
+  'isoAction.read': { grants: EVERYONE },
+  'isoAction.write': { grants: OWNER_WRITERS },
+  'isoAction.complete': { grants: CLIENT_ADMIN_OR_OWN_OWNER },
+  'isoAction.cancel': { grants: CLIENT_ADMIN_OR_OWN_APPROVER },
+  'isoAction.reopen': { grants: { CLIENT_ADMIN: 'all' } },
+  'isoReview.read': { grants: EVERYONE },
+  'isoReview.plan': { grants: MANAGERS },
+  'isoReview.write': { grants: ON_OWN_RECORDS },
+  'isoFile.read': { grants: EVERYONE },
+  // M16 checks the subject's own write action first and passes the result as owner and approver.
+  'isoFile.write': { grants: ON_OWN_RECORDS },
 };
 
 /** The rule for an action: its own row, else its `<resource>.*` row, else none (denied). */
@@ -129,12 +178,16 @@ function inScope(m: Membership, resource: Resource, firmWide: boolean): boolean 
       return true;
     case 'CONSULTANT':
       return clientId === null || (m.consultantClientIds ?? []).includes(clientId);
-    default:
+    default: {
       if (clientId === null) return firmWide;
       if (m.clientId !== clientId) return false;
-      return (
-        m.unitIds === null || resource.unitId === undefined || m.unitIds.includes(resource.unitId)
-      );
+      const units = m.unitIds;
+      if (units === null) return true;
+      if (resource.unitIds !== undefined && !resource.unitIds.some((id) => units.includes(id))) {
+        return false;
+      }
+      return resource.unitId === undefined || units.includes(resource.unitId);
+    }
   }
 }
 

@@ -15,6 +15,7 @@ import {
 import { PostgresReportsStore } from './modules/dashboard/db-store.js';
 import { createS3Storage } from './modules/evidence/storage.js';
 import { PostgresStore } from './modules/entities/service.js';
+import { copyIsoCatalogue } from './modules/library/db-iso-catalogue-copy.js';
 import { copyMasterLibrary } from './modules/library/db-library-copy.js';
 import { repositoryStore, s3ImportFilesFromEnv } from './modules/imports/index.js';
 import { S3ExportFiles } from './modules/reports/files.js';
@@ -193,7 +194,8 @@ export interface JobsWiring {
 
 /**
  * Starts the M9 jobs on the API's database: instance generation, the outbox relay and M6's master library copy for
- * new accounts (`account.created`, ADR M6-0001) always, reminders, digests (the operators' renewals digest too when the
+ * new accounts (`account.created`, ADR M6-0001) and M6's ISO catalogue copy when an account's ISO add-on comes on
+ * (`account.features_changed` and its sweep, docs/iso/plan.md §4.3) always, reminders, digests (the operators' renewals digest too when the
  * operator API is enabled; with object storage as well, the nightly purge of deleted accounts)
  * and workflow emails when the environment configures mail, and the evidence virus scan when it configures a scanner. Without a database nothing starts and nothing is said,
  * as for the modules above; with one but no SMTP server it warns, because reminders and approval emails would
@@ -213,6 +215,7 @@ export async function jobsFromEnv(
     ...(log && { log }),
     ...(auth && { issueLoginToken: (input) => auth.issueLoginToken(input) }),
     copyLibrary: (accountId, requestId) => copyMasterLibrary(database, accountId, requestId),
+    copyIsoCatalogue: (accountId, requestId) => copyIsoCatalogue(database, accountId, requestId),
     ...(operatorDatabase && { extraJobs: operatorJobs(operatorDatabase, s3) }),
   });
   if (operatorDatabase && !s3)

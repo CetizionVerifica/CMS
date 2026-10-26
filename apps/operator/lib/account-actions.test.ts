@@ -4,6 +4,7 @@ import {
   accountActions,
   featureSource,
   featuresFrom,
+  isoSetup,
   limitFrom,
   noteFrom,
   overrideFrom,
@@ -79,26 +80,32 @@ describe('the add-on switch', () => {
   const withIso = { ...plan, features: ['importer', 'isoManagement'] };
   const parts = { limits: { users: 200 }, features: ['sso'], removedFeatures: [] };
 
-  it('adds an add-on the plan lacks, and takes it away again, keeping the limits and other flags', () => {
-    const on = withFeature(parts, plan, 'isoManagement', true);
+  it('always names the flag it switches, on in features and off in removedFeatures (ISO-5b)', () => {
+    const on = withFeature(parts, 'isoManagement', true);
     expect(on).toEqual({
       limits: { users: 200 },
       features: ['sso', 'isoManagement'],
       removedFeatures: [],
     });
     expect(featureSource('isoManagement', plan, on)).toBe('added');
-    expect(withFeature(on, plan, 'isoManagement', false)).toEqual(parts);
-    expect(featureSource('isoManagement', plan, parts)).toBe('off');
-  });
-
-  it('removes an add-on the plan includes, and gives it back by dropping the removal', () => {
-    const off = withFeature(parts, withIso, 'isoManagement', false);
-    expect(off).toEqual({
+    // Off names the flag even on a plan without it, so a plan edit that adds it later leaves it off.
+    expect(withFeature(on, 'isoManagement', false)).toEqual({
       limits: { users: 200 },
       features: ['sso'],
       removedFeatures: ['isoManagement'],
     });
-    expect(withFeature(off, withIso, 'isoManagement', true)).toEqual(parts);
+    expect(featureSource('isoManagement', plan, parts)).toBe('off');
+  });
+
+  it('turns off an add-on the plan includes, and on again by naming it', () => {
+    const off = withFeature(parts, 'isoManagement', false);
+    expect(off.removedFeatures).toEqual(['isoManagement']);
+    expect(featureSource('isoManagement', withIso, off)).toBe('removed');
+    expect(withFeature(off, 'isoManagement', true)).toEqual({
+      limits: { users: 200 },
+      features: ['sso', 'isoManagement'],
+      removedFeatures: [],
+    });
     expect(featureSource('isoManagement', withIso, parts)).toBe('plan');
   });
 
@@ -120,5 +127,65 @@ describe('the add-on switch', () => {
     expect(noteFrom(event({ override: 'odd' }))).toBeNull();
     expect(noteFrom(event({ override: { note: null } }))).toBeNull();
     expect(noteFrom(event({ override: { note: 'Pilot' } }))).toBe('Pilot');
+  });
+});
+
+describe('the ISO set-up line (ISO-5b)', () => {
+  const NOW = Date.parse('2026-10-25T10:00:00.000Z');
+  const minutesAgo = (m: number) => new Date(NOW - m * 60_000).toISOString();
+  const entry = (
+    at: string,
+    before: Record<string, unknown> | null,
+    after: Record<string, unknown>,
+  ) => ({
+    id: '01900000-0000-7000-8000-0000000000e2',
+    at,
+    operatorId: null,
+    action: 'OVERRIDE_CHANGE' as const,
+    accountId: '01900000-0000-7000-8000-0000000000a1',
+    before,
+    after,
+    reason: null,
+    requestId: 'r',
+    ip: null,
+  });
+  const switchedOn = (m: number) =>
+    entry(minutesAgo(m), { features: ['importer'] }, { features: ['importer', 'isoManagement'] });
+  const resumed = (m: number) =>
+    entry(minutesAgo(m), { status: 'SUSPENDED' }, { status: 'ACTIVE' });
+  const base = {
+    status: 'ACTIVE' as const,
+    createdAt: minutesAgo(10_000),
+    isoCatalogueCopiedAt: null,
+  };
+
+  it('shows the copy time once copied', () => {
+    expect(
+      isoSetup({ ...base, isoCatalogueCopiedAt: minutesAgo(1) }, [switchedOn(20)], NOW),
+    ).toEqual({ state: 'copied', at: minutesAgo(1) });
+  });
+
+  it('flags a TRIAL or ACTIVE account 15 minutes after the switch-on, not before', () => {
+    expect(isoSetup(base, [switchedOn(14)], NOW)).toEqual({ state: 'waiting' });
+    expect(isoSetup(base, [switchedOn(16)], NOW)).toEqual({ state: 'late', since: minutesAgo(16) });
+    expect(isoSetup({ ...base, status: 'TRIAL' }, [switchedOn(16)], NOW).state).toBe('late');
+  });
+
+  it('never flags a SUSPENDED or PROVISIONING account, and counts from a resume', () => {
+    expect(isoSetup({ ...base, status: 'SUSPENDED' }, [switchedOn(60)], NOW)).toEqual({
+      state: 'notYet',
+    });
+    expect(isoSetup({ ...base, status: 'PROVISIONING' }, [], NOW).state).toBe('notYet');
+    // Switched on an hour ago while suspended, resumed 5 minutes ago: not late yet.
+    expect(isoSetup(base, [resumed(5), switchedOn(60)], NOW)).toEqual({ state: 'waiting' });
+    expect(isoSetup(base, [resumed(20), switchedOn(60)], NOW)).toEqual({
+      state: 'late',
+      since: minutesAgo(20),
+    });
+  });
+
+  it('counts from the account’s creation when a plan gave it the add-on', () => {
+    expect(isoSetup({ ...base, createdAt: minutesAgo(5) }, [], NOW)).toEqual({ state: 'waiting' });
+    expect(isoSetup(base, [], NOW)).toEqual({ state: 'late', since: base.createdAt });
   });
 });

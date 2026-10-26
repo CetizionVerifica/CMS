@@ -1,6 +1,7 @@
 import type { AuditAction, OperatorAuditAction } from '@canopy/contracts';
 import { operatorAudit, platformAccounts, type OperatorTx } from '@canopy/db';
 import type { FastifyRequest } from 'fastify';
+import { featureChange, featuresChanged } from './accounts.js';
 import { signedInOf } from './db-http.js';
 
 export interface TrailEntry {
@@ -53,4 +54,36 @@ export async function trail(
       event: entry.account.event ?? null,
     });
   }
+}
+
+/** The account's effective features (plan §4.2), as `platformAccounts.entitlements` computes them. */
+export async function features(tx: OperatorTx, accountId: string): Promise<string[]> {
+  return (await platformAccounts.entitlements(tx, accountId)).features;
+}
+
+/**
+ * When the account's features changed, an entry in its own trail that raises `account.features_changed`, for a change
+ * whose own entry already carries another event (a plan change raises `account.plan_changed`). Nothing otherwise.
+ */
+export async function recordFeatureChange(
+  tx: OperatorTx,
+  request: FastifyRequest,
+  requestId: string,
+  accountId: string,
+  before: string[],
+  after: string[],
+  reason: string | null,
+): Promise<void> {
+  const change = featureChange(before, after);
+  if (!change) return;
+  await platformAccounts.recordEvent(tx, {
+    accountId,
+    action: 'UPDATE',
+    before: { features: before },
+    after: { features: after },
+    reason,
+    requestId,
+    operatorId: signedInOf(request).operator.id,
+    event: featuresChanged(accountId, change),
+  });
 }

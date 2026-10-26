@@ -2,6 +2,8 @@ import { describe, expect, it, vi } from 'vitest';
 
 const copyMasterLibrary = vi.fn();
 vi.mock('./modules/library/db-library-copy.js', () => ({ copyMasterLibrary }));
+const copyIsoCatalogue = vi.fn();
+vi.mock('./modules/library/db-iso-catalogue-copy.js', () => ({ copyIsoCatalogue }));
 import { AuthService } from './auth/index.js';
 import { PostgresReportsStore } from './modules/dashboard/db-store.js';
 import { S3ExportFiles } from './modules/reports/files.js';
@@ -215,6 +217,7 @@ describe('jobsFromEnv', () => {
       log,
       issueLoginToken: expect.any(Function),
       copyLibrary: expect.any(Function),
+      copyIsoCatalogue: expect.any(Function),
     });
     expect(warn).not.toHaveBeenCalled();
     // The jobs get M5's issuer, so sign-in link and invite emails carry a fresh token.
@@ -231,6 +234,11 @@ describe('jobsFromEnv', () => {
     copyMasterLibrary.mockResolvedValueOnce(report);
     await expect(start.mock.calls[0]![1].copyLibrary('account-1', 'run-1')).resolves.toBe(report);
     expect(copyMasterLibrary).toHaveBeenCalledWith(database, 'account-1', 'run-1');
+    // And M6's ISO catalogue copier, for an account whose ISO add-on comes on.
+    const iso = { copied: true };
+    copyIsoCatalogue.mockResolvedValueOnce(iso);
+    await expect(start.mock.calls[0]![1].copyIsoCatalogue('account-2', 'run-2')).resolves.toBe(iso);
+    expect(copyIsoCatalogue).toHaveBeenCalledWith(database, 'account-2', 'run-2');
     await database?.close();
   });
 
