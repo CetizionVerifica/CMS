@@ -42,6 +42,8 @@ is copyrighted: the catalogue holds clause numbers, short titles and summaries i
 
 ## Consequences
 - The library routes refuse staff edits and merges of a STANDARD act, any merge across kinds, and moving an
-  obligation between a law and a standard (400 `VALIDATION`, ISO-9b). The off switch's 403s and the `clauseRefs`
-  refusals wait for ISO-2f, ISO-4b and the contract bodies to carry `clauseRefs`.
+  obligation between a law and a standard (400 `VALIDATION`). ISO-9b adds the off switch: while the add-on is off,
+  lists leave STANDARD rows out and the routes that name one answer 403 `FEATURE_NOT_ENABLED`, before those 400s.
+- `clauseRefs` are written only by this copy. The obligation create and update bodies never carry them in v1
+  (plan §4.4), so a body that names them gets the contract's 400 `VALIDATION`, whatever the act's kind or the switch.
 - The DUPLICATE finder for acts looks among STATUTE acts only, matching `act_name_key`.

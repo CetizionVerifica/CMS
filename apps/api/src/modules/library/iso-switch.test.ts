@@ -224,16 +224,50 @@ describe('routes that name a STANDARD row answer 403 while the add-on is off', (
 });
 
 describe('clauseRefs', () => {
-  it('cannot be set through the library: the bodies take no clauseRefs (400)', async () => {
-    for (const iso of [false, true]) {
-      const { call } = app(iso);
-      for (const id of [ids.obligation, ids.isoObligation]) {
-        const res = await call('firmAdmin', 'PATCH', `/library/obligations/${id}`, {
-          version: 1,
-          clauseRefs: [{ standard: 'ISO_45001', clauseNumber: '9.1.1' }],
-        });
-        expect(error(res.body).code, `iso ${iso} ${id}`).toBe('VALIDATION');
-      }
-    }
+  const refs = [{ standard: 'ISO_45001', clauseNumber: '9.1.1' }];
+  const body = (actId: string) => ({
+    externalRef: null,
+    domain: 'OTHER',
+    jurisdiction: 'CENTRAL',
+    stateCode: null,
+    actId,
+    categoryId: ids.category,
+    title: 'Names clause references',
+    description: 'A body that names clauseRefs.',
+    applicabilityText: null,
+    criticality: 'MEDIUM',
+    timelineType: 'TIME_BASED',
+    recurrenceRule: { kind: 'QUARTERLY', anchor: 'PERIOD_END', days: 0 },
+    ruleStatus: 'CONFIRMED',
+    evidenceRequired: true,
+    forms: [],
+    logSheets: [],
+    clauseRefs: refs,
   });
+
+  it.each(STAFF)(
+    '%s: a create or update naming them is 400, on and off, under either kind',
+    async (actor) => {
+      for (const iso of [false, true]) {
+        const { call, store } = app(iso);
+        for (const [actId, id] of [
+          [ids.act, ids.obligation],
+          [ids.isoAct, ids.isoObligation],
+        ] as const) {
+          const created = await call(actor, 'POST', '/library/obligations', body(actId));
+          const updated = await call(actor, 'PATCH', `/library/obligations/${id}`, {
+            version: 1,
+            clauseRefs: refs,
+          });
+          for (const res of [created, updated]) {
+            expect(error(res.body).code, `iso ${iso} ${actId}`).toBe('VALIDATION');
+          }
+        }
+        // Only the catalogue copy writes them: the stored references are as seeded.
+        expect(store.raw('obligations', ids.isoObligation)?.clauseRefs).toEqual(refs);
+        expect(store.raw('obligations', ids.obligation)?.clauseRefs).toBeUndefined();
+        expect(store.audits).toEqual([]);
+      }
+    },
+  );
 });
