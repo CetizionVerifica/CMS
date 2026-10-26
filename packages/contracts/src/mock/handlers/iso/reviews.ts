@@ -560,19 +560,21 @@ const stepIs =
 
 /**
  * The day of a record's latest step that passes `test` (model §5.4: the latest when it was taken more than once). A
- * row seeded or loaded without its trail has no such event, so its `updatedAt` stands in for the step.
+ * row seeded or loaded without that step in its trail takes its `createdAt` instead, so it is placed by the later of
+ * its entered date and its creation day. `createdAt` never changes; `updatedAt` would move with any later write (an
+ * audit's CLOSE, a response recorded) and place the row a second time.
  */
 function stepDay(
   g: GatherScope,
   entityType: IsoEntity,
-  row: { id: string; updatedAt: string },
+  row: { id: string; createdAt: string },
   test: (e: AuditRecord) => boolean,
 ): string {
   const latest = eventsOf(g, entityType, new Set([row.id]), test).reduce<string | null>(
     (at, e) => (at === null || e.at > at ? e.at : at),
     null,
   );
-  return dayOf(g, latest ?? row.updatedAt);
+  return dayOf(g, latest ?? row.createdAt);
 }
 
 /** An action with its settled day: its latest COMPLETE or CANCEL step, none while OPEN. */
@@ -610,6 +612,29 @@ const CLIMATE_FIELDS = ['climateChangeRelevant', 'climateChangeRationale', 'clim
 const setsClimate = (e: AuditRecord) =>
   e.action === 'UPDATE' && e.after !== null && CLIMATE_FIELDS.some((field) => field in e.after!);
 
+/**
+ * The decision a system was seeded or loaded with (model §5.4): one decided with no decision in its trail, or whose
+ * first decision (`decisions`, oldest first) does not move `climateChangeRelevant` from null, was decided before its
+ * trail starts. That decision is placed by the later of the `climateDecidedOn` it was seeded with, which the decisions
+ * since give back in their `before`, and its creation day.
+ */
+function seededDecision(
+  g: GatherScope,
+  system: System,
+  decisions: readonly AuditRecord[],
+): EventDay[] {
+  if (system.climateChangeRelevant === null) return [];
+  const first = decisions[0];
+  if (first !== undefined && first.before?.climateChangeRelevant === null) return [];
+  let decidedOn = system.climateDecidedOn;
+  for (const e of [...decisions].reverse()) {
+    if (e.before !== null && 'climateDecidedOn' in e.before) {
+      decidedOn = e.before.climateDecidedOn as string | null;
+    }
+  }
+  return [{ entityId: system.id, on: later(decidedOn, dayOf(g, system.createdAt))! }];
+}
+
 /** The system's nonconformities of the input's standards. */
 const ncsOf = (g: GatherScope) =>
   rowsOf(g, 'nonconformities').filter(
@@ -630,7 +655,9 @@ const GATHER: { [S in FigureSource]: (g: GatherScope) => Data<S> } = {
     const items = rowsOf(g, 'contextItems').filter((c) => c.managementSystemId === g.system.id);
     const { system } = g;
     const updates = eventsOf(g, 'context_item', new Set(ids(items)), (e) => e.action === 'UPDATE');
-    const decisions = eventsOf(g, 'management_system', new Set([system.id]), setsClimate);
+    const decisions = eventsOf(g, 'management_system', new Set([system.id]), setsClimate).sort(
+      (a, b) => (a.at < b.at ? -1 : a.at > b.at ? 1 : 0),
+    );
     return {
       contextItems: items.map((c) => ({ id: c.id, kind: c.kind, ...daysOf(g, c) })),
       contextChanges: eventDays(g, updates),
@@ -639,11 +666,7 @@ const GATHER: { [S in FigureSource]: (g: GatherScope) => Data<S> } = {
         climateChangeRelevant: system.climateChangeRelevant,
         climateDecidedOn: system.climateDecidedOn,
       },
-      // A system seeded or loaded decided but without its trail takes its `updatedAt` as its one decision.
-      climateDecisions:
-        decisions.length > 0 || system.climateChangeRelevant === null
-          ? eventDays(g, decisions)
-          : [{ entityId: system.id, on: dayOf(g, system.updatedAt) }],
+      climateDecisions: [...seededDecision(g, system, decisions), ...eventDays(g, decisions)],
     };
   },
 

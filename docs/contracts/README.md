@@ -347,10 +347,13 @@ with sign-off per "How to change a contract".
     of the latest step that set it, so a record settled or entered after a review was recorded, dated before that
     review, counts in the next review instead of in neither. `ReviewFigureData` carries those days: `settledOn` on
     every action (its latest COMPLETE or CANCEL, so one reopened and settled again counts by the later step),
-    `closeStepOn` on objectives, `reportStepOn` on internal audits and `heldStepOn` on external audits, each null
-    before its step. Each climate decision counts by its own day (CONTEXT's `climateDecisions`): `climateDecided` from
-    the first decision on or before as-of, so a decision changed later still counts, `climateDecidedInPeriod` when any
-    falls in the window, `climateRelevant` as it is now. PREVIOUS_ACTIONS and treatment actions count DONE and
+    `closeStepOn` on objectives, `reportStepOn` on internal audits and `heldStepOn` on external audits (its latest
+    RECORD_HELD or a later `UPDATE` moving `endOn`), each null before its step. A record whose trail has no such step
+    (seeded or loaded data) takes its creation day, never `updatedAt`, which any later write moves. Each climate
+    decision counts by its own day (CONTEXT's `climateDecisions`; every call that changes a climate field, a new
+    rationale alone included, plus the decision a system was seeded with): `climateDecided` from the first decision on
+    or before as-of, so a decision changed later still counts, `climateDecidedInPeriod` when any falls in the window,
+    `climateRelevant` as it is now. PREVIOUS_ACTIONS and treatment actions count DONE and
     CANCELLED by the settled day in the window; a nonconformity, and the incident on it, by its counting day (the
     later of its creation day and `reportedOn`), so the mock now refuses an `occurredAt` after now or with a day after
     `reportedOn`; a finding by the later of its audit's day and its own creation day; `correctiveActionsOverdue` counts

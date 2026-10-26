@@ -274,7 +274,8 @@ v2.5.1). `ReviewFigureData` gains the step days (`settledOn` on actions, the lat
 `reportStepOn`, `heldStepOn`), CONTEXT's `climateDecisions` (the day of every climate decision) and RISKS's `kinds`,
 and its docs say how each source places and picks its records: DONE and CANCELLED actions by their settled day in the
 window, a nonconformity and its incident by the NC's counting day, a finding by the later of its audit's day and its
-creation day, the climate decision from the first decision, overdue corrective actions only of NCs open on as-of,
+creation day, a record with no step in its trail by its creation day, the climate decision from the first decision
+(a system decided when seeded keeping that decision), overdue corrective actions only of NCs open on as-of,
 RISKS kinds by input key (`reviewRiskKinds`, with a `significant<Kind>` key only for a kind read) and findings by
 their clauses' standards. New `REVIEW_FIGURE_KEYS` lists every figure key per source with its entity type and whether
 its value counts its ids. `ReviewInputView.figuresWithheld` withholds an INCIDENTS row, figures and notes, from a

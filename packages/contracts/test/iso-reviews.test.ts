@@ -1904,7 +1904,7 @@ describe('review input figures', () => {
       nonconformityId: ids.nc1,
     }).id;
     ids.findingObservation = seedFinding({ internalAuditId: ids.auditReported }).id;
-    // Reported before the 2024-06-30 review: a row with no trail takes its updatedAt as the REPORT step's time.
+    // Reported before the 2024-06-30 review: a row with no REPORT step is placed by its reportedOn and creation day.
     const old = seedAudit(programme.id, {
       ...reported('2024-05-01'),
       createdAt: at('2024-04-20'),
@@ -2760,6 +2760,7 @@ describe('review input figures', () => {
     expectFigure(context, 'climateDecidedInPeriod', [fresh.id]);
     expectFigure(byKey(all, 'INCIDENTS'), 'incidents', [incident.id]);
     // Raised by its counting day, the later of its creation day and its backdated reportedOn.
+    expectFigure(byKey(all, 'NONCONFORMITIES'), 'raised', [incident.id]);
     expectFigure(byKey(all, 'NONCONFORMITIES'), 'raisedIncident', [incident.id]);
     // The figures the 2024-10-01 review stored stay as they were.
     expect(await inputs(second.id)).toEqual(recorded);
@@ -2856,27 +2857,165 @@ describe('review input figures', () => {
     expectFigure(next, 'climateDecidedInPeriod', [fresh.id]);
   });
 
-  it('counts no climate decision in a period with none', async () => {
+  it('keeps the decision a system was seeded with, placed by its date and creation day, under later decisions (ISO-1a3)', async () => {
+    // Decided when seeded, with no decision in its trail (model §5.4): placed by the later of its climateDecidedOn and
+    // its creation day, 2024-04-01.
     const fresh = freshSystem();
     Object.assign(fresh, {
       climateChangeRelevant: true,
       climateChangeRationale: 'Floods close the road to the site',
-      climateDecidedOn: '2024-08-01',
-      updatedAt: '2024-08-01T06:30:00Z',
+      climateDecidedOn: '2024-03-20',
     });
     seedReview(fresh.id, {
-      plannedOn: '2024-09-30',
-      heldOn: '2024-09-30',
-      createdAt: '2024-09-30T06:30:00Z',
-      updatedAt: '2024-09-30T06:30:00Z',
+      plannedOn: '2024-06-30',
+      heldOn: '2024-06-30',
+      createdAt: '2024-06-30T06:30:00Z',
+      updatedAt: '2024-06-30T06:30:00Z',
       state: 'HELD',
     });
-    // No trail: its updatedAt stands in for its one decision, 2024-08-01, before the 2024-09-30 review.
-    const context = byKey(await inputs((await plan(fresh.id)).id), 'CONTEXT_CHANGES');
-    expect(context.sourceFigures!.since).toBe('2024-09-30');
+    const context = async (reviewId: string) => byKey(await inputs(reviewId), 'CONTEXT_CHANGES');
+    const next = await plan(fresh.id);
+    const before = await context(next.id);
+    expect(before.sourceFigures!.since).toBe('2024-06-30');
+    expectFigure(before, 'climateDecided', [fresh.id]);
+    expectFigure(before, 'climateRelevant', [fresh.id]);
+    expectFigure(before, 'climateDecidedInPeriod', []);
+    // Today a new rationale alone, then a new decision: each counts in the period, and the seeded decision stays
+    // placed on its own day, which the trail gives back.
+    const decide = (body: object) =>
+      ok(app, 'setIsoClimateDecision', {
+        as: PERSON.kabir,
+        params: { id: fresh.id },
+        body: {
+          version: fresh.version,
+          climateChangeRelevant: fresh.climateChangeRelevant,
+          climateDecidedOn: fresh.climateDecidedOn,
+          climateChangeRationale: fresh.climateChangeRationale,
+          ...body,
+        },
+      });
+    await decide({ climateChangeRationale: 'Floods close the road to the site twice a year' });
+    expect(isoEvents(app, fresh.id).at(-1)!.after).toEqual({
+      climateChangeRationale: 'Floods close the road to the site twice a year',
+    });
+    expectFigure(await context(next.id), 'climateDecidedInPeriod', [fresh.id]);
+    await decide({
+      climateChangeRelevant: false,
+      climateChangeRationale: 'The new road stays open in floods',
+      climateDecidedOn: TODAY,
+    });
+    // Held on 2024-09-01 and recorded now: decided from the seeded decision, none in its period, relevant as now.
+    const held = await plan(fresh.id, { plannedOn: '2024-09-01' });
+    await noteAll(held.id);
+    await hold(held.id, PERSON.kabir, { heldOn: '2024-09-01' });
+    const then = await context(held.id);
+    expectFigure(then, 'climateDecided', [fresh.id]);
+    expectFigure(then, 'climateDecidedInPeriod', []);
+    expectFigure(then, 'climateRelevant', []);
+    // The next review, from 2024-09-01, counts today's decisions in its period.
+    const now = await context(next.id);
+    expectFigure(now, 'climateDecided', [fresh.id]);
+    expectFigure(now, 'climateDecidedInPeriod', [fresh.id]);
+  });
+
+  it('places a record with no step in its trail by its creation day, whatever edits it later (ISO-1a3)', async () => {
+    const fresh = freshSystem();
+    Object.assign(fresh, {
+      climateChangeRelevant: true,
+      climateChangeRationale: 'Floods close the road to the site',
+      climateDecidedOn: '2024-05-06',
+    });
+    const programme = seedProgramme(fresh.id);
+    // Reported on 2024-09-15 and created on 2024-09-20, with no REPORT step: placed on 2024-09-20.
+    const audit = seedAudit(programme.id, {
+      createdAt: '2024-09-20T06:30:00Z',
+      updatedAt: '2024-09-20T06:30:00Z',
+      ...reported('2024-09-15'),
+    });
+    const visit = seedExternal(fresh.id, {
+      createdAt: '2024-09-01T06:30:00Z',
+      updatedAt: '2024-09-01T06:30:00Z',
+      state: 'HELD',
+      startOn: '2024-09-08',
+      endOn: '2024-09-10',
+    });
+    const held = await plan(fresh.id, { plannedOn: '2024-10-01' });
+    await noteAll(held.id);
+    await hold(held.id, PERSON.kabir, { heldOn: '2024-10-01' });
+    const audits = byKey(await inputs(held.id), 'AUDIT_RESULTS');
+    expectFigure(audits, 'internalAuditsReported', [audit.id]);
+    expectFigure(audits, 'externalAuditsHeld', [visit.id]);
+    expectFigure(byKey(await inputs(held.id), 'CONTEXT_CHANGES'), 'climateDecidedInPeriod', [
+      fresh.id,
+    ]);
+    // Today the audit is closed, the visit's response recorded and the system renamed. Each moves its row's updatedAt,
+    // and none places the row again.
+    await ok(app, 'closeIsoInternalAudit', {
+      as: PERSON.kabir,
+      params: { id: audit.id },
+      body: { version: audit.version },
+    });
+    await ok(app, 'recordIsoExternalAuditResponse', {
+      as: PERSON.kabir,
+      params: { id: visit.id },
+      body: { version: visit.version },
+    });
+    await ok(app, 'updateIsoSystem', {
+      as: PERSON.kabir,
+      params: { id: fresh.id },
+      body: { version: fresh.version, name: 'Renamed system' },
+    });
+    expect(audit.updatedAt).toBe(NOW);
+    expect(visit.updatedAt).toBe(NOW);
+    expect(fresh.updatedAt).toBe(NOW);
+    const all = await inputs((await plan(fresh.id)).id);
+    const later = byKey(all, 'AUDIT_RESULTS');
+    expectFigure(later, 'internalAuditsReported', []);
+    expectFigure(later, 'externalAuditsHeld', []);
+    const context = byKey(all, 'CONTEXT_CHANGES');
     expectFigure(context, 'climateDecided', [fresh.id]);
-    expectFigure(context, 'climateRelevant', [fresh.id]);
     expectFigure(context, 'climateDecidedInPeriod', []);
+  });
+
+  it('counts an external audit whose endOn moved after a review counted it again, with its findings (ISO-1a3)', async () => {
+    const fresh = freshSystem();
+    const visit = seedExternal(fresh.id, {
+      createdAt: '2024-09-01T06:30:00Z',
+      updatedAt: '2024-09-01T06:30:00Z',
+      state: 'HELD',
+      startOn: '2024-09-08',
+      endOn: '2024-09-10',
+    });
+    const finding = seedFinding({
+      createdAt: '2024-09-10T06:30:00Z',
+      updatedAt: '2024-09-10T06:30:00Z',
+      externalAuditId: visit.id,
+      type: 'MINOR_NC',
+    });
+    const held = await plan(fresh.id, { plannedOn: '2024-10-01' });
+    await noteAll(held.id);
+    await hold(held.id, PERSON.kabir, { heldOn: '2024-10-01' });
+    const recorded = await inputs(held.id);
+    expectFigure(byKey(recorded, 'AUDIT_RESULTS'), 'externalAuditsHeld', [visit.id]);
+    expectFigure(byKey(recorded, 'AUDIT_RESULTS'), 'findingsMinorNc', [finding.id]);
+    const next = await plan(fresh.id);
+    const audits = async () => byKey(await inputs(next.id), 'AUDIT_RESULTS');
+    expectFigure(await audits(), 'externalAuditsHeld', []);
+    expectFigure(await audits(), 'findingsMinorNc', []);
+    // Today the visit is found to have run a day longer: the UPDATE that moves endOn places it, and its findings, today.
+    await ok(app, 'updateIsoExternalAudit', {
+      as: PERSON.kabir,
+      params: { id: visit.id },
+      body: { version: visit.version, endOn: '2024-09-11' },
+    });
+    expect(isoEvents(app, visit.id).at(-1)).toMatchObject({
+      action: 'UPDATE',
+      after: { endOn: '2024-09-11' },
+    });
+    expectFigure(await audits(), 'externalAuditsHeld', [visit.id]);
+    expectFigure(await audits(), 'findingsMinorNc', [finding.id]);
+    // The stored ids of the 2024-10-01 review show it counted them too.
+    expect(await inputs(held.id)).toEqual(recorded);
   });
 
   it('counts the overdue corrective actions only of nonconformities open on as-of', async () => {

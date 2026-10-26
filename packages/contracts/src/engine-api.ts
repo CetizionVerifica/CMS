@@ -201,8 +201,11 @@ export interface ReviewFigureData {
     system: Pick<ManagementSystem, 'id' | 'climateChangeRelevant' | 'climateDecidedOn'>;
     /**
      * The days of the climate decisions: every management system UPDATE whose `after` names `climateChangeRelevant`,
-     * `climateChangeRationale` or `climateDecidedOn` (only the climate route writes them), each a decision on its own
-     * day (`climateDecidedOn` is never later). `climateDecided` counts from the first on or before as-of, since a
+     * `climateChangeRationale` or `climateDecidedOn` (only the climate route writes them, and only the fields it
+     * changes, so a new rationale alone is one), each a decision on its own day (`climateDecidedOn` is never later).
+     * A system decided when it was seeded or loaded, with no decision in its trail or a first one that does not move
+     * `climateChangeRelevant` from null, also has that decision, on the later of the `climateDecidedOn` it was seeded
+     * with and its creation day (model §5.4). `climateDecided` counts from the first on or before as-of, since a
      * decision never returns to undecided; `climateDecidedInPeriod` when one falls in the window.
      */
     climateDecisions: ReviewFigureEventDay[];

@@ -804,20 +804,23 @@ days); actions (`ReviewFigureAction`) also `subject`, `doneOn` and `settledOn`, 
 1.8.4 (ISO-1a3) a date the user enters comes with the client-local day of the latest step that set it, so the engine
 places the record by the later of the two: `settledOn` (an action's COMPLETE or CANCEL, the latest when it was
 settled more than once), `closeStepOn` (an objective's CLOSE), `reportStepOn` (an internal audit's REPORT) and
-`heldStepOn` (an external audit's RECORD_HELD, or a later `UPDATE` naming `endOn`), each null before its step. An
-incident is placed by its nonconformity's counting day (the later of `createdOn` and `reportedOn`), a finding by the
-later of its audit's day and its own `createdOn`. CONTEXT carries `contextChanges`, RISKS `ratingChanges` and
-NONCONFORMITIES `notEffectiveSteps`: the `{ entityId, on }` days (`ReviewFigureEventDay`) of the audited events model
-§5.4 names, in the window. CONTEXT also carries `climateDecisions`, the day of every system `UPDATE` naming
-`climateChangeRelevant`, `climateChangeRationale` or `climateDecidedOn` (only the climate route writes them): the
-system is decided from the first on or before as-of, decided in the period when any falls in the window, and relevant
-as it is now. The caller picks the records: RISKS only the kinds `reviewRiskKinds(key, standards)` gives for the
-input, which it passes as `kinds` (`SIGNIFICANT_ASPECTS` aspects; `RISKS_AND_OPPORTUNITIES` risks and opportunities,
-and hazards with ISO 45001 among the input's standards; `RISK_ACTIONS` risks and opportunities), and the engine emits
-a `significant<Kind>` figure only for those kinds; AUDIT_RESULTS only the findings whose clauses' standards (their
-audit's when they list none) overlap the input's. COMPLIANCE_EVALUATION reads the instances' workflow as it is now. M16
-calls it live for a PLANNED review and once at RECORD_HELD with `asOf = heldOn`, except for a review held before its
-system's creation day, which stores no figures; a HELD or CLOSED review's figures are never computed again.
+`heldStepOn` (an external audit's latest RECORD_HELD, or a later `UPDATE` naming `endOn`), each null before its step
+and the record's creation day when its trail has no such event (seeded or loaded data; `updatedAt` moves with any
+later write, so it is never used). An incident is placed by its nonconformity's counting day (the later of
+`createdOn` and `reportedOn`), a finding by the later of its audit's day and its own `createdOn`. CONTEXT carries
+`contextChanges`, RISKS `ratingChanges` and NONCONFORMITIES `notEffectiveSteps`: the `{ entityId, on }` days
+(`ReviewFigureEventDay`) of the audited events model §5.4 names, in the window. CONTEXT also carries
+`climateDecisions`, the day of every system `UPDATE` naming `climateChangeRelevant`, `climateChangeRationale` or
+`climateDecidedOn` (only the climate route writes them), plus, for a system decided when seeded or loaded, that
+decision on the later of its `climateDecidedOn` and its creation day: the system is decided from the first on or
+before as-of, decided in the period when any falls in the window, and relevant as it is now. The caller picks the
+records: RISKS only the kinds `reviewRiskKinds(key, standards)` gives for the input, which it passes as `kinds`
+(`SIGNIFICANT_ASPECTS` aspects; `RISKS_AND_OPPORTUNITIES` risks and opportunities, and hazards with ISO 45001 among the
+input's standards; `RISK_ACTIONS` risks and opportunities), and the engine emits a `significant<Kind>` figure only for
+those kinds; AUDIT_RESULTS only the findings whose clauses' standards (their audit's when they list none) overlap the
+input's. COMPLIANCE_EVALUATION reads the instances' workflow as it is now. M16 calls it live for a PLANNED review and
+once at RECORD_HELD with `asOf = heldOn`, except for a review held before its system's creation day, which stores no
+figures; a HELD or CLOSED review's figures are never computed again.
 `TypedReviewInputFigures` is the signature over `ReviewFigureData`; `IsoEngineApi` keeps an untyped `data` until M4
 adopts it (ISO-3b, README decision 52).
 

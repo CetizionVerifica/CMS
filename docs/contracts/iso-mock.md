@@ -85,9 +85,13 @@ README decisions 42-51. M4 owns every formula marked "stand-in".
     dated before it, counts in the next review instead of in neither: an action's settled day is the later of
     `doneOn` and its COMPLETE step when DONE, and its CANCEL step when CANCELLED (the latest, so one completed,
     reopened and completed again counts by the later COMPLETE), and it is OPEN on as-of until then; an objective's
-    CLOSE step with `closedOn` (open on as-of until then); an internal audit's REPORT step with `reportedOn`; an
-    external audit's RECORD_HELD step, or a later `UPDATE` naming `endOn`, with `endOn`. A row seeded or loaded
-    without its trail takes its `updatedAt` as the step's time. A nonconformity, incidents included, is raised and
+    CLOSE step with `closedOn` (open on as-of until then); an internal audit's REPORT step with `reportedOn`; and an
+    external audit's `endOn` with the latest event that set it, its RECORD_HELD or a later `UPDATE` naming `endOn`
+    (the visit's dates stay editable while HELD or RESPONDED; moved after a review counted it, the audit and its
+    findings count again in the next one, and the stored ids show it). A row seeded or loaded without that step in
+    its trail takes its `createdAt` as the step's time, so it is placed by the later of its entered date and its
+    creation day. `createdAt` never changes, so the row is placed once; `updatedAt` is not used, since any later write
+    (an internal audit's CLOSE, an external audit's RECORD_RESPONSE, a system PATCH) moves it. A nonconformity, incidents included, is raised and
     counts from its counting day, the later of its creation day and its `reportedOn` (which may be backdated), and an
     incident is placed by that day too (its `occurredAt` day is never later, below); a finding by the later of its
     audit's day and its own creation day, whether or not its audit counts in the window. DONE and CANCELLED actions
@@ -99,11 +103,14 @@ README decisions 42-51. M4 owns every formula marked "stand-in".
     `readingsRecorded` counts the readings created in the window, whatever their period; on-track reads the readings
     created by as-of for periods ended by then.
   - **Climate.** Each management system `UPDATE` naming `climateChangeRelevant`, `climateChangeRationale` or
-    `climateDecidedOn` is a decision on its own day (only the climate route writes them, and only when a field
-    changes, so a new rationale alone is one too). `climateDecided` counts from the first decision on or before as-of,
-    so a decision changed after as-of still counts; `climateDecidedInPeriod` counts when any decision falls in the
-    window; `climateRelevant` reads the decision as it is now. A system seeded or loaded decided but with no decision
-    in its trail takes its `updatedAt` as its one decision.
+    `climateDecidedOn` is a decision on its own day. Only the climate route writes them, and only for the fields it
+    changes, so every call that changes any of the three is a decision: a new rationale alone, with the same
+    relevance and date, is one too. `climateDecided` counts from the first decision on or before as-of, so a
+    decision changed after as-of still counts; `climateDecidedInPeriod` counts when any decision falls in the window;
+    `climateRelevant` reads the decision as it is now. A system seeded or loaded decided has that decision too, when
+    its trail has no decision or its first does not move `climateChangeRelevant` from null (its events are then later
+    decisions): placed by the later of the `climateDecidedOn` it was seeded with (the `before` of the decisions since
+    gives it back) and its creation day.
   - **Events.** Counts with no date field of their own take the client-local days of audited events in the window: a
     context item's `UPDATE` (changed; an item added in the window counts only as added), a risk item's `UPDATE` whose
     `after` names `likelihood`, `severity`, `residualLikelihood` or `residualSeverity` (re-rated; the clearing of a
