@@ -24,7 +24,7 @@ import { authHandlers } from './handlers/auth.js';
 import { dashboardHandlers } from './handlers/dashboards.js';
 import { entityHandlers } from './handlers/entities.js';
 import { importHandlers } from './handlers/imports.js';
-import { isoHandlers } from './handlers/iso/index.js';
+import { isoHandlers, storeFixtureFigures } from './handlers/iso/index.js';
 import { workHandlers } from './handlers/work.js';
 import {
   activeMemberships,
@@ -180,6 +180,8 @@ export function createMockServer(
   options: MockServerOptions = {},
 ): FastifyInstance & { store: MockStore } {
   const store = options.store ?? new MockStore();
+  // The fixtures' held management reviews get the figures RECORD_HELD would have stored (model §3.13).
+  store.onReset(storeFixtureFigures);
   const clock = makeClock(options.today);
   const validateResponses = options.validateResponses ?? true;
   // No request logging: URLs can carry invite tokens, and evidence names are personal data.
@@ -271,8 +273,11 @@ export function createMockServer(
           throw bodyError(body.error, id) ?? validation(body.error, 'body');
 
         const idempotencyKey = ep.idempotent ? header(request, 'idempotency-key') : undefined;
+        // A key is the caller's for one route and one record: the same key on another record is a new request.
         const cacheKey =
-          idempotencyKey === undefined ? undefined : `${actor?.person.id}:${id}:${idempotencyKey}`;
+          idempotencyKey === undefined
+            ? undefined
+            : `${actor?.person.id}:${id}:${JSON.stringify(params?.data ?? {})}:${idempotencyKey}`;
         const cached = cacheKey === undefined ? undefined : store.idempotency.get(cacheKey);
         if (cached !== undefined) return reply.code(cached.status).send(cached.body);
 

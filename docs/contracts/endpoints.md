@@ -403,9 +403,9 @@ on the URL.
 | PATCH | `/clients/{clientId}/iso/management-reviews/{id}` `{ version, attendeeIds?, minutes? }` | `isoReview.write` | ✓ | ✓ | ✓ | own | own | | attendees and minutes until CLOSED or CANCELLED; AP/OW only as its chair |
 | POST | `/clients/{clientId}/iso/management-reviews/{id}/replan` `{ version, standards?, plannedOn?, chairId?, reason? }` | `isoReview.plan` | ✓ | ✓ | ✓ | | | | while PLANNED; a new date or chair needs a reason; changing standards adds and archives input and output rows |
 | POST | `/clients/{clientId}/iso/management-reviews/{id}/cancel` `{ version, reason }` | `isoReview.plan` | ✓ | ✓ | ✓ | | | | CANCEL a PLANNED review |
-| POST | `/clients/{clientId}/iso/management-reviews/{id}/held` `{ version, heldOn, attendeeIds?, minutes? }` | `isoReview.write` | ✓ | ✓ | ✓ | own | own | | RECORD_HELD: notes on every input; AP/OW only as its chair |
+| POST | `/clients/{clientId}/iso/management-reviews/{id}/held` `{ version, heldOn, attendeeIds?, minutes? }` | `isoReview.write` | ✓ | ✓ | ✓ | own | own | | RECORD_HELD: notes on every input; stores each input's figures as of `heldOn`; AP/OW only as its chair |
 | POST | `/clients/{clientId}/iso/management-reviews/{id}/close` | `isoReview.write` | ✓ | ✓ | ✓ | own | own | | CLOSE: a decision on every output, every review action DONE or CANCELLED |
-| GET | `/clients/{clientId}/iso/management-reviews/{id}/inputs` | `isoReview.read` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | each with its source's figures (`reviewInputFigures`); AP/OW limited to their units (plan §3.3) |
+| GET | `/clients/{clientId}/iso/management-reviews/{id}/inputs` | `isoReview.read` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | each with its source's figures: stored at RECORD_HELD for a HELD or CLOSED review, computed for a PLANNED one; values cover the whole system, ids only the records the reader may read (plan §3.3) |
 | PATCH | `/clients/{clientId}/iso/management-reviews/{id}/inputs/{inputId}` | `isoReview.write` | ✓ | ✓ | ✓ | own | own | | notes on one input |
 | GET | `/clients/{clientId}/iso/management-reviews/{id}/outputs` | `isoReview.read` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | AP/OW limited to their units (plan §3.3) |
 | PATCH | `/clients/{clientId}/iso/management-reviews/{id}/outputs/{outputId}` | `isoReview.write` | ✓ | ✓ | ✓ | own | own | | the decision on one output |
