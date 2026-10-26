@@ -436,6 +436,7 @@ export const mockFetch: typeof fetch = async (input, init) => {
   // Everything else (M7, M10 and the other modules' endpoints) comes from M0's mock server.
   return delegateToM0(
     me.person.email ?? '',
+    me.account?.features ?? [],
     method,
     url,
     typeof init?.body === 'string' ? init.body : undefined,

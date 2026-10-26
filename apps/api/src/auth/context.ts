@@ -54,6 +54,12 @@ export interface AuthStore {
    * switch takes effect on the next request (ADR M16-0001). A store without it has no features: add-on routes refuse.
    */
   accountFeatures?(firmId: string): Promise<readonly string[]>;
+  /**
+   * Whether the ISO catalogue copy is recorded for the account (`account.isoCatalogueCopiedAt`, docs/iso/plan.md §4.3),
+   * read fresh on every call like `accountFeatures`. A store without it is never ready: ISO routes answer
+   * FEATURE_NOT_READY.
+   */
+  isoCatalogueCopied?(firmId: string): Promise<boolean>;
 }
 
 /** Memberships that grant access at `now`: not archived and, for viewers, not past `expiresAt`. */

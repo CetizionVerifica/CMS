@@ -23,7 +23,11 @@
   `await requireFeature(req.ctx, 'isoManagement')` where only part of a route is the add-on's). Unless the account
   has the feature, it answers `403 FEATURE_NOT_ENABLED { feature }`, reads included. Features are read from the store
   on every request, never from the session, so the operator's switch applies at once. `/me` lists them in
-  `account.features`.
+  `account.features`. With `isoManagement` on, it answers `409 FEATURE_NOT_READY { feature }` until the account's ISO
+  catalogue copy is recorded (`AuthStore.isoCatalogueCopied`, docs/iso/plan.md §4.3). `await hasFeature(req.ctx, flag)`
+  answers the same question without throwing, for lists that leave an add-on's rows out while it is off.
+- ISO actions (docs/iso/plan.md §3.2) have one `POLICY` row each and no wildcard. A resource over several units passes
+  `unitIds`; APPROVER and OWNER with `unitIds` need one of them (§3.3). The named-person exception is the caller's.
 - `session-pre-mfa` routes exist only to finish MFA: `authorize()` there throws `MFA_REQUIRED` while MFA is owed.
 - Stricter per-route rate limits use `config.routeLimit: { max, timeWindow }`. The plugin's `config.rateLimit` is
   refused, because the API-wide limiter would make it a no-op.

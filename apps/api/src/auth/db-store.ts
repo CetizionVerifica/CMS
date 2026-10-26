@@ -222,6 +222,12 @@ export function createDbAccountStore(db: Database, options: DbAccountStoreOption
       );
     },
 
+    async isoCatalogueCopied(firmId: string) {
+      return asFirm(firmId, LOOKUP_REQUEST, (tx) => accounts.isoCatalogueCopiedAt(tx)).then(
+        (at) => at !== null,
+      );
+    },
+
     async libraryCopied(firmId: string) {
       return asFirm(firmId, LOOKUP_REQUEST, (tx) => accounts.libraryCopied(tx));
     },

@@ -62,13 +62,33 @@ ISO add-on, part 1 (ISO-2d, migration 0040; docs/iso/model.md §1-3.4, §3.8, §
   document, checked by a trigger, not a foreign key, so the purge can delete both), `document_revision` (one DRAFT or
   IN_REVIEW and one APPROVED per document), `certification`, `external_audit`.
 - `iso_file`: ISO files, never in `evidence`. One nullable subject column per subject with `num_nonnulls(...) = 1`
-  (ISO-2d: clause assessment, document revision, external audit, certification; ISO-2e adds the rest and widens the
-  check); `storage_key` inside `evidence/<firmId>/<clientId>/iso/`; removed files keep the row with `remove_reason`.
+  (all eleven subjects of model §6 since ISO-2e); `storage_key` inside `evidence/<firmId>/<clientId>/iso/`; removed files keep the row with `remove_reason`.
 - Repositories (`repositories/iso.ts`): `isoCatalogue`, `managementSystems`, `contextItems`, `clauseAssessments`
   (`addForStandards` adds the NOT_STARTED rows), `controlledDocuments`, `documentRevisions`, `certifications`,
   `externalAudits`, `isoFiles` (`create`, `get`, `forSubject`, `pendingScan`, `setScanStatus`, `archive`,
   `cleanForClient`). Lists take a `UnitScope` (`unitIds`, `personId`) and apply plan §3.3 in SQL. None checks a role,
   the feature switch or a state machine: M16 does.
+
+ISO add-on, part 2 (ISO-2e, migration 0041; docs/iso/model.md §3.5-3.13)
+
+- Client records, as in part 1: `risk_item` (the contracts' kind rules as checks; `rating`, `residual_rating` and
+  `significant` stored from the engine), `risk_control`, `objective` (`standards` as standard codes), `objective_reading`,
+  `audit_programme` (one per system and FY), `internal_audit` (lead as a column), `audit_checklist_item`,
+  `audit_finding` (exactly one of internal or external audit; an NC link exactly for MAJOR_NC and MINOR_NC, one finding
+  per NC), `nonconformity` (incident fields as `incident_*` columns, set exactly for INCIDENT and NEAR_MISS; composite
+  keys to `compliance_instance` for `source_instance_id` and `statutory_instance_id`), `iso_action` (exactly one of five
+  subject columns), `management_review`, `review_input` and `review_output` (one per review and definition).
+- `nonconformity.number` counts per client from 1: a trigger sets it on insert under a transaction lock on the client
+  and keeps it on update; a unique key backs it. Callers never pass it.
+- Lists of people and ISO records are join rows, archived when removed, with a partial key on live rows:
+  `objective_risk_item`, `internal_audit_unit`, `internal_audit_person` (role AUDITOR, AUDITEE or REPORTED_TO),
+  `nonconformity_person` (investigators), `nonconformity_risk_item` (role RELATED or UPDATED), `nonconformity_document`,
+  `management_review_person` (attendees). A record's repository reads and writes them as the contract's id lists, and
+  checks the result against the contract with its lists in.
+- Repositories (`repositories/iso-records.ts`, helpers in `iso-shared.ts`): `riskItems`, `riskControls`, `objectives`,
+  `objectiveReadings`, `auditProgrammes`, `internalAudits`, `auditChecklistItems`, `auditFindings`, `nonconformities`,
+  `isoActions`, `managementReviews`, `reviewInputs` and `reviewOutputs` (`addForReview` adds one row per key of the
+  given standards). Lists take a `UnitScope`; a child record takes its parent's scope, so by-parent reads take none.
 
 Field-level definitions are in `docs/contracts/domain-model.md` (M0); that file wins if it and this list differ.
 

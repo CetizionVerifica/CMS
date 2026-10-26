@@ -158,6 +158,8 @@ export class InMemoryAuthStore implements AccountStore {
   readonly accounts = new Map<string, AccountView>();
   /** Accounts whose master library M6 has not copied yet; every other account has its library. */
   readonly libraryPending = new Set<string>();
+  /** Accounts whose ISO catalogue copy is not recorded yet; every other account has it. */
+  readonly isoCataloguePending = new Set<string>();
   /** Support tokens by hash, as the console's `platform_issue_support_token` stores them. */
   readonly supportTokens = new Map<string, SupportToken>();
   /** Support grants by id: when each ends and whether it was revoked. */
@@ -182,6 +184,10 @@ export class InMemoryAuthStore implements AccountStore {
 
   async accountFeatures(firmId: string): Promise<readonly string[]> {
     return (await this.account(firmId))?.entitlements.features ?? [];
+  }
+
+  async isoCatalogueCopied(firmId: string): Promise<boolean> {
+    return !this.isoCataloguePending.has(firmId);
   }
 
   async libraryCopied(firmId: string): Promise<boolean> {

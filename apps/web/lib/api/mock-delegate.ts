@@ -5,7 +5,8 @@
 // The shell's demo world (its clients, accounts and sign-in) stays in mock.ts, which the shell's and M13's tests rely
 // on. M0's store holds the synthetic firm B fixture instead, so ids are translated at this boundary: our client ids
 // become firm B's in the request and come back as ours in the response, with the client names to match, and the
-// signed-in demo account acts as a firm B person with the same kind of access (`x-mock-person`). Ids that exist only
+// signed-in demo account acts as a firm B person with the same kind of access (`x-mock-person`), with its own account's
+// add-ons (`x-mock-features`), so `/me` and every delegated route agree on them. Ids that exist only
 // in M0's data (units, instances, people) pass through unchanged, so a page can follow them in later requests.
 // From the fixtures entry, not `/mock`: a value import from `/mock` would load Fastify on every server render.
 import { FIRM_B_AS_OF } from '@canopy/contracts/fixtures';
@@ -76,9 +77,14 @@ const toOurs = CLIENT_MAP.flatMap(
     ] as [string, string][],
 );
 
-/** Answers one request from M0's mock server, as `email` (a demo account), translating ids both ways. */
+/**
+ * Answers one request from M0's mock server, as `email` (a demo account) whose account has `features`, translating
+ * ids both ways. Firm B has the ISO add-on, so without the header every demo user would get ISO data; with it, the
+ * company admin's account (no add-ons) gets 403 FEATURE_NOT_ENABLED on `/iso` routes and no STANDARD instances.
+ */
 export async function delegateToM0(
   email: string,
+  features: readonly string[],
   method: string,
   url: URL,
   body: string | undefined,
@@ -92,6 +98,8 @@ export async function delegateToM0(
       accept: 'application/json',
       ...(body === undefined ? {} : { 'content-type': 'application/json' }),
       ...(person ? { 'x-mock-person': person } : {}),
+      // Always sent: empty means no add-ons, where leaving it out would mean firm B's.
+      'x-mock-features': features.join(','),
     },
     ...(body === undefined ? {} : { payload: replaceAll(body, toTheirs) }),
   });

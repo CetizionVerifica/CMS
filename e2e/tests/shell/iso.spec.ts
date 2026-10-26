@@ -3,7 +3,8 @@ import { devices, expect, type Page, test } from '@playwright/test';
 import { checkPage, DEMO_METALS, signIn } from './helpers.js';
 
 // The ISO add-on in the shell (docs/iso/plan.md §5 and §6). In the demo every account has it except the company
-// admin's (company@demo.test), so both states can be tried.
+// admin's (company@demo.test), so both states can be tried. The web mock sends each user's add-ons on to M0's mock
+// (`x-mock-features`), so the data behind the shell agrees with its menu.
 const ISO_ITEMS = [
   'ISO overview',
   'Checklist',
@@ -66,6 +67,29 @@ test.describe('ISO add-on in the shell at 1280px', () => {
       await page.goto(`/c/${DEMO_METALS}/${path}`);
       await expectTurnedOff(page);
     }
+  });
+
+  test('the register lists ISO work only for an account with the add-on', async ({ page }) => {
+    // Demo Metals' ISO instances (M0's firm B fixture) all fall in FY 2024-25. The web mock forwards each demo user's
+    // add-ons to M0's mock, so the company admin's register has the statutory rows alone.
+    const register = `/c/${DEMO_METALS}/register?fy=2024-25`;
+    const count = async () => {
+      const text = page.getByText(/^\d+ instances? match$/);
+      await expect(text).toBeVisible();
+      return Number((await text.innerText()).split(' ')[0]);
+    };
+    await signIn(page, 'consultant@demo.test', register);
+    await expect(page.getByRole('heading', { level: 1, name: 'Register' })).toBeVisible();
+    const withIso = await count();
+    await checkPage(page);
+
+    await page.context().clearCookies();
+    await signIn(page, 'company@demo.test', register);
+    await expect(page.getByRole('heading', { level: 1, name: 'Register' })).toBeVisible();
+    const lawOnly = await count();
+    expect(lawOnly).toBeGreaterThan(0);
+    expect(lawOnly).toBeLessThan(withIso);
+    await checkPage(page);
   });
 
   test('the off page works from the keyboard alone', async ({ page }) => {

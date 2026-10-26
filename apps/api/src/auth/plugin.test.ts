@@ -5,7 +5,7 @@ import { afterAll, describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { buildServer } from '../server.js';
 import { ApiError } from './errors.js';
-import { authorize, requireClient, requireFeature } from './plugin.js';
+import { authorize, hasFeature, requireClient, requireFeature } from './plugin.js';
 import { accountView, createTestAuth } from './testing.js';
 import { sameToken } from './tokens.js';
 
@@ -55,6 +55,9 @@ app.get('/mixed-copy', { config: { auth: 'session' } }, async (req) => {
   await requireFeature({ ...req.ctx }, 'isoManagement');
   return { ok: true };
 });
+app.get('/has-iso', { config: { auth: 'session' } }, async (req) => ({
+  iso: await hasFeature({ ...req.ctx }, 'isoManagement'),
+}));
 app.get('/open', { config: { auth: 'public' } }, async (req) => ({ hasCtx: hasCtx(req) }));
 app.get('/boom', { config: { auth: 'public' } }, async () => {
   throw new Error('secret detail');
@@ -339,6 +342,72 @@ describe('add-on features', () => {
     const res = await server.inject({ url: '/iso', headers: actor.headers });
     expect(res.json()).toMatchObject({ error: { code: 'FEATURE_NOT_ENABLED' } });
     await server.close();
+  });
+
+  it('answers 409 FEATURE_NOT_READY on reads and writes until the ISO catalogue copy is recorded', async () => {
+    const actor = signIn({ memberships: [{ role: 'CLIENT_ADMIN', clientId: CLIENT }] });
+    withIso(actor.firmId, true);
+    store.isoCataloguePending.add(actor.firmId);
+    for (const method of ['GET', 'POST'] as const) {
+      const res = await app.inject({
+        method,
+        url: `/clients/${CLIENT}/iso`,
+        headers: actor.headers,
+      });
+      expect(res.statusCode).toBe(409);
+      expect(res.json()).toMatchObject({
+        error: {
+          code: 'FEATURE_NOT_READY',
+          details: { feature: 'isoManagement' },
+          message: 'This add-on is being set up for your account. Try again in a few minutes.',
+        },
+      });
+    }
+    expect((await app.inject({ url: '/mixed', headers: actor.headers })).statusCode).toBe(409);
+    // Off wins over not ready.
+    withIso(actor.firmId, false);
+    const off = await app.inject({ url: `/clients/${CLIENT}/iso`, headers: actor.headers });
+    expect(off.json()).toMatchObject({ error: { code: 'FEATURE_NOT_ENABLED' } });
+    // The copy applies to the next request, in the same session.
+    withIso(actor.firmId, true);
+    store.isoCataloguePending.delete(actor.firmId);
+    const ready = await app.inject({ url: `/clients/${CLIENT}/iso`, headers: actor.headers });
+    expect(ready.statusCode).toBe(200);
+  });
+
+  it('is never ready when the store cannot read the ISO catalogue copy', async () => {
+    const { store: bare, signIn: bareSignIn } = createTestAuth();
+    const noMarker = Object.assign(Object.create(bare) as typeof bare, {
+      isoCatalogueCopied: undefined,
+    });
+    const server = buildServer({ authStore: noMarker });
+    server.get('/iso', { config: { auth: 'session', feature: 'isoManagement' } }, async () => 'ok');
+    const actor = bareSignIn({ memberships: [{ role: 'FIRM_ADMIN' }] });
+    const view = accountView(actor.firmId);
+    bare.accounts.set(actor.firmId, {
+      ...view,
+      entitlements: { ...view.entitlements, features: ['isoManagement'] },
+    });
+    const res = await server.inject({ url: '/iso', headers: actor.headers });
+    expect(res.json()).toMatchObject({ error: { code: 'FEATURE_NOT_READY' } });
+    await server.close();
+  });
+
+  it('hasFeature() says whether the add-on is on, without throwing or waiting for the copy', async () => {
+    const actor = signIn({ memberships: [{ role: 'FIRM_ADMIN' }] });
+    const has = async () =>
+      (await app.inject({ url: '/has-iso', headers: actor.headers })).json<{ iso: boolean }>().iso;
+    expect(await has()).toBe(false);
+    withIso(actor.firmId, true);
+    store.isoCataloguePending.add(actor.firmId);
+    expect(await has()).toBe(true);
+    store.isoCataloguePending.delete(actor.firmId);
+    withIso(actor.firmId, false);
+    expect(await has()).toBe(false);
+    withIso(actor.firmId, true);
+    const ctx = (await app.inject({ url: '/whoami', headers: actor.headers })).json();
+    // A context whose request has ended has no features.
+    expect(await hasFeature(ctx, 'isoManagement')).toBe(false);
   });
 
   it('refuses config.feature on a public route', async () => {

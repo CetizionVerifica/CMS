@@ -27,137 +27,38 @@ import {
   ScanStatus,
   type IsoFileSubjectType,
 } from '@canopy/contracts';
-import { and, asc, count, desc, eq, ilike, inArray, isNull, or, sql, type SQL } from 'drizzle-orm';
-import type { PgColumn, PgTable } from 'drizzle-orm/pg-core';
+import { and, asc, desc, eq, ilike, inArray, isNull, or, sql } from 'drizzle-orm';
+import type { PgColumn } from 'drizzle-orm/pg-core';
 import { z } from 'zod';
 import type { TenantTx } from '../database.js';
 import { DbError, rethrow, validate } from '../errors.js';
 import * as s from '../schema/index.js';
 import { instantsToDates } from './convert.js';
+import { containsPattern, entity, pageLimit, type NewEntity } from './crud.js';
 import {
-  containsPattern,
-  decodeCursor,
-  encodeCursor,
-  entity,
-  pageLimit,
-  type NewEntity,
-  type Page,
-} from './crud.js';
+  anyOf,
+  CERTIFICATION_UNITS,
+  inScope,
+  keysetPage,
+  linksOf,
+  pageShape,
+  setLinks,
+  SYSTEM_UNITS,
+  systemUnitsMatch,
+  uuids,
+  UnitScope,
+  type IsoPage,
+  type Patch,
+} from './iso-shared.js';
+
+export { UnitScope, type IsoPage } from './iso-shared.js';
 
 /**
- * The ISO add-on's records, part 1 (docs/iso/model.md §2-3.4, §3.8, §6; ISO-2d). The catalogue is the account's own
+ * The ISO add-on's records, part 1 (docs/iso/model.md §2-3.4, §3.8, §6; ISO-2d; part 2 is iso-records.ts). The catalogue is the account's own
  * copy: every context reads it, only a system job writes it (RLS refuses any other). Client records are read and
  * written by M16 under the request's tenant context; list filters apply the unit scope of docs/iso/plan.md §3.3 in SQL
  * when the caller passes one. No repository here checks a role, a feature switch or a state machine: M16 does.
  */
-
-// ---------- shared ----------
-
-/**
- * An approver's or owner's unit scope (plan §3.3), passed by M16 for a membership that lists units. A record is in
- * scope when its units overlap these, when it takes its management system's units and those overlap (a system with
- * no units covers every unit of the client), or when it names `personId` in one of its people fields. Leave the scope
- * out for a context that sees the whole client.
- */
-export const UnitScope = z.strictObject({
-  unitIds: z.array(Id).max(500),
-  personId: Id.nullable(),
-});
-export type UnitScope = z.infer<typeof UnitScope>;
-
-/** A page of ISO records; `total` when the caller asked for a count. */
-export interface IsoPage<T> extends Page<T> {
-  total?: number;
-}
-
-const pageShape = {
-  limit: z.int().min(1).max(200).optional(),
-  cursor: z.string().min(1).max(1000).nullable().optional(),
-  count: z.boolean().optional(),
-};
-
-/** `{a,b}` as a uuid[] parameter; the ids are checked by the filter schemas first. */
-function uuids(ids: readonly string[]): SQL {
-  return sql`${`{${ids.join(',')}}`}::uuid[]`;
-}
-
-/** A list filter: undefined means no filter, an empty list matches nothing. */
-function anyOf(column: PgColumn, values: readonly string[] | undefined): SQL | undefined {
-  if (values === undefined) return undefined;
-  return values.length === 0 ? sql`false` : inArray(column, [...values]);
-}
-
-/** The live units of a system, by its id column: in scope when it has none or one of `units`. */
-function systemUnitsMatch(systemId: PgColumn, units: readonly string[]): SQL {
-  return sql`(not exists (select 1 from management_system_unit u where u.management_system_id = ${systemId} and u.archived_at is null)
-    or exists (select 1 from management_system_unit u where u.management_system_id = ${systemId} and u.archived_at is null and u.unit_id = any(${uuids(units)})))`;
-}
-
-/** The scope test for a record: its own units or its system's, or one of the people it names. */
-function inScope(
-  scope: UnitScope | undefined,
-  units: SQL,
-  people: readonly PgColumn[] = [],
-): SQL | undefined {
-  if (!scope) return undefined;
-  const named = scope.personId === null ? [] : people.map((p) => eq(p, scope.personId!));
-  return or(units, ...named);
-}
-
-/**
- * A keyset page in `sort` then id order. The cursor is the last row's id; the next page starts after that row's
- * sort value and id, as the evidence vault does.
- */
-async function keysetPage<T>(
-  tx: TenantTx,
-  q: {
-    table: PgTable;
-    id: PgColumn;
-    sort: PgColumn;
-    where: (SQL | undefined)[];
-    page: { limit?: number; cursor?: string | null; count?: boolean };
-    parse: (row: Record<string, unknown>) => T;
-  },
-): Promise<{
-  rows: Record<string, unknown>[];
-  items: T[];
-  nextCursor: string | null;
-  total?: number;
-}> {
-  const limit = pageLimit(q.page.limit);
-  const filters = and(...q.where);
-  const after = q.page.cursor ? decodeCursor(q.page.cursor) : null;
-  const cursor = after
-    ? sql`(${q.sort}, ${q.id}) > ((select x.${sql.identifier(q.sort.name)} from ${q.table} x where x.id = ${after}), ${after}::uuid)`
-    : undefined;
-  const rows = (await tx
-    .select()
-    .from(q.table)
-    .where(and(filters, cursor))
-    .orderBy(asc(q.sort), asc(q.id))
-    .limit(limit + 1)
-    .catch(rethrow)) as Record<string, unknown>[];
-  const page = rows.slice(0, limit);
-  const last = rows.length > limit ? (page[page.length - 1] as { id: string }) : null;
-  const result: {
-    rows: Record<string, unknown>[];
-    items: T[];
-    nextCursor: string | null;
-    total?: number;
-  } = {
-    rows: page,
-    items: page.map(q.parse),
-    nextCursor: last ? encodeCursor(last.id) : null,
-  };
-  if (q.page.count) {
-    const [row] = await tx.select({ n: count() }).from(q.table).where(filters).catch(rethrow);
-    result.total = row?.n ?? 0;
-  }
-  return result;
-}
-
-/** Record patches: what the database sets, the client and the parent never change. */
-type Patch<T, Fixed extends keyof T = never> = Partial<Omit<NewEntity<T>, 'clientId' | Fixed>>;
 
 // ---------- catalogue ----------
 
@@ -259,60 +160,6 @@ export const isoCatalogue = {
   createReviewOutputDefs: outputDefEntity.createMany,
 };
 
-// ---------- units lists (join tables) ----------
-
-type UnitJoin = typeof s.managementSystemUnit | typeof s.certificationUnit;
-
-/** The live unit ids per parent, sorted. */
-async function unitsOf(
-  tx: TenantTx,
-  table: UnitJoin,
-  parent: PgColumn,
-  ids: readonly string[],
-): Promise<Map<string, string[]>> {
-  const out = new Map<string, string[]>(ids.map((id) => [id, []]));
-  if (ids.length === 0) return out;
-  const rows = (await tx
-    .select({ parentId: parent, unitId: table.unitId })
-    .from(table)
-    .where(and(inArray(parent, [...ids]), isNull(table.archivedAt)))
-    .orderBy(asc(table.unitId))
-    .catch(rethrow)) as { parentId: string; unitId: string }[];
-  for (const r of rows) out.get(r.parentId)?.push(r.unitId);
-  return out;
-}
-
-/** Makes the live units of a parent exactly `unitIds`: rows for removed units are archived, never deleted. */
-async function setUnits(
-  tx: TenantTx,
-  table: UnitJoin,
-  parent: PgColumn,
-  values: (unitId: string) => Record<string, string>,
-  parentId: string,
-  unitIds: readonly string[],
-): Promise<void> {
-  const wanted = validate(z.array(Id).max(500), [...new Set(unitIds)]);
-  await tx
-    .update(table)
-    .set({ archivedAt: sql`now()` } as never)
-    .where(
-      and(
-        eq(parent, parentId),
-        isNull(table.archivedAt),
-        wanted.length ? sql`${table.unitId} <> all(${uuids(wanted)})` : undefined,
-      ),
-    )
-    .catch(rethrow);
-  const live = (await unitsOf(tx, table, parent, [parentId])).get(parentId) ?? [];
-  const added = wanted.filter((u) => !live.includes(u));
-  if (added.length) {
-    await tx
-      .insert(table)
-      .values(added.map(values) as never)
-      .catch(rethrow);
-  }
-}
-
 // ---------- management systems ----------
 
 const systemEntity = entity<ManagementSystem>({
@@ -322,11 +169,9 @@ const systemEntity = entity<ManagementSystem>({
 });
 
 async function withSystemUnits(tx: TenantTx, systems: ManagementSystem[]) {
-  const ms = s.managementSystemUnit;
-  const units = await unitsOf(
+  const units = await linksOf(
     tx,
-    ms,
-    ms.managementSystemId,
+    SYSTEM_UNITS,
     systems.map((m) => m.id),
   );
   return systems.map((m) => ({ ...m, unitIds: units.get(m.id) ?? [] }));
@@ -383,14 +228,7 @@ export const managementSystems = {
   async create(tx: TenantTx, input: NewEntity<ManagementSystem>): Promise<ManagementSystem> {
     const { unitIds, ...row } = input;
     const created = await systemEntity.create(tx, { ...row, unitIds: [] });
-    await setUnits(
-      tx,
-      s.managementSystemUnit,
-      s.managementSystemUnit.managementSystemId,
-      (unitId) => ({ clientId: created.clientId, managementSystemId: created.id, unitId }),
-      created.id,
-      unitIds,
-    );
+    await setLinks(tx, SYSTEM_UNITS, { id: created.id, clientId: created.clientId }, unitIds);
     return managementSystems.require(tx, created.id);
   },
   /**
@@ -406,14 +244,7 @@ export const managementSystems = {
     const { unitIds, ...fields } = patch;
     const updated = await systemEntity.update(tx, id, version, fields);
     if (unitIds !== undefined) {
-      await setUnits(
-        tx,
-        s.managementSystemUnit,
-        s.managementSystemUnit.managementSystemId,
-        (unitId) => ({ clientId: updated.clientId, managementSystemId: id, unitId }),
-        id,
-        unitIds,
-      );
+      await setLinks(tx, SYSTEM_UNITS, { id: id, clientId: updated.clientId }, unitIds);
     }
     return managementSystems.require(tx, id);
   },
@@ -686,11 +517,9 @@ const certificationEntity = entity<Certification>({
 });
 
 async function withCertificationUnits(tx: TenantTx, certificates: Certification[]) {
-  const cu = s.certificationUnit;
-  const units = await unitsOf(
+  const units = await linksOf(
     tx,
-    cu,
-    cu.certificationId,
+    CERTIFICATION_UNITS,
     certificates.map((c) => c.id),
   );
   return certificates.map((c) => ({ ...c, unitIds: units.get(c.id) ?? [] }));
@@ -748,12 +577,10 @@ export const certifications = {
   async create(tx: TenantTx, input: NewEntity<Certification>): Promise<Certification> {
     const { unitIds, ...row } = input;
     const created = await certificationEntity.create(tx, { ...row, unitIds: [] });
-    await setUnits(
+    await setLinks(
       tx,
-      s.certificationUnit,
-      s.certificationUnit.certificationId,
-      (unitId) => ({ clientId: created.clientId, certificationId: created.id, unitId }),
-      created.id,
+      CERTIFICATION_UNITS,
+      { id: created.id, clientId: created.clientId },
       unitIds,
     );
     return certifications.require(tx, created.id);
@@ -768,14 +595,7 @@ export const certifications = {
     const { unitIds, ...fields } = patch;
     const updated = await certificationEntity.update(tx, id, version, fields);
     if (unitIds !== undefined) {
-      await setUnits(
-        tx,
-        s.certificationUnit,
-        s.certificationUnit.certificationId,
-        (unitId) => ({ clientId: updated.clientId, certificationId: id, unitId }),
-        id,
-        unitIds,
-      );
+      await setLinks(tx, CERTIFICATION_UNITS, { id: id, clientId: updated.clientId }, unitIds);
     }
     return certifications.require(tx, id);
   },
@@ -846,35 +666,26 @@ export const externalAudits = {
 
 // ---------- files ----------
 
-/** The subject column of each subject type this migration stores; ISO-2e adds the rest. */
+/** The subject column of each subject type (model §6): exactly one is set on a row. */
 const FILE_SUBJECTS = {
   clause_assessment: s.isoFile.clauseAssessmentId,
   document_revision: s.isoFile.documentRevisionId,
+  risk_item: s.isoFile.riskItemId,
+  objective_reading: s.isoFile.objectiveReadingId,
+  internal_audit: s.isoFile.internalAuditId,
+  audit_finding: s.isoFile.auditFindingId,
   external_audit: s.isoFile.externalAuditId,
   certification: s.isoFile.certificationId,
-} as const satisfies Partial<Record<IsoFileSubjectType, PgColumn>>;
-type StoredSubjectType = keyof typeof FILE_SUBJECTS;
+  nonconformity: s.isoFile.nonconformityId,
+  iso_action: s.isoFile.isoActionId,
+  management_review: s.isoFile.managementReviewId,
+} as const satisfies Record<IsoFileSubjectType, PgColumn>;
 
 function subjectColumn(type: IsoFileSubjectType): { field: string; column: PgColumn } {
-  if (!Object.hasOwn(FILE_SUBJECTS, type)) {
-    throw new DbError('VALIDATION', `Files on ${type} are not stored yet`);
-  }
-  return {
-    field: ISO_FILE_SUBJECT_COLUMNS[type],
-    column: FILE_SUBJECTS[type as StoredSubjectType],
-  };
+  return { field: ISO_FILE_SUBJECT_COLUMNS[type], column: FILE_SUBJECTS[type] };
 }
 
-/** Subject columns ISO-2e has not added yet read as null, so rows parse as the contracts' `IsoFile`. */
-const NO_SUBJECTS = Object.fromEntries(
-  Object.values(ISO_FILE_SUBJECT_COLUMNS).map((field) => [field, null]),
-);
-
-const fileEntity = entity<IsoFile>({
-  table: s.isoFile,
-  schema: IsoFile,
-  fromRow: (row) => ({ ...NO_SUBJECTS, ...row }),
-});
+const fileEntity = entity<IsoFile>({ table: s.isoFile, schema: IsoFile });
 
 /** The file's subject, from whichever subject column is set. */
 export function isoFileSubject(file: IsoFile): IsoFileSubject {

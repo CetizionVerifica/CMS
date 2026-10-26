@@ -18,6 +18,8 @@ import {
   accountOf,
   after,
   cursorOf,
+  featureChange,
+  featuresChanged,
   matches,
   newestFirst,
   ownerInviteExpiry,
@@ -25,7 +27,7 @@ import {
   trialEndFor,
 } from './accounts.js';
 import { mountPlatform, signedInOf, type PlatformDeps } from './db-http.js';
-import { trail } from './db-trail.js';
+import { features, trail } from './db-trail.js';
 import type { OperatorIdempotency } from './idempotency.js';
 
 /** The account as the contract shows it, read in the caller's transaction. */
@@ -96,6 +98,13 @@ export function registerAccountRoutes(
     PLATFORM_ENDPOINTS.upsertPlan,
     async ({ request, requestId, params, body, now }) =>
       db.withOperator(requestId, async (tx) => {
+        // The accounts on the plan, with their features before the edit. A deleted account has none to change.
+        const onPlan = (await platformAccounts.list(tx)).filter(
+          (a) => a.planCode === params.code && a.status !== 'DELETED',
+        );
+        const featuresBefore = new Map<string, string[]>();
+        for (const account of onPlan)
+          featuresBefore.set(account.id, await features(tx, account.id));
         const { before, after: plan } = await plans.upsert(
           tx,
           params.code!,
@@ -108,6 +117,20 @@ export function registerAccountRoutes(
           before: before && { plan: before },
           after: { plan },
         });
+        // Each account whose features the edit changed: its own operator entry, trail entry and event (plan §4.3).
+        for (const account of onPlan) {
+          const was = featuresBefore.get(account.id)!;
+          const is = await features(tx, account.id);
+          const change = featureChange(was, is);
+          if (!change) continue;
+          await trail(tx, request, requestId, {
+            action: 'PLAN_CHANGE',
+            accountId: account.id,
+            before: { planCode: account.planCode, features: was },
+            after: { planCode: account.planCode, features: is },
+            account: { action: 'UPDATE', event: featuresChanged(account.id, change) },
+          });
+        }
         return plan;
       }),
   );

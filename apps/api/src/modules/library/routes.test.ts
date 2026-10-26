@@ -1,6 +1,6 @@
 import { Act, ApiErrorResponse, Obligation, type LocalDate } from '@canopy/contracts';
 import { describe, expect, it } from 'vitest';
-import { ids, testApp } from '../entities/testing/world.js';
+import { FIRM_A, ids, testApp } from '../entities/testing/world.js';
 import { SCENARIOS } from '../entities/testing/scenarios.js';
 import { checkRule, ruleIssues } from './rules.js';
 
@@ -249,5 +249,81 @@ describe('obligations', () => {
       clientIds: [ids.clientB],
     });
     expect(hidden.status).toBe(404);
+  });
+});
+
+describe('STANDARD acts (ISO-9b)', () => {
+  const STANDARD_ACT = '01920000-0000-7000-8000-00000000a150';
+  const app = () => {
+    const t = testApp();
+    t.store.seed('acts', {
+      id: STANDARD_ACT,
+      firmId: FIRM_A,
+      createdAt: '2026-10-01T00:00:00.000Z',
+      updatedAt: '2026-10-01T00:00:00.000Z',
+      archivedAt: null,
+      version: 1,
+      // The same name as the firm's law: act_name_key is per kind.
+      name: 'Factories Act, 1948',
+      shortName: 'ISO 9001',
+      jurisdiction: 'CENTRAL',
+      stateCode: null,
+      aliases: [],
+      kind: 'STANDARD',
+    });
+    return t;
+  };
+
+  it('refuses every staff edit and merge of one, and any merge across kinds', async () => {
+    const { call, store } = app();
+    for (const actor of ['firmAdmin', 'consultant'] as const) {
+      const edit = await call(actor, 'PATCH', `/library/acts/${STANDARD_ACT}`, {
+        version: 1,
+        name: 'Renamed',
+      });
+      expect(edit.status).toBe(400);
+      expect(error(edit.body)).toMatchObject({ code: 'VALIDATION' });
+      const into = await call(actor, 'POST', `/library/acts/${STANDARD_ACT}/merge`, {
+        version: 1,
+        sourceIds: [ids.actDup],
+      });
+      expect(into.status).toBe(400);
+      const from = await call(actor, 'POST', `/library/acts/${ids.act}/merge`, {
+        version: 1,
+        sourceIds: [STANDARD_ACT],
+      });
+      expect(from.status).toBe(400);
+      expect(error(from.body)).toMatchObject({
+        details: { issues: [{ path: ['body', 'sourceIds'] }] },
+      });
+    }
+    expect(store.raw('acts', STANDARD_ACT)).toMatchObject({
+      name: 'Factories Act, 1948',
+      version: 1,
+    });
+    expect(store.raw('acts', ids.actDup)?.archivedAt).toBeNull();
+    // A law of the same name is still a law staff can edit.
+    const law = await call('firmAdmin', 'PATCH', `/library/acts/${ids.act}`, {
+      version: 1,
+      shortName: 'FA',
+    });
+    expect(law.status).toBe(200);
+  });
+
+  it('refuses to move an obligation between a law and an ISO standard', async () => {
+    const { call, store } = app();
+    const res = await call('firmAdmin', 'PATCH', `/library/obligations/${ids.obligationB}`, {
+      version: 1,
+      actId: STANDARD_ACT,
+    });
+    expect(res.status).toBe(400);
+    expect(error(res.body)).toMatchObject({ details: { issues: [{ path: ['body', 'actId'] }] } });
+    expect(store.raw('obligations', ids.obligationB)?.actId).toBe(ids.act);
+    // Between two laws it moves.
+    const ok = await call('firmAdmin', 'PATCH', `/library/obligations/${ids.obligationB}`, {
+      version: 1,
+      actId: ids.actDup,
+    });
+    expect(Obligation.parse(ok.body).actId).toBe(ids.actDup);
   });
 });

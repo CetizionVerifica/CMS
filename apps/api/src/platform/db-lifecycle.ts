@@ -2,11 +2,18 @@ import { canMoveAccount, PLATFORM_ENDPOINTS, type AccountStatus } from '@canopy/
 import { accountOverrides, ownerInvites, type AccountRecord } from '@canopy/db';
 import type { FastifyInstance } from 'fastify';
 import { ApiError } from '../auth/index.js';
-import { operatorToday, ownerInviteExpiry, statusMove } from './accounts.js';
+import {
+  featureChange,
+  featuresChanged,
+  operatorToday,
+  overrideToStore,
+  ownerInviteExpiry,
+  statusMove,
+} from './accounts.js';
 import { accountView, changeAccount, choosablePlan, requireAccount } from './db-accounts.js';
 import { lockDeletion } from './db-deletion.js';
 import { mountPlatform, signedInOf, type PlatformDeps } from './db-http.js';
-import { trail } from './db-trail.js';
+import { features, recordFeatureChange, trail } from './db-trail.js';
 
 function refuseMove(from: AccountStatus, to: AccountStatus): never {
   throw new ApiError('INVALID_TRANSITION', { from, to });
@@ -96,14 +103,16 @@ export function registerLifecycleRoutes(api: FastifyInstance, deps: PlatformDeps
           });
         }
         await choosablePlan(tx, body.planCode, ['body', 'planCode']);
+        const featuresBefore = await features(tx, record.id);
         const { before, after } = await changeAccount(tx, record, body.version, {
           planCode: body.planCode,
         });
+        const featuresAfter = await features(tx, record.id);
         await trail(tx, request, requestId, {
           action: 'PLAN_CHANGE',
           accountId: record.id,
-          before: { planCode: before.planCode },
-          after: { planCode: after.planCode },
+          before: { planCode: before.planCode, features: featuresBefore },
+          after: { planCode: after.planCode, features: featuresAfter },
           reason,
           account: {
             action: 'UPDATE',
@@ -113,6 +122,16 @@ export function registerLifecycleRoutes(api: FastifyInstance, deps: PlatformDeps
             },
           },
         });
+        // A second trail entry carries the features event: one entry raises one outbox event.
+        await recordFeatureChange(
+          tx,
+          request,
+          requestId,
+          record.id,
+          featuresBefore,
+          featuresAfter,
+          reason ?? null,
+        );
         return accountView(tx, after);
       }),
   );
@@ -127,14 +146,25 @@ export function registerLifecycleRoutes(api: FastifyInstance, deps: PlatformDeps
         const reason = body.reason;
         // The override's version is the account's (ADR M3-0003 decision 2).
         const { after } = await changeAccount(tx, record, body.version, {});
-        const override = await accountOverrides.put(tx, record.id, body.override);
+        const before = await features(tx, record.id);
+        const stored = await accountOverrides.get(tx, record.id);
+        const override = await accountOverrides.put(
+          tx,
+          record.id,
+          overrideToStore(body.override, stored),
+        );
+        const now = await features(tx, record.id);
+        const change = featureChange(before, now);
         await trail(tx, request, requestId, {
           action: 'OVERRIDE_CHANGE',
           accountId: record.id,
-          before: override.before && { override: override.before },
-          after: { override: override.after },
+          before: { override: override.before, features: before },
+          after: { override: override.after, features: now },
           reason,
-          account: { action: 'UPDATE' },
+          account: {
+            action: 'UPDATE',
+            ...(change && { event: featuresChanged(record.id, change) }),
+          },
         });
         return accountView(tx, after);
       }),

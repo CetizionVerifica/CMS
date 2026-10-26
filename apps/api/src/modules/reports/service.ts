@@ -176,6 +176,19 @@ const PERIOD_KINDS: ReadonlySet<ExportKind> = new Set([
   'OVERDUE_REPORT_XLSX',
 ]);
 
+/**
+ * The kinds this module builds. A kind that joins `ExportKind` before M10 builds it (the staged ISO kinds, ISO-1b
+ * before ISO-11d) is refused at create, and `buildFile`'s default branch fails any such job already queued.
+ */
+const BUILT_KINDS: ReadonlySet<ExportKind> = new Set([
+  'REGISTER_XLSX',
+  'ACT_REPORT_XLSX',
+  'DEPARTMENT_REPORT_XLSX',
+  'OVERDUE_REPORT_XLSX',
+  'CERTIFICATE_PDF',
+  'CLIENT_ARCHIVE_ZIP',
+]);
+
 function validation(path: string, message: string): ApiError {
   return new ApiError('VALIDATION', { issues: [{ path: [path], message }] });
 }
@@ -193,6 +206,7 @@ export async function createExport(
   body: z.output<typeof ExportCreateBody>,
   idempotencyKey: string | undefined,
 ): Promise<ExportJob> {
+  if (!BUILT_KINDS.has(body.kind)) throw validation('kind', 'This export kind is not available');
   const cacheKey =
     idempotencyKey === undefined ? undefined : `${ctx.firmId}/${ctx.personId}/${idempotencyKey}`;
   const request = JSON.stringify([
@@ -495,6 +509,9 @@ async function buildFile(
     case 'CLIENT_ARCHIVE_ZIP':
       // Streamed by `storeArchive`, never built in memory.
       throw new Error('The client archive is streamed');
+    default:
+      // A kind that joined `ExportKind` before M10 builds it: the job ends FAILED.
+      throw new Error(`No file builder for ${String(job.kind)}`);
   }
 }
 

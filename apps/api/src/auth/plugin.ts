@@ -72,11 +72,16 @@ const contexts = new WeakMap<FastifyRequest, RequestContext>();
 /** Requests on `session-pre-mfa` routes whose actor still owes MFA, with whether they have enrolled. */
 const mfaPending = new WeakMap<FastifyRequest, { enrolled: boolean }>();
 const sessions = new WeakMap<FastifyRequest, SessionRecord>();
+/** Reads of the account a request's add-on checks make; each call goes to the store. */
+interface AccountReader {
+  features(): Promise<readonly string[]>;
+  isoCatalogueCopied(): Promise<boolean>;
+}
 /**
- * Reads the account's features for a request, by request id, so a copy of `req.ctx` finds it too; each call goes to
- * the store, nothing is cached. Entries are removed when the response is sent or the request is aborted.
+ * The account reads for a request, by request id, so a copy of `req.ctx` finds them too; nothing is cached. Entries
+ * are removed when the response is sent or the request is aborted.
  */
-const featureReaders = new Map<string, () => Promise<readonly string[]>>();
+const accountReaders = new Map<string, AccountReader>();
 
 /** The session behind a session route's request (auth routes use it for logout and MFA). */
 export function sessionOf(request: FastifyRequest): SessionRecord {
@@ -135,10 +140,10 @@ function sessionHook(
 
     contexts.set(request, ctx);
     const firmId = ctx.firmId;
-    featureReaders.set(
-      request.id,
-      async () => (await options.store.accountFeatures?.(firmId)) ?? [],
-    );
+    accountReaders.set(request.id, {
+      features: async () => (await options.store.accountFeatures?.(firmId)) ?? [],
+      isoCatalogueCopied: async () => (await options.store.isoCatalogueCopied?.(firmId)) ?? false,
+    });
     if (session) sessions.set(request, session);
     if (principal && !ctx.mfaSatisfied && mfaRequired(principal, ctx.memberships)) {
       mfaPending.set(request, { enrolled: principal.mfaEnrolled });
@@ -233,10 +238,10 @@ export function registerAuth(app: FastifyInstance, options: AuthOptions): void {
   });
 
   app.addHook('onResponse', async (request) => {
-    featureReaders.delete(request.id);
+    accountReaders.delete(request.id);
   });
   app.addHook('onRequestAbort', async (request) => {
-    featureReaders.delete(request.id);
+    accountReaders.delete(request.id);
   });
 
   app.decorateRequest('ctx', {
@@ -312,13 +317,29 @@ export function requireClient(ctx: RequestContext, clientId: string): void {
 }
 
 /**
- * Throws `403 FEATURE_NOT_ENABLED { feature }` unless the request's account has the add-on now. It reads the account's
- * features from the store on every call (no session cache), so an operator's switch applies to the next request.
- * Routes can declare `config.feature` instead; call this where one route serves an add-on only in part. `ctx` is the
- * request's context or a copy of it; a context of no live session request has no features, so it is refused.
+ * Throws `403 FEATURE_NOT_ENABLED { feature }` unless the request's account has the add-on now, and for
+ * `isoManagement` `409 FEATURE_NOT_READY { feature }` until the account's ISO catalogue copy is recorded
+ * (docs/iso/plan.md §4.3). It reads the store on every call (no session cache), so an operator's switch and the copy
+ * apply to the next request. Routes can declare `config.feature` instead; call this where one route serves an add-on
+ * only in part. `ctx` is the request's context or a copy of it; a context of no live session request has no features,
+ * so it is refused.
  */
 export async function requireFeature(ctx: RequestContext, feature: KnownFeature): Promise<void> {
-  const read = featureReaders.get(ctx.requestId);
-  const features = read === undefined ? [] : await read();
-  if (!features.includes(feature)) throw new ApiError('FEATURE_NOT_ENABLED', { feature });
+  const reader = accountReaders.get(ctx.requestId);
+  if (reader === undefined || !(await reader.features()).includes(feature)) {
+    throw new ApiError('FEATURE_NOT_ENABLED', { feature });
+  }
+  if (feature === 'isoManagement' && !(await reader.isoCatalogueCopied())) {
+    throw new ApiError('FEATURE_NOT_READY', { feature });
+  }
+}
+
+/**
+ * Whether the request's account has the add-on now, without throwing: for a list that leaves the add-on's rows out
+ * when it is off. It does not wait for the ISO catalogue copy, since no ISO row exists before it. Read fresh like
+ * `requireFeature`; false for a context of no live session request.
+ */
+export async function hasFeature(ctx: RequestContext, feature: KnownFeature): Promise<boolean> {
+  const reader = accountReaders.get(ctx.requestId);
+  return reader !== undefined && (await reader.features()).includes(feature);
 }

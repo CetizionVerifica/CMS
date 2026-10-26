@@ -1,10 +1,11 @@
 import {
   effectiveFeatures,
+  KNOWN_FEATURES,
   type Account,
   type AccountOverride,
   type OperatorAuditEvent,
 } from '@canopy/contracts';
-import { screen, within } from '@testing-library/react';
+import { cleanup, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -47,6 +48,8 @@ const overrideEvent = (override: AccountOverride): OperatorAuditEvent => ({
  * An API holding one account; each change returns it at the next version with `change` applied. An override save
  * works out the entitlements the way the API does and keeps the override as the newest OVERRIDE_CHANGE.
  */
+const KNOWN_CODES: string[] = KNOWN_FEATURES.map((f) => f.code);
+
 function accountApi(
   start: Partial<Account> = {},
   extra: Parameters<typeof fakeApi>[0] = {},
@@ -60,13 +63,21 @@ function accountApi(
     return { body: current };
   };
   const putOverride = (body: AccountOverride) => {
-    stored = body;
+    // As the API stores it (ISO-5b): an add-on named in neither list keeps its stored state.
+    const named = new Set([...body.features, ...(body.removedFeatures ?? [])]);
+    const kept = (list: string[] | undefined) =>
+      (list ?? []).filter((f) => KNOWN_CODES.includes(f) && !named.has(f));
+    stored = {
+      ...body,
+      features: [...body.features, ...kept(stored?.features)],
+      removedFeatures: [...(body.removedFeatures ?? []), ...kept(stored?.removedFeatures)],
+    };
     const plan = plans.find((p) => p.code === current.planCode)!;
     return bump({
       entitlements: {
         planCode: plan.code,
         limits: { ...plan.limits, ...body.limits },
-        features: effectiveFeatures(plan.features, body),
+        features: effectiveFeatures(plan.features, stored),
       },
     });
   };
@@ -507,15 +518,49 @@ describe('the add-ons card', () => {
     await vi.waitFor(() => expect(sentTo(api, 'PUT', '/override')).toHaveLength(1));
     expect(sentTo(api, 'PUT', '/override')[0]!.body).toEqual({
       version: 3,
+      // The drawer sends no add-on; the API keeps the stored removal (ISO-5b).
       override: {
         limits: { users: 400 },
         features: [],
-        removedFeatures: ['isoManagement'],
+        removedFeatures: [],
         note: 'Paused add-on',
       },
       reason: 'More seats',
     });
     expect(api.current().entitlements.features).toEqual(['importer']);
+  });
+
+  it('shows when the ISO catalogue was copied, and flags a set-up that has not finished', async () => {
+    const iso = {
+      planCode: 'BUSINESS',
+      limits: PLANS[1]!.limits,
+      features: ['importer', 'isoManagement'],
+    };
+    await show(
+      accountApi(
+        { entitlements: iso, isoCatalogueCopiedAt: '2026-10-24T05:00:00.000Z' },
+        {},
+        null,
+        ISO_PLANS,
+      ),
+    );
+    expect(await within(await card()).findByText('ISO set up')).toBeTruthy();
+    cleanup();
+    // In trial since long ago, and still not copied.
+    await show(
+      accountApi(
+        {
+          entitlements: iso,
+          status: 'TRIAL',
+          isoCatalogueCopiedAt: null,
+          createdAt: '2020-01-01T00:00:00.000Z',
+        },
+        {},
+        null,
+        ISO_PLANS,
+      ),
+    );
+    expect(await within(await card()).findByText('ISO set-up has not finished')).toBeTruthy();
   });
 
   it('does not open the limits drawer when the note cannot be read', async () => {

@@ -549,8 +549,9 @@ describe.skipIf(!url)('the operator account routes', () => {
       );
       expect(event).toMatchObject({
         reason: 'Did not renew the ISO add-on',
-        before: null,
+        before: { override: null, features: ['importer', 'isoManagement'] },
         after: {
+          features: ['earlyAccess', 'importer'],
           override: {
             limits: { users: 90 },
             features: ['earlyAccess'],
@@ -576,13 +577,27 @@ describe.skipIf(!url)('the operator account routes', () => {
       });
       expect([both.statusCode, error(both).code]).toEqual([400, 'VALIDATION']);
 
-      const back = z(
+      // A save that names the add-on in neither list keeps it off (ISO-5b); naming it turns it back on.
+      const kept = z(
         Account,
         await send('PUT', `/accounts/${account.id}/override`, {
           version: 2,
           override: {
             limits: { users: 90 },
             features: ['earlyAccess'],
+            note: 'ISO paused until renewal',
+          },
+          reason: 'Limits only',
+        }),
+      );
+      expect(kept.entitlements.features).toEqual(['earlyAccess', 'importer']);
+      const back = z(
+        Account,
+        await send('PUT', `/accounts/${account.id}/override`, {
+          version: kept.version,
+          override: {
+            limits: { users: 90 },
+            features: ['earlyAccess', 'isoManagement'],
             note: 'ISO paused until renewal',
           },
           reason: 'Renewed the ISO add-on',
@@ -742,6 +757,157 @@ describe.skipIf(!url)('the operator account routes', () => {
         code: 'INVALID_TRANSITION',
         details: { from: 'TRIAL', to: 'PENDING_DELETION' },
       });
+    });
+  });
+
+  describe('account.features_changed (ISO-5b)', () => {
+    const LIMITS = { companies: 3, units: 12, users: 60, storageBytes: null };
+    const plan = (code: string, features: string[]) =>
+      send('PUT', `/plans/${code}`, { name: code, limits: LIMITS, features, retired: false });
+    const featureEvents = async (id: string) =>
+      (await outbox(id)).filter((e) => e.type === 'account.features_changed').map((e) => e.data);
+    const putOverride = async (
+      account: Account,
+      features: string[],
+      removedFeatures: string[],
+      limits: Record<string, number | null> = {},
+    ) =>
+      z(
+        Account,
+        await send('PUT', `/accounts/${account.id}/override`, {
+          version: account.version,
+          override: { limits, features, removedFeatures, note: 'Pilot terms' },
+          reason: 'Add-on change',
+        }),
+      );
+
+    beforeAll(async () => {
+      z(Plan, await plan('FXBASIC', ['importer']));
+      z(Plan, await plan('FXISO', ['importer', 'isoManagement']));
+      z(Plan, await plan('FXOTHER', ['importer']));
+    });
+
+    it('raises one event per switch on a plan without the flag, none for a save that changes nothing', async () => {
+      let account = await create({ name: 'Kestrel Fibres Two', planCode: 'FXBASIC' });
+      account = await putOverride(account, ['isoManagement'], []);
+      expect(account.entitlements.features).toEqual(['importer', 'isoManagement']);
+      expect(await featureEvents(account.id)).toEqual([
+        { accountId: account.id, added: ['isoManagement'], removed: [] },
+      ]);
+      // A limits save that names no add-on keeps it on, and raises nothing.
+      account = await putOverride(account, [], [], { users: 90 });
+      expect(account.entitlements.features).toEqual(['importer', 'isoManagement']);
+      expect(account.entitlements.limits.users).toBe(90);
+      expect(await featureEvents(account.id)).toHaveLength(1);
+      // Off on a plan without the flag: named in removedFeatures, so it goes off.
+      account = await putOverride(account, [], ['isoManagement'], { users: 90 });
+      expect(account.entitlements.features).toEqual(['importer']);
+      // A later limits save keeps it off.
+      account = await putOverride(account, [], [], { users: 95 });
+      expect(account.entitlements.features).toEqual(['importer']);
+      expect(await featureEvents(account.id)).toEqual([
+        { accountId: account.id, added: ['isoManagement'], removed: [] },
+        { accountId: account.id, added: [], removed: ['isoManagement'] },
+      ]);
+      const [latest] = await asOperator(
+        async (tx) =>
+          (await r.operatorAudit.query(tx, { accountId: account.id, action: 'OVERRIDE_CHANGE' }))
+            .items,
+      );
+      expect(latest).toMatchObject({
+        after: {
+          features: ['importer'],
+          override: {
+            limits: { users: 95 },
+            removedFeatures: ['isoManagement'],
+            note: 'Pilot terms',
+          },
+        },
+      });
+    });
+
+    it('switches a plan feature off and on again, one event each', async () => {
+      let account = await create({ name: 'Osprey Looms', planCode: 'FXISO' });
+      account = await putOverride(account, [], ['isoManagement']);
+      expect(account.entitlements.features).toEqual(['importer']);
+      account = await putOverride(account, ['isoManagement'], []);
+      expect(account.entitlements.features).toEqual(['importer', 'isoManagement']);
+      expect(await featureEvents(account.id)).toEqual([
+        { accountId: account.id, added: [], removed: ['isoManagement'] },
+        { accountId: account.id, added: ['isoManagement'], removed: [] },
+      ]);
+    });
+
+    it('a plan change raises the event when the features change, beside account.plan_changed', async () => {
+      const account = await create({ name: 'Riverbend Looms', planCode: 'FXBASIC' });
+      const moved = z(
+        Account,
+        await send('POST', `/accounts/${account.id}/plan`, {
+          version: account.version,
+          planCode: 'FXISO',
+          reason: 'ISO pilot',
+        }),
+      );
+      expect((await outbox(account.id)).map((e) => e.type)).toEqual(
+        expect.arrayContaining(['account.plan_changed', 'account.features_changed']),
+      );
+      expect(await featureEvents(account.id)).toEqual([
+        { accountId: account.id, added: ['isoManagement'], removed: [] },
+      ]);
+      const trailRows = await accountTrail(account.id);
+      expect(trailRows.filter((e) => e.reason === 'ISO pilot')).toHaveLength(2);
+      // Between two plans with the same features: no features event.
+      const back = z(
+        Account,
+        await send('POST', `/accounts/${account.id}/plan`, {
+          version: moved.version,
+          planCode: 'FXBASIC',
+          reason: 'Pilot over',
+        }),
+      );
+      z(
+        Account,
+        await send('POST', `/accounts/${account.id}/plan`, {
+          version: back.version,
+          planCode: 'FXOTHER',
+          reason: 'Same features',
+        }),
+      );
+      expect(await featureEvents(account.id)).toEqual([
+        { accountId: account.id, added: ['isoManagement'], removed: [] },
+        { accountId: account.id, added: [], removed: ['isoManagement'] },
+      ]);
+    });
+
+    it('a plan edit raises one event and one trail entry for each account whose features change', async () => {
+      z(Plan, await plan('FXEDIT', ['importer']));
+      const changes = await create({ name: 'Stonebridge Looms', planCode: 'FXEDIT' });
+      let keepsOff = await create({ name: 'Highmoor Looms', planCode: 'FXEDIT' });
+      keepsOff = await putOverride(keepsOff, [], ['isoManagement']);
+      const elsewhere = await create({ name: 'Kestrelganj Looms', planCode: 'FXBASIC' });
+
+      z(Plan, await plan('FXEDIT', ['importer', 'isoManagement']));
+      expect(await featureEvents(changes.id)).toEqual([
+        { accountId: changes.id, added: ['isoManagement'], removed: [] },
+      ]);
+      // The removal stored before the plan had the flag keeps it off.
+      expect(await featureEvents(keepsOff.id)).toEqual([]);
+      expect(z(Account, await get(`/accounts/${keepsOff.id}`)).entitlements.features).toEqual([
+        'importer',
+      ]);
+      expect(await featureEvents(elsewhere.id)).toEqual([]);
+      const entries = (await operatorTrail(changes.id)).filter((e) => e.action === 'PLAN_CHANGE');
+      expect(entries).toEqual([
+        expect.objectContaining({
+          before: { planCode: 'FXEDIT', features: ['importer'] },
+          after: { planCode: 'FXEDIT', features: ['importer', 'isoManagement'] },
+        }),
+      ]);
+      expect((await accountTrail(changes.id)).filter((e) => e.action === 'UPDATE')).toHaveLength(1);
+
+      // The same edit again changes no account.
+      z(Plan, await plan('FXEDIT', ['importer', 'isoManagement']));
+      expect(await featureEvents(changes.id)).toHaveLength(1);
     });
   });
 
