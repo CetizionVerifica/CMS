@@ -32,13 +32,13 @@ import {
   fileUrl,
   Lookup,
   matches,
+  membershipsFor,
   MockError,
   notFound,
   paginate,
   type Scope,
   MOCK_ENGINE_VERSION,
   scoreResult,
-  visibleInstances,
 } from '../../core.js';
 import { actorOf, type PartialHandlers } from '../../handler.js';
 import {
@@ -830,7 +830,7 @@ function complianceFigures(f: FigureScope): Figure[] {
   const look = new Lookup(f.firm);
   const units = new Set(systemUnitIds(f.firm, f.system));
   const instances = f.firm.data.instances.filter(
-    (i) => i.clientId === f.review.clientId && i.archivedAt === null && units.has(i.unitId),
+    (i) => i.clientId === f.review.clientId && liveOn(f, i) && units.has(i.unitId),
   );
   const isStandard = (i: (typeof instances)[number]) =>
     look.acts.get(look.obligationOf(i).actId)?.kind === 'STANDARD';
@@ -952,7 +952,18 @@ function readableIds(actor: Actor, clientId: string): (id: string) => boolean {
   add('findings', (x) => findingReach(firm, x));
   add('nonconformities', (n) => ncReach(firm, n));
   add('actions', (a) => actionReach(firm, a));
-  const instances = new Set(ids(visibleInstances(actor, clientId)));
+  // Instances by unit, as `visibleInstances` reads them, but archived ones too: a stored figure keeps the id of an
+  // instance archived since, as it does for an ISO record.
+  const memberships = membershipsFor(actor, clientId);
+  const allUnits = memberships.some((m) => m.unitIds === null);
+  const units = new Set(memberships.flatMap((m) => m.unitIds ?? []));
+  const instances = new Set(
+    ids(
+      firm.data.instances.filter(
+        (i) => i.clientId === clientId && (allUnits || units.has(i.unitId)),
+      ),
+    ),
+  );
   return (id) => {
     const of = reach.get(id);
     return of === undefined ? instances.has(id) : canSee(actor, of());
@@ -1539,7 +1550,9 @@ export const reviewsHandlers: PartialHandlers<Ids> = {
     if (review.state !== 'PLANNED') {
       invalidTransition('management_review', review.state, 'RECORD_HELD');
     }
-    if (body.heldOn > ctx.clock.today()) invalid('heldOn', 'The review date is after today');
+    // The client's today, as for a PLANNED review's figures: the stored ones never count a day not yet begun there.
+    const today = localDate(ctx.clock.now(), timeZoneOf(firm, review.clientId));
+    if (body.heldOn > today) invalid('heldOn', 'The review date is after today');
     checkReviewPeople(actor, review.clientId, { attendeeIds: body.attendeeIds });
     const attendeeIds = body.attendeeIds ?? review.attendeeIds;
     if (attendeeIds.length === 0) invalid('attendeeIds', 'Name the people who attended');

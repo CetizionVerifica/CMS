@@ -318,7 +318,7 @@ with sign-off per "How to change a contract".
     set exactly when it is the stored copy, and the engine version stays off the view (the pack and the archive read
     it from the row, model §9). Every reader sees each value and only the ids of the records they may read (plan
     §3.3). `IsoEngineApi.reviewInputFigures` takes `ReviewFigureData[source]`, typed per source: client-local
-    creation and archive days on every ISO row, and the event days of the window counts that have no date field of
+    creation and archive days on every row, and the event days of the window counts that have no date field of
     their own, so the engine applies §5.4's date rules without rebuilding records from the audit trail. The 1.8.1
     mock's as-of rebuild is gone. `ReviewFigure` and `ReviewInputFigures` move to `src/schemas/iso.ts`, beside the
     record that stores them; the package exports the same names.

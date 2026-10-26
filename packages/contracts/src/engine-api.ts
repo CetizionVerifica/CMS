@@ -149,8 +149,9 @@ export interface CertificationReadinessData {
 }
 
 /**
- * A record's creation and archive days for `reviewInputFigures`: its `createdAt` and `archivedAt` as client-local days
- * (`localDateIn`). A record counts from its creation day; one archived after as-of still counts as live.
+ * A record's creation and archive days for `reviewInputFigures`, on every row it reads: its `createdAt` and
+ * `archivedAt` as client-local days (`localDateIn`). A record counts from its creation day; one archived after as-of
+ * still counts as live.
  */
 export interface ReviewFigureDays {
   createdOn: LocalDate;
@@ -229,15 +230,15 @@ export interface ReviewFigureData {
     /** `auditId`: the internal or external audit the finding belongs to. */
     findings: ({ id: Id; auditId: Id; type: FindingType } & ReviewFigureDays)[];
   };
-  /** Instances are read as they are now, as the core score's as-of is. */
+  /** The instances' workflow is read as it is now, as the core score's as-of is. */
   COMPLIANCE_EVALUATION: {
-    evaluations: {
+    evaluations: ({
       id: Id;
       dueDate: LocalDate;
       workflowState: WorkflowState;
       completedOn: LocalDate | null;
-    }[];
-    statutoryItems: ScoreInput[];
+    } & ReviewFigureDays)[];
+    statutoryItems: (ScoreInput & ReviewFigureDays)[];
     settings: FirmSettings;
   };
   MANUAL: Record<string, never>;

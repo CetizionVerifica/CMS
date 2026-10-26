@@ -55,13 +55,13 @@ README decisions 42-51. M4 owns every formula marked "stand-in".
   non-MANUAL input's figures once, counted up to `heldOn`, with `figuresStoredAt` (when it was recorded held) and the
   engine version `mock-1`, and a HELD or CLOSED review then always answers that copy, whatever changes later. A
   PLANNED review's figures are computed on each read, as of today in the client's time zone, with `figuresStoredAt`
-  null; a CANCELLED review and a MANUAL input have none. Storing them does not move the input's version, so notes stay
+  null, and RECORD_HELD refuses a `heldOn` after that day; a CANCELLED review and a MANUAL input have none. Storing them does not move the input's version, so notes stay
   editable with the version read before. The RECORD_HELD event carries each stored input's key, source, window and
   values, with no ids, and the engine version. The fixture JSON holds no figures: the mock stores those of the
   fixtures' held reviews when it loads, as of their `heldOn`, at their `updatedAt`. Figures count the review's whole
   system with no unit scope (plan §3.3): every reader sees each value, and the ids only of the records they may read,
-  so a value can be larger than its list of ids. A record archived since keeps its id in the stored copy, but the id
-  no longer opens, so M17 shows it without a link.
+  so a value can be larger than its list of ids. A record archived since, a compliance instance included, keeps its
+  id in the stored copy for whoever may read it, but the id no longer opens, so M17 shows it without a link.
   - **Window.** `since` is worked out per standard of the input: the later of the system's creation day and the
     `heldOn` of the last other HELD or CLOSED review of the system that covers the standard with `heldOn` on or
     before as-of. The input's `since` is the earliest of these, and never after as-of (a review held before its

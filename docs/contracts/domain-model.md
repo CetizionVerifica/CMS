@@ -798,11 +798,11 @@ reviewInputFigures(source: S, data: ReviewFigureData[S], since, asOf): ReviewInp
 ```
 
 `ReviewFigureData` holds, per input source, the records of the review's system the source reads, archived ones
-included, with no unit scope. Every ISO row carries `createdOn` and `archivedOn` (`ReviewFigureDays`, client-local
+included, with no unit scope. Every row carries `createdOn` and `archivedOn` (`ReviewFigureDays`, client-local
 days); actions (`ReviewFigureAction`) also `subject` and `doneOn`, nonconformities `reportedOn`. CONTEXT carries
 `contextChanges`, RISKS `ratingChanges` and NONCONFORMITIES `notEffectiveSteps`: the `{ entityId, on }` days
-(`ReviewFigureEventDay`) of the audited events model §5.4 names, in the window. COMPLIANCE_EVALUATION's instances are
-read as they are now. M16 calls it live for a PLANNED review and once at RECORD_HELD with `asOf = heldOn`; a HELD or
+(`ReviewFigureEventDay`) of the audited events model §5.4 names, in the window. COMPLIANCE_EVALUATION reads the
+instances' workflow as it is now. M16 calls it live for a PLANNED review and once at RECORD_HELD with `asOf = heldOn`; a HELD or
 CLOSED review's figures are never computed again.
 
 Results (`src/schemas/iso-results.ts`): `IdCount { count, ids }` (every number carries the ids it counts), `IsoTiming`

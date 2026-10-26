@@ -2399,11 +2399,56 @@ describe('review input figures', () => {
       expect(TODAY).toBe('2024-11-15');
       expect(objectives.sourceFigures!.asOf).toBe('2024-11-14');
       expect(figureOf(objectives, 'objectivesOpen').ids).toContain(justNow.id);
+      // RECORD_HELD takes the same day as today, so stored figures never count a day not yet begun for the client.
+      await noteAll(review.id);
+      await fails(
+        app,
+        'recordIsoManagementReviewHeld',
+        { params: { id: review.id }, body: { version: 1, heldOn: TODAY } },
+        'VALIDATION',
+        400,
+      );
+      await hold(review.id, PERSON.kabir, { heldOn: '2024-11-14' });
+      const held = byKey(await inputs(review.id), 'OBJECTIVES');
+      expect(held.sourceFigures!.asOf).toBe('2024-11-14');
       justNow.archivedAt = NOW;
       stored(review.id).archivedAt = NOW;
     } finally {
       client.settings = settings;
     }
+  });
+
+  it("stores a backdated review's statutory figures from the instances live on its heldOn", async () => {
+    const fresh = freshSystem();
+    const data = firm().data;
+    const statute = data.instances.find((i) => {
+      if (i.clientId !== NORTHWIND || i.archivedAt !== null) return false;
+      const assignment = data.assignments.find((a) => a.id === i.assignmentId)!;
+      const obligation = data.obligations.find((o) => o.id === assignment.obligationId)!;
+      return data.acts.find((a) => a.id === obligation.actId)!.kind !== 'STANDARD';
+    })!;
+    const copy = (fields: Partial<typeof statute>) => {
+      const row = { ...statute, id: seedId(), dueDate: '2024-10-10', ...early, ...fields };
+      data.instances.push(row);
+      return row;
+    };
+    // Archived after heldOn, before the review is recorded held: live on heldOn, so it counts, and keeps its id.
+    const archivedLater = copy({ archivedAt: '2024-11-02T06:30:00Z' });
+    // Made after heldOn with an earlier due date, as a backfill would: not there on heldOn.
+    const madeLater = copy({ createdAt: '2024-11-01T06:30:00Z', updatedAt: '2024-11-01T06:30:00Z' });
+    // Archived by heldOn: gone on heldOn.
+    const archivedBefore = copy({ archivedAt: '2024-10-20T06:30:00Z' });
+    const review = await plan(fresh.id, { plannedOn: '2024-10-28' });
+    await noteAll(review.id);
+    await hold(review.id, PERSON.kabir, { heldOn: '2024-10-28' });
+    const input = byKey(await inputs(review.id), 'COMPLIANCE_EVALUATION');
+    const due = figureOf(input, 'statutoryInstancesDue');
+    expect(due.ids).toContain(archivedLater.id);
+    expect(due.ids).not.toContain(madeLater.id);
+    expect(due.ids).not.toContain(archivedBefore.id);
+    expect(due.value).toBe(due.ids.length);
+    madeLater.archivedAt = NOW;
+    stored(review.id).archivedAt = NOW;
   });
 
   it('gives a review held before its system was set up a window of its own day', async () => {

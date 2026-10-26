@@ -49,17 +49,28 @@ describe('IsoEngineApi.reviewInputFigures', () => {
       createdOn: LocalDate;
       archivedOn: LocalDate | null;
     }>();
-    type Risk = ReviewFigureData['RISKS']['riskItems'][number];
-    expectTypeOf<Risk>().toExtend<ReviewFigureDays>();
+    // Every row of every source's lists, the event-day lists aside, carries both days.
+    type Rows<D> = {
+      [K in keyof D]: D[K] extends readonly (infer R)[]
+        ? R extends ReviewFigureEventDay
+          ? never
+          : R
+        : never;
+    }[keyof D];
+    type Read = Exclude<ReviewInputSource, 'MANUAL'>;
+    type AllRows = { [S in Read]: Rows<ReviewFigureData[S]> }[Read];
+    expectTypeOf<AllRows>().not.toBeNever();
+    expectTypeOf<AllRows>().toExtend<ReviewFigureDays>();
     type Reading = ReviewFigureData['OBJECTIVES']['objectives'][number]['readings'][number];
     expectTypeOf<Reading>().toExtend<ReviewFigureDays>();
     type Nc = ReviewFigureData['NONCONFORMITIES']['nonconformities'][number];
     expectTypeOf<Nc['reportedOn']>().toEqualTypeOf<LocalDate>();
     expectTypeOf<ReviewFigureAction['doneOn']>().toEqualTypeOf<LocalDate | null>();
     expectTypeOf<ReviewFigureAction>().toHaveProperty('subject');
-    type WithEvents = ReviewFigureData['CONTEXT' | 'RISKS' | 'NONCONFORMITIES'];
-    expectTypeOf<WithEvents>().not.toHaveProperty('held');
-    expectTypeOf<WithEvents>().not.toHaveProperty('changes');
+    // No source's data has a held flag or a general change list (each source on its own, not their union's keys).
+    type AllKeys = { [S in Read]: keyof ReviewFigureData[S] }[Read];
+    expectTypeOf<Extract<AllKeys, 'contextChanges'>>().not.toBeNever();
+    expectTypeOf<Extract<AllKeys, 'held' | 'changes'>>().toBeNever();
   });
 
   it('takes the event days of the window counts that have no date field of their own', () => {
