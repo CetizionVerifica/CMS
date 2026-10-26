@@ -1,12 +1,21 @@
 import { randomUUID } from 'node:crypto';
 import { inflateSync } from 'node:zlib';
-import { ENDPOINTS, ExportJob, Role } from '@canopy/contracts';
+import {
+  ENDPOINTS,
+  ExportJob,
+  ISO_EXPORT_KINDS,
+  LocalDate,
+  Role,
+  type ExportKind,
+  type RequestContext,
+} from '@canopy/contracts';
 import ExcelJS from 'exceljs';
 import { afterAll, describe, expect, it } from 'vitest';
 import { buildServer } from '../../server.js';
-import { createTestAuth } from '../../auth/testing.js';
+import { createTestAuth, membership } from '../../auth/testing.js';
 import { createWorld, NOW } from '../dashboard/testing/world.js';
 import { REGISTER_HEADERS } from './register-xlsx.js';
+import { createExport, IdempotencyCache, runExport, type ReportsDeps } from './service.js';
 
 const w = createWorld();
 afterAll(() => w.app.close());
@@ -445,4 +454,81 @@ describe('exports', () => {
     expect(codes[10]).toBe(429);
     await app.close();
   });
+});
+
+describe('exports: kinds M10 does not build yet', () => {
+  // The staged ISO kinds join `ExportKind` in ISO-1b, before ISO-11d builds them (ISO-11e).
+  const personId = randomUUID();
+  const ctx: RequestContext = {
+    requestId: 'iso-export-kinds',
+    firmId: w.firmId,
+    personId,
+    memberships: [membership({ role: 'FIRM_ADMIN', firmId: w.firmId, personId })],
+    clientIds: [w.clientId],
+    mfaSatisfied: true,
+    asOf: LocalDate.parse('2026-10-12'),
+  };
+
+  const errors: { kind: ExportKind; error: string }[] = [];
+  const deps: ReportsDeps = {
+    store: w.store,
+    clock: () => NOW,
+    files: w.files,
+    runner: w.runner,
+    idempotency: new IdempotencyCache(),
+    onExportError: ({ kind, error }) => errors.push({ kind, error }),
+  };
+
+  const params = { filters: '', unitId: null, fy: null, asOf: LocalDate.parse('2026-10-12') };
+
+  it('the kinds M10 builds still build with the same context', async () => {
+    const job = await createExport(
+      deps,
+      ctx,
+      w.clientId,
+      { kind: 'REGISTER_XLSX', filters: '' },
+      undefined,
+    );
+    await w.runner.idle();
+    expect((await w.store.getExportJob(ctx, job.id))?.status).toBe('DONE');
+  });
+
+  for (const kind of ISO_EXPORT_KINDS) {
+    it(`${kind}: refused at create with 400 VALIDATION, and no job is queued`, async () => {
+      const jobs = w.store.jobs.size;
+      const body = { kind: kind as unknown as ExportKind, filters: '' };
+      await expect(createExport(deps, ctx, w.clientId, body, 'iso-key')).rejects.toMatchObject({
+        code: 'VALIDATION',
+        statusCode: 400,
+      });
+      expect(w.store.jobs.size).toBe(jobs);
+    });
+
+    it(`${kind}: a queued job fails in the build branch and nothing is stored`, async () => {
+      // The memory store's jobs parse as today's `ExportJob`, so this one records statuses itself.
+      const statuses: ExportJob['status'][] = [];
+      const store = Object.assign(Object.create(w.store) as typeof w.store, {
+        setExportStatus: async (
+          _ctx: RequestContext,
+          _id: string,
+          patch: Pick<ExportJob, 'status'> & { fileName?: string | null },
+        ) => {
+          statuses.push(patch.status);
+          expect(patch.fileName ?? null).toBeNull();
+          return queued;
+        },
+      });
+      const real = await w.store.createExportJob(ctx, {
+        clientId: w.clientId,
+        kind: 'REGISTER_XLSX',
+        params,
+      });
+      const queued: ExportJob = { ...real, kind: kind as unknown as ExportKind };
+      const files = w.files.files.size;
+      await runExport({ ...deps, store }, ctx, queued);
+      expect(statuses).toEqual(['RUNNING', 'FAILED']);
+      expect(w.files.files.size).toBe(files);
+      expect(errors.at(-1)).toEqual({ kind, error: 'Error' });
+    });
+  }
 });
