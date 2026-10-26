@@ -38,6 +38,8 @@ export interface TestDb {
   createFirm(name: string): Promise<string>;
   /** Audit actions per entity id for a firm, read as the database owner (no RLS), for assertions. */
   audit(firmId: string): Promise<Map<string, string>>;
+  /** Sets the account's added features as the operator's override would (docs/iso/plan.md §4.1); [] clears them. */
+  setFeatures(firmId: string, features: readonly string[]): Promise<void>;
   drop(): Promise<void>;
 }
 
@@ -66,6 +68,13 @@ export async function createTestDb(): Promise<TestDb> {
         [firmId],
       );
       return new Map(result.rows.map((r) => [r.entity_id, r.action]));
+    },
+    async setFeatures(firmId, features) {
+      await owner.query(
+        `INSERT INTO platform.account_override (account_id, features) VALUES ($1, $2)
+         ON CONFLICT (account_id) DO UPDATE SET features = EXCLUDED.features`,
+        [firmId, [...features]],
+      );
     },
     async drop() {
       await owner.end();
@@ -287,5 +296,94 @@ export async function seedFirm(db: Database, firmId: string, label: string): Pro
       submitted,
       notApplicable,
     };
+  });
+}
+
+/** ISO activities a world gains: instances under a STANDARD act, written as the catalogue copy would. */
+export interface IsoActivities {
+  /** One per day from 2026-04-01, unit 1, OPEN: due in the past, within the week and later. */
+  open: ComplianceInstance[];
+  approved: ComplianceInstance;
+}
+
+/**
+ * Adds one STANDARD act (an ISO standard, as the system job copies it) with one obligation assigned to unit 1, and
+ * ISO activity instances on the same days as some of the world's laws: they must never move a statutory number.
+ */
+export async function seedIsoActivities(db: Database, world: FirmWorld): Promise<IsoActivities> {
+  return db.withTenant(systemContext(world.firmId, 'm10-iso'), async (tx) => {
+    const act = await acts.create(tx, {
+      name: 'Environmental management systems',
+      shortName: 'ISO',
+      jurisdiction: 'CENTRAL',
+      stateCode: null,
+      aliases: [],
+      kind: 'STANDARD',
+    });
+    const category = await categories.create(tx, { name: 'ISO activities', aliases: [] });
+    const department = await departments.create(tx, {
+      clientId: world.clientId,
+      name: 'Quality',
+      aliases: [],
+    });
+    const obligation = await obligations.create(tx, {
+      externalRef: `ISO-ACT-0001-${world.firmId.slice(0, 5)}`,
+      domain: 'EHS',
+      jurisdiction: 'CENTRAL',
+      stateCode: null,
+      actId: act.id,
+      categoryId: category.id,
+      title: 'Internal audit of the management system',
+      description: 'Plan and hold the internal audit.',
+      applicabilityText: null,
+      criticality: 'CRITICAL',
+      timelineType: 'TIME_BASED',
+      recurrenceRule: { kind: 'ANNUAL', month: 1, day: 31 },
+      ruleStatus: 'CONFIRMED',
+      evidenceRequired: false,
+      forms: [],
+      logSheets: [],
+      libraryVersion: 1,
+    });
+    const assignment = await assignments.create(tx, {
+      clientId: world.clientId,
+      unitId: world.unit1,
+      obligationId: obligation.id,
+      departmentId: department.id,
+      defaultOwnerId: world.people.owner,
+      defaultApproverId: world.people.approver,
+      applicability: 'APPLICABLE',
+      naReason: null,
+      activeFrom: d('2026-04-01'),
+      activeTo: null,
+    });
+    const instance = (n: number, state: Partial<NewEntity<ComplianceInstance>> = {}) =>
+      instances.create(tx, {
+        clientId: world.clientId,
+        unitId: world.unit1,
+        assignmentId: assignment.id,
+        periodStart: day(n),
+        periodEnd: day(n),
+        dueDate: day(n),
+        workflowState: 'OPEN',
+        pendingKind: null,
+        completedOn: null,
+        naReason: null,
+        ownerId: world.people.owner,
+        approverId: world.people.approver,
+        submittedAt: null,
+        approvedAt: null,
+        dueDateOverridden: false,
+        ...state,
+      });
+    // 2026-04-01 (overdue at 2026-10-12), 2026-10-14 (due this week) and 2027-01-31 (upcoming).
+    const open = [await instance(0), await instance(196), await instance(305)];
+    const approved = await instance(150, {
+      workflowState: 'APPROVED',
+      completedOn: d('2026-08-20'),
+      submittedAt: '2026-08-20T05:00:00Z',
+      approvedAt: '2026-08-21T05:00:00Z',
+    });
+    return { open, approved };
   });
 }

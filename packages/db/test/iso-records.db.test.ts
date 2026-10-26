@@ -1904,6 +1904,282 @@ describe('ids on the four ISO lists (ISO-2i)', () => {
   });
 });
 
+describe('filters added by ISO-2j', () => {
+  it('actions: by subject system (a finding through its audit), subject id, text and due range', async () => {
+    const made = await asAdmin(async (tx) => {
+      const nc = await r.nonconformities.create(tx, newNc());
+      const risk = await r.riskItems.create(
+        tx,
+        newRisk({ managementSystemId: w.stonebridgeSystem }),
+      );
+      const objective = await r.objectives.create(tx, newObjective());
+      const review = await r.managementReviews.create(
+        tx,
+        newReview({ managementSystemId: w.stonebridgeSystem }),
+      );
+      const programme = await r.auditProgrammes.create(tx, {
+        clientId: w.kestrel,
+        managementSystemId: w.riverbendSystem,
+        fy: '2029-30',
+        notes: null,
+      });
+      const audit = await r.internalAudits.create(tx, newAudit(programme.id));
+      const finding = (internalAuditId: string | null, externalAuditId: string | null) =>
+        r.auditFindings.create(tx, {
+          clientId: w.kestrel,
+          internalAuditId,
+          externalAuditId,
+          type: 'OFI',
+          clauseIds: [],
+          unitId: null,
+          description: 'Zeta finding',
+          nonconformityId: null,
+        });
+      const internalFinding = await finding(audit.id, null);
+      const externalFinding = await finding(null, w.externalAuditId);
+      const action = async (
+        subject: IsoAction['subject'],
+        text: string,
+        dueOn: string,
+        o: Partial<NewEntity<IsoAction>> = {},
+      ) =>
+        (await r.isoActions.create(tx, newAction(subject, { text, dueOn: day(dueOn), ...o }))).id;
+      return {
+        nc: nc.id,
+        externalFinding: externalFinding.id,
+        onNc: await action({ type: 'NONCONFORMITY', id: nc.id }, 'Zeta calibrate', '2027-01-10'),
+        onRisk: await action({ type: 'RISK_ITEM', id: risk.id }, 'Zeta guard', '2027-02-01'),
+        onObjective: await action(
+          { type: 'OBJECTIVE', id: objective.id },
+          'Zeta train',
+          '2027-03-01',
+        ),
+        onReview: await action(
+          { type: 'MANAGEMENT_REVIEW', id: review.id },
+          'Zeta budget',
+          '2027-04-01',
+          { outputKey: 'IMPROVEMENT' },
+        ),
+        onInternal: await action(
+          { type: 'AUDIT_FINDING', id: internalFinding.id },
+          'Zeta relabel',
+          '2027-05-01',
+        ),
+        onExternal: await action(
+          { type: 'AUDIT_FINDING', id: externalFinding.id },
+          'Zeta respond',
+          '2027-06-01',
+        ),
+      };
+    });
+    await asAdmin(async (tx) => {
+      const list = (f: Parameters<typeof r.isoActions.list>[2]) =>
+        r.isoActions.list(tx, w.kestrel, { limit: 200, ...f }).then(ids);
+      const all = [
+        made.onNc,
+        made.onRisk,
+        made.onObjective,
+        made.onReview,
+        made.onInternal,
+        made.onExternal,
+      ];
+      expect(await list({ q: 'zeta' })).toEqual(all);
+      expect(await list({ q: 'ZETA RELABEL' })).toEqual([made.onInternal]);
+      expect(await list({ q: 'zeta', managementSystemIds: [w.riverbendSystem] })).toEqual([
+        made.onNc,
+        made.onObjective,
+        made.onInternal,
+      ]);
+      expect(await list({ q: 'zeta', managementSystemIds: [w.stonebridgeSystem] })).toEqual([
+        made.onRisk,
+        made.onReview,
+        made.onExternal,
+      ]);
+      expect(
+        await list({ q: 'zeta', managementSystemIds: [w.riverbendSystem, w.stonebridgeSystem] }),
+      ).toEqual(all);
+      expect(await list({ q: 'zeta', managementSystemIds: [w.ospreySystem] })).toEqual([]);
+      expect(await list({ managementSystemIds: [] })).toEqual([]);
+      expect(await list({ subjectId: made.nc })).toEqual([made.onNc]);
+      expect(await list({ subjectId: made.externalFinding })).toEqual([made.onExternal]);
+      expect(await list({ q: 'zeta', dueFrom: day('2027-03-01') })).toEqual(all.slice(2));
+      expect(
+        await list({ q: 'zeta', dueFrom: day('2027-02-01'), dueTo: day('2027-04-01') }),
+      ).toEqual(all.slice(1, 4));
+      // Two pages of a system filter, and a unit-limited scope (the finding through its audit's system).
+      const riverbend = { q: 'zeta', managementSystemIds: [w.riverbendSystem], limit: 2 };
+      const first = await r.isoActions.list(tx, w.kestrel, { ...riverbend, count: true });
+      expect([ids(first), first.total]).toEqual([[made.onNc, made.onObjective], 3]);
+      const second = await r.isoActions.list(tx, w.kestrel, {
+        ...riverbend,
+        cursor: first.nextCursor,
+      });
+      expect([ids(second), second.nextCursor]).toEqual([[made.onInternal], null]);
+      expect(await list({ q: 'zeta', scope: scoped([w.stonebridge]) })).toEqual([
+        made.onRisk,
+        made.onReview,
+        made.onExternal,
+      ]);
+      expect(
+        await list({ q: 'zeta', dueFrom: day('2027-02-01'), scope: scoped([w.riverbend]) }),
+      ).toEqual([made.onObjective, made.onInternal]);
+    });
+    for (const bad of [{ q: '' }, { dueFrom: '2027-02-30' }, { subjectId: 'nc' }]) {
+      expect(await failure(asAdmin((tx) => r.isoActions.list(tx, w.kestrel, bad as never)))).toBe(
+        'VALIDATION',
+      );
+    }
+  });
+
+  it('nonconformities: by standard, any of them', async () => {
+    const made = await asAdmin(async (tx) => ({
+      quality: (await r.nonconformities.create(tx, newNc({ description: 'Zeta quality' }))).id,
+      both: (
+        await r.nonconformities.create(
+          tx,
+          newNc({ standards: ['ISO_9001', 'ISO_14001'], description: 'Zeta both' }),
+        )
+      ).id,
+      environment: (
+        await r.nonconformities.create(
+          tx,
+          newNc({ standards: ['ISO_14001'], description: 'Zeta environment' }),
+        )
+      ).id,
+      stonebridge: (
+        await r.nonconformities.create(
+          tx,
+          newNc({
+            managementSystemId: w.stonebridgeSystem,
+            standards: ['ISO_14001'],
+            description: 'Zeta stonebridge',
+          }),
+        )
+      ).id,
+    }));
+    await asAdmin(async (tx) => {
+      const list = (standards: ('ISO_9001' | 'ISO_14001' | 'ISO_45001')[]) =>
+        r.nonconformities.list(tx, w.kestrel, { q: 'zeta', standards, limit: 200 }).then(ids);
+      expect(await list(['ISO_9001'])).toEqual([made.quality, made.both]);
+      expect(await list(['ISO_14001'])).toEqual([made.both, made.environment, made.stonebridge]);
+      expect(await list(['ISO_9001', 'ISO_14001'])).toEqual([
+        made.quality,
+        made.both,
+        made.environment,
+        made.stonebridge,
+      ]);
+      const filter = { q: 'zeta', standards: ['ISO_14001' as const], limit: 2 };
+      const first = await r.nonconformities.list(tx, w.kestrel, filter);
+      const second = await r.nonconformities.list(tx, w.kestrel, {
+        ...filter,
+        cursor: first.nextCursor,
+      });
+      expect([ids(first), ids(second), second.nextCursor]).toEqual([
+        [made.both, made.environment],
+        [made.stonebridge],
+        null,
+      ]);
+      expect(
+        ids(
+          await r.nonconformities.list(tx, w.kestrel, {
+            q: 'zeta',
+            standards: ['ISO_14001'],
+            scope: scoped([w.stonebridge]),
+          }),
+        ),
+      ).toEqual([made.stonebridge]);
+      expect(
+        ids(
+          await r.nonconformities.list(tx, w.kestrel, {
+            q: 'zeta',
+            standards: ['ISO_9001'],
+            severity: ['MINOR'],
+            scope: scoped([w.stonebridge]),
+          }),
+        ),
+      ).toEqual([]);
+      expect(await list(['ISO_45001'])).toEqual([]);
+      expect(await list([])).toEqual([]);
+    });
+    expect(
+      await failure(
+        asAdmin((tx) =>
+          r.nonconformities.list(tx, w.kestrel, { standards: ['ISO_27001' as never] }),
+        ),
+      ),
+    ).toBe('VALIDATION');
+  });
+
+  it('internal audits: ids alone, with another filter, in scope, archived left out, page by page', async () => {
+    const made = await asAdmin(async (tx) => {
+      const programme = async (systemId: string) =>
+        (
+          await r.auditProgrammes.create(tx, {
+            clientId: w.kestrel,
+            managementSystemId: systemId,
+            fy: '2030-31',
+            notes: null,
+          })
+        ).id;
+      const riverbend = await programme(w.riverbendSystem);
+      const stonebridge = await programme(w.stonebridgeSystem);
+      const audit = async (programmeId: string, plannedStart: string, o = {}) =>
+        r.internalAudits.create(
+          tx,
+          newAudit(programmeId, {
+            plannedStart: day(plannedStart),
+            plannedEnd: day(plannedStart),
+            ...o,
+          }),
+        );
+      const a = await audit(riverbend, '2030-05-01');
+      const b = await audit(stonebridge, '2030-06-01');
+      const c = await audit(riverbend, '2030-07-01', {
+        state: 'CANCELLED',
+        cancelReason: 'Merged',
+      });
+      const gone = await audit(riverbend, '2030-08-01');
+      await r.internalAudits.archive(tx, gone.id, gone.version);
+      const [ospreyProgramme] = await Promise.all([
+        r.auditProgrammes.create(tx, {
+          clientId: w.osprey,
+          managementSystemId: w.ospreySystem,
+          fy: '2030-31',
+          notes: null,
+        }),
+      ]);
+      const osprey = await r.internalAudits.create(
+        tx,
+        newAudit(ospreyProgramme.id, { clientId: w.osprey, clauseIds: [] }),
+      );
+      return { a: a.id, b: b.id, c: c.id, gone: gone.id, osprey: osprey.id };
+    });
+    const all = [made.a, made.b, made.c];
+    await asAdmin(async (tx) => {
+      const list = (f: Parameters<typeof r.internalAudits.list>[2]) =>
+        r.internalAudits.list(tx, w.kestrel, f);
+      expect(ids(await list({ ids: [...all].reverse() }))).toEqual(all);
+      expect(ids(await list({ ids: [made.a, made.osprey] }))).toEqual([made.a]);
+      expect(ids(await list({ ids: [made.gone] }))).toEqual([]);
+      expect(ids(await list({ ids: all, state: ['CANCELLED'] }))).toEqual([made.c]);
+      expect(ids(await list({ ids: all, scope: scoped([w.stonebridge]) }))).toEqual([made.b]);
+      const first = await list({ ids: all, limit: 2, count: true });
+      expect([ids(first), first.total]).toEqual([all.slice(0, 2), 3]);
+      const second = await list({ ids: all, limit: 2, cursor: first.nextCursor });
+      expect([ids(second), second.nextCursor]).toEqual([all.slice(2), null]);
+    });
+    for (const bad of [
+      [],
+      [made.a, made.a],
+      Array.from({ length: 201 }, () => crypto.randomUUID()),
+    ]) {
+      expect(
+        await failure(asAdmin((tx) => r.internalAudits.list(tx, w.kestrel, { ids: bad }))),
+      ).toBe('VALIDATION');
+    }
+  });
+});
+
 describe('files on part 2 subjects', () => {
   it('attach to an NC and an action, and read back with their subject', async () => {
     await asAdmin(async (tx) => {

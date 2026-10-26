@@ -1252,4 +1252,56 @@ describe('ISO files', () => {
       scanStatus: 'CLEAN',
     });
   });
+
+  it('settle a scan only on a live PENDING file, and say whether it wrote (ISO-2j)', async () => {
+    const subject = { type: 'external_audit' as const, id: auditId };
+    const [pending, scanned, removed, raced] = await asAdmin(async (tx) => [
+      await r.isoFiles.create(tx, file(subject, 'settle-pending')),
+      await r.isoFiles.create(tx, file(subject, 'settle-scanned')),
+      await r.isoFiles.create(tx, file(subject, 'settle-removed')),
+      await r.isoFiles.create(tx, file(subject, 'settle-raced')),
+    ]);
+    await asSystem((tx) => r.isoFiles.setScanStatus(tx, scanned!.id, 'INFECTED'));
+    await asAdmin((tx) => r.isoFiles.archive(tx, removed!.id, 'Wrong visit.'));
+    const status = (id: string) =>
+      asAdmin((tx) => r.isoFiles.require(tx, id)).then((f) => f.scanStatus);
+
+    expect(await asSystem((tx) => r.isoFiles.settleScan(tx, pending!.id, 'CLEAN'))).toBe(true);
+    expect(await status(pending!.id)).toBe('CLEAN');
+    // A second result does not overwrite the first.
+    expect(await asSystem((tx) => r.isoFiles.settleScan(tx, pending!.id, 'FAILED'))).toBe(false);
+    expect(await status(pending!.id)).toBe('CLEAN');
+    expect(await asSystem((tx) => r.isoFiles.settleScan(tx, scanned!.id, 'CLEAN'))).toBe(false);
+    expect(await status(scanned!.id)).toBe('INFECTED');
+    expect(await asSystem((tx) => r.isoFiles.settleScan(tx, removed!.id, 'CLEAN'))).toBe(false);
+    expect(await status(removed!.id)).toBe('PENDING');
+    expect(await asSystem((tx) => r.isoFiles.settleScan(tx, crypto.randomUUID(), 'CLEAN'))).toBe(
+      false,
+    );
+    expect(await failure(asSystem((tx) => r.isoFiles.settleScan(tx, pending!.id, 'PENDING')))).toBe(
+      'VALIDATION',
+    );
+
+    // A remove that holds the row: the settle waits on it, then finds the file archived and writes nothing.
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    let held!: () => void;
+    const holding = new Promise<void>((resolve) => (held = resolve));
+    const remover = asAdmin(async (tx) => {
+      await r.isoFiles.archive(tx, raced!.id, 'Uploaded twice.');
+      held();
+      await gate;
+    });
+    await holding;
+    let settled = false;
+    const settling = asSystem((tx) => r.isoFiles.settleScan(tx, raced!.id, 'CLEAN')).finally(
+      () => (settled = true),
+    );
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    expect(settled).toBe(false);
+    release();
+    await remover;
+    expect(await settling).toBe(false);
+    expect(await status(raced!.id)).toBe('PENDING');
+  });
 });

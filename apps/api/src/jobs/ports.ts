@@ -1,5 +1,6 @@
 import type {
   AccountStatus,
+  ActKind,
   AuditEvent,
   ClientSettings,
   Criticality,
@@ -12,6 +13,8 @@ import type {
   RuleStatus,
   ScoreInput,
   Applicability,
+  IsoFileSubject,
+  KnownFeature,
   PersonStatus,
   Role,
 } from '@canopy/contracts';
@@ -28,6 +31,12 @@ export interface JobStore {
    * then runs in its own tenant transaction.
    */
   listFirmIds(): Promise<Id[]>;
+  /**
+   * The firms whose effective features include `flag` (M3's `listFirmIdsWithFeature`): ids only, as `listFirmIds`.
+   * Optional so a store that serves no ISO job (the operator digest's) need not have it; a caller without it reads
+   * every firm and checks the flag in each firm's transaction.
+   */
+  listFirmIdsWithFeature?(flag: KnownFeature): Promise<Id[]>;
   /** Runs `fn` in one transaction for one firm (system context, all its clients). */
   withFirm<T>(firmId: Id, requestId: string, fn: (tx: FirmTx) => Promise<T>): Promise<T>;
 }
@@ -249,6 +258,13 @@ export interface FirmTx {
    * FIRM_ADMIN membership that is unarchived and not expired at `now` (the job's clock).
    */
   listAccountAdmins(now: string): Promise<Recipient[]>;
+  /**
+   * Ids of the firm's obligations whose act is a STANDARD (the ISO catalogue), archived ones included. Empty for an
+   * account that never had the ISO add-on.
+   */
+  standardObligationIds(): Promise<Id[]>;
+  /** Which of these instances belong to a STANDARD act, archived rows included (M3's `actKindOf.instance`). */
+  standardInstanceIds(instanceIds: Id[]): Promise<Id[]>;
   /** Clients of the firm that are not archived. */
   listClients(): Promise<ClientRef[]>;
   /** Assignments of one client that are not archived. */
@@ -291,14 +307,30 @@ export interface FirmTx {
   recordScan(evidenceId: Id, scanStatus: ScanResult): Promise<{ instanceVersion: number } | null>;
   /** Failed scan attempts recorded for the file: its instance's `UPDATE` audit rows for it that left it PENDING. */
   scanAttempts(evidenceId: Id, instanceId: Id): Promise<number>;
+  /** Up to `limit` (at most 200) PENDING, non-archived ISO files of the firm, oldest upload first. */
+  listPendingIsoFiles(limit: number): Promise<PendingIsoFile[]>;
+  /**
+   * Sets a PENDING, non-archived ISO file to its scan result. False, and nothing changed, when the file is missing,
+   * archived or no longer PENDING.
+   */
+  recordIsoScan(fileId: Id, scanStatus: ScanResult): Promise<boolean>;
+  /** Failed scan attempts recorded for the ISO file: its subject's `UPDATE` audit rows for it that left it PENDING. */
+  isoScanAttempts(fileId: Id, subject: IsoFileSubject): Promise<number>;
   /** Scheduled send-log rows of one client for one send date that are DONE (sent or failed). */
   listDoneSends(clientId: Id, sendDate: LocalDate): Promise<SendKey[]>;
   /** Recipients whose CONSULTANT_DIGEST for this send date is DONE (sent or failed), across all clients. */
   listDoneDigests(sendDate: LocalDate): Promise<Id[]>;
   recipients(personIds: Id[], clientId: Id): Promise<Recipient[]>;
   listConsultants(): Promise<ConsultantRef[]>;
-  /** Score inputs of one client's non-archived instances with a due date in the range. */
-  listScoreItems(clientId: Id, range: { from: LocalDate; to: LocalDate }): Promise<ScoreInput[]>;
+  /**
+   * Score inputs of one client's non-archived instances with a due date in the range; with `actKinds`, only those whose
+   * act is of those kinds.
+   */
+  listScoreItems(
+    clientId: Id,
+    range: { from: LocalDate; to: LocalDate },
+    filter?: { actKinds?: readonly ActKind[] },
+  ): Promise<ScoreInput[]>;
   claimSend(key: SendKey): Promise<ClaimResult>;
   /**
    * Records the send and writes the `notification.sent` event in the same transaction. The store sets the event's
@@ -324,6 +356,15 @@ export interface PendingEvidence {
   instanceId: Id;
   storageKey: string;
   /** What the upload recorded; a CLEAN verdict counts only when every one of these bytes was scanned. */
+  sizeBytes: number;
+}
+
+/** An ISO file waiting for its virus scan. Its audit rows sit on its subject; the storage key is never logged. */
+export interface PendingIsoFile {
+  id: Id;
+  clientId: Id;
+  subject: IsoFileSubject;
+  storageKey: string;
   sizeBytes: number;
 }
 

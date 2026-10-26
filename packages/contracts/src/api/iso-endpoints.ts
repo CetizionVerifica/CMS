@@ -221,7 +221,7 @@ export const ISO_ENDPOINTS = {
   listIsoDocuments: isoEndpoint({
     method: 'GET',
     path: `${ROOT}/documents`,
-    summary: 'Controlled documents; ACTIVE only unless `status` says otherwise.',
+    summary: 'Controlled documents; ACTIVE only unless `status` or `ids` is given.',
     action: 'isoDocument.read',
     roles: READERS,
     notes: `${LIST_NOTE} The current revision of a system document is readable by every member of the client.`,

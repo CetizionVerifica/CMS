@@ -1,4 +1,5 @@
 import type {
+  ActKind,
   ClientSettings,
   Criticality,
   ExportJob,
@@ -38,6 +39,11 @@ export interface RowFilter {
   hasEvidence?: boolean;
   /** Case-insensitive match on title, external ref, Act name and comments. */
   q?: string;
+  /**
+   * Act kinds (docs/iso/plan.md §4.6): `['STATUTE']` for statutory numbers and the LAW source, `['STANDARD']` for the
+   * ISO source; absent reads both. An empty list matches nothing.
+   */
+  actKinds?: readonly ActKind[];
 }
 
 export interface ClientInfo {
@@ -83,6 +89,11 @@ export interface NewExportJob {
 
 export interface ReportsStore {
   firmSettings(ctx: RequestContext): Promise<FirmSettings>;
+  /**
+   * The account's effective features, read fresh: the export worker re-checks the ISO add-on when it runs, after the
+   * request that queued the job has ended (docs/iso/plan.md §4.2).
+   */
+  accountFeatures(ctx: RequestContext): Promise<readonly string[]>;
   /** Non-archived clients among `clientIds`, in name order. */
   clients(ctx: RequestContext, clientIds: readonly string[]): Promise<ClientInfo[]>;
   /** A non-archived unit of the client, or null. */

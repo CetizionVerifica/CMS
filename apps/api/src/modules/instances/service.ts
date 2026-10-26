@@ -3,6 +3,7 @@ import {
   InstanceDetail,
   InstanceRow,
   type Action,
+  type ActivitySource,
   type ComplianceInstance,
   type InstanceAction,
   type LocalDate,
@@ -32,6 +33,7 @@ import {
 import { fyRangeOf } from '@canopy/engine';
 import { ApiError, can } from '../../auth/index.js';
 import { loadInstance, toApiError } from './access.js';
+import { listKinds, refuseIsoInstanceWhenOff } from './iso-switch.js';
 import { allowedActions, INSTANCE_ACTION_POLICY, instanceResource } from './allowed-actions.js';
 import { recordFor, replay, type KeyedRequest } from './idempotency.js';
 import { countMatching, mergedPage, type ReadRegister, type RegisterSource } from './paging.js';
@@ -88,27 +90,31 @@ export function createInstanceService(options: InstanceServiceOptions) {
    * A write that honours `Idempotency-Key` (idempotency.ts): a repeat gets the stored first response, and a
    * first run stores its response in the same transaction as the change. A request that loses a race to a
    * concurrent one with the same key (its insert is DUPLICATE, or its change is STALE_VERSION behind the
-   * winner's) gets the winner's response.
+   * winner's) gets the winner's response. `recheck` runs on every replay, in its transaction, so a stored response
+   * never gets round a check that depends on now rather than on the request, such as the ISO off switch (ISO-11a).
    */
   async function keyed<T>(
     ctx: RequestContext,
     request: KeyedRequest | undefined,
     run: (tx: TenantTx) => Promise<T>,
+    recheck: (tx: TenantTx, replayed: T) => Promise<T>,
   ): Promise<T> {
     if (request === undefined) return inTenant(ctx, run);
     const find = (tx: TenantTx) => idempotencyKeys.find(tx, ctx.personId, request.key, clock());
     try {
       return await inTenant(ctx, async (tx) => {
         const first = await find(tx);
-        if (first !== null) return replay<T>(first, request);
+        if (first !== null) return recheck(tx, replay<T>(first, request));
         const response = await run(tx);
         await idempotencyKeys.record(tx, recordFor(ctx.personId, request, response, clock()));
         return response;
       });
     } catch (error) {
-      const first = await inTenant(ctx, find);
-      if (first === null) throw error;
-      return replay<T>(first, request);
+      return inTenant(ctx, async (tx) => {
+        const first = await find(tx);
+        if (first === null) throw error;
+        return recheck(tx, replay<T>(first, request));
+      });
     }
   }
 
@@ -179,6 +185,7 @@ export function createInstanceService(options: InstanceServiceOptions) {
     clientId: string,
     query: RegisterQuery,
     cal: ClientCalendar,
+    kinds: Pick<RegisterFilter, 'actKinds'>,
   ): RegisterSource[] {
     const me = (ref: string | undefined) => (ref === 'me' ? ctx.personId : ref);
     const scope = unitScope(ctx, clientId);
@@ -203,6 +210,7 @@ export function createInstanceService(options: InstanceServiceOptions) {
       ...(query.completedTo === undefined ? {} : { completedTo: query.completedTo }),
       ...(query.hasEvidence === undefined ? {} : { hasEvidence: query.hasEvidence }),
       ...(query.q === undefined ? {} : { q: query.q }),
+      ...kinds,
     };
     const categories = query.categoryId ?? [undefined];
     return [...new Set(categories)].map((categoryId) => ({
@@ -335,7 +343,8 @@ export function createInstanceService(options: InstanceServiceOptions) {
         const cal = await calendar(tx, clientId);
         const asOf = readAsOf(actor.ctx, clientId, cal, query.asOf);
         const keepItem = keepRow(query);
-        const sources = registerSources(actor.ctx, clientId, query, cal);
+        const kinds = await listKinds(actor.ctx, query.source);
+        const sources = registerSources(actor.ctx, clientId, query, cal, kinds);
         const read: ReadRegister = (s, p) => readSource(tx, s, p);
         const keep = (row: RegisterRow) => {
           const item = withStatus(row, asOf, cal);
@@ -370,10 +379,24 @@ export function createInstanceService(options: InstanceServiceOptions) {
       command: TransitionCommand,
       request?: KeyedRequest,
     ): Promise<InstanceDetail> {
-      return keyed(actor.ctx, request, async (tx) => {
-        const { instance, asOf, cal } = await transitionIn(tx, actor, id, expectedVersion, command);
-        return detail(tx, actor.ctx, instance, asOf, cal);
-      });
+      return keyed(
+        actor.ctx,
+        request,
+        async (tx) => {
+          const { instance, asOf, cal } = await transitionIn(
+            tx,
+            actor,
+            id,
+            expectedVersion,
+            command,
+          );
+          return detail(tx, actor.ctx, instance, asOf, cal);
+        },
+        async (tx, replayed) => {
+          await refuseIsoInstanceWhenOff(tx, actor.ctx, id);
+          return replayed;
+        },
+      );
     },
 
     /**
@@ -391,53 +414,81 @@ export function createInstanceService(options: InstanceServiceOptions) {
       if (!clientsWithRole(ctx, ['CLIENT_ADMIN', 'APPROVER']).includes(clientId)) {
         throw new ApiError('FORBIDDEN', { action: 'instance.approve' });
       }
-      return keyed(ctx, request, async (tx) => {
-        const results: BulkResult[] = [];
-        for (const item of body.items) {
-          try {
-            const row = await withSavepoint(tx, async (sp) => {
-              const visible = await instances.get(sp, item.id);
-              if (visible === null || visible.clientId !== clientId) {
-                throw new ApiError('NOT_FOUND');
-              }
-              const { instance, asOf, cal } = await transitionIn(sp, actor, item.id, item.version, {
-                action: 'APPROVE',
-                comment: body.comment,
+      return keyed(
+        ctx,
+        request,
+        async (tx) => {
+          const results: BulkResult[] = [];
+          for (const item of body.items) {
+            try {
+              const row = await withSavepoint(tx, async (sp) => {
+                const visible = await instances.get(sp, item.id);
+                if (visible === null || visible.clientId !== clientId) {
+                  throw new ApiError('NOT_FOUND');
+                }
+                const { instance, asOf, cal } = await transitionIn(
+                  sp,
+                  actor,
+                  item.id,
+                  item.version,
+                  {
+                    action: 'APPROVE',
+                    comment: body.comment,
+                  },
+                );
+                return withStatus(await registerRow(sp, instance), asOf, cal);
               });
-              return withStatus(await registerRow(sp, instance), asOf, cal);
-            });
-            results.push({ id: item.id, ok: true, item: row });
-          } catch (caught) {
-            const error = caught instanceof DbError ? new ApiError(caught.code) : caught;
-            if (!(error instanceof ApiError)) throw error;
-            results.push({
-              id: item.id,
-              ok: false,
-              error: { code: error.code, message: error.message },
-            });
+              results.push({ id: item.id, ok: true, item: row });
+            } catch (caught) {
+              const error = caught instanceof DbError ? new ApiError(caught.code) : caught;
+              if (!(error instanceof ApiError)) throw error;
+              results.push({
+                id: item.id,
+                ok: false,
+                error: { code: error.code, message: error.message },
+              });
+            }
           }
-        }
-        const approved = results.filter((r) => r.ok).map((r) => r.id);
-        if (approved.length > 0) {
-          // Each item wrote its own instance.approved event; this one summarises the request.
-          const client = await clients.require(tx, clientId);
-          await emit(
-            tx,
-            ctx,
-            {
-              type: 'instance.bulk_approved',
-              data: {
-                requested: body.items.length,
-                approved,
-                failed: results.filter((r) => !r.ok).map((r) => r.id),
+          const approved = results.filter((r) => r.ok).map((r) => r.id);
+          if (approved.length > 0) {
+            // Each item wrote its own instance.approved event; this one summarises the request.
+            const client = await clients.require(tx, clientId);
+            await emit(
+              tx,
+              ctx,
+              {
+                type: 'instance.bulk_approved',
+                data: {
+                  requested: body.items.length,
+                  approved,
+                  failed: results.filter((r) => !r.ok).map((r) => r.id),
+                },
               },
-            },
-            clientId,
-            { type: 'client', id: client.id, version: client.version },
-          );
-        }
-        return { results };
-      });
+              clientId,
+              { type: 'client', id: client.id, version: client.version },
+            );
+          }
+          return { results };
+        },
+        // A replay refuses again, per item, each STANDARD instance while the ISO add-on is off (ISO-11a).
+        async (tx, replayed) => ({
+          results: await Promise.all(
+            replayed.results.map(async (result) => {
+              try {
+                await refuseIsoInstanceWhenOff(tx, ctx, result.id);
+                return result;
+              } catch (caught) {
+                if (!(caught instanceof ApiError)) throw caught;
+                return {
+                  id: result.id,
+                  ok: false as const,
+                  error: { code: caught.code, message: caught.message },
+                };
+              }
+            }),
+          ),
+        }),
+      );
     },
 
     /** PATCH /instances/{id}: reassign owner or approver, or move the due date. */
@@ -570,6 +621,7 @@ export function createInstanceService(options: InstanceServiceOptions) {
         cursor?: string | undefined;
         count?: boolean | undefined;
         asOf?: LocalDate | undefined;
+        source?: ActivitySource | undefined;
       },
     ) {
       const { ctx } = actor;
@@ -581,6 +633,7 @@ export function createInstanceService(options: InstanceServiceOptions) {
       if (clientIds.length === 0) throw new ApiError('FORBIDDEN', { action: 'instance.read' });
       // Only FIRM_ADMIN, CONSULTANT and VIEWER choose asOf, and none of them has a queue.
       if (query.asOf !== undefined) throw new ApiError('FORBIDDEN', { action: 'instance.read' });
+      const kinds = await listKinds(ctx, query.source);
       return inTenant(ctx, async (tx) => {
         const calendars = new Map<string, { cal: ClientCalendar; asOf: LocalDate }>();
         const sources: RegisterSource[] = [];
@@ -597,8 +650,14 @@ export function createInstanceService(options: InstanceServiceOptions) {
                 ? {
                     workflowState: ['SUBMITTED'],
                     ...(admin ? {} : { approverId: ctx.personId, ...units }),
+                    ...kinds,
                   }
-                : { workflowState: ['OPEN', 'SENT_BACK'], ownerId: ctx.personId, ...units },
+                : {
+                    workflowState: ['OPEN', 'SENT_BACK'],
+                    ownerId: ctx.personId,
+                    ...units,
+                    ...kinds,
+                  },
           });
         }
         const read: ReadRegister = (s, p) => readSource(tx, s, p);

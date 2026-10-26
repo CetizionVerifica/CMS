@@ -2,6 +2,7 @@ import { ENDPOINTS, type Id, type Unit } from '@canopy/contracts';
 import type { FastifyInstance } from 'fastify';
 import { unitScope } from './http/access.js';
 import { HttpError, invalid } from './http/errors.js';
+import { hiddenWhileOff } from './http/iso-switch.js';
 import { pageOf } from './http/page.js';
 import { mount, type M6Deps } from './http/route.js';
 import { emit } from './events.js';
@@ -200,7 +201,17 @@ export function entityRoutes(app: FastifyInstance, deps: M6Deps): void {
       call.authorize({ type: 'unit', clientId: row.clientId, unitId: row.id });
       const assignments = await tx.assignments.findAll({ unitId: row.id });
       if (assignments.length > 0) {
-        throw invalid('Archive the assignments of this unit first.', ['params', 'id']);
+        // While the ISO add-on is off its assignments are hidden and cannot be archived, so say what to do instead.
+        const hidden = await hiddenWhileOff(
+          call.ctx,
+          await Promise.all(assignments.map((a) => tx.actKindOf.assignment(a.id))),
+        );
+        throw invalid(
+          hidden
+            ? 'This unit has ISO management system assignments. Turn the ISO add-on back on and archive them first.'
+            : 'Archive the assignments of this unit first.',
+          ['params', 'id'],
+        );
       }
       const unit = await auditedUpdate({
         tx,

@@ -5,6 +5,7 @@ import { clientDay, reminderWindow, sendTimeReached } from './client-day.js';
 import type { ClientRef, JobDeps, JobReport, Recipient, ReminderCandidate } from './ports.js';
 import { deliver, sendKeyString } from './send.js';
 import { servedFirmIds } from './accounts.js';
+import { offInstanceIds } from './iso-switch.js';
 
 export const REMINDERS = 'reminders';
 
@@ -30,10 +31,15 @@ async function remindClient(
     firmId,
     requestId,
     async (tx) => {
-      const candidates = await tx.listReminderCandidates(
+      const listed = await tx.listReminderCandidates(
         client.id,
         reminderWindow(asOf, client.settings),
       );
+      const off = await offInstanceIds(
+        tx,
+        listed.map((c) => c.id),
+      );
+      const candidates = listed.filter((c) => !off.has(c.id));
       const done = new Set((await tx.listDoneSends(client.id, asOf)).map(sendKeyString));
       const people = new Set(candidates.flatMap((c) => [c.ownerId, c.approverId]));
       const recipients = new Map(
@@ -113,8 +119,8 @@ async function remindClient(
  * Runs every 15 minutes. For each client whose local send time (default 07:00, Asia/Kolkata unless the client
  * says otherwise) has passed today, asks the engine which owner reminders and approver escalations are due today
  * and sends each once. The engine returns nothing for APPROVED and NOT_APPLICABLE instances, and the candidate
- * query leaves them out too. Dedupe is the send log's unique key, so overlapping or repeated runs send nothing
- * twice.
+ * query leaves them out too. Instances of STANDARD obligations get none while the ISO add-on is off. Dedupe is
+ * the send log's unique key, so overlapping or repeated runs send nothing twice.
  */
 export async function runReminders(deps: JobDeps, requestId: string): Promise<JobReport> {
   const report: JobReport = { firms: 0, clients: 0, sent: 0 };

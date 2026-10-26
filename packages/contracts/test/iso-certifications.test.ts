@@ -1397,6 +1397,35 @@ describe('createIsoExternalFinding', () => {
     ]);
   });
 
+  it("reports a finding's nonconformity on the client's day, which it is due no earlier than", async () => {
+    // Now is 06:30 UTC on TODAY: 19:30 the day before for a client in Pago Pago (UTC-11).
+    const client = firmB(app).data.clients.find((c) => c.id === NORTHWIND)!;
+    const zone = client.settings.timeZone;
+    client.settings.timeZone = 'Pacific/Pago_Pago';
+    try {
+      const held = await heldAudit(all, { standardIds: [std('ISO_9001')] });
+      const yesterday = addDays(TODAY, -1);
+      const raise = (dueOn: string) => ({
+        type: 'MINOR_NC',
+        description: 'Calibration labels missing',
+        clauseIds: [clause('ISO_9001', '7.1.5')],
+        unitId: PUNE,
+        nonconformity: { ...NC, dueOn },
+      });
+      const finding = await createFinding(held, raise(yesterday), PERSON.kabir);
+      expect(ncOf(finding)).toMatchObject({ reportedOn: yesterday, dueOn: yesterday });
+      await fails(
+        app,
+        'createIsoExternalFinding',
+        { as: PERSON.kabir, params: params(held), body: raise(addDays(TODAY, -2)) },
+        'VALIDATION',
+        400,
+      );
+    } finally {
+      client.settings.timeZone = zone;
+    }
+  });
+
   it('raises the nonconformity of a MAJOR_NC: OPEN, EXTERNAL_AUDIT, linked and audited', async () => {
     const held = await heldAudit(all, { standardIds: [std('ISO_9001'), std('ISO_45001')] });
     const before = Math.max(

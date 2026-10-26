@@ -19,6 +19,7 @@ import {
   isoApp,
   isoEvents,
   NORTHWIND,
+  NOW,
   ok,
   PERSON,
   PUNE,
@@ -644,6 +645,25 @@ describe('listIsoNonconformities and getIsoNonconformity', () => {
     expect(await listed({ state: 'CLOSED' })).toEqual([]);
   });
 
+  it('narrows to the ids given, in list order, within the other filters and the reader’s units (ISO-1a4)', async () => {
+    const other = seedNc({ clientId: HARBOUR, managementSystemId: harbourSys.id });
+    const archived = seedNc({ managementSystemId: listSys.id, archivedAt: NOW });
+    const named = async (rows: { id: string }[], query = {}, as: string = PERSON.meera) =>
+      ids((await listNcs({ ids: ids(rows).join(','), ...query }, as)).items);
+    expect(await named([overdue, pune, unitless])).toEqual([unitless.id, pune.id, overdue.id]);
+    expect(await named([overdue, pune, blr], { overdue: 'true' })).toEqual([overdue.id]);
+    expect(await named([overdue, pune, blr], { unitId: BENGALURU })).toEqual([blr.id]);
+    expect(await named([other, archived, pune])).toEqual([pune.id]);
+    expect(await named([blr, pune, unitless], {}, PERSON.rohan)).toEqual([unitless.id, pune.id]);
+    const page = await listNcs({
+      ids: ids([overdue, blr, pune]).join(','),
+      limit: '2',
+      count: 'true',
+    });
+    expect(ids(page.items)).toEqual([blr.id, pune.id]);
+    expect(page.total).toBe(3);
+  });
+
   it('shows the timing of an overdue nonconformity', async () => {
     const view = await getNc(overdue);
     expect(view.status).toEqual({
@@ -968,6 +988,52 @@ describe('updateIsoNonconformity', () => {
     // Only a new or moved time is checked: a stored one is left alone by other edits.
     ncRow(nc.id).reportedOn = '2024-11-09';
     await ncStep('updateIsoNonconformity', nc, { incident: { location: 'Dock 3' } });
+    // A time moved after now is refused as a new one is, compared as instants: half a second after now is later.
+    ncRow(nc.id).reportedOn = TODAY;
+    for (const occurredAt of ['2024-11-15T07:00:00Z', '2024-11-15T06:30:00.500Z']) {
+      const refused = await fails(
+        app,
+        'updateIsoNonconformity',
+        onNc(nc, { incident: { occurredAt } }),
+        'VALIDATION',
+        400,
+      );
+      expect(refused.error.details, occurredAt).toEqual({
+        issues: [
+          {
+            path: ['body', 'incident.occurredAt'],
+            message: 'The incident cannot have occurred after now',
+          },
+        ],
+      });
+    }
+    const early = await ncStep('updateIsoNonconformity', nc, {
+      incident: { occurredAt: '2024-11-15T06:29:59.500Z' },
+    });
+    expect(early.incident?.occurredAt).toBe('2024-11-15T06:29:59.500Z');
+  });
+
+  it("reports a nonconformity on the client's day, which its incident's time is checked against", async () => {
+    // Now is 06:30 UTC on 2024-11-15: 19:30 on 2024-11-14 for a client in Pago Pago (UTC-11).
+    const behind = await isoApp();
+    try {
+      firmB(behind).data.clients.find((c) => c.id === NORTHWIND)!.settings.timeZone =
+        'Pacific/Pago_Pago';
+      const system = seedSystem(behind);
+      const incident = { ...INCIDENT, occurredAt: '2024-11-15T06:00:00Z' };
+      const body = (dueOn: string) =>
+        raiseCall(
+          { source: 'INCIDENT', standards: ['ISO_45001'], incident, dueOn },
+          PERSON.meera,
+          system,
+        );
+      // Due on the client's today, though Kolkata is a day ahead; not the day before.
+      const nc = await ok<Nc>(behind, 'raiseIsoNonconformity', body('2024-11-14'));
+      expect(nc).toMatchObject({ reportedOn: '2024-11-14', dueOn: '2024-11-14' });
+      await fails(behind, 'raiseIsoNonconformity', body('2024-11-13'), 'VALIDATION', 400);
+    } finally {
+      await behind.close();
+    }
   });
 
   it('refuses the incident outcome, which the reassign route changes', async () => {

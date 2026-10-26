@@ -10,7 +10,7 @@ import {
   type RequestContext,
 } from '@canopy/contracts';
 import ExcelJS from 'exceljs';
-import { afterAll, describe, expect, it } from 'vitest';
+import { afterAll, describe, expect, it, onTestFinished } from 'vitest';
 import { buildServer } from '../../server.js';
 import { createTestAuth, membership } from '../../auth/testing.js';
 import { createWorld, NOW } from '../dashboard/testing/world.js';
@@ -494,17 +494,22 @@ describe('exports: kinds M10 does not build yet', () => {
   });
 
   for (const kind of ISO_EXPORT_KINDS) {
-    it(`${kind}: refused at create with 400 VALIDATION, and no job is queued`, async () => {
+    // With the add-on on, create answers 400 VALIDATION until ISO-11d builds the kind (iso-switch.test.ts). A call
+    // outside a live request reads no features, so it meets the off switch first (ISO-11b).
+    it(`${kind}: refused at create with no live request, and no job is queued`, async () => {
       const jobs = w.store.jobs.size;
       const body = { kind: kind as unknown as ExportKind, filters: '' };
       await expect(createExport(deps, ctx, w.clientId, body, 'iso-key')).rejects.toMatchObject({
-        code: 'VALIDATION',
-        statusCode: 400,
+        code: 'FEATURE_NOT_ENABLED',
+        statusCode: 403,
       });
       expect(w.store.jobs.size).toBe(jobs);
     });
 
     it(`${kind}: a queued job fails in the build branch and nothing is stored`, async () => {
+      // With the add-on on the worker reaches the build, whose default branch fails the job.
+      w.store.features.set(w.firmId, ['isoManagement']);
+      onTestFinished(() => void w.store.features.delete(w.firmId));
       // The memory store's jobs parse as today's `ExportJob`, so this one records statuses itself.
       const statuses: ExportJob['status'][] = [];
       const store = Object.assign(Object.create(w.store) as typeof w.store, {

@@ -38,11 +38,15 @@ Every ISO table follows `packages/db/CLAUDE.md` and ADR 0003. On top of that:
    - A row that belongs to exactly one of several parents has one nullable foreign-key column per parent and
      `CHECK (num_nonnulls(...) = 1)`: `audit_finding` (internal or external audit), `iso_action` (§3.12) and `iso_file`
      (§6). No ISO table has a polymorphic `(type, id)` pair.
-5. **People.** Every person reference (owner, approver, NA approver, lead auditor, auditor, auditee, reported-to,
-   chair, attendee, investigator, reporter, disposition authoriser) must hold a live role in the record's client, and
-   cover the record's unit when it has one, as `checkAssignee` does for instances
-   (`apps/api/src/modules/instances/service.ts`). M16 checks this on every create and update and answers `400
-   VALIDATION` otherwise. Jobs send ISO mail only through `recipients(personIds, clientId)`, which drops non-members.
+5. **People.** Every person reference (owner, approver, NA approver, lead auditor, auditor, auditee, reported-to, chair,
+   attendee, investigator, reporter, disposition authoriser) must hold a live role in the record's client, and cover the
+   record's unit when it has one, as `checkAssignee` does for instances (`apps/api/src/modules/instances/service.ts`).
+   M16 checks this on every create and update and answers `400 VALIDATION` otherwise. The person must also be neither
+   archived nor DISABLED (ISO-8a's check). A client-role actor cannot read a firm admin's or consultant's membership or
+   person row (the `membership` and `person` policies), so from ISO-8c M16 makes the whole check, the person's own state
+   included, through M3's role lookup (ISO-2i, ISO-2j), which answers yes or no without showing rows; until then a
+   client role can name only members of the client (ADR M16-0004 decision 6). Jobs send ISO mail only through
+   `recipients(personIds, clientId)`, which drops non-members.
 6. **Versions.** Every ISO record that a route updates has `version` and takes optimistic concurrency like instances
    (`409 STALE_VERSION`).
 7. **Stored engine results.** `RiskItem.rating`, `residualRating` and `significant` are stored when the item is
@@ -301,7 +305,8 @@ Rules (45001 10.2):
   (§3.13 item 4, plan §3.3). Even there, the INCIDENTS row's figures and notes go only to a reader who may read every
   incident it counts, or who chairs or attends the review (§3.13 item 4).
 - `occurredAt` is not after now, and its client-local day is not after the NC's `reportedOn` (`400 VALIDATION` on RAISE
-  and on the NC's PATCH), so an incident is never dated after its NC was raised (§5.4).
+  and on a PATCH that changes `occurredAt`; `reportedOn` is set by RAISE and never edited, so a stored row needs no
+  recheck), so an incident is never dated after its NC was raised (§5.4).
 - `type` is NEAR_MISS exactly when the NC's `source` is NEAR_MISS, and then `outcome` is NONE and `lostDays` null.
   `lostDays` is required when `outcome` is LOST_TIME and null otherwise (`400 VALIDATION`). `outcome` changes only
   as §3.10 says (the reassign route, while OPEN or ROOT_CAUSE_FOUND); the owner may still update `lostDays` on the
@@ -631,29 +636,39 @@ since `packages/db` does not import the engine; INCIDENTS also gets the client's
 
 The engine reads each record as it is now, except where a date gives its state on `asOf`:
 - A record counts from its creation day (`createdOn` on or before `asOf`). A nonconformity counts from the later of
-  `createdOn` and `reportedOn`.
+  `createdOn` and `reportedOn`, its counting day: NONCONFORMITIES counts it as raised on that day, and INCIDENTS places
+  its incident by it.
 - A record archived after `asOf` counts as live. One archived on or before `asOf` counts in no figure but
   `contextItemsRemoved`, and there only when it was archived in the window.
 - An NC with `closedOn` after `asOf` counts as open, and so does an objective whose close is placed after `asOf`
   (below). REOPEN clears an NC's `closedOn`, so a reopened NC counts as open and its earlier close is not counted (read
   as it is now).
 - A date a user enters, which may be in the past, places its record by the later of that date and the client-local day
-  of the step that set it, which the caller reads from the audit trail (§8): an internal audit by `reportedOn` and its
-  REPORT step, an external audit by `endOn` and its RECORD_HELD step, a DONE action by `doneOn` and its COMPLETE step,
-  and a closed objective by `closedOn` and its CLOSE step. A CANCELLED action is placed by its CANCEL step. That day is
-  the action's settled day, and the action counts as OPEN on `asOf` until then; a closed objective likewise counts as
-  open until its day. When an action was settled more than once (REOPENed and settled again), its latest step counts. So
-  a record entered after one review is recorded, but dated before it, counts in the next one. Two kinds of record are
-  placed through another: an incident by its NC's counting day (above; its `occurredAt` day is never later, §3.11), and
-  an audit finding by the later of its audit's day and its own `createdOn`. ISO-1a3 adds the step days to `data`
-  (findings and incident NCs already carry `createdOn` in 1.8.2), and ISO-3b applies these rules; until then the entered
-  date alone places a record (an incident by its `occurredAt` day, a finding with its audit), and an action counts as
-  OPEN while its `doneOn` is after `asOf`, unless it is CANCELLED.
-- The climate decision: each call of the climate route that changes a climate field is a decision, placed by the
-  client-local day of its UPDATE event (§8; `climateDecidedOn` is never later). `climateDecided` counts from the first
-  decision on or before `asOf`, since a decision never returns to undecided (§3.1); `climateDecidedInPeriod` counts when
-  a decision falls in the window; `climateRelevant` is read as it is now. ISO-1a3 adds the decisions' days; until then
-  `climateDecidedOn` alone places the decision.
+  of the latest event that set it, which the caller reads from the audit trail (§8): an internal audit by `reportedOn`
+  and its REPORT step, an external audit by `endOn` and its RECORD_HELD step or a later UPDATE that changed `endOn` (it
+  may change while the audit is HELD or RESPONDED; moved after a review counted it, the audit and its findings can count
+  in two reviews, and the stored ids show it), a DONE action by `doneOn` and its COMPLETE step, and a closed objective
+  by `closedOn` and its CLOSE step. A CANCELLED action is placed by its CANCEL step. That day is the action's settled
+  day, and the action counts as OPEN on `asOf` until then; a closed objective likewise counts as open until its day.
+  When an action was settled more than once (REOPENed and settled again), its latest step counts. So a record entered
+  after one review is recorded, but dated before it, counts in the next one. A record whose trail has no event that set
+  its entered date or settled it (seeded or loaded data) takes its `createdAt` as that event's time, so it is placed by
+  the later of its entered date and its creation day. `createdAt` never changes, so the record is placed once, and a
+  record loaded after a review was recorded falls on or after that review's `heldOn`. `updatedAt` is not used: any later
+  write (a system PATCH, an audit's CLOSE) moves it. Two kinds of record are placed through another: an incident by its
+  NC's counting day (above; its `occurredAt` day is never later, §3.11), and an audit finding by the later of its
+  audit's day and its own `createdOn`. ISO-1a3 adds the step days to `data` (findings and incident NCs already carry
+  `createdOn` in 1.8.2), and ISO-3b applies these rules; until then the entered date alone places a record (an incident
+  by its `occurredAt` day, a finding with its audit), and an action counts as OPEN while its `doneOn` is after `asOf`,
+  unless it is CANCELLED.
+- The climate decision: each call of the climate route that changes any climate field, the rationale alone included, is
+  a decision, placed by the client-local day of its UPDATE event (§8; `climateDecidedOn` is never later).
+  `climateDecided` counts from the first decision on or before `asOf`, since a decision never returns to undecided
+  (§3.1); `climateDecidedInPeriod` counts when a decision falls in the window; `climateRelevant` is read as it is now. A
+  system decided on climate when it was seeded or loaded has that decision too, placed by the later of
+  `climateDecidedOn` and its creation day: one with no decision event in its trail, and one whose earliest decision
+  event does not move `climateChangeRelevant` from null (its events count as later decisions). ISO-1a3 adds the
+  decisions' days; until then `climateDecidedOn` alone places the decision.
 - `readingsRecorded` counts the readings created in the window. On-track (`objectiveProgress`) uses only readings
   created on or before `asOf` whose period ends on or before `asOf`.
 - Window counts with no date field of their own take the days of the audited events in the window that the caller
@@ -688,10 +703,10 @@ finding type and instance workflow. That is why a held review's figures are stor
 - CONTEXT: the system's context items, whatever the input's standards: added, changed and removed, and the climate
   decision.
 - RISKS: the system's risk items of the kinds the input's key reads (`SIGNIFICANT_ASPECTS`: ASPECT;
-  `RISKS_AND_OPPORTUNITIES` and `RISK_ACTIONS`: RISK and OPPORTUNITY, and HAZARD when ISO 45001 is among the input's
-  standards; ISO-1a3) and their treatment actions: items added or re-rated, significant items for each kind the key
-  reads (no `significant<Kind>` figure for a kind it does not read), treatment actions done and open. So a 14001
-  review's two RISKS rows never count, or show a zero for, each other's items.
+  `RISKS_AND_OPPORTUNITIES`: RISK and OPPORTUNITY, and HAZARD when ISO 45001 is among the input's standards;
+  `RISK_ACTIONS` (9001 only): RISK and OPPORTUNITY; ISO-1a3) and their treatment actions: items added or re-rated,
+  significant items for each kind the key reads (no `significant<Kind>` figure for a kind it does not read), treatment
+  actions done and open. So a 14001 review's two RISKS rows never count, or show a zero for, each other's items.
 - OBJECTIVES: the system's objectives whose standards overlap the input's, with `objectiveProgress` for each.
 - NONCONFORMITIES: the system's NCs whose standards overlap the input's, raised and closed by source and severity,
   VERIFY_NOT_EFFECTIVE counts, and the overdue corrective actions of NCs open on `asOf` (ISO-1a3 in the mock, ISO-3b in
@@ -742,18 +757,24 @@ IsoFileView         the same without storageKey, with `subject: { type, id }`
   `iso_file` row and its `AuditEvent` (entity = the ISO subject) commit together. Actions: `EVIDENCE_ADD` on
   confirm, `EVIDENCE_DOWNLOAD` on downloadUrl, `EVIDENCE_REMOVE` on remove, with `after` naming the ISO file id
   (never a signed URL or the file name); uploadUrl and list write none.
-- The port, so ISO-15 and ISO-8a can build against it in either order (`IsoSubject` is `{ type, id }` with the
-  subject types above; `tx` is the request's tenant transaction):
+- The port, as ISO-15 (#301) built it and ISO-8a (#302) declares it in `apps/api/src/modules/iso/ports.ts` (ADR
+  M16-0004 decision 2). `tx` is the request's tenant transaction; every call that writes or signs also takes the
+  caller, since the transaction carries neither the person nor the request id that the `AuditEvent` and the storage
+  key need (the client comes from the subject). `get` lets M16 check a file's subject and lock before a download or
+  a removal, and the upload ticket carries the headers the PUT must send:
   ```ts
+  type IsoFileCaller = Pick<RequestContext, 'firmId' | 'personId' | 'requestId'>;
   interface IsoFiles {
-    uploadUrl(tx, subject: IsoSubject, file: { fileName; mimeType; sizeBytes }): Promise<{ uploadId; url; expiresAt }>;
-    confirm(tx, subject: IsoSubject, upload: { uploadId; fileName; sha256 }): Promise<IsoFileView>; // PENDING
-    list(tx, subject: IsoSubject): Promise<IsoFileView[]>;
-    downloadUrl(tx, fileId: Id): Promise<{ url; expiresAt }>; // CLEAN only, audited
-    remove(tx, fileId: Id, reason: string): Promise<void>;    // archives, audited
+    uploadUrl(tx, caller: IsoFileCaller, subject: IsoFileSubject,
+              file: { fileName; mimeType; sizeBytes }): Promise<UploadTicket>;
+    confirm(tx, caller: IsoFileCaller, subject: IsoFileSubject,
+            upload: { uploadId; fileName; sha256 }): Promise<IsoFileView>;     // PENDING, audited
+    list(tx, subject: IsoFileSubject, options?: { includeRemoved?: boolean }): Promise<IsoFileView[]>;
+    get(tx, fileId: Id): Promise<IsoFileView | null>;                         // removed ones included
+    downloadUrl(tx, caller: IsoFileCaller, fileId: Id): Promise<SignedUrl>;  // CLEAN only, audited
+    remove(tx, caller: IsoFileCaller, fileId: Id, reason: string): Promise<IsoFileView>; // archives, audited
   }
   ```
-  ISO-1 may type the arguments more exactly; ISO-8a copies the result into `apps/api/src/modules/iso/ports.ts`.
 - Routes (M16, under `/clients/{clientId}/iso/files`): upload URL, confirm, list by subject, download URL, remove
   (reason; archives, never deletes). They answer `403 FEATURE_NOT_ENABLED` when the add-on is off.
 - **Locked subjects.** A file can be added or removed only while its subject is open for edits; otherwise `409
@@ -836,9 +857,12 @@ The UPDATE that clears a risk item's residual rating when a treatment action com
 `risk_item` whose `after` carries the action's `sourceActionId`; the review figures do not count it as a re-rating
 (§5.4).
 
-Two more events place records in the figures (§5.4). Closing an objective (`POST .../objectives/{id}/close`) writes one
-TRANSITION on `objective` whose `after.action` is `CLOSE`. The climate route alone writes the climate fields (the
+Three more events place records in the figures (§5.4). Closing an objective (`POST .../objectives/{id}/close`) writes
+one TRANSITION on `objective` whose `after.action` is `CLOSE`. The climate route alone writes the climate fields (the
 system's PATCH takes none of them), as one UPDATE on `management_system` whose `after` names the fields it changed.
+Changing an external audit's `endOn` while it is HELD or RESPONDED writes an UPDATE on `external_audit` whose `after`
+names `endOn`; a `responseDueOn` moved in the same PATCH is its own DUE_DATE_CHANGE, as the mock's `editAudit` writes
+it.
 
 ## 9. Exports and the client archive
 

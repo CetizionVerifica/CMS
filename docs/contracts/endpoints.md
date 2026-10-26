@@ -170,7 +170,7 @@ Statutory numbers (portfolio, overview, breakdowns, the act-wise, department-wis
 PDF) count STATUTE-act instances only, with the ISO add-on on or off (`docs/iso/plan.md` §4.6); while it is on,
 `PortfolioRow.dueThisWeekFilter.source` is `LAW`, so the linked register lists exactly the items counted. The ISO
 export kinds (`ISO_EXPORT_KINDS`, part of `ExportKind` since 1.8.3) take the ISO list filters (`ISO_EXPORT_FILTERS`),
-not the register's: the NC log and risk register their list's query without paging, the audit report
+not the register's: the NC log and risk register their list's query without paging or `ids`, the audit report
 `internalAuditId=` and the review pack `managementReviewId=`. They are ISO data: while the add-on is off, creating one
 and reading or downloading its job answer `403 FEATURE_NOT_ENABLED`, after the role check (`docs/iso/plan.md` §4.5).
 `REGISTER_XLSX` uses the 19 sample headers in the same order so it re-imports with no changes.
@@ -236,6 +236,15 @@ client-wide reader, are never withheld. The current approved revision of a syste
 readable by every member of the client. The catalogue routes read the account's own copy, which is firm-wide and the
 same for every client: clause numbers, titles and summaries in our own words, never a standard's text.
 
+**Lists by id.** The nonconformity, risk, objective, document and internal audit lists take `ids` (1.8.5): 1 to 200
+distinct record ids, comma-separated, else `400 VALIDATION`, so the overview's links (M17) open exactly the records a
+count lists. It is AND'd with the request's other filters and the reader's unit scope: an id that is not the client's, is archived (a
+risk unless `includeArchived=true`) or that the reader may not read is left out, with no error. Order and paging are
+as without it, so 200 ids fit one page at `limit=200`. With `ids` the document list drops its ACTIVE-only default, so
+an OBSOLETE document it names is listed. The certificate list takes no `ids` (its page reads every certificate of the
+client, which are few, and filters them itself), and the exports leave it out. The name departs from
+api-conventions.md §3 (README decision 55).
+
 **Writes.** Every update and machine step carries `version` (`409 STALE_VERSION`). A step the record's state does not
 allow is `409 INVALID_TRANSITION` with `{ entity, from, action }`: the ISO entity type, its state (or a checklist row's
 N/A state) and the model §4 action, or `UPDATE` for a field edit, list change or new child row on a locked record
@@ -286,7 +295,7 @@ on the URL.
 |---|---|---|---|---|---|---|---|---|---|
 | GET | `/clients/{clientId}/iso/systems/{id}/checklist` (standardId, status, naState, ownerId) | `isoChecklist.read` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | by standard and clause number; AP/OW limited to their units (plan §3.3) |
 | PATCH | `/clients/{clientId}/iso/systems/{id}/checklist/{rowId}` | `isoChecklist.write` | ✓ | ✓ | ✓ | | own | | status (never NOT_APPLICABLE, refused while N/A is REQUESTED or APPROVED), owner, notes, review date; 4.1 not IMPLEMENTED before the climate decision; OW only on rows they own |
-| POST | `/clients/{clientId}/iso/systems/{id}/checklist/{rowId}/na-request` `{ version, reason }` | `isoChecklist.requestNa` | ✓ | ✓ | ✓ | | own | | REQUEST_NA on a clause that allows exclusion; `reason` is stored as the justification |
+| POST | `/clients/{clientId}/iso/systems/{id}/checklist/{rowId}/na-request` `{ version, reason }` | `isoChecklist.requestNa` | ✓ | ✓ | ✓ | | own | | REQUEST_NA on a clause that allows exclusion, else `400 VALIDATION` naming `status` (ADR M16-0004 decision 5); `reason` is stored as the justification |
 | POST | `/clients/{clientId}/iso/systems/{id}/checklist/{rowId}/na-approve` | `isoChecklist.decideNa` | | | ✓ | ✓ | | | APPROVE_NA; never the requester (`403`) |
 | POST | `/clients/{clientId}/iso/systems/{id}/checklist/{rowId}/na-reject` `{ version, reason }` | `isoChecklist.decideNa` | | | ✓ | ✓ | | | REJECT_NA; the row returns to its status before the request; never the requester |
 | POST | `/clients/{clientId}/iso/systems/{id}/checklist/{rowId}/na-withdraw` `{ version, reason }` | `isoChecklist.requestNa` | ✓ | ✓ | ✓ | | own | | WITHDRAW_NA: the clause applies again; the row returns to NOT_STARTED |
@@ -294,7 +303,7 @@ on the URL.
 ### Documents
 | Method | Path | Action | FA | CO | CA | AP | OW | VI | Notes |
 |---|---|---|---|---|---|---|---|---|---|
-| GET | `/clients/{clientId}/iso/documents` (managementSystemId, q, type, status, ownerId, approverId, clauseId) | `isoDocument.read` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ACTIVE only unless `status` says otherwise; AP/OW limited to their units (plan §3.3); a system document's current revision is readable by every member of the client |
+| GET | `/clients/{clientId}/iso/documents` (managementSystemId, q, type, status, ownerId, approverId, clauseId, ids) | `isoDocument.read` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ACTIVE only unless `status` or `ids` is given; AP/OW limited to their units (plan §3.3); a system document's current revision is readable by every member of the client |
 | POST | `/clients/{clientId}/iso/documents` | `isoDocument.write` | ✓ | ✓ | ✓ | | own | | `201`, no revision yet; OW only as its owner |
 | GET | `/clients/{clientId}/iso/documents/{id}` | `isoDocument.read` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | with its current revision and the actions on offer |
 | PATCH | `/clients/{clientId}/iso/documents/{id}` | `isoDocument.write` | ✓ | ✓ | ✓ | | own | | its own fields while ACTIVE (not `code` or `type`); OW only as its owner |
@@ -311,7 +320,7 @@ on the URL.
 ### Risk register
 | Method | Path | Action | FA | CO | CA | AP | OW | VI | Notes |
 |---|---|---|---|---|---|---|---|---|---|
-| GET | `/clients/{clientId}/iso/risks` (managementSystemId, q, unitId, kind, significant, climateRelated, ownerId, includeArchived) | `isoRisk.read` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | risks, opportunities, aspects and hazards; AP/OW limited to their units (plan §3.3) |
+| GET | `/clients/{clientId}/iso/risks` (managementSystemId, q, unitId, kind, significant, climateRelated, ownerId, includeArchived, ids) | `isoRisk.read` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | risks, opportunities, aspects and hazards; AP/OW limited to their units (plan §3.3) |
 | POST | `/clients/{clientId}/iso/risks` | `isoRisk.write` | ✓ | ✓ | ✓ | | own | | `201`; the engine's rating and significance are stored with it; OW only as its owner, for their units |
 | GET | `/clients/{clientId}/iso/risks/{id}` | `isoRisk.read` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | |
 | PATCH | `/clients/{clientId}/iso/risks/{id}` | `isoRisk.write` | ✓ | ✓ | ✓ | | own | | change or re-rate (not `kind`); rating and significance recomputed; OW only as its owner |
@@ -326,7 +335,7 @@ on the URL.
 ### Objectives
 | Method | Path | Action | FA | CO | CA | AP | OW | VI | Notes |
 |---|---|---|---|---|---|---|---|---|---|
-| GET | `/clients/{clientId}/iso/objectives` (managementSystemId, q, standard, ownerId, open) | `isoObjective.read` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | with progress; AP/OW limited to their units (plan §3.3) |
+| GET | `/clients/{clientId}/iso/objectives` (managementSystemId, q, standard, ownerId, open, ids) | `isoObjective.read` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | with progress; AP/OW limited to their units (plan §3.3) |
 | POST | `/clients/{clientId}/iso/objectives` | `isoObjective.write` | ✓ | ✓ | ✓ | | own | | `201`; one or more standards of its system; OW only as its owner |
 | GET | `/clients/{clientId}/iso/objectives/{id}` | `isoObjective.read` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | with progress |
 | PATCH | `/clients/{clientId}/iso/objectives/{id}` | `isoObjective.write` | ✓ | ✓ | ✓ | | own | | while open; moving `dueOn` or changing the owner needs a reason |
@@ -341,7 +350,7 @@ on the URL.
 | GET | `/clients/{clientId}/iso/audit-programmes` (managementSystemId, fy) | `isoAudit.read` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | by FY, with coverage; AP/OW limited to their units (plan §3.3) |
 | POST | `/clients/{clientId}/iso/audit-programmes` | `isoSystem.write` | ✓ | ✓ | ✓ | | | | `201`; one per system and FY (`409 DUPLICATE`) |
 | PATCH | `/clients/{clientId}/iso/audit-programmes/{id}` | `isoSystem.write` | ✓ | ✓ | ✓ | | | | notes |
-| GET | `/clients/{clientId}/iso/internal-audits` (managementSystemId, q, programmeId, state, unitId, leadAuditorId, from, to) | `isoAudit.read` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | by planned start; AP/OW limited to their units (plan §3.3) |
+| GET | `/clients/{clientId}/iso/internal-audits` (managementSystemId, q, programmeId, state, unitId, leadAuditorId, from, to, ids) | `isoAudit.read` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | by planned start; AP/OW limited to their units (plan §3.3) |
 | POST | `/clients/{clientId}/iso/internal-audits` | `isoAudit.plan` | ✓ | ✓ | ✓ | | | | `201`, PLANNED; an auditor who is also an auditee needs an independence note |
 | GET | `/clients/{clientId}/iso/internal-audits/{id}` | `isoAudit.read` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | with the actions on offer |
 | PATCH | `/clients/{clientId}/iso/internal-audits/{id}` | `isoAudit.plan` | ✓ | ✓ | ✓ | | | | while PLANNED or IN_PROGRESS; moving its dates or changing the lead auditor needs a reason |
@@ -377,7 +386,7 @@ on the URL.
 ### Nonconformities and incidents
 | Method | Path | Action | FA | CO | CA | AP | OW | VI | Notes |
 |---|---|---|---|---|---|---|---|---|---|
-| GET | `/clients/{clientId}/iso/nonconformities` (managementSystemId, q, unitId, state, source, severity, standard, ownerId, approverId, incident, overdue) | `isoNc.read` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | newest first, with timing; AP/OW limited to their units (plan §3.3) |
+| GET | `/clients/{clientId}/iso/nonconformities` (managementSystemId, q, unitId, state, source, severity, standard, ownerId, approverId, incident, overdue, ids) | `isoNc.read` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | newest first, with timing; AP/OW limited to their units (plan §3.3) |
 | POST | `/clients/{clientId}/iso/nonconformities` | `isoNc.raise` | ✓ | ✓ | ✓ | ✓ | ✓ | | `201`; RAISE a nonconformity, incident or near miss for a unit the actor can see; not with an audit source (those come from findings) |
 | GET | `/clients/{clientId}/iso/nonconformities/{id}` | `isoNc.read` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | with its timing, the finding that raised it and the actions on offer |
 | PATCH | `/clients/{clientId}/iso/nonconformities/{id}` | `isoNc.work` | | | ✓ | | own | | until CLOSED or CANCELLED: the investigation fields (`NcUpdateBody`: description, unit, standards, clauses, source instance, incident details but the outcome (`lostDays` only while the outcome stays LOST_TIME), containment, correction, disposition, root cause, risk and system changes); OW only as its owner |

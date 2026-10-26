@@ -5,6 +5,7 @@ import {
   type ExportJob,
   type ExportKind,
   type InstanceRow,
+  ISO_EXPORT_KINDS,
   LocalDate,
   type RequestContext,
   type ScoreResult,
@@ -15,12 +16,16 @@ import { z } from 'zod';
 import { ApiError, can } from '../../auth/index.js';
 import type { ClientInfo, RowFilter, UnitInfo } from '../dashboard/ports.js';
 import {
+  ISO_FEATURE,
+  isoOn,
   loadRows,
   requireClientInfo,
   resolveAsOf,
   resolvePeriod,
   scopedUnits,
   scoreInput,
+  sourceKinds,
+  STATUTORY,
   type LoadedRows,
   type Period,
 } from '../dashboard/scope.js';
@@ -189,6 +194,21 @@ const BUILT_KINDS: ReadonlySet<ExportKind> = new Set([
   'CLIENT_ARCHIVE_ZIP',
 ]);
 
+/** The ISO export kinds are ISO data (docs/iso/plan.md §4.4). */
+const isIsoKind = (kind: ExportKind): boolean =>
+  (ISO_EXPORT_KINDS as readonly string[]).includes(kind);
+
+const featureNotEnabled = () => new ApiError('FEATURE_NOT_ENABLED', { feature: ISO_FEATURE });
+
+/**
+ * 403 `FEATURE_NOT_ENABLED` for an ISO export kind while the add-on is off: creating one, reading its job and its
+ * download URL (endpoints.md §6, docs/iso/plan.md §4.5). Called after the role check, so an actor who may not export
+ * learns nothing of the switch.
+ */
+async function refuseIsoKindWhenOff(ctx: RequestContext, kind: ExportKind): Promise<void> {
+  if (isIsoKind(kind) && !(await isoOn(ctx))) throw featureNotEnabled();
+}
+
 function validation(path: string, message: string): ApiError {
   return new ApiError('VALIDATION', { issues: [{ path: [path], message }] });
 }
@@ -206,6 +226,7 @@ export async function createExport(
   body: z.output<typeof ExportCreateBody>,
   idempotencyKey: string | undefined,
 ): Promise<ExportJob> {
+  await refuseIsoKindWhenOff(ctx, body.kind);
   if (!BUILT_KINDS.has(body.kind)) throw validation('kind', 'This export kind is not available');
   const cacheKey =
     idempotencyKey === undefined ? undefined : `${ctx.firmId}/${ctx.personId}/${idempotencyKey}`;
@@ -291,6 +312,7 @@ async function requireOwnJob(
   if (!can(ctx, 'export.read', { type: 'client', clientId: job.clientId })) {
     throw new ApiError('FORBIDDEN', { action: 'export.read' });
   }
+  await refuseIsoKindWhenOff(ctx, job.kind);
   return job;
 }
 
@@ -345,6 +367,7 @@ function rowFilter(
   params: ExportParams,
   query: RegisterQueryOutput,
   period: Period,
+  kinds: Pick<RowFilter, 'actKinds'>,
 ): RowFilter {
   const requested =
     params.unitId === null
@@ -369,16 +392,33 @@ function rowFilter(
     completedTo: query.completedTo,
     hasEvidence: query.hasEvidence,
     q: query.q,
+    actKinds: kinds.actKinds,
   };
   return Object.fromEntries(
     Object.entries(filter).filter(([, value]) => value !== undefined),
   ) as RowFilter;
 }
 
+/**
+ * The act kinds an export reads, with the add-on's state as the worker reads it now: the register export follows the
+ * register (`source` while the add-on is on, STATUTE only while it is off); the client archive always holds ISO data
+ * (docs/iso/plan.md §4.4); every other kind is a statutory report.
+ */
+function exportKinds(
+  kind: ExportKind,
+  query: RegisterQueryOutput,
+  iso: boolean,
+): Pick<RowFilter, 'actKinds'> {
+  if (kind === 'REGISTER_XLSX') return sourceKinds(iso, query.source);
+  if (kind === 'CLIENT_ARCHIVE_ZIP') return {};
+  return STATUTORY;
+}
+
 async function exportScope(
   deps: DashboardDeps,
   ctx: RequestContext,
   job: ExportJob,
+  iso: boolean,
 ): Promise<ExportScope & { params: ExportParams; query: RegisterQueryOutput }> {
   const params = ExportParams.parse(job.params);
   const query = parseFilters(params.filters);
@@ -388,7 +428,7 @@ async function exportScope(
     deps.store,
     ctx,
     client,
-    rowFilter(ctx, client, params, query, period),
+    rowFilter(ctx, client, params, query, period, exportKinds(job.kind, query, iso)),
     params.asOf,
     'export.create',
   );
@@ -436,8 +476,9 @@ async function buildFile(
   deps: DashboardDeps,
   ctx: RequestContext,
   job: ExportJob,
+  iso: boolean,
 ): Promise<BuiltFile> {
-  const scope = await exportScope(deps, ctx, job);
+  const scope = await exportScope(deps, ctx, job, iso);
   const { client, period, rows } = scope;
   const heading = (title: string): ReportHeading => ({
     title,
@@ -524,7 +565,7 @@ async function storeArchive(
   job: ExportJob,
   storageKey: (fileName: string) => string,
 ): Promise<string> {
-  const scope = await exportScope(deps, ctx, job);
+  const scope = await exportScope(deps, ctx, job, true);
   const { client, rows } = scope;
   const details = await deps.store.exportDetails(
     ctx,
@@ -558,7 +599,11 @@ async function storeArchive(
   return fileName;
 }
 
-/** Builds and stores the file, then marks the job DONE; any failure marks it FAILED. Never throws. */
+/**
+ * Builds and stores the file, then marks the job DONE; any failure marks it FAILED. Never throws. It re-reads the
+ * account's features when it runs, so a job queued before the ISO add-on was switched off leaves ISO data out, and an
+ * ISO export kind fails (docs/iso/plan.md §4.2).
+ */
 export async function runExport(
   deps: ReportsDeps,
   ctx: RequestContext,
@@ -566,13 +611,15 @@ export async function runExport(
 ): Promise<void> {
   try {
     await deps.store.setExportStatus(ctx, job.id, { status: 'RUNNING' });
+    const iso = (await deps.store.accountFeatures(ctx)).includes(ISO_FEATURE);
+    if (isIsoKind(job.kind) && !iso) throw featureNotEnabled();
     const keyOf = (fileName: string) =>
       `exports/${ctx.firmId}/${job.clientId}/${job.id}/${fileName}`;
     let fileName: string;
     if (job.kind === 'CLIENT_ARCHIVE_ZIP') {
       fileName = await storeArchive(deps, ctx, job, keyOf);
     } else {
-      const file = await buildFile(deps, ctx, job);
+      const file = await buildFile(deps, ctx, job, iso);
       fileName = file.fileName;
       await deps.files.put(keyOf(fileName), file.bytes, file.contentType);
     }

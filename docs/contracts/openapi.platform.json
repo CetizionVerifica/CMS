@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Canopy platform operator API",
-    "version": "1.8.4",
+    "version": "1.8.5",
     "description": "Generated from @canopy/contracts; do not edit. The operator console API (ADR M15-0001). Every route except sign-in needs the operator session; there are no roles. Conventions as in docs/contracts/api-conventions.md."
   },
   "servers": [

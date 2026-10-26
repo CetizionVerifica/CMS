@@ -3,6 +3,7 @@ import {
   DEFAULT_CLIENT_SETTINGS,
   DEFAULT_FIRM_SETTINGS,
   type AccountStatus,
+  type ActKind,
   type ClientSettings,
   type Criticality,
   type FirmSettings,
@@ -27,6 +28,7 @@ import type {
   OutboxEvent,
   OutgoingEmail,
   PendingEvidence,
+  PendingIsoFile,
   PersonNotice,
   Recipient,
   ReminderCandidate,
@@ -60,6 +62,8 @@ export interface MemoryAssignment extends GenerationTarget {
   unitName: string;
   departmentName: string;
   criticality: Criticality;
+  /** The kind of the obligation's act; STATUTE when absent. */
+  actKind?: ActKind;
 }
 
 export interface MemoryPerson {
@@ -87,6 +91,12 @@ export interface MemoryInvite {
 }
 
 export interface MemoryEvidence extends PendingEvidence {
+  scanStatus: 'PENDING' | ScanResult;
+  archived: boolean;
+  createdAt: string;
+}
+
+export interface MemoryIsoFile extends PendingIsoFile {
   scanStatus: 'PENDING' | ScanResult;
   archived: boolean;
   createdAt: string;
@@ -135,6 +145,7 @@ export interface MemoryFirm {
   people: MemoryPerson[];
   invites: MemoryInvite[];
   evidence: MemoryEvidence[];
+  isoFiles: MemoryIsoFile[];
   sends: MemorySend[];
   audits: JobAuditEvent[];
   events: MemoryOutboxEvent[];
@@ -158,6 +169,7 @@ export function memoryFirm(id: Id = randomUUID()): MemoryFirm {
     people: [],
     invites: [],
     evidence: [],
+    isoFiles: [],
     sends: [],
     audits: [],
     events: [],
@@ -189,6 +201,7 @@ const sameKey = (a: SendKey, b: SendKey) =>
 
 function firmTx(firm: MemoryFirm, hooks: MemoryStoreHooks): FirmTx {
   const assignment = (id: Id) => firm.assignments.find((a) => a.assignmentId === id)!;
+  const kindOf = (i: MemoryInstance): ActKind => assignment(i.assignmentId).actKind ?? 'STATUTE';
   const withNames = (i: MemoryInstance): ReminderCandidate => {
     const a = assignment(i.assignmentId);
     return {
@@ -239,6 +252,13 @@ function firmTx(firm: MemoryFirm, hooks: MemoryStoreHooks): FirmTx {
           email: p.email,
           canReceive: p.status === 'ACTIVE' && p.firmAdmin === true,
         })),
+    standardObligationIds: async () => [
+      ...new Set(
+        firm.assignments.filter((a) => a.actKind === 'STANDARD').map((a) => a.obligationId),
+      ),
+    ],
+    standardInstanceIds: async (ids) =>
+      firm.instances.filter((i) => ids.includes(i.id) && kindOf(i) === 'STANDARD').map((i) => i.id),
     listClients: async () => firm.clients,
     listGenerationTargets: async (clientId) =>
       firm.assignments.filter((a) => a.clientId === clientId),
@@ -319,6 +339,35 @@ function firmTx(firm: MemoryFirm, hooks: MemoryStoreHooks): FirmTx {
       e.scanStatus = scanStatus;
       return { instanceVersion: firm.instances.find((i) => i.id === e.instanceId)!.version };
     },
+    listPendingIsoFiles: async (limit) => {
+      if (limit < 1 || limit > 200) throw new Error('pendingScan takes 1 to 200');
+      return firm.isoFiles
+        .filter((f) => f.scanStatus === 'PENDING' && !f.archived)
+        .sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id))
+        .slice(0, limit)
+        .map(({ id, clientId, subject, storageKey, sizeBytes }) => ({
+          id,
+          clientId,
+          subject,
+          storageKey,
+          sizeBytes,
+        }));
+    },
+    recordIsoScan: async (fileId, scanStatus) => {
+      const f = firm.isoFiles.find((x) => x.id === fileId);
+      if (!f || f.archived || f.scanStatus !== 'PENDING') return false;
+      f.scanStatus = scanStatus;
+      return true;
+    },
+    isoScanAttempts: async (fileId, subject) =>
+      firm.audits.filter(
+        (a) =>
+          a.entityType === subject.type &&
+          a.entityId === subject.id &&
+          a.after?.fileId === fileId &&
+          a.action === 'UPDATE' &&
+          a.after?.scanStatus === 'PENDING',
+      ).length,
     findInvite: async (inviteId): Promise<InviteNotice | null> => {
       const i = firm.invites.find((x) => x.id === inviteId);
       if (!i) return null;
@@ -376,9 +425,15 @@ function firmTx(firm: MemoryFirm, hooks: MemoryStoreHooks): FirmTx {
           canReceive: p.status === 'ACTIVE',
           clientIds: p.consultantFor!,
         })),
-    listScoreItems: async (clientId, range) =>
+    listScoreItems: async (clientId, range, filter = {}) =>
       firm.instances
-        .filter((i) => i.clientId === clientId && !i.archived && inRange(i.dueDate, range))
+        .filter(
+          (i) =>
+            i.clientId === clientId &&
+            !i.archived &&
+            inRange(i.dueDate, range) &&
+            (filter.actKinds === undefined || filter.actKinds.includes(kindOf(i))),
+        )
         .map((i) => ({
           instanceId: i.id,
           criticality: assignment(i.assignmentId).criticality,
@@ -464,6 +519,8 @@ export function memoryStore(firms: MemoryFirm[], hooks: MemoryStoreHooks = {}): 
     firms,
     transactions: 0,
     listFirmIds: async () => firms.map((f) => f.id),
+    listFirmIdsWithFeature: async (flag) =>
+      firms.filter((f) => f.features.includes(flag)).map((f) => f.id),
     async withFirm(firmId, _requestId, fn) {
       store.transactions += 1;
       const index = firms.findIndex((f) => f.id === firmId);

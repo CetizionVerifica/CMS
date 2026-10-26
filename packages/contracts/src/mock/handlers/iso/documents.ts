@@ -391,11 +391,14 @@ export const documentsHandlers: PartialHandlers<Ids> = {
     const me = (ref: string | undefined) => (ref === 'me' ? actor.person.id : ref);
     const ownerId = me(q.ownerId);
     const approverId = me(q.approverId);
-    const statuses: string[] = q.status ?? ['ACTIVE'];
+    // ACTIVE only by default; a document `ids` names is listed in either status.
+    const statuses: readonly string[] | undefined =
+      q.status ?? (q.ids === undefined ? ['ACTIVE'] : undefined);
     const rows = liveIso(actor.firm, 'documents', clientId)
       .filter(
         (d) =>
-          statuses.includes(d.status) &&
+          (statuses === undefined || statuses.includes(d.status)) &&
+          (q.ids === undefined || q.ids.includes(d.id)) &&
           (q.managementSystemId === undefined ||
             q.managementSystemId.includes(d.managementSystemId)) &&
           (q.type === undefined || q.type.includes(d.type)) &&

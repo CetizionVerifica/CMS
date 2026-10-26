@@ -19,7 +19,7 @@ ISO add-on (M16): its records, engine interface, 119 routes (1.8.1), catalogue a
 | [CHANGELOG.md](CHANGELOG.md) | Contract versions | everyone |
 
 ## Status
-Version `1.8.4` (`CONTRACTS_VERSION` in `packages/contracts/src/version.ts`). The domain model in §1-8 of
+Version `1.8.5` (`CONTRACTS_VERSION` in `packages/contracts/src/version.ts`). The domain model in §1-8 of
 [domain-model.md](domain-model.md) is published as v1 so wave 1 (M3, M4, M8, M11) can build against it. Each consumer
 module owner still reviews its part (MODULES.md M0 acceptance); review findings ship as additive changes or, if breaking,
 with sign-off per "How to change a contract".
@@ -375,3 +375,18 @@ with sign-off per "How to change a contract".
     from the store and its audit trail and computes the figures from that data alone, as M3 and M4 will;
     `firm-b.iso.json` gains the step events those days come from (176 events), and of the held review's stored
     figures only the three RISKS rows change, by the kinds rule.
+55. The ISO lists take `ids` (contracts 1.8.5, ISO-1a4; endpoints.md §10 **Lists by id**). ISO-6a's overview (M17)
+    links each count to the list holding exactly its records; where no list filter matches a count (effectiveness
+    checks overdue, documents in review or overdue for review, risk reviews overdue, objectives off track, the audit
+    programme's counts, certificates expiring or overdue for a cycle) the link names the ids the count lists. So
+    `GET /clients/{clientId}/iso/nonconformities`, `/iso/risks`, `/iso/objectives`, `/iso/documents` and
+    `/iso/internal-audits` take `ids`: 1 to 200 distinct ids, comma-separated, AND'd with the other filters and the
+    reader's unit scope, an id the list does not hold for the reader left out with no error, order and paging as
+    without it. The name departs from api-conventions.md §3, where a filter is named after a field, because it names
+    records and matches ISO-6a's links. The document list drops its ACTIVE-only default when
+    `ids` is given, so a link lists every document it names; archived rows stay out on all five (risks unless
+    `includeArchived=true`). The certificate list takes no `ids`: its page reads every certificate of the client, which
+    are few (one per standard of each system), and filters them itself. `ISO_EXPORT_FILTERS` leaves `ids` out, as it
+    leaves out paging, so the NC log and risk register exports keep their filters. Also in 1.8.5: the mock's REQUEST_NA
+    on a clause that allows no exclusion names `status`, not `clauseId`, as the engine's guard and the API do (ADR
+    M16-0004 decision 5). It is a patch: an optional query parameter, and a mock error path.

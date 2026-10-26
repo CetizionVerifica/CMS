@@ -12,16 +12,16 @@ its paths. Rules every brief shares (plan §5):
 - Tests with every PR; isolation test for every new table; `AuditEvent` for every state change; fictional names only
   (the ISO fixtures use firm B's Northwind Foods Group and invented people).
 - ADRs go in `docs/adr/M<n>-NNNN-slug.md` with the next free number of the module's own series.
-- The contracts (ISO-1, contracts 1.8.0, and its fix patches ISO-1a, 1.8.1, and ISO-1a2, 1.8.2) are the source of
-  shapes, routes and role lists; the departures they took from model.md and plan §3.2 are `docs/contracts/README.md`
-  decision 51 (a-n, and o from ISO-1a), already folded into these files (traces at the end). Every ISO route takes one
-  `can()` action (plan §3.2). Where model.md is silent, the M0 mock had to pick a rule; its picks are in
-  `docs/contracts/iso-mock.md`. M4, M16 and M17 keep each pick that touches their work, or record a different one in
-  their module's ADR and tell the coordinator, who asks M0 to change the mock so screens tested against it and the real
-  API agree.
+- The contracts (ISO-1, contracts 1.8.0; its patches ISO-1a, 1.8.1, ISO-1a2, 1.8.2, and ISO-1b, 1.8.3; and ISO-1a3 and
+  ISO-1a4 once they merge) are the source of shapes, routes and role lists; the departures they took from model.md and
+  plan §3.2 are `docs/contracts/README.md` decision 51 (a-n, and o from ISO-1a), already folded into these files (traces
+  at the end). Every ISO route takes one `can()` action (plan §3.2). Where model.md is silent, the M0 mock had to pick a
+  rule; its picks are in `docs/contracts/iso-mock.md`. M4, M16 and M17 keep each pick that touches their work, or record
+  a different one in their module's ADR and tell the coordinator, who asks M0 to change the mock so screens tested
+  against it and the real API agree.
 
 Started packages keep their ids and scopes; the first-wave briefs those threads received are summarised here with what
-v2 adds around them. Status is as of 2026-10-26 (`origin/main` at #292); plan §6 holds the current status.
+v2 adds around them. Status is as of 2026-10-26 (`origin/main` at #300); plan §6 holds the current status.
 
 ---
 
@@ -485,10 +485,11 @@ v2 adds around them. Status is as of 2026-10-26 (`origin/main` at #292); plan §
 - **Paths:** `packages/contracts/`, `docs/contracts/`.
 - **Delivers (patch bump):**
   - `ReviewFigureData` gains the client-local day of the step that set an entered date or settled a record (model §5.4):
-    internal audits (REPORT), external audits (RECORD_HELD), actions (COMPLETE or CANCEL, the settled day), objectives
-    (CLOSE) and every climate decision (its UPDATE), an action's latest settle when it was settled more than once, on
-    the row or as event-day lists, as the thread chooses (findings and incident NCs already carry `createdOn` in 1.8.2);
-    and, for RISKS, the kinds the input's key reads.
+    internal audits (REPORT), external audits (the latest RECORD_HELD, or a later UPDATE whose `after` names `endOn`,
+    model §8), actions (COMPLETE or CANCEL, the settled day), objectives (CLOSE) and every climate decision (its UPDATE,
+    a rationale-only change included), a record or system with none taking the creation day model §5.4 sets, an action's
+    latest settle when it was settled more than once, on the row or as event-day lists, as the thread chooses (findings
+    and incident NCs already carry `createdOn` in 1.8.2); and, for RISKS, the kinds the input's key reads.
   - `REVIEW_FIGURE_KEYS`: for each source, every figure key the engine emits, the table its ids name (none for a score),
     and whether its value is the number of its ids (not so for `lostDays`, `verifiedNotEffective` or a score); the
     `significant<Kind>` keys appear only for the kinds an input reads. Keys are only ever added, and a key whose meaning
@@ -500,16 +501,19 @@ v2 adds around them. Status is as of 2026-10-26 (`origin/main` at #292); plan §
     an incident's `occurredAt` after now or after its NC's `reportedOn` (model §3.11).
   - The mock: a backdated audit, action or objective close counts by the later of its entered date and its step day; an
     incident by its NC's counting day; each climate decision by its event's day (`climateDecided` from the first); a
-    finding by the later of its audit's day and its own creation day, whether or not its audit counts in the window;
-    PREVIOUS_ACTIONS counts DONE and CANCELLED actions by their settled day inside the window; RISKS reads the kinds the
-    input's key reads and emits `significant<Kind>` only for them (model §5.4); AUDIT_RESULTS counts a finding only when
-    its clauses' standards overlap the input's; RECORD_HELD stores nothing for a review held before its system's
-    `createdOn`, and a HELD or CLOSED row without a stored copy shows null (the fixture's held review follows whichever
-    rule its dates meet); `correctiveActionsOverdue` counts only NCs open on `asOf`; INCIDENTS rows withheld as above,
-    figures and notes; the fixture's stored figures take a stable `figuresStoredAt` with a tie-break for two held
-    reviews on one day (#284 audit Infos 1 and 3). `docs/contracts/iso-mock.md`, the **Scope.** paragraph of
-    `endpoints.md` §10, the note of its `GET .../management-reviews/{id}/inputs` row and the `ReviewInputView` doc
-    comment (the review figures' exception to unit scope and its limit at incidents, plan §3.3) follow.
+    finding by the later of its audit's day and its own creation day, whether or not its audit counts in the window; an
+    external audit, and so its findings, by its latest RECORD_HELD or a later UPDATE that changed `endOn`; a record
+    whose trail has no event that set its entered date or settled it, and a system decided on climate when seeded, by
+    the later of that date and its creation day (model §5.4); PREVIOUS_ACTIONS counts DONE and CANCELLED actions by
+    their settled day inside the window; RISKS reads the kinds the input's key reads and emits `significant<Kind>` only
+    for them (model §5.4); AUDIT_RESULTS counts a finding only when its clauses' standards overlap the input's;
+    RECORD_HELD stores nothing for a review held before its system's `createdOn`, and a HELD or CLOSED row without a
+    stored copy shows null (the fixture's held review follows whichever rule its dates meet); `correctiveActionsOverdue`
+    counts only NCs open on `asOf`; INCIDENTS rows withheld as above, figures and notes; the fixture's stored figures
+    take a stable `figuresStoredAt` with a tie-break for two held reviews on one day (#284 audit Infos 1 and 3).
+    `docs/contracts/iso-mock.md`, the **Scope.** paragraph of `endpoints.md` §10, the note of its
+    `GET .../management-reviews/{id}/inputs` row and the `ReviewInputView` doc comment (the review figures' exception to
+    unit scope and its limit at incidents, plan §3.3) follow.
 - **Tests:** an external audit recorded HELD after a review, with `endOn` before it, counts in the next review, and so
   does an external finding entered after a review that counted its audit; an incident that occurred before a review's
   `heldOn` and was raised after that review was recorded counts in the next one; an objective closed after a review was
@@ -522,9 +526,44 @@ v2 adds around them. Status is as of 2026-10-26 (`origin/main` at #292); plan §
   `significant<Kind>` key for the other's kinds; an owner of unit A who is not on the review gets the INCIDENTS row
   withheld, figures and notes, when it counts an incident at unit B, also after the system's units are narrowed to A,
   and not when every counted incident is at A, while the chair and an attendee from A, and a client admin, see it; an
-  `occurredAt` after its NC's `reportedOn` is refused; a review held before its system's creation stores nothing; every
-  key the mock emits is in `REVIEW_FIGURE_KEYS`, and each key marked as counting its ids has a value equal to its number
-  of ids.
+  `occurredAt` after its NC's `reportedOn` is refused, and an NC PATCH that leaves `occurredAt` alone is not rechecked;
+  an external audit whose `endOn` is moved after a review counted it counts again, with its findings, by the UPDATE's
+  day; NONCONFORMITIES counts an NC as raised on its counting day; a fixture record with no step event is placed by its
+  creation day, also after a later edit (an internal audit CLOSEd, the system renamed); a rationale-only climate change
+  counts in `climateDecidedInPeriod`, and the fixture system, decided when seeded, stays decided on an `asOf` before
+  that change; a review held before its system's creation stores nothing; every key the mock emits is in
+  `REVIEW_FIGURE_KEYS`, and each key marked as counting its ids has a value equal to its number of ids.
+
+## ISO-1a4 · M0 · An `ids` filter on the ISO lists the overview links to
+- **Thread title:** the ISO-1 thread ("Build ISO contracts") continues, after ISO-1a3. **Needs:** ISO-1b. Like ISO-1a,
+  it does not count toward plan §5.4's five threads.
+- **Read:** `docs/contracts/api-conventions.md` §3 (lists); `docs/contracts/endpoints.md` §10; the #296 audit (Info 4);
+  ADR M16-0004 decision 5; ISO-6a's `iso/overview/overview-model.ts`, whose links name ids where no list filter matches
+  a count.
+- **Paths:** `packages/contracts/`, `docs/contracts/`.
+- **Delivers (patch bump):**
+  - An optional `ids` query parameter on `GET /clients/{clientId}/iso/nonconformities`, `/iso/risks`, `/iso/objectives`,
+    `/iso/documents` and `/iso/internal-audits` (the overview's audit-programme counts): a comma-separated list of 1 to
+    200 ids, each once (`400 VALIDATION` when empty, over 200, repeated or not ids). It is AND'd with the filters the
+    request gives and with the reader's unit scope (plan §3.3). With `ids` the documents list drops its ACTIVE-only
+    default, since a document in its first review is not ACTIVE; archived rows stay out on all five lists (risks: unless
+    `includeArchived=true`). An id that is not the client's or that the reader may not read is left out, with no error.
+    Order and paging as without `ids`, so 200 ids fit one page at `limit=200`. The name departs from api-conventions §3
+    (filters named after a field), since it names records and matches ISO-6a's links; the README decision says so.
+  - `/iso/certifications` gets no `ids`: ISO-6a's certification page reads every page of a client's certificates, which
+    are few (one per standard of each system), and filters them itself.
+  - `ISO_EXPORT_FILTERS` leaves `ids` out, as it leaves out paging, so the NC log and risk register exports keep the
+    filters they have. The `ISO_EXPORT_FILTERS` and `DocumentQuery` doc comments, the exports paragraph of
+    `endpoints.md` and the `ExportCreateBody` paragraph of `domain-model.md` say "without paging or `ids`" and "ACTIVE
+    only unless `status` or `ids` is given".
+  - The mock honours `ids`; the four rows of `endpoints.md` §10, the OpenAPI spec, `docs/contracts/iso-mock.md`,
+    CHANGELOG and a README decision follow.
+  - The mock's REQUEST_NA on a clause that allows no exclusion answers `400 VALIDATION` with the path `status`, as the
+    engine's guard and the API do (ADR M16-0004 decision 5).
+- **Tests:** per list: `ids` alone returns exactly the readable ones in the list's order; `ids` with another filter; an
+  id of another client and one on a unit the reader may not read left out; an empty list, a repeated id and 201 ids
+  refused; a document that is not ACTIVE returned; an archived risk left out, and returned with `includeArchived=true`;
+  an export body with `ids` refused; REQUEST_NA on a clause that allows no exclusion names `status`.
 
 ## ISO-16 · M8 · Import matches and creates STATUTE acts only
 - **Thread title:** "ISO-16: imports never touch ISO standard acts". **Needs:** ISO-2c.
@@ -620,21 +659,39 @@ v2 adds around them. Status is as of 2026-10-26 (`origin/main` at #292); plan §
   ACTIVE copies.
 
 ## ISO-6b · M17 · ISO screens 2: risks, objectives, actions
-- **Thread title:** "ISO-6b: ISO screens, part 2". **Needs:** ISO-6a, ISO-1b (the mock accepts the ISO export kinds
-  only once they join `ExportKind`).
+- **Thread title:** "ISO-6b: ISO screens, part 2". **Needs:** ISO-6a, ISO-1b (the mock accepts the ISO export kinds only
+  once they join `ExportKind`). It may start before ISO-1a4 and marks its PR ready only once ISO-1a4 has merged and
+  `main` is merged in.
 - **Read:** model §3.5, §3.6, §3.12, §4.7, §5.1, §10; `docs/contracts/iso-mock.md` ("Risks and objectives", and the last
-  two sentences of "Nonconformities", on actions).
-- **Paths:** `apps/web/app/(shell)/c/[clientId]/iso/{risks,objectives,actions}/`, `e2e/tests/iso/`.
+  two sentences of "Nonconformities", on actions); the #296 audit (Info 4) and ISO-6a's
+  `iso/overview/overview-model.ts`.
+- **Paths:** `apps/web/app/(shell)/c/[clientId]/iso/{risks,objectives,actions,documents,overview}/`,
+  `e2e/tests/iso/`.
 - **Delivers:** risk register with tabs per kind, the kind-specific fields, existing controls with hierarchy, treatment
-  actions, inherent and residual rating and significance (from the API), override with reason, review; objectives
-  with standards, linked risks, readings, progress and action plans; the actions list (filter by subject, owner,
-  state) and an Actions panel on every subject page; "Download risk register (Excel)" through
-  `POST /clients/{clientId}/exports` with `ISO_RISK_REGISTER_XLSX`. Every step button comes from the view's
-  `allowedActions` (model §10), as in ISO-6a; an owner or approver change and a moved date ask for a reason
-  (model §1.9); states and codes in model §4.7's words, as in ISO-6a.
+  actions, inherent and residual rating and significance (from the API), override with reason, review; objectives with
+  standards, linked risks, readings, progress and action plans; the actions list (filter by subject, owner, state) and
+  an Actions panel on every subject page; "Download risk register (Excel)" through `POST /clients/{clientId}/exports`
+  with `ISO_RISK_REGISTER_XLSX`. Every step button comes from the view's `allowedActions` (model §10), as in ISO-6a; an
+  owner or approver change and a moved date ask for a reason (model §1.9); states and codes in model §4.7's words, as in
+  ISO-6a. Each list takes its filters from the URL and sends the API only those its contract query accepts, the ones
+  ISO-6a's overview links pass included: risks `managementSystemId`, `significant`, `climateRelated`, `ids`; objectives
+  `managementSystemId`, `open`, `ids`; actions `managementSystemId`, `state`, `overdue`, and `owner=me` from the
+  overview's My ISO actions card, sent as `ownerId=me`; documents `managementSystemId`, `type`, `ids`. A URL with no
+  `kind` shows every kind (an "All" tab), and no page default adds a filter the URL does not name. `ids` goes to
+  ISO-1a4's filter, since the lists are paged; a filter the user changes drops it, as in ISO-6a. The overview links a
+  count over 200 without `ids`, to its list with the system's filter alone (documents also with every `status`, since
+  that list is ACTIVE only without `ids` or `status`), and says beside the count that the list shows all of the system's
+  records (ISO-1a4 takes 200 ids at most, and a longer URL nears the servers' header limit). While `ids` is set, the
+  risk register download sends the register's other filters without `ids` (exports take none), and its button says it
+  exports the register without the overview's selection. The documents list moves from ISO-6a's client-side `ids` filter
+  to the API's.
 - **Tests:** e2e against the mock: add a hazard with controls and a treatment action, complete it, see the control; an
-  objective reading; the actions list as an owner; the risk register download; M11's shell ISO test stays green for
-  the pages this package adds; a11y and layout checks as in ISO-6a.
+  objective reading; the actions list as an owner; the risk register download; M11's shell ISO test stays green for the
+  pages this package adds; each ISO-6a overview link to risks, objectives, actions and documents opens a list that shows
+  exactly its count, on a system with more than one risk kind; a count of 201 links without `ids`; the My ISO actions
+  card opens only the signed-in person's open actions; a component test that a list sends `ids` to the API and filters
+  nothing itself, and that the register download started from a list with `ids` sends none; a11y and layout checks as in
+  ISO-6a.
 
 ## ISO-12c · M13 · Statutory numbers link to Law only
 - **Thread title:** "ISO-12c: overview and portfolio links say Law". **Needs:** ISO-1, ISO-11c, ISO-12a.
@@ -819,11 +876,17 @@ v2 adds around them. Status is as of 2026-10-26 (`origin/main` at #292); plan §
     standards held on or before `asOf`. `data` is the contract's `ReviewFigureData[source]`, from the system's records
     with no unit scope, archived ones included, filtered by each source's rule (risk kinds by input key, findings by
     their clauses' standards), every timestamp a day through `localDay`, and the event and step days read from
-    `audit_event` (the events model §8 names: an action's latest settle, an objective's CLOSE, every climate decision,
-    the residual clear that carries `sourceActionId` left out); for RISKS, the kinds the key reads. M16 (ISO-8c) and M10
-    (ISO-11d) both call it.
+    `audit_event` (the events model §8 names: an internal audit's REPORT, an action's latest settle, an objective's
+    CLOSE, every climate decision, an external audit's latest RECORD_HELD or later UPDATE naming `endOn`, the residual
+    clear that carries `sourceActionId` left out); a record with no event that set its entered date or settled it dated
+    by its `created_at` through `localDay`, never its `updated_at`, which every later write moves; and a system decided
+    on climate when seeded or loaded (no decision event, or an earliest one that does not move `climate_change_relevant`
+    from null) given that decision on the later of the `climate_decided_on` it was seeded with (the first decision
+    event's `before`, when there is one) and its `created_at` day (model §5.4); for RISKS, the kinds the key reads. M16
+    (ISO-8c) and M10 (ISO-11d) both call it.
   - `reviewInputs.storeFigures(tx, id, figures, engineVersion)`: checks `figures` against `ReviewInputFigures`, sets
-    `figures_stored_at` to `now()`, and refuses a row that already has figures.
+    only `source_figures`, `figures_engine_version` and `figures_stored_at` (to `now()`), and refuses an archived row or
+    one that already has figures (#299 audit Info).
   - `isoVisibleIds(tx, clientId, refs, scope?)`: `refs` is a list of `{ table, ids }`, the table taken from the
     contract's `REVIEW_FIGURE_KEYS`. It returns the ids that are rows of the client in that table, archived ones
     included, and, given a `UnitScope`, only those the scope may read: plan §3.3 for the ISO tables, and the register's
@@ -835,53 +898,127 @@ v2 adds around them. Status is as of 2026-10-26 (`origin/main` at #292); plan §
 - **Tests:** `gather` per source with records of other units, archived records, a record created after `asOf`, a
   backdated audit step, an objective closed after `asOf` with `closedOn` before it (its CLOSE day), a climate decision
   taken after `asOf` with `climateDecidedOn` before it, an action COMPLETEd, REOPENed and COMPLETEd again (the later
-  COMPLETE's day), a residual clear left out of `ratingChanges`, risk kinds per input key (a 14001 review's
+  COMPLETE's day), a residual clear left out of `ratingChanges`, an external audit whose `endOn` was moved back after
+  RECORD_HELD (the UPDATE's day, for the audit and its findings), a record with no step event (its `created_at` day,
+  also after a later edit of the record), a rationale-only climate change (a decision), a system decided when seeded and
+  changed on the climate route since (decided on an `asOf` between the two), risk kinds per input key (a 14001 review's
   `SIGNIFICANT_ASPECTS` gets ASPECT items only and its `RISKS_AND_OPPORTUNITIES` none), instants either side of local
   midnight placed by the `localDay` given, and a first review (`since` is the system's creation day); `storeFigures`
-  twice refused; `isoVisibleIds` for a unit-limited scope, a named person, no scope, an instance on another unit and an
-  id from another client; `syncForReview` with a standard dropped and added back (a new live row, the archived one kept
-  with its notes), with a key shared by two standards when one is dropped (one row, repointed to the other's
-  definition), and on a HELD review (refused).
+  twice refused, and on an archived row; `isoVisibleIds` for a unit-limited scope, a named person, no scope, an instance
+  on another unit and an id from another client; `syncForReview` with a standard dropped and added back (a new live row,
+  the archived one kept with its notes), with a key shared by two standards when one is dropped (one row, repointed to
+  the other's definition), and on a HELD review (refused).
+
+## ISO-2i · M3 · `ids` on four ISO lists; role lookup for people named by client roles; documents found by issuer
+- **Thread title:** the M3 ISO thread continues. **Needs:** ISO-2e. When it and ISO-2h are both startable, ISO-2i goes
+  first, since ISO-8b needs it (one package of a module at a time, plan §5.4).
+- **Read:** ISO-1a4's brief; ADR M16-0004 decisions 1 and 6; model §1.5; migration 0042
+  (`canopy_list_firm_ids_with_feature`, the pattern for a definer read); `packages/db/CLAUDE.md`.
+- **Paths:** `packages/db/` (a migration that changes no column: the function, column grants and one SELECT policy on
+  `membership` for `canopy_lookup`; repositories and tests).
+- **Delivers:**
+  - `ids` (1 to 200 ids) on `DocumentFilter`, `RiskItemFilter`, `ObjectiveFilter` and `NonconformityFilter`, applied in
+    SQL with the other filters and the unit scope before keyset paging, as ISO-1a4 sets the API's: with `ids`,
+    `controlledDocuments.list` drops its ACTIVE-only default; archived rows stay out on all four (risks: unless
+    `includeArchived`). M16 passes the API's `ids` straight through (ISO-8b, ISO-8c), so ids past the first page are not
+    lost.
+  - A SECURITY DEFINER function, `canopy_person_holds_role` with the repository method `memberships.holdsRole` (#304),
+    which M16 and M7 can call, that answers whether a person holds one of the given roles in a client and, when a unit
+    is given, covers that unit: a live membership (not archived, not expired) in the request's firm (`app_firm_id()`,
+    never a parameter) that is FIRM_ADMIN, a CONSULTANT listing the client in `consultant_client_ids`, or a client role
+    for that client, whose units are none or include the unit. It returns a boolean and no rows, and returns false for a
+    client the caller may not see (`app_can_see_client`), so it cannot probe other clients. Owned by `canopy_lookup`, as
+    0042 is, with column grants only and one SELECT policy on `membership` limited to `firm_id = app_firm_id()`: the
+    role has no BYPASSRLS, the tenant policy would show it only what the caller sees, and `SET app.all_clients` would
+    defeat the check on the client (0042 needed no policy, since `firm` had one). `EXECUTE` to `canopy_app` only. The
+    person's own state is ISO-2j's.
+  - `controlledDocuments.list`'s `q` also matches `issuer` and `external_ref`, as the mock does (ADR M16-0004
+    decision 1), so the API needs no change.
+- **Tests:** `ids` on each of the four lists: alone, with another filter, an id of another client, an id outside a
+  unit-limited scope, a document that is not ACTIVE, an archived row (left out; a risk returned with `includeArchived`),
+  and ids spread over two pages read page by page; a client admin's request asks about a consultant of the client
+  (true), a firm admin (true), a consultant of another client of the firm (false), a person of another firm (false), a
+  client the caller may not see (false), and a unit outside a unit-limited membership (false); the function returns no
+  rows to any other role; a document found by its issuer and by its external reference.
+
+## ISO-2j · M3 · More ISO list filters; the person's own state in the role lookup
+- **Thread title:** the M3 ISO thread continues. **Needs:** ISO-2i. It goes before ISO-2h, since ISO-8b needs it (one
+  package of a module at a time, plan §5.4).
+- **Read:** ISO-2i's brief and #304; ISO-1a4's brief; `IsoActionQuery`, `NcQuery` and `InternalAuditQuery` in
+  `packages/contracts/src/api/iso.ts`; ISO-8a's `checkPerson` (`apps/api/src/modules/iso/db-context.ts`); migrations
+  0011 and 0012 (`canopy_lookup` on `person`); `packages/db/CLAUDE.md`; the #308 audit Infos on M9's `recordIsoScan` and
+  `standardInstanceIds` (`apps/api/src/jobs/postgres-store.ts`).
+- **Paths:** `packages/db/` (a migration that replaces the lookup function and changes no column; repositories and
+  tests).
+- **Delivers:**
+  - `IsoActionFilter` gains `managementSystemIds` (an action's system, through its subject), `subjectId` (with one
+    subject type), `q` (case-insensitive substring of the text) and `dueFrom`, so ISO-8b serves every field of
+    `IsoActionQuery` in SQL before paging but `overdue`, which comes from the engine (ISO-8b).
+  - `NonconformityFilter` gains `standards` (an NC whose standards overlap; `NcQuery.standard`); `incident` maps to
+    `source` in M16.
+  - `InternalAuditFilter` gains `ids`, as ISO-2i's on the other four (ISO-1a4 adds it to the API).
+  - The role lookup also answers false for a person who is archived or DISABLED, as ISO-8a's `checkPerson` refuses them:
+    a client role cannot read a firm admin's or consultant's `person` row, so the check moves here (`canopy_lookup`
+    already reads `person.status` and `archived_at`, 0012).
+  - `isoFiles.settleScan(tx, id, scanStatus)`: writes the scan status only on a live PENDING file
+    (`archived_at IS NULL AND scan_status = 'PENDING'` in the UPDATE's WHERE) and returns whether it wrote, so a remove
+    that commits between M9's read and its write is not overwritten (the #308 audit Info). `setScanStatus` stays as it
+    is for its callers.
+  - `actKindOf.instances(tx, instanceIds)`: the act kind of many instances in one read per 1,000 ids, with
+    `actKindOf.instance`'s joins and its answer for archived rows; ids it cannot see are left out. M9's
+    `standardInstanceIds` reads one instance at a time today (the #308 audit Info).
+- **Tests:** each new filter alone, with another and across two pages, in a unit-limited scope; an action's system
+  through each subject type; `ids` on internal audits as ISO-2i's tests; the lookup for an archived and a DISABLED
+  consultant of the client (false), and an INVITED and an UNCLAIMED one (true); `settleScan` on a PENDING, an already
+  scanned and an archived file, and on a file archived by a second transaction while the first waits on its row (false,
+  the status unchanged); `actKindOf.instances` for STATUTE and STANDARD instances, an archived one, one of another
+  client the scope cannot see, and 1,001 ids.
 
 ## ISO-6c · M17 · ISO screens 3: audits, nonconformities, management reviews
 - **Thread title:** "ISO-6c: ISO screens, part 3". **Needs:** ISO-6b, ISO-1a3 (the mock's stored figures,
-  `REVIEW_FIGURE_KEYS` and `figuresWithheld`).
+  `REVIEW_FIGURE_KEYS` and `figuresWithheld`), ISO-1a4 (the `ids` filter on the NC list).
 - **Read:** model §1.9, §3.7, §3.9-3.11, §3.13, §4.1, §4.3, §4.5, §4.7, §9 (the review pack), §10; catalogue §5;
-  `docs/contracts/iso-mock.md`
-  ("Internal audits", "Nonconformities", "Management reviews and files").
+  `docs/contracts/iso-mock.md` ("Internal audits", "Nonconformities", "Management reviews and files"); the #296 audit
+  (Info 4) and ISO-6a's `iso/overview/overview-model.ts`.
 - **Paths:** `apps/web/app/(shell)/c/[clientId]/iso/{audits,nonconformities,management-reviews}/`, `e2e/tests/iso/`.
-- **Delivers:** programme with coverage, internal audits with checklist, independence note, findings (an NC finding
-  raises its NC), report and close; the NC log and NC page with every action of model §4.1, each offered only when the
-  view's `allowedActions` lists it (model §10), incident fields with the personal-data notice, the reportable notice and
-  the statutory-instance link (an instance picker, as for `sourceInstanceId`), raising from a finding, a risk item, or
-  with an instance picker (`sourceInstanceId`), and a link to the source; a raise by hand offers every source but the
-  two audit sources (model §4.1); a Reassign form on the NC's reassign route for account admins, consultants and client
-  admins (`isoNc.reassign`, plan §3.2): owner, approver, dates and, while OPEN or ROOT_CAUSE_FOUND on an NC raised by
-  hand, severity and incident outcome, always with a reason (model §3.10); the owner editing every other field through
-  the NC's PATCH; a finding's type changes only as model §3.9 allows; management reviews with their standards, date and
-  chair changed on the replan route while PLANNED (client admins and above; a new date or chair with a reason), inputs
-  shown with their `sourceFigures` (headed "Recorded <figuresStoredAt>, for <since> to <heldOn>" when stored, "No
-  figures: held before the system was set up in the app" for a HELD or CLOSED row without them, "Live, to today" when
-  PLANNED, "Not held" when CANCELLED; each figure worded from `REVIEW_FIGURE_KEYS`, with a test that every listed key
-  has words; for a key whose value is the number of its ids (`REVIEW_FIGURE_KEYS`), "N" when the reader has every id and
-  "N (M you can open)" when not; for another key with a table (`lostDays`, `verifiedNotEffective`), its value with "M
-  records you can open"; for a key with no table (a score), its value alone; "Figures and notes withheld: they count
-  incidents you may not open" when `figuresWithheld`), a note on the RECORD_HELD form that the minutes go to every
-  reader of the review, so incident details belong in the INCIDENTS row's notes, another, when `heldOn` is before today,
-  that the stored figures will count records up to `heldOn` but read their state (cancelled, severity, significance,
-  outcome, finding type, instance workflow) as it is today, so they can differ from the live figures shown, and another
-  when a review of the same standards is already recorded with a later `heldOn`, whose figures stay as they are;
-  outputs, actions and the pack download; "NC log (Excel)" and "Audit report (PDF)" downloads beside the review pack,
-  through `POST /clients/{clientId}/exports`. States and codes read in model §4.7's words, as in ISO-6a (a finding's
-  type "Major nonconformity", a review's input rows by their definition's title).
+- **Delivers:** programme with coverage, whose list takes `ids` from the overview's audit-programme links and sends it
+  to the API as ISO-6b does, internal audits with checklist, independence note, findings (an NC finding raises its NC),
+  report and close; the NC log, which takes the filters ISO-6a's overview links pass (`managementSystemId`, `overdue`,
+  `state`, `ids`) and sends `ids` to the API as ISO-6b does, and the NC page with every action of model §4.1, each
+  offered only when the view's `allowedActions` lists it (model §10), incident fields with the personal-data notice, the
+  reportable notice and the statutory-instance link (an instance picker, as for `sourceInstanceId`), raising from a
+  finding, a risk item, or with an instance picker (`sourceInstanceId`), and a link to the source; a raise by hand
+  offers every source but the two audit sources (model §4.1); a Reassign form on the NC's reassign route for account
+  admins, consultants and client admins (`isoNc.reassign`, plan §3.2): owner, approver, dates and, while OPEN or
+  ROOT_CAUSE_FOUND on an NC raised by hand, severity and incident outcome, always with a reason (model §3.10); the owner
+  editing every other field through the NC's PATCH; a finding's type changes only as model §3.9 allows; management
+  reviews with their standards, date and chair changed on the replan route while PLANNED (client admins and above; a new
+  date or chair with a reason), inputs shown with their `sourceFigures` (headed "Recorded <figuresStoredAt>, for <since>
+  to <heldOn>" when stored, "No figures: held before the system was set up in the app" for a HELD or CLOSED row without
+  them, "Live, to today" when PLANNED, "Not held" when CANCELLED; each figure worded from `REVIEW_FIGURE_KEYS`, with a
+  test that every listed key has words; for a key whose value is the number of its ids (`REVIEW_FIGURE_KEYS`), "N" when
+  the reader has every id and "N (M you can open)" when not; for another key with a table (`lostDays`,
+  `verifiedNotEffective`), its value with "M records you can open"; for a key with no table (a score), its value alone;
+  "Figures and notes withheld: they count incidents you may not open" when `figuresWithheld`), a note on the RECORD_HELD
+  form that the minutes go to every reader of the review, so incident details belong in the INCIDENTS row's notes,
+  another, when `heldOn` is before today, that the stored figures will count records up to `heldOn` but read their state
+  (cancelled, severity, significance, outcome, finding type, instance workflow) as it is today, so they can differ from
+  the live figures shown, and another when a review of the same standards is already recorded with a later `heldOn`,
+  whose figures stay as they are; outputs, actions and the pack download; "NC log (Excel)" and "Audit report (PDF)"
+  downloads beside the review pack, through `POST /clients/{clientId}/exports`; the NC log download started from a log
+  with `ids` sends the log's other filters without them and says so, as ISO-6b's register download. States and codes
+  read in model §4.7's words, as in ISO-6a (a finding's type "Major nonconformity", a review's input rows by their
+  definition's title).
 - **Tests:** e2e against the mock: plan and report an audit with an NC finding; take an NC from OPEN to CLOSED and back
   through VERIFY_NOT_EFFECTIVE; hold and close a review, and see its figures unchanged after closing an NC it counted;
   an owner limited to one of the system's units, not on the review, sees the INCIDENTS row's figures and notes withheld
-  when it counts an incident at another unit; the three downloads; M11's shell ISO test stays green for the pages this
-  package adds; a11y and layout checks as in ISO-6a.
+  when it counts an incident at another unit; the three downloads; each ISO-6a overview link to nonconformities and to
+  audits opens a list that shows exactly its count, and a component test that the log sends `ids` to the API and filters
+  nothing itself, and that its download sends none; M11's shell ISO test stays green for the pages this package adds;
+  a11y and layout checks as in ISO-6a.
 
 ## ISO-8b · M16 · ISO API 2: risks, objectives, actions
-- **Thread title:** "ISO-8b: ISO API, part 2". **Needs:** ISO-8a, ISO-2e.
+- **Thread title:** "ISO-8b: ISO API, part 2". **Needs:** ISO-8a, ISO-2e, ISO-1a4, ISO-2i, ISO-2j.
 - **Read:** model §1.9, §3.5, §3.6, §3.12, §5.1, §8, §10; `docs/contracts/iso-mock.md` ("Shared rules"; "Risks and
   objectives"; the last two sentences of "Nonconformities", on actions on a closed subject and controls from a reopened
   treatment action; "Stand-ins for M4 formulas", which M16 calls the engine for).
@@ -895,21 +1032,31 @@ v2 adds around them. Status is as of 2026-10-26 (`origin/main` at #292); plan §
   `400 VALIDATION`: a control's source action belongs to its risk item, and an objective's standards are among its
   system's; file routes for risk items, objective readings and actions through the `IsoFiles` port, with unit scope and
   the lock on DONE or CANCELLED actions; rows in the audit gate test for each new route; `allowedActions` on actions;
-  the mock's picks kept or replaced by ADR, as ISO-8a.
+  the mock's picks kept or replaced by ADR, as ISO-8a; ISO-1a4's `ids` filter on the risk, objective and document lists,
+  passed to ISO-2i's repository filter with the reader's scope, the documents list included even though ISO-8a built it
+  (once ISO-1a4 is on `main`, that route accepts `ids` and ignores it until this package merges); the action list serves
+  every `IsoActionQuery` field through ISO-2j's filter, and `overdue` from the engine's item timing over the rows the
+  other filters return, read in full and paged by M16, as the register does with `deriveStatus` (no status maths in SQL,
+  root rule 3).
 - **Tests:** as ISO-8a, including field edits refused on each locked subject; completing the last OPEN treatment action
   writes that UPDATE with `sourceActionId`, and a PATCH that re-rates writes one without it; closing an objective writes
-  one TRANSITION whose `after.action` is `CLOSE` (model §8).
+  one TRANSITION whose `after.action` is `CLOSE` (model §8); `ids` on each of the three lists as ISO-1a4's tests,
+  against the database; each `IsoActionQuery` filter, `overdue` across two pages included.
 
 ## ISO-8c · M16 · ISO API 3: internal audits, external-audit findings, nonconformities, management reviews, overview
-- **Thread title:** "ISO-8c: ISO API, part 3". **Needs:** ISO-8b, ISO-2h, ISO-3b.
+- **Thread title:** "ISO-8c: ISO API, part 3". **Needs:** ISO-8b, ISO-2h, ISO-3b, ISO-2i, ISO-2j.
 - **Read:** model §1.7, §1.9, §3.7-3.11, §3.13, §4 preamble, §4.1, §4.3, §4.4, §4.5, §5.1-5.2, §5.4, §6, §8, §9 (unit
-  scope only), §10; plan §3.3 (the review figures' exception); ADR M16-0003; `docs/contracts/iso-mock.md` ("Shared
-  rules"; "Internal audits"; "Nonconformities"; "Certifications"; "Management reviews and files"; the "Overview", "NC
-  status" and "Management review figures" stand-ins, where M16 passes `since` to `reviewInputFigures`).
+  scope only), §10; plan §3.3 (the review figures' exception); ADR M16-0003; ADR M16-0004 (decisions 3, 4 and 6);
+  `docs/contracts/iso-mock.md` ("Shared rules"; "Internal audits"; "Nonconformities"; "Certifications"; "Management
+  reviews and files"; the "Overview", "NC status" and "Management review figures" stand-ins, where M16 passes `since` to
+  `reviewInputFigures`).
 - **Paths:** `apps/api/src/modules/iso/`.
 - **Delivers:**
   - Programmes, internal audits with checklist, independence rule, findings creating NCs in the same transaction.
-  - External-audit findings (creating NCs), RECORD_RESPONSE and CLOSE (model §4.4).
+  - External-audit findings (creating NCs), RECORD_RESPONSE and CLOSE (model §4.4), which join external audits'
+    `allowedActions` (ADR M16-0004 decision 3); on ISO-8a's `PATCH .../external-audits/{id}`, `400 VALIDATION` on
+    `standardIds` when a finding of the audit cites a clause of a standard being dropped, as the mock's
+    `updateIsoExternalAudit` (decision 4).
   - Nonconformities with every arrow and guard of model §4.1, the disposition rule, incident rules (type and source,
     `occurredAt` not after now or `reportedOn`, lost days, the statutory-instance link checked for unit and act kind)
     and the personal-data rule; a raise by hand refused for the two audit sources; the NC's reassign route
@@ -933,7 +1080,14 @@ v2 adds around them. Status is as of 2026-10-26 (`origin/main` at #292); plan §
     any and the reader is neither its chair nor an attendee (model §3.13 item 4).
   - The cross-row rules ISO-2e (#280) leaves to M16, each `400 VALIDATION`: a checklist row's finding belongs to the
     same audit, and the standards of an NC and of a review are among its system's. NC raises run at the default READ
-    COMMITTED isolation: the NC number trigger takes `max + 1` after its lock (#280 audit Info 2).
+    COMMITTED isolation: the NC number trigger takes `max + 1` after its lock (#280 audit Info 2). ISO-1a4's `ids`
+    filter on the NC and internal-audit lists, passed to the repository filters of ISO-2i and ISO-2j as ISO-8b does for
+    its lists; the NC list's `standard` through ISO-2j, and `overdue` from the engine's `nonconformityStatus` as ISO-8b
+    reads it for actions.
+  - Every M16 check that a named person holds a live role in the client (model §1.5) goes through ISO-2i's lookup, with
+    ISO-2j's check of the person's own state, in place of the `people.get` and membership reads of ISO-8a's
+    `checkPerson`, ISO-8a's and ISO-8b's routes included, so a client admin may name a firm admin or consultant of the
+    client (ADR M16-0004 decision 6, which this replaces).
   - The ISO overview (model §5.1-5.2 engine results with the ids behind each number), under `isoSystem.read`.
   - File routes for internal audits, findings, nonconformities and management reviews with the model §6 lock rules,
     and the incident-file download rule (model §6).
@@ -951,7 +1105,12 @@ v2 adds around them. Status is as of 2026-10-26 (`origin/main` at #292); plan §
   re-adds a standard; the RECORD_HELD row in the audit gate test asserts `figures` and `engineVersion`; a locked subject
   refuses add and remove for every role, and field edits; a viewer and an owner of the unit who is not named on an
   incident NC cannot download its files; a plant-A owner sees none of a plant-B-only system's objectives, reviews or
-  unit-less NCs.
+  unit-less NCs; a client admin names a consultant of the client as a document approver and as an NC owner (accepted),
+  and a consultant of another client (refused); `ids` on the NC and internal-audit lists as ISO-1a4's tests, against the
+  database; an archived and a DISABLED consultant of the client refused as a named person; dropping a standard that a
+  finding of the external audit cites refused, and dropping one no finding cites accepted; a PATCH moving an external
+  audit's `endOn` while HELD or RESPONDED writes one UPDATE on `external_audit` naming `endOn`, also when
+  `responseDueOn` moves in the same PATCH (its own DUE_DATE_CHANGE; ISO-8a's route, model §8).
 
 ## ISO-9b · M6 · Hide and refuse STANDARD library rows when off; no cross-kind changes
 - **Thread title:** "ISO-9b: the library respects the ISO switch". **Needs:** ISO-9, ISO-2f, ISO-4b.
@@ -1018,25 +1177,29 @@ v2 adds around them. Status is as of 2026-10-26 (`origin/main` at #292); plan §
   numbers; the register export with `source=ISO`, `source=LAW` and the feature off; golden counts unchanged.
 
 ## ISO-10c · M9 · ISO reminders
-- **Thread title:** "ISO-10c: ISO reminders". **Needs:** ISO-10b, ISO-2e, ISO-3.
+- **Thread title:** "ISO-10c: ISO reminders". **Needs:** ISO-10b, ISO-2e, ISO-3, ISO-2j.
 - **Read:** model §7.
 - **Paths:** `apps/api/src/jobs/`, `packages/notifications/` (templates).
 - **Delivers:** a daily ISO reminder run (client time, like `reminders`) that builds one `IsoNotificationInput` per
   subject, kind and anchor date (model §5.3, §7), resolving the recipients the §7 table names, calls
   `planIsoNotifications` with `ISO_REMINDER_SCHEDULE`, claims each send on `ISO_NOTIFICATION_DEDUPE_KEY`, and sends
   through `recipients(personIds, clientId)`. ISO-2b (#272) keeps the statutory send keys as they are: `ops.listDone`
-  returns instance and digest rows only, so M9's `SendKey.kind` stays `NotificationKind`, and ISO rows come from the
-  new `ops.listDoneIso(tx, clientId, sendDate)` as `IsoSendKey` (`isoSubjectType`, `isoSubjectId`, an
+  returns instance and digest rows only, so M9's `SendKey.kind` stays `NotificationKind`, and ISO rows come from the new
+  `ops.listDoneIso(tx, clientId, sendDate)` as `IsoSendKey` (`isoSubjectType`, `isoSubjectId`, an
   `IsoNotificationKind`); `ops.claim`, `markSent` and `markFailed` take the subject on a `NotificationSend`. M9 adds an
-  ISO send key beside `SendKey` in `apps/api/src/jobs/ports.ts` and `postgres-store.ts` methods over those, so the
-  ISO run's done set comes from `listDoneIso`; `sendKeyString` in
-  `apps/api/src/jobs/send.ts` appends `isoSubjectType:isoSubjectId` when they are set (it is the done-set key and the
-  source of the mailer's Message-ID in `smtp-mailer.ts`, so each ISO subject gets its own); templates for the nine
-  kinds; lists accounts with `listFirmIdsWithFeature('isoManagement')` (ISO-2f) and skips those not yet copied
-  (`FirmTx.accountFeatures()`, ISO-10a).
-- **Tests:** one person with two actions due the same day gets two emails, and a second run sends neither again;
-  a `send.test.ts` case: two ISO keys that differ only in subject give different strings; time-zone tests for
-  Asia/Kolkata; no reminder for closed subjects; the overdue management review repeats every 30 days.
+  ISO send key beside `SendKey` in `apps/api/src/jobs/ports.ts` and `postgres-store.ts` methods over those, so the ISO
+  run's done set comes from `listDoneIso`; `sendKeyString` in `apps/api/src/jobs/send.ts` appends
+  `isoSubjectType:isoSubjectId` when they are set (it is the done-set key and the source of the mailer's Message-ID in
+  `smtp-mailer.ts`, so each ISO subject gets its own); templates for the nine kinds; lists accounts with
+  `listFirmIdsWithFeature('isoManagement')` (ISO-2f) and skips those not yet copied (`FirmTx.accountFeatures()`,
+  ISO-10a). It also takes the two #308 audit Infos in `postgres-store.ts`: `recordIsoScan` writes through ISO-2j's
+  `isoFiles.settleScan` and answers its result, and `standardInstanceIds` reads through `actKindOf.instances` in place
+  of one read per instance.
+- **Tests:** one person with two actions due the same day gets two emails, and a second run sends neither again; a
+  `send.test.ts` case: two ISO keys that differ only in subject give different strings; time-zone tests for
+  Asia/Kolkata; no reminder for closed subjects; the overdue management review repeats every 30 days; ISO-10b's
+  `iso-switch.db.test.ts` cases for `recordIsoScan` and `standardInstanceIds` stay green, plus a file removed between
+  the scan's read and its write keeps its status.
 
 ## ISO-11d · M10 · ISO exports and ISO data in the client archive
 - **Thread title:** "ISO-11d: ISO exports and the client archive". **Needs:** ISO-11b, ISO-3, ISO-3b, ISO-2h.
@@ -1291,3 +1454,29 @@ How plan v2.3 takes in what the audits of #268 (ISO-12a, merged) and #273 (ISO-2
 | Self-check of v2.5.1: the objective CLOSE and climate events had no fixed shape or writer; "the latest counts" made a changed climate decision look undecided | model §5.4 (decisions by their events' days, `climateDecided` from the first), §8; ISO-8a, ISO-8b (event tests), ISO-2h, ISO-1a3, ISO-3b |
 | Self-check of v2.5.1: an editable, unbounded `occurredAt` could still put an incident in no review or two | model §3.11 (`occurredAt` not after `reportedOn`), §5.4 (incidents by their NC's counting day); ISO-1a3, ISO-8c |
 | Self-check of v2.5.1: `significant<Kind>` zeros on RISKS rows that do not read the kind; `RISK_ACTIONS` given hazards in the catalogue; findings' creation days claimed as new; the screen's figure rule for scores; the pack's scope for whole-client requesters; two more contract texts to update; ISO-11c merged | model §5.4; catalogue §5; ISO-1a3, ISO-3b, ISO-2h, ISO-6c, ISO-11d; plan §6 |
+
+### Notes from audited packages (plan v2.5.2)
+
+| Note | Where it is addressed |
+|---|---|
+| #295 audit Info: plan §6 still listed ISO-1b as started | plan §6 |
+| ISO-1a3 (contracts thread): readings taken where the model was silent: an NC is raised on its counting day; an external audit's `endOn` can move after RECORD_HELD; records with no trail; the `occurredAt` check on a changed value only; a rationale-only climate change | model §3.11, §5.4, §8; ISO-1a3, ISO-2h, ISO-8c (a test of the `endOn` event, which ISO-8a's route writes) |
+| #296 audit Info 4: ISO-6a's overview links pass `ids` to the NC, risk and objective lists, which have no `ids` filter and are paged | ISO-1a4 (new); ISO-6b, ISO-6c, ISO-8b, ISO-8c; plan §5.4, §6 |
+| Model §5.4 grouped `RISK_ACTIONS` with the 45001 hazard rule | model §5.4 (as catalogue §5) |
+| #299 audit Info (ISO-2g): `storeFigures` should set only the three figure columns and refuse an archived row | ISO-2h |
+| ADR M16-0004 (ISO-8a) decision 1: the API searches documents by code and title, the mock also by issuer and reference | ISO-2i (M3 adds the two columns to the search; the mock stays) |
+| ADR M16-0004 decision 5: the mock names `clauseId` where the engine and API name `status` | ISO-1a4 |
+| ADR M16-0004 decision 6: a client role cannot name a firm admin or consultant, since it cannot read their membership | ISO-2i (lookup); ISO-8c (every M16 check moves to it); model §1.5 |
+| #301 audit Info (ISO-15): the `IsoFiles` port as built adds the caller, `get`, `list` options and the PUT headers, and `remove` returns the view | model §6 (the port as built; ADR M16-0004 decision 2) |
+| Self-check of v2.5.2: M16 cannot change the M3 list filters, so `ids` past the first page would be lost | ISO-2i (`ids` on four M3 list filters); ISO-8b, ISO-8c pass it through; plan §6 |
+| Self-check of v2.5.2: an overview count over 200 ids, the risk kind tab, the exports and the per-list params | ISO-6b (links over 200 without `ids`; no default filter; downloads without `ids`; params per list); ISO-6c |
+| Self-check of v2.5.2: `ids` repeated, archived rows, certification left out, the export texts, the name | ISO-1a4 |
+| Self-check of v2.5.2: `updatedAt` moves on every later write, so a seeded record could count twice; a seeded climate decision was lost at the first later change | model §5.4 (creation day; seeded decisions kept); ISO-1a3, ISO-2h |
+| Self-check of v2.5.2: ISO-1a3's data bullet and tests, the moved `endOn` for findings, ISO-6b's ready rule in plan §6, the contracts sentence, statuses | ISO-1a3; model §5.4; plan §6; packages header |
+| Final review of #303: ISO-2h's gather still dated records with no trail by `updated_at` | ISO-2h (creation day; the seeded climate decision; the internal audit's REPORT) |
+| Final review of #303 and the #304 audit Info: the role lookup needs a `membership` policy for `canopy_lookup` and reads consultants through `consultant_client_ids`; it ignored the person's own state, which ISO-8a checks and a client role cannot read | ISO-2i (as #304 built it); ISO-2j (the person's state); model §1.5; ISO-8c |
+| Final review of #303: M3 lacks action and NC filters the contract lists take; the overview also links audit counts by ids | ISO-2j; ISO-1a4 (internal audits); ISO-6c; ISO-8b, ISO-8c (`overdue` from the engine); plan §6 |
+| ADR M16-0004 decisions 3 and 4: external audits' later steps and the standards check on their PATCH wait for ISO-8c | ISO-8c |
+| Final review of #303: an over-200 documents link opened the ACTIVE list only; the My ISO actions card's `owner=me` | ISO-6b |
+| Statuses: #299, #300 and #301 merged; ISO-2i, ISO-1a3, ISO-6b and ISO-10b started | plan §6 |
+| #308 audit Infos: `recordIsoScan` reads then writes without a guard, so a remove can race it; `standardInstanceIds` reads one instance at a time | ISO-2j (`isoFiles.settleScan`, `actKindOf.instances`); ISO-10c (M9 uses them) |

@@ -11,13 +11,15 @@ import {
 import type { z } from 'zod';
 import { loadInstance, toApiError } from '../instances/access.js';
 import { instanceResource } from '../instances/allowed-actions.js';
+import { listKinds } from '../instances/iso-switch.js';
 import { unitScope } from '../instances/scope.js';
 import type { Actor } from '../instances/service.js';
 import { exclusiveTo, requireCursor, scopedUnits, uploadWindow } from './bounds.js';
 
 /**
  * M7's read side of the trail (endpoints.md §4): the evidence vault and the audit trail of a client and of
- * one instance. Reads write nothing. Lists are newest first, paged by cursor, without a total (ADR 0004 §15).
+ * one instance. With the ISO add-on off the vault leaves STANDARD instances' evidence out and an instance's trail
+ * answers 403 for a STANDARD instance; the client trail is not gated (docs/iso/plan.md §4.4). Reads write nothing. Lists are newest first, paged by cursor, without a total (ADR 0004 §15).
  * Evidence is listed as metadata only; downloads go through `GET /evidence/{id}/download-url`, which is audited.
  */
 
@@ -41,6 +43,7 @@ export function createAuditService(options: AuditServiceOptions) {
     async vault(actor: Actor, clientId: string, query: VaultQuery): Promise<Page<EvidenceView>> {
       actor.authorize('evidence.read', { type: 'client', clientId });
       const after = requireCursor(query.cursor);
+      const kinds = await listKinds(actor.ctx, query.source);
       return inTenant(actor.ctx, async (tx) => {
         const client = await clients.require(tx, clientId);
         const unitIds = scopedUnits(query.unitId, unitScope(actor.ctx, clientId));
@@ -50,6 +53,7 @@ export function createAuditService(options: AuditServiceOptions) {
           ...(query.departmentId === undefined ? {} : { departmentIds: query.departmentId }),
           ...(query.scanStatus === undefined ? {} : { scanStatus: query.scanStatus }),
           ...(query.q === undefined ? {} : { q: query.q }),
+          ...kinds,
           ...uploadWindow(query, client.settings.timeZone),
           after,
           limit: query.limit,

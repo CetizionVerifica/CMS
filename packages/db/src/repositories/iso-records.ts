@@ -421,6 +421,8 @@ export const auditProgrammes = {
 
 export const InternalAuditFilter = z.strictObject({
   ...pageShape,
+  /** Only these audits (ISO-2j): AND'd with the other filters and the scope. */
+  ids: RecordIds.optional(),
   programmeIds: z.array(Id).optional(),
   managementSystemIds: z.array(Id).optional(),
   state: z.array(InternalAuditState).optional(),
@@ -457,6 +459,7 @@ export const internalAudits = {
       where: [
         eq(a.clientId, clientId),
         f.includeArchived ? undefined : isNull(a.archivedAt),
+        anyOf(a.id, f.ids),
         anyOf(a.programmeId, f.programmeIds),
         f.managementSystemIds &&
           (f.managementSystemIds.length
@@ -672,6 +675,8 @@ export const NonconformityFilter = z.strictObject({
   state: z.array(NcState).optional(),
   source: z.array(NcSource).optional(),
   severity: z.array(NcSeverity).optional(),
+  /** NCs of any of these standards (ISO-2j). */
+  standards: z.array(IsoStandardCode).optional(),
   ownerId: Id.optional(),
   approverId: Id.optional(),
   unitIds: z.array(Id).optional(),
@@ -720,6 +725,10 @@ export const nonconformities = {
         oneOf(n.state, f.state),
         oneOf(n.source, f.source),
         oneOf(n.severity, f.severity),
+        f.standards &&
+          (f.standards.length
+            ? sql`${n.standards} && ${`{${f.standards.join(',')}}`}::iso_standard_code[]`
+            : sql`false`),
         f.ownerId ? eq(n.ownerId, f.ownerId) : undefined,
         f.approverId ? eq(n.approverId, f.approverId) : undefined,
         anyOf(n.unitId, f.unitIds),
@@ -774,15 +783,43 @@ const actionEntity = entity<IsoAction>({
 
 export const IsoActionFilter = z.strictObject({
   ...pageShape,
+  /** Actions whose subject is in one of these systems (an audit finding: its audit's system). ISO-2j. */
+  managementSystemIds: z.array(Id).optional(),
   subjectTypes: z.array(IsoActionSubjectType).optional(),
+  /** Actions of this subject, whatever its type (ISO-2j). */
+  subjectId: Id.optional(),
+  /** Case-insensitive substring of the text (ISO-2j). */
+  q: z.string().trim().min(1).max(200).optional(),
   ownerId: Id.optional(),
   state: z.array(IsoActionState).optional(),
+  /** Actions due on or after this date (ISO-2j). */
+  dueFrom: LocalDate.optional(),
   /** Actions due on or before this date. */
   dueTo: LocalDate.optional(),
   includeArchived: z.boolean().optional(),
   scope: UnitScope.optional(),
 });
 export type IsoActionFilter = z.input<typeof IsoActionFilter>;
+
+/**
+ * An action's subject is in one of `systemIds`: the NC, risk item, objective or review's own system, or for an audit
+ * finding its internal audit's programme's system or its external audit's. Outer columns are named in full, since
+ * `audit_finding` has a `nonconformity_id` of its own.
+ */
+function actionSystemIs(systemIds: readonly string[]): SQL {
+  if (systemIds.length === 0) return sql`false`;
+  const ids = uuids(systemIds);
+  const own = (table: string, column: string) =>
+    sql`exists (select 1 from ${sql.identifier(table)} x where x.id = iso_action.${sql.identifier(column)} and x.management_system_id = any(${ids}))`;
+  return sql`(${own('nonconformity', 'nonconformity_id')} or ${own('risk_item', 'risk_item_id')}
+    or ${own('objective', 'objective_id')} or ${own('management_review', 'management_review_id')}
+    or exists (select 1 from audit_finding f
+      left join internal_audit ia on ia.id = f.internal_audit_id
+      left join audit_programme ap on ap.id = ia.programme_id
+      left join external_audit ea on ea.id = f.external_audit_id
+      where f.id = iso_action.audit_finding_id
+        and coalesce(ap.management_system_id, ea.management_system_id) = any(${ids})))`;
+}
 
 export const isoActions = {
   get: actionEntity.get,
@@ -816,6 +853,7 @@ export const isoActions = {
   ): Promise<IsoPage<IsoAction>> {
     const f = validate(IsoActionFilter, filter);
     const a = s.isoAction;
+    const text = f.q?.trim();
     const { items, nextCursor, total } = await keysetPage(tx, {
       table: a,
       id: a.id,
@@ -829,8 +867,14 @@ export const isoActions = {
           (f.subjectTypes.length
             ? or(...f.subjectTypes.map((type) => isNotNull(a[ACTION_SUBJECTS[type]])))
             : sql`false`),
+        f.managementSystemIds && actionSystemIs(f.managementSystemIds),
+        f.subjectId
+          ? or(...Object.values(ACTION_SUBJECTS).map((field) => eq(a[field], f.subjectId!)))
+          : undefined,
+        text ? ilike(a.text, containsPattern(text)) : undefined,
         f.ownerId ? eq(a.ownerId, f.ownerId) : undefined,
         oneOf(a.state, f.state),
+        onOrAfter(a.dueOn, f.dueFrom),
         onOrBefore(a.dueOn, f.dueTo),
         f.scope && actionScope(f.scope),
       ],

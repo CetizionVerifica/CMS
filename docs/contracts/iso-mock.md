@@ -24,6 +24,10 @@ README decisions 42-51. M4 owns every formula marked "stand-in".
   so `GET /clients/{clientId}/audit` lists and filters them, with the add-on on or off (plan §4.4). The fixture's
   sample trail (fixtures.md §8) loads with them. The mock's clock does not move, so both trails list the events of
   one instant newest first, in reverse order of writing (1.8.4).
+- **Lists by id.** The nonconformity, risk, objective, document and internal audit lists take `ids` as endpoints.md
+  §10 says (1.8.5):
+  the mock applies it with the list's other filters and the reader's units, and the document list keeps its
+  ACTIVE-only default only when neither `status` nor `ids` is given.
 - **ISO exports.** The mock writes no file: an ISO export kind is checked (its filters against `ISO_EXPORT_FILTERS`, by
   the body schema), kept as a `DONE` job named `iso-...-<today>.xlsx` or `.pdf` and audited as `EXPORT`. While the
   add-on is off, its create, job read and download URL answer `403 FEATURE_NOT_ENABLED` after the role check; the
@@ -140,7 +144,9 @@ README decisions 42-51. M4 owns every formula marked "stand-in".
 
 ## Area by area
 
-**Systems and checklist.** `climateDecidedOn` may not be in the future. Only FA, CO and CA change a checklist row's
+**Systems and checklist.** `climateDecidedOn` may not be in the future. REQUEST_NA on a clause that allows no
+exclusion answers `400 VALIDATION` naming `status`, as the engine's guard and the API do (ADR M16-0004 decision 5;
+before 1.8.5 the mock named `clauseId`). Only FA, CO and CA change a checklist row's
 owner. A management system's `status` has no machine (model §4), so a status change is an `UPDATE`; each N/A step
 is a `TRANSITION` whose `after.action` is REQUEST_NA, APPROVE_NA, REJECT_NA or WITHDRAW_NA. APPROVE_NA and REJECT_NA
 need the row's units: an approver named as the row's owner but outside the system's
@@ -171,9 +177,11 @@ owner's and a CA's (investigation fields); the reassign route is FA's, CO's and 
 severity and the incident outcome, with a reason). Severity and outcome change only while OPEN or ROOT_CAUSE_FOUND;
 `lostDays` moves with the outcome on reassign, and alone only on the PATCH while the outcome stays LOST_TIME. A
 finding's NC refuses a severity change, and an NC without incident fields refuses an outcome, `400` in any open
-state (CLOSED or CANCELLED answers `409 INVALID_TRANSITION` first). An incident's `occurredAt` may not be after now,
-nor its client-local day after the NC's `reportedOn` (`400 VALIDATION` on RAISE and on the PATCH, model §3.11); the
-mock checks it only when RAISE or the PATCH sets a new time, so a row loaded before 1.8.4 keeps its time until then.
+state (CLOSED or CANCELLED answers `409 INVALID_TRANSITION` first). An NC is reported on the client-local day it is
+raised, by hand or from a finding (since 1.8.5; before, the mock's one zone, Asia/Kolkata). An incident's `occurredAt`
+may not be after now, compared as instants, nor its client-local day after the NC's `reportedOn` (`400 VALIDATION` on
+RAISE and on the PATCH, model §3.11); the mock checks it only when RAISE or the PATCH sets a new time, so a row loaded
+before 1.8.4 keeps its time until then.
 VERIFY_EFFECTIVE re-checks the SUBMIT_NO_ACTION rule on an NC submitted with none (the later of SUBMIT and
 SUBMIT_NO_ACTION in its trail), to catch rows changed outside these routes. VERIFY_NOT_EFFECTIVE
 may come before `effectivenessDueOn`; VERIFY_EFFECTIVE waits for it. `effectivenessDueOn` can move but never be cleared

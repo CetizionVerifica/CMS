@@ -33,7 +33,7 @@ import {
   systemUnitIds,
   touchIso,
 } from '../../iso/common.js';
-import { certificationCycle } from '../../iso/derive.js';
+import { certificationCycle, clientDay } from '../../iso/derive.js';
 import type { FirmState, AuditRecord, IsoRow } from '../../store.js';
 import { patchIsoUnrecorded, raised as raiseEvent } from './nonconformities.js';
 
@@ -365,7 +365,7 @@ function moveAudit(
 /**
  * The nonconformity a MAJOR_NC or MINOR_NC finding raises (model §3.9): OPEN, source EXTERNAL_AUDIT, severity from the
  * type, the finding's clauses and unit (or the system's single unit), its standards from the clauses (else the
- * audit's), owner, approver and due date from the body; reported by the actor today.
+ * audit's), owner, approver and due date from the body; reported by the actor on the client's day.
  */
 function raiseNc(
   ctx: IsoCtx,
@@ -376,7 +376,8 @@ function raiseNc(
   raise: { ownerId: string; approverId: string; dueOn: string },
 ): Nonconformity {
   const firm = actor.firm;
-  const today = ctx.clock.today();
+  // The client's day: the NC is reported on it and is due no earlier.
+  const today = clientDay(firm, audit.clientId, ctx.clock.now());
   const unitId = finding.unitId ?? (reach.unitIds.length === 1 ? reach.unitIds[0]! : null);
   checkNcPerson(actor, audit.clientId, raise.ownerId, 'ownerId', unitId);
   checkNcPerson(actor, audit.clientId, raise.approverId, 'approverId', unitId);

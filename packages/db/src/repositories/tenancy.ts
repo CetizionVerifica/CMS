@@ -362,7 +362,7 @@ export type RoleCheck = z.input<typeof RoleCheck>;
 
 export const memberships = {
   /**
-   * Whether a person holds one of `roles` in a client, covering `unitId` when given (model §1 rule 5): a live
+   * Whether a person, neither archived nor DISABLED (migration 0045), holds one of `roles` in a client, covering `unitId` when given (model §1 rule 5): a live
    * membership in this firm that is firm-wide (FIRM_ADMIN), for the client (a client role, or a CONSULTANT listing
    * it), and lists no units or lists the unit. Answers about memberships this context cannot read, through the
    * SECURITY DEFINER `canopy_person_holds_role` (migration 0044), with a yes or no and no rows; false for a client

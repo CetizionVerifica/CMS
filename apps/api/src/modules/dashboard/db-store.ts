@@ -1,5 +1,6 @@
 import type { ExportJob, FirmSettings, RequestContext } from '@canopy/contracts';
 import {
+  account,
   auditEvents,
   clients,
   DbError,
@@ -47,7 +48,7 @@ function toApiError(error: unknown): never {
 
 /** The M3 register filter for a resolved M10 filter, or null when a list filter is empty (nothing matches). */
 export function registerFilter(filter: RowFilter): RegisterFilter | null {
-  const lists = [filter.criticality, filter.workflowState, filter.domain];
+  const lists = [filter.criticality, filter.workflowState, filter.domain, filter.actKinds];
   if (lists.some((list) => list !== undefined && list.length === 0)) return null;
   const copy = <T>(list: readonly T[] | undefined) => (list === undefined ? undefined : [...list]);
   return {
@@ -67,6 +68,7 @@ export function registerFilter(filter: RowFilter): RegisterFilter | null {
     completedTo: filter.completedTo,
     hasEvidence: filter.hasEvidence,
     q: filter.q,
+    actKinds: copy(filter.actKinds),
   };
 }
 
@@ -79,6 +81,10 @@ export class PostgresReportsStore implements ReportsStore {
 
   firmSettings(ctx: RequestContext): Promise<FirmSettings> {
     return this.run(ctx, async (tx) => (await firms.current(tx)).settings);
+  }
+
+  accountFeatures(ctx: RequestContext): Promise<readonly string[]> {
+    return this.run(ctx, (tx) => account.features(tx));
   }
 
   clients(ctx: RequestContext, clientIds: readonly string[]): Promise<ClientInfo[]> {

@@ -211,6 +211,24 @@ describe('routes that name a STANDARD row answer 403 while the add-on is off', (
     },
   );
 
+  it('a unit holding only ISO assignments says to turn the add-on on, not to archive them', async () => {
+    for (const iso of [false, true]) {
+      const { call, store } = app(iso);
+      // Unit 2 has no laws assigned; give it the ISO activity alone.
+      Object.assign(store.raw('assignments', ids.isoAssignment)!, { unitId: ids.unit2 });
+      const res = await call('firmAdmin', 'POST', `/units/${ids.unit2}/archive`, {
+        version: 1,
+        reason: 'Closed',
+      });
+      expect(res.status).toBe(400);
+      expect(error(res.body).message, `iso ${iso}`).toBe(
+        iso
+          ? 'Archive the assignments of this unit first.'
+          : 'This unit has ISO management system assignments. Turn the ISO add-on back on and archive them first.',
+      );
+    }
+  });
+
   it('turning the add-on back on brings everything back as it was', async () => {
     const t = app(false);
     expect((await t.call('owner', 'GET', `/library/obligations/${ids.isoObligation}`)).status).toBe(
