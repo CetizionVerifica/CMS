@@ -3,7 +3,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { createApiClient } from './client';
-import { MOCK_CLIENTS, MOCK_MFA_CODE, MOCK_PASSWORD, mockFetch } from './mock';
+import { MOCK_CLIENTS, MOCK_COMPANY_EMAIL, MOCK_MFA_CODE, MOCK_PASSWORD, mockFetch } from './mock';
 import { CLIENT_MAP, delegateToM0 } from './mock-delegate';
 
 const api = (cookie?: string) =>
@@ -44,6 +44,7 @@ describe('routes the shell mock does not answer go to M0’s mock server', () =>
     const ours = (await api(admin).me()).data.clients;
     const res = await delegateToM0(
       'admin@demo.test',
+      ['isoManagement'],
       'GET',
       new URL('http://api.test/api/v1/me'),
       undefined,
@@ -108,7 +109,98 @@ describe('routes the shell mock does not answer go to M0’s mock server', () =>
     const url = new URL(
       `http://api.test/api/v1/clients/${MOCK_CLIENTS.demoMetals}/instances?limit=1`,
     );
-    expect((await fresh.delegateToM0('owner@demo.test', 'GET', url, undefined)).status).toBe(200);
+    expect((await fresh.delegateToM0('owner@demo.test', [], 'GET', url, undefined)).status).toBe(
+      200,
+    );
     expect((globalThis as { __ppMockServer?: unknown }).__ppMockServer).toBe(first);
+  });
+});
+
+// ISO-7b: each demo user's own add-ons reach M0 as `x-mock-features`, so `/me` and every delegated route agree.
+describe('the delegate forwards the signed-in account’s add-ons', () => {
+  /** A raw request through the shell mock, for routes the typed client doesn't list (the ISO ones). */
+  const get = (cookie: string, path: string) =>
+    mockFetch(`http://api.test/api/v1${path}`, { headers: { cookie } });
+  const isoSystems = `/clients/${MOCK_CLIENTS.demoMetals}/iso/systems`;
+  /** How many instances Demo Metals' register lists, all of them or one `source`'s. */
+  const registerTotal = async (cookie: string, source?: 'LAW' | 'ISO') =>
+    (
+      await api(cookie).call('listInstances', {
+        params: { clientId: MOCK_CLIENTS.demoMetals },
+        query: { count: 'true', limit: '1', ...(source ? { source } : {}) },
+      })
+    ).data.total ?? 0;
+
+  it('sends the account’s features as the header, and an empty header for an account without add-ons', async () => {
+    const inject = vi.fn();
+    const shared = globalThis as { __ppMockServer?: unknown };
+    const saved = shared.__ppMockServer;
+    shared.__ppMockServer = Promise.resolve({
+      inject: inject.mockResolvedValue({ statusCode: 204, headers: {}, body: '' }),
+    });
+    try {
+      const url = new URL('http://api.test/api/v1/me');
+      await delegateToM0('consultant@demo.test', ['isoManagement'], 'GET', url, undefined);
+      await delegateToM0(MOCK_COMPANY_EMAIL, [], 'GET', url, undefined);
+    } finally {
+      shared.__ppMockServer = saved;
+    }
+    const sent = inject.mock.calls.map(
+      ([req]) => (req as { headers: Record<string, string> }).headers,
+    );
+    expect(sent[0]).toMatchObject({ 'x-mock-features': 'isoManagement' });
+    // Present but empty: leaving it out would give firm B's add-ons, which include ISO.
+    expect(sent[1]).toMatchObject({ 'x-mock-features': '' });
+  });
+
+  it('agrees with the shell’s /me on each demo user’s add-ons', async () => {
+    for (const [email, mfa] of [
+      ['consultant@demo.test', true],
+      ['owner@demo.test', false],
+      [MOCK_COMPANY_EMAIL, true],
+    ] as const) {
+      const cookie = await sessionFor(email, mfa);
+      const shell = (await api(cookie).me()).data.account?.features;
+      const res = await delegateToM0(
+        email,
+        shell ?? [],
+        'GET',
+        new URL('http://api.test/api/v1/me'),
+        undefined,
+      );
+      const m0 = ((await res.json()) as { account?: { features?: string[] } }).account?.features;
+      expect(m0, email).toEqual(shell);
+    }
+  });
+
+  it('refuses ISO routes and hides STANDARD work for the company admin, whose account has no add-ons', async () => {
+    const company = await sessionFor(MOCK_COMPANY_EMAIL, true);
+    const res = await get(company, isoSystems);
+    expect(res.status).toBe(403);
+    expect(await res.json()).toMatchObject({
+      error: { code: 'FEATURE_NOT_ENABLED', details: { feature: 'isoManagement' } },
+    });
+    // The register lists the statutory work only: the same rows another demo user gets with the Law filter.
+    const consultant = await sessionFor('consultant@demo.test', true);
+    const law = await registerTotal(consultant, 'LAW');
+    expect(law).toBeGreaterThan(0);
+    expect(await registerTotal(company)).toBe(law);
+  });
+
+  it('shows ISO data to every other demo user', async () => {
+    for (const [email, mfa] of [
+      ['consultant@demo.test', true],
+      ['admin@demo.test', true],
+      ['owner@demo.test', false],
+      ['approver@demo.test', false],
+      ['viewer@demo.test', false],
+    ] as const) {
+      const cookie = await sessionFor(email, mfa);
+      expect((await get(cookie, isoSystems)).status, email).toBe(200);
+    }
+    const consultant = await sessionFor('consultant@demo.test', true);
+    const iso = await registerTotal(consultant, 'ISO');
+    expect(iso).toBeGreaterThan(0);
+    expect(await registerTotal(consultant)).toBe((await registerTotal(consultant, 'LAW')) + iso);
   });
 });
