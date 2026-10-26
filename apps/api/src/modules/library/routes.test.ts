@@ -271,6 +271,8 @@ describe('STANDARD acts (ISO-9b)', () => {
       aliases: [],
       kind: 'STANDARD',
     });
+    // With the add-on on; while it is off the 403 comes first (iso-switch.test.ts).
+    t.setFeatures(FIRM_A, ['isoManagement']);
     return t;
   };
 

@@ -19,11 +19,21 @@ export const LIST_FIELDS = {
 
 export type ListTable = keyof typeof LIST_FIELDS;
 
+/** The tables whose rows have an act behind them, so a list may filter them by act kind (ISO-2f). */
+const KIND_TABLES: readonly ListTable[] = ['acts', 'obligations', 'assignments'];
+
 /** Throws when `query` sorts or searches on a field outside the table's allow-list. */
 export function checkListFields(
   table: ListTable,
-  query: { orderBy: string; search?: { fields: readonly string[] } | undefined },
+  query: {
+    orderBy: string;
+    search?: { fields: readonly string[] } | undefined;
+    actKinds?: readonly string[] | undefined;
+  },
 ): void {
+  if (query.actKinds !== undefined && !KIND_TABLES.includes(table)) {
+    throw new Error(`${table} cannot be filtered by act kind`);
+  }
   const allowed = LIST_FIELDS[table];
   const sort: readonly string[] = allowed.sort;
   const search: readonly string[] = allowed.search;

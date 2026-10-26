@@ -1,6 +1,7 @@
-import type { Id, Membership, Person, RequestContext } from '@canopy/contracts';
+import type { ActKind, Id, Membership, Person, RequestContext } from '@canopy/contracts';
 import {
   account,
+  actKindOf,
   acts,
   assignments,
   auditEvents,
@@ -169,22 +170,34 @@ function repoOf<T extends { id: Id }>(
     findAll: (where) => aggregate.findAll(tx, where),
     async list(query: ListQuery<T>): Promise<ListResult<T>> {
       checkListFields(table, query);
-      const result = await aggregate.query(tx, {
-        ...(query.where ? { where: query.where } : {}),
-        ...(query.search
-          ? {
-              search: {
-                text: query.search.text,
-                fields: query.search.fields as readonly (keyof T & string)[],
-              },
-            }
-          : {}),
-        includeArchived: query.includeArchived === true,
-        orderBy: query.orderBy,
-        after: query.after ?? null,
-        limit: query.limit,
-        count: query.count === true,
-      });
+      // Only the acts, obligations and assignments aggregates take ISO-2f's act-kind filter, as a third argument;
+      // checkListFields refuses it on any other table, so no other aggregate is called with one.
+      const filter = query.actKinds === undefined ? undefined : { actKinds: query.actKinds };
+      const kinded = aggregate.query.bind(aggregate) as (
+        tx: TenantTx,
+        q: Parameters<Aggregate<T>['query']>[1],
+        filter?: { actKinds: readonly ActKind[] },
+      ) => ReturnType<Aggregate<T>['query']>;
+      const result = await kinded(
+        tx,
+        {
+          ...(query.where ? { where: query.where } : {}),
+          ...(query.search
+            ? {
+                search: {
+                  text: query.search.text,
+                  fields: query.search.fields as readonly (keyof T & string)[],
+                },
+              }
+            : {}),
+          includeArchived: query.includeArchived === true,
+          orderBy: query.orderBy,
+          after: query.after ?? null,
+          limit: query.limit,
+          count: query.count === true,
+        },
+        filter,
+      );
       return query.count
         ? { items: result.items, total: result.total ?? 0 }
         : { items: result.items };
@@ -250,6 +263,10 @@ export class PostgresStore implements Store {
       instances: {
         reassignOpen: (assignmentId, to) => instances.reassignOpen(tx, assignmentId, to),
         replacePerson: (from, to) => instances.replacePerson(tx, from, to),
+      },
+      actKindOf: {
+        obligation: (id) => actKindOf.obligation(tx, id),
+        assignment: (id) => actKindOf.assignment(tx, id),
       },
       clientPersonIds: (clientId) => people.idsInClient(tx, clientId),
       firmStaffIds: () => people.firmStaffIds(tx),

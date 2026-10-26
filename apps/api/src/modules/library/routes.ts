@@ -10,6 +10,7 @@ import { daysBetween, generateInstances } from '@canopy/engine';
 import type { FastifyInstance } from 'fastify';
 import { canSeeClient, isFirmStaff } from '../entities/http/access.js';
 import { invalid, notFound } from '../entities/http/errors.js';
+import { kindOf, readableKinds, refuseWhenOff } from '../entities/http/iso-switch.js';
 import { pageOf } from '../entities/http/page.js';
 import { mount, type M6Deps } from '../entities/http/route.js';
 import { emit } from '../entities/events.js';
@@ -31,8 +32,6 @@ function checkJurisdiction(value: { jurisdiction: Jurisdiction; stateCode: strin
     throw invalid('A CENTRAL jurisdiction has no stateCode', ['body', 'stateCode']);
   }
 }
-
-const kindOf = (act: Pick<Act, 'kind'>) => act.kind ?? 'STATUTE';
 
 /**
  * A STANDARD act's values are fixed (docs/iso/catalogue.md §2) and the ISO catalogue copy finds it by name, so staff
@@ -81,6 +80,7 @@ export function libraryRoutes(app: FastifyInstance, deps: M6Deps): void {
       return pageOf(tx.acts, call.query, {
         orderBy: 'name',
         where: ids === null ? {} : { id: ids },
+        ...(await readableKinds(call.ctx)),
         ...search(call.query.q, ['name', 'shortName']),
       });
     });
@@ -104,6 +104,7 @@ export function libraryRoutes(app: FastifyInstance, deps: M6Deps): void {
     const { body } = call;
     return store.transaction(call.ctx, async (tx) => {
       const row = await getLive(tx.acts, call.params.id as Id);
+      await refuseWhenOff(call.ctx, kindOf(row));
       refuseStandard(row, ['params', 'id']);
       checkJurisdiction({
         jurisdiction: body.jurisdiction ?? row.jurisdiction,
@@ -131,12 +132,14 @@ export function libraryRoutes(app: FastifyInstance, deps: M6Deps): void {
     call.authorize({ type: 'act', clientId: null });
     return store.transaction(call.ctx, async (tx) => {
       const target = await getLive(tx.acts, call.params.id as Id);
+      const sources = (
+        await Promise.all(call.body.sourceIds.map((id) => tx.acts.get(id as Id)))
+      ).filter((a) => a !== null);
+      // The off switch's 403 comes first, then the fixed-values 400 (ISO-9b).
+      for (const act of [target, ...sources]) await refuseWhenOff(call.ctx, kindOf(act));
       refuseStandard(target, ['params', 'id']);
       // A STANDARD source would also cross kinds: a law and an ISO standard never merge.
-      for (const id of call.body.sourceIds) {
-        const source = await tx.acts.get(id as Id);
-        if (source) refuseStandard(source, ['body', 'sourceIds']);
-      }
+      for (const source of sources) refuseStandard(source, ['body', 'sourceIds']);
       return mergeInto({
         tx,
         repo: tx.acts,
@@ -268,6 +271,7 @@ export function libraryRoutes(app: FastifyInstance, deps: M6Deps): void {
           ...(query.stateCode ? { stateCode: query.stateCode } : {}),
           ...(query.ruleStatus ? { ruleStatus: query.ruleStatus } : {}),
         },
+        ...(await readableKinds(call.ctx)),
         ...search(query.q, ['title', 'externalRef']),
       });
     });
@@ -279,6 +283,7 @@ export function libraryRoutes(app: FastifyInstance, deps: M6Deps): void {
     checkRule(body.recurrenceRule, ctx.asOf);
     return store.transaction(ctx, async (tx) => {
       await liveRef(tx, 'actId', body.actId);
+      await refuseWhenOff(ctx, kindOf((await tx.acts.get(body.actId))!));
       await liveRef(tx, 'categoryId', body.categoryId);
       const obligation = await auditedInsert(
         tx,
@@ -306,6 +311,7 @@ export function libraryRoutes(app: FastifyInstance, deps: M6Deps): void {
       const obligation = await getLive(tx.obligations, call.params.id as Id);
       const ids = await visibleObligationIds(tx, call.ctx);
       if (ids !== null && !ids.includes(obligation.id)) throw notFound();
+      await refuseWhenOff(call.ctx, await tx.actKindOf.obligation(obligation.id));
       return obligation;
     });
   });
@@ -317,6 +323,7 @@ export function libraryRoutes(app: FastifyInstance, deps: M6Deps): void {
     if (fields.recurrenceRule !== undefined) checkRule(fields.recurrenceRule, ctx.asOf);
     return store.transaction(ctx, async (tx) => {
       const row = await getLive(tx.obligations, call.params.id as Id);
+      await refuseWhenOff(ctx, await tx.actKindOf.obligation(row.id));
       checkJurisdiction({
         jurisdiction: fields.jurisdiction ?? row.jurisdiction,
         stateCode: fields.stateCode === undefined ? row.stateCode : fields.stateCode,
@@ -324,6 +331,7 @@ export function libraryRoutes(app: FastifyInstance, deps: M6Deps): void {
       if (fields.actId !== undefined) {
         await liveRef(tx, 'actId', fields.actId);
         const [from, to] = [await tx.acts.get(row.actId), await tx.acts.get(fields.actId)];
+        if (to) await refuseWhenOff(ctx, kindOf(to));
         if (from && to && kindOf(from) !== kindOf(to)) {
           throw invalid('An obligation cannot move between a law and an ISO standard.', [
             'body',
@@ -368,6 +376,7 @@ export function libraryRoutes(app: FastifyInstance, deps: M6Deps): void {
     call.authorize({ type: 'obligation', clientId: null });
     return store.transaction(call.ctx, async (tx) => {
       const row = await getLive(tx.obligations, call.params.id as Id);
+      await refuseWhenOff(call.ctx, await tx.actKindOf.obligation(row.id));
       const assignments = await tx.assignments.findAll({ obligationId: row.id });
       if (assignments.length > 0) {
         throw invalid('Archive the assignments of this obligation first.', ['params', 'id']);
@@ -406,6 +415,7 @@ export function libraryRoutes(app: FastifyInstance, deps: M6Deps): void {
     }
     return store.transaction(ctx, async (tx) => {
       const obligation: Obligation = await getLive(tx.obligations, call.params.id as Id);
+      await refuseWhenOff(ctx, await tx.actKindOf.obligation(obligation.id));
       for (const clientId of clientIds) await getLive(tx.clients, clientId);
       const assignments = await tx.assignments.findAll({
         obligationId: obligation.id,
