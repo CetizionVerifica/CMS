@@ -22,6 +22,7 @@ export {
   locations,
   memberships,
   people,
+  RoleCheck,
   units,
 } from './tenancy.js';
 export { importBatches, importIssues, importRows, mappingTemplates } from './imports.js';

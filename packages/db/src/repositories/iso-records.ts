@@ -39,6 +39,7 @@ import {
   keysetPage,
   linkedRecord,
   pageShape,
+  RecordIds,
   systemUnitsMatch,
   unitOrSystemMatch,
   uuids,
@@ -174,6 +175,8 @@ const controlEntity = entity<RiskControl>({ table: s.riskControl, schema: RiskCo
 
 export const RiskItemFilter = z.strictObject({
   ...pageShape,
+  /** Only these records (ISO-2i): AND'd with the other filters and the scope. */
+  ids: RecordIds.optional(),
   managementSystemIds: z.array(Id).optional(),
   kind: z.array(RiskKind).optional(),
   /** Items on any of these units. */
@@ -208,6 +211,7 @@ export const riskItems = {
       where: [
         eq(r.clientId, clientId),
         f.includeArchived ? undefined : isNull(r.archivedAt),
+        anyOf(r.id, f.ids),
         anyOf(r.managementSystemId, f.managementSystemIds),
         oneOf(r.kind, f.kind),
         anyOf(r.unitId, f.unitIds),
@@ -276,6 +280,8 @@ const readingEntity = entity<ObjectiveReading>({
 
 export const ObjectiveFilter = z.strictObject({
   ...pageShape,
+  /** Only these records (ISO-2i): AND'd with the other filters and the scope. */
+  ids: RecordIds.optional(),
   managementSystemIds: z.array(Id).optional(),
   /** Objectives of this standard. */
   standard: IsoStandardCode.optional(),
@@ -307,6 +313,7 @@ export const objectives = {
       where: [
         eq(o.clientId, clientId),
         f.includeArchived ? undefined : isNull(o.archivedAt),
+        anyOf(o.id, f.ids),
         anyOf(o.managementSystemId, f.managementSystemIds),
         f.standard ? sql`${o.standards} @> array[${f.standard}]::iso_standard_code[]` : undefined,
         f.ownerId ? eq(o.ownerId, f.ownerId) : undefined,
@@ -659,6 +666,8 @@ const ncRecord = linkedRecord<
 
 export const NonconformityFilter = z.strictObject({
   ...pageShape,
+  /** Only these records (ISO-2i): AND'd with the other filters and the scope. */
+  ids: RecordIds.optional(),
   managementSystemIds: z.array(Id).optional(),
   state: z.array(NcState).optional(),
   source: z.array(NcSource).optional(),
@@ -706,6 +715,7 @@ export const nonconformities = {
       where: [
         eq(n.clientId, clientId),
         f.includeArchived ? undefined : isNull(n.archivedAt),
+        anyOf(n.id, f.ids),
         anyOf(n.managementSystemId, f.managementSystemIds),
         oneOf(n.state, f.state),
         oneOf(n.source, f.source),

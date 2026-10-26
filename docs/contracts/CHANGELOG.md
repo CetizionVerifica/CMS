@@ -267,3 +267,22 @@ route writes it, leaving out every step the mock's rules or the held review's fi
 into firm B's `auditEvents`, so the client audit trail lists and filters them, with the add-on on or off; it creates the
 ISO export kinds (`.xlsx` or `.pdf`) and, while the add-on is off, answers `403 FEATURE_NOT_ENABLED` on their create,
 job read and download, after the role check.
+
+## 1.8.4 · 2026-10-26
+ISO-1a3: management review figures place a backdated record by the step that set its date (README decision 54, plan
+v2.5.1). `ReviewFigureData` gains the step days (`settledOn` on actions, the latest settle; `closeStepOn`,
+`reportStepOn`, `heldStepOn`), CONTEXT's `climateDecisions` (the day of every climate decision) and RISKS's `kinds`,
+and its docs say how each source places and picks its records: DONE and CANCELLED actions by their settled day in the
+window, a nonconformity and its incident by the NC's counting day, a finding by the later of its audit's day and its
+creation day, a record with no step in its trail by its creation day, the climate decision from the first decision
+(a system decided when seeded keeping that decision), overdue corrective actions only of NCs open on as-of,
+RISKS kinds by input key (`reviewRiskKinds`, with a `significant<Kind>` key only for a kind read) and findings by
+their clauses' standards. New `REVIEW_FIGURE_KEYS` lists every figure key per source with its entity type and whether
+its value counts its ids. `ReviewInputView.figuresWithheld` withholds an INCIDENTS row, figures and notes, from a
+reader who may not read every incident it counts and is neither the chair nor an attendee. A review held before its
+system was set up stores no figures. The mock refuses an incident's `occurredAt` after now or with a client-local day
+after its NC's `reportedOn` (`400 VALIDATION`, model §3.11). `IsoEngineApi` is unchanged. This is a patch: every
+change adds a type, a field or a constant that no module reads yet, or is a mock rule. The mock gathers each input's
+data and computes the figures from it alone, stores the fixtures' held reviews in a stable order, and lists the client
+and instance audit trails newest first within one instant. `firm-b.iso.json` gains 18 step events (176 in all); of the
+held review's stored figures only its three RISKS rows change, by the kinds rule.

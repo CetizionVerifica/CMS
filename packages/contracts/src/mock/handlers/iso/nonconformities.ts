@@ -40,7 +40,7 @@ import {
   standardOf,
   touchIso,
 } from '../../iso/common.js';
-import { isoTiming } from '../../iso/derive.js';
+import { isoTiming, localDate } from '../../iso/derive.js';
 import type { FirmState, AuditRecord, IsoRow } from '../../store.js';
 
 type Ids =
@@ -435,7 +435,11 @@ function checkStandards(
   }
 }
 
-/** The incident's investigators and statutory notice (model §3.11); `all` rechecks everyone after a unit change. */
+/**
+ * The incident's time, investigators and statutory notice (model §3.11); `all` rechecks everyone after a unit change.
+ * A new or moved `occurredAt` is not after now, and its client-local day not after the NC's `reportedOn`, so an
+ * incident is never dated after its NC was raised and the review figures can place it by the NC (model §5.4).
+ */
 function checkIncident(
   actor: Actor,
   clientId: string,
@@ -443,7 +447,17 @@ function checkIncident(
   incident: Incident,
   before: Incident | null,
   all: boolean,
+  when: { now: string; reportedOn: string },
 ): void {
+  if (incident.occurredAt !== before?.occurredAt) {
+    if (incident.occurredAt > when.now) {
+      invalid('incident.occurredAt', 'The incident cannot have occurred after now');
+    }
+    const timeZone = actor.firm.data.clients.find((c) => c.id === clientId)!.settings.timeZone;
+    if (localDate(incident.occurredAt, timeZone) > when.reportedOn) {
+      invalid('incident.occurredAt', 'The incident cannot have occurred after it was reported');
+    }
+  }
   for (const id of incident.investigatorIds) {
     if (all || !(before?.investigatorIds ?? []).includes(id)) {
       checkPerson(actor, clientId, id, 'incident.investigatorIds', unitId);
@@ -466,7 +480,7 @@ function checkIncident(
  * and clauses, people (all of them when the unit moves), linked instances, risk items and documents, the disposition
  * (no later than ADD_ROOT_CAUSE), the effectiveness date, and finally every rule of the stored shape.
  */
-function checkNcChanges(actor: Actor, nc: Nc, next: Nc, today: string): void {
+function checkNcChanges(actor: Actor, nc: Nc, next: Nc, today: string, now: string): void {
   const firm = actor.firm;
   const clientId = nc.clientId;
   const changed = (key: keyof Nc) => !same(nc[key], next[key]);
@@ -527,7 +541,10 @@ function checkNcChanges(actor: Actor, nc: Nc, next: Nc, today: string): void {
     'changedDocumentIds',
   );
   if (next.incident !== null) {
-    checkIncident(actor, clientId, next.unitId, next.incident, nc.incident, unitMoved);
+    checkIncident(actor, clientId, next.unitId, next.incident, nc.incident, unitMoved, {
+      now,
+      reportedOn: next.reportedOn,
+    });
   }
   if (changed('effectivenessDueOn')) {
     if (nc.effectivenessDueOn === null) {
@@ -655,7 +672,7 @@ export function patchIsoUnrecorded<
  * (`isoNc.reassign` always has one); an edit that changes nothing writes nothing.
  */
 function saveNcEdit(ctx: IsoCtx, actor: Actor, nc: Nc, next: Nc, reason: string | null): NcOut {
-  checkNcChanges(actor, nc, next, ctx.clock.today());
+  checkNcChanges(actor, nc, next, ctx.clock.today(), ctx.clock.now());
   const changes = diff(nc, next);
   const changed = Object.keys(changes.after);
   if (changed.length === 0) return ncView(ctx, actor, nc);
@@ -1113,7 +1130,10 @@ export const nonconformitiesHandlers: PartialHandlers<Ids> = {
       );
     }
     if (body.incident !== null) {
-      checkIncident(actor, clientId, body.unitId, body.incident, null, true);
+      checkIncident(actor, clientId, body.unitId, body.incident, null, true, {
+        now: ctx.clock.now(),
+        reportedOn: today,
+      });
     }
     const number =
       Math.max(
@@ -1267,7 +1287,13 @@ export const nonconformitiesHandlers: PartialHandlers<Ids> = {
       });
     }
     if (issues.length > 0) invalidAll(issues);
-    checkNcChanges(actor, nc, { ...next, state: 'ROOT_CAUSE_FOUND' }, ctx.clock.today());
+    checkNcChanges(
+      actor,
+      nc,
+      { ...next, state: 'ROOT_CAUSE_FOUND' },
+      ctx.clock.today(),
+      ctx.clock.now(),
+    );
     moveNc(
       ctx,
       actor,
