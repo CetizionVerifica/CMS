@@ -106,7 +106,9 @@ A failed instance (a drill that went wrong, an instrument out of calibration) is
 ## 5. Management review inputs and outputs
 
 One key per input or output; a key shared by several standards appears once in an integrated review. Titles are ours.
-`source` says which records pre-fill the review pack; `MANUAL` inputs are written by hand.
+`source` says which records pre-fill the review pack; `MANUAL` inputs are written by hand. The RISKS inputs read
+different kinds: `SIGNIFICANT_ASPECTS` aspects only; `RISKS_AND_OPPORTUNITIES` risks and opportunities, and hazards when
+ISO 45001 is among the review's standards that list it; `RISK_ACTIONS` (9001 only) risks and opportunities (model §5.4).
 
 | Input key | Title (ours) | 9001 | 14001 | 45001 | Source |
 |---|---|---|---|---|---|

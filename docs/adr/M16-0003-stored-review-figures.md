@@ -1,7 +1,8 @@
 # M16-0003: A held management review stores its input figures
 
-Status: accepted, 2026-10-25. Amends [M16-0002](M16-0002-iso-plan-v2.md). Plan: `docs/iso/plan.md` v2.5; model §1.7,
-§3.11, §3.13, §4.5, §5.4, §8, §9 and §10.
+Status: accepted, 2026-10-25; decision 3 limited for incidents on 2026-10-26 (plan v2.5.1). Amends
+[M16-0002](M16-0002-iso-plan-v2.md). Plan: `docs/iso/plan.md` v2.5 and v2.5.1; model §1.7, §3.11, §3.13, §4.5, §5.4, §8,
+§9 and §10.
 
 ## Context
 
@@ -42,9 +43,11 @@ What a certification auditor checks is the retained record of what the review co
    with no `held` flag and no general list of changes; ISO-1a3 adds the step days.
 3. **The whole system, ids cut per reader.** The figures count the review's whole system with no unit scope, so every
    reader sees the same values. Each figure's ids are cut to the records the reader may read (plan §3.3 exception; M3's
-   `isoVisibleIds`). The values are counts and sums with no names. They include other units' records, incident outcomes
-   and lost days among them, which a reader limited to some units sees for the review as a whole (model §3.11). M3
-   gathers the data once for M16 and M10 (ISO-2h).
+   `isoVisibleIds`). The values are counts and sums with no names. They include other units' records, which a reader
+   limited to some units sees for the review as a whole. M3 gathers the data once for M16 and M10 (ISO-2h). Incidents
+   are the limit (plan v2.5.1, after the #291 audit): an outcome and its lost days can point to a person, so a reader
+   who may not read every incident the INCIDENTS row counts, and who neither chairs nor attends the review, gets that
+   row's figures and notes withheld, on screen and in the pack (model §3.11, §3.13 item 4).
 4. **A record, not a cache.** Model §1.7 and `packages/db/CLAUDE.md` rule 7 get this exception. The RECORD_HELD event
    carries the values and the engine version, without ids (model §8). The pack and the client archive print the
    stored copy with its window, recording time and engine version (model §9).
@@ -56,7 +59,8 @@ What a certification auditor checks is the retained record of what the review co
   when it was recorded. The date rules narrow this gap, `figuresStoredAt` shows it, and recording on the day of the
   meeting closes it. The RECORD_HELD form warns when `heldOn` is before today.
 - **A wrong stored figure stays wrong.** Fixing one needs a "retake figures, with a reason" step for client admins,
-  which is Later. Until then the event shows what was stored and which engine produced it.
+  which is Later. Until then the event shows what was stored and which engine produced it, and a correction is written
+  in the row's notes while the review is HELD, or in the next review's notes once it is CLOSED (model §3.13 item 6).
 - **The rebuild code goes.** The mock loses its rebuild helpers, and M10 reads the stored copy: nothing rebuilds. No ISO
   route's audit events become load-bearing for figures, apart from the event and step days that M3 reads for the window
   counts.
