@@ -9851,6 +9851,51 @@
       "reason": null
     },
     {
+      "id": "396a5daa-8cce-587e-b028-6f92f2aeae14",
+      "firmId": "520ce557-0294-5abf-ad6e-e46595f7a4f0",
+      "clientId": "db063d65-238b-521a-9925-3bd7e9ca742a",
+      "at": "2024-04-25T05:30:00Z",
+      "requestId": "fixture-iso-33",
+      "actorId": "4d453c8e-2f50-5852-b133-e9c26a46daf7",
+      "actorKind": "PERSON",
+      "action": "TRANSITION",
+      "entityType": "iso_action",
+      "entityId": "5087ced3-899e-5c8f-9757-d7af3b8574a6",
+      "before": {
+        "state": "OPEN",
+        "cancelReason": null
+      },
+      "after": {
+        "action": "CANCEL",
+        "state": "CANCELLED",
+        "cancelReason": "The current supplier fixed the seal width at no cost."
+      },
+      "reason": "The current supplier fixed the seal width at no cost."
+    },
+    {
+      "id": "ed5cefd5-269a-5247-b644-8ab79bd31233",
+      "firmId": "520ce557-0294-5abf-ad6e-e46595f7a4f0",
+      "clientId": "db063d65-238b-521a-9925-3bd7e9ca742a",
+      "at": "2024-05-06T05:30:00Z",
+      "requestId": "fixture-iso-21",
+      "actorId": "4d453c8e-2f50-5852-b133-e9c26a46daf7",
+      "actorKind": "PERSON",
+      "action": "UPDATE",
+      "entityType": "management_system",
+      "entityId": "860e2b33-5267-5b4e-92f6-710c448780f4",
+      "before": {
+        "climateChangeRelevant": null,
+        "climateChangeRationale": null,
+        "climateDecidedOn": null
+      },
+      "after": {
+        "climateChangeRelevant": true,
+        "climateChangeRationale": "Hotter summers and an irregular monsoon affect wheat supply, cooling loads on the ovens and heat stress on the production floor.",
+        "climateDecidedOn": "2024-05-06"
+      },
+      "reason": null
+    },
+    {
       "id": "408af648-56f2-51ff-8589-e0780c7d59ea",
       "firmId": "520ce557-0294-5abf-ad6e-e46595f7a4f0",
       "clientId": "db063d65-238b-521a-9925-3bd7e9ca742a",
@@ -10046,6 +10091,76 @@
       "reason": null
     },
     {
+      "id": "e1cfd02a-f0e9-5474-a967-ed5598ae2e2f",
+      "firmId": "520ce557-0294-5abf-ad6e-e46595f7a4f0",
+      "clientId": "db063d65-238b-521a-9925-3bd7e9ca742a",
+      "at": "2024-06-13T05:30:00Z",
+      "requestId": "fixture-iso-31",
+      "actorId": "4d453c8e-2f50-5852-b133-e9c26a46daf7",
+      "actorKind": "PERSON",
+      "action": "TRANSITION",
+      "entityType": "iso_action",
+      "entityId": "21f61924-f138-54ff-b5c2-7b3e416dab56",
+      "before": {
+        "state": "OPEN",
+        "cancelReason": null
+      },
+      "after": {
+        "action": "CANCEL",
+        "state": "CANCELLED",
+        "cancelReason": "The trial film failed the seal tests."
+      },
+      "reason": "The trial film failed the seal tests."
+    },
+    {
+      "id": "b10d5109-8f13-50b3-ad13-ae5d6419e778",
+      "firmId": "520ce557-0294-5abf-ad6e-e46595f7a4f0",
+      "clientId": "db063d65-238b-521a-9925-3bd7e9ca742a",
+      "at": "2024-06-14T05:30:00Z",
+      "requestId": "fixture-iso-22",
+      "actorId": "69aa9699-ea57-5f4d-9679-207b2b19b75c",
+      "actorKind": "PERSON",
+      "action": "TRANSITION",
+      "entityType": "internal_audit",
+      "entityId": "ebe4e6b7-e3a9-5244-a459-5fde14472abc",
+      "before": {
+        "state": "IN_PROGRESS",
+        "summary": null,
+        "reportedOn": null
+      },
+      "after": {
+        "action": "REPORT",
+        "state": "REPORTED",
+        "summary": "Purchasing and production controls work; supplier re-evaluations are sometimes signed late.",
+        "reportedOn": "2024-06-14"
+      },
+      "reason": null
+    },
+    {
+      "id": "2326a603-a34b-5fe8-805f-d51f8169ec00",
+      "firmId": "520ce557-0294-5abf-ad6e-e46595f7a4f0",
+      "clientId": "db063d65-238b-521a-9925-3bd7e9ca742a",
+      "at": "2024-07-03T05:30:00Z",
+      "requestId": "fixture-iso-24",
+      "actorId": "4d453c8e-2f50-5852-b133-e9c26a46daf7",
+      "actorKind": "PERSON",
+      "action": "TRANSITION",
+      "entityType": "external_audit",
+      "entityId": "eca477ac-229f-5b71-a58e-25bed2488aec",
+      "before": {
+        "state": "PLANNED",
+        "recommendation": null,
+        "responseDueOn": null
+      },
+      "after": {
+        "action": "RECORD_HELD",
+        "state": "HELD",
+        "recommendation": "RECOMMENDED_AFTER_CLOSURE",
+        "responseDueOn": "2024-07-31"
+      },
+      "reason": null
+    },
+    {
       "id": "7c3ffb07-03bf-5fcb-a029-01d7d521f1f6",
       "firmId": "520ce557-0294-5abf-ad6e-e46595f7a4f0",
       "clientId": "db063d65-238b-521a-9925-3bd7e9ca742a",
@@ -10064,6 +10179,50 @@
         "value": 412,
         "note": null,
         "recordedById": "487294a3-c71b-5708-9153-f15e95bc7c48"
+      },
+      "reason": null
+    },
+    {
+      "id": "b482b3ba-0418-56fc-89ae-971c3d4ff786",
+      "firmId": "520ce557-0294-5abf-ad6e-e46595f7a4f0",
+      "clientId": "db063d65-238b-521a-9925-3bd7e9ca742a",
+      "at": "2024-07-14T05:30:00Z",
+      "requestId": "fixture-iso-36",
+      "actorId": "4d453c8e-2f50-5852-b133-e9c26a46daf7",
+      "actorKind": "PERSON",
+      "action": "TRANSITION",
+      "entityType": "iso_action",
+      "entityId": "76805c4a-5d2e-5e71-accd-cb5d45a91292",
+      "before": {
+        "state": "OPEN",
+        "cancelReason": null
+      },
+      "after": {
+        "action": "CANCEL",
+        "state": "CANCELLED",
+        "cancelReason": "Covered by the quarterly data analysis activity."
+      },
+      "reason": "Covered by the quarterly data analysis activity."
+    },
+    {
+      "id": "fc852c5e-a69f-583e-b1c1-1975baf4bce5",
+      "firmId": "520ce557-0294-5abf-ad6e-e46595f7a4f0",
+      "clientId": "db063d65-238b-521a-9925-3bd7e9ca742a",
+      "at": "2024-07-15T05:30:00Z",
+      "requestId": "fixture-iso-35",
+      "actorId": "69aa9699-ea57-5f4d-9679-207b2b19b75c",
+      "actorKind": "PERSON",
+      "action": "TRANSITION",
+      "entityType": "iso_action",
+      "entityId": "363d314c-a5c7-52ed-8dcf-3b7bfa134ba8",
+      "before": {
+        "state": "OPEN",
+        "doneOn": null
+      },
+      "after": {
+        "action": "COMPLETE",
+        "state": "DONE",
+        "doneOn": "2024-07-15"
       },
       "reason": null
     },
@@ -10115,6 +10274,142 @@
         "responseDueOn": null,
         "state": "PLANNED",
         "cancelReason": null
+      },
+      "reason": null
+    },
+    {
+      "id": "1e125f1f-1ad5-5b87-9530-ecd995ea16c4",
+      "firmId": "520ce557-0294-5abf-ad6e-e46595f7a4f0",
+      "clientId": "db063d65-238b-521a-9925-3bd7e9ca742a",
+      "at": "2024-07-25T05:30:00Z",
+      "requestId": "fixture-iso-27",
+      "actorId": "487294a3-c71b-5708-9153-f15e95bc7c48",
+      "actorKind": "PERSON",
+      "action": "TRANSITION",
+      "entityType": "iso_action",
+      "entityId": "c1d8dc6e-0821-548a-a1c8-bc4e809b2bde",
+      "before": {
+        "state": "OPEN",
+        "doneOn": null,
+        "effectivenessNote": null
+      },
+      "after": {
+        "action": "COMPLETE",
+        "state": "DONE",
+        "doneOn": "2024-07-25",
+        "effectivenessNote": "Certificates on file."
+      },
+      "reason": null
+    },
+    {
+      "id": "4a7e9350-2192-58e1-8269-dfdb931b224d",
+      "firmId": "520ce557-0294-5abf-ad6e-e46595f7a4f0",
+      "clientId": "db063d65-238b-521a-9925-3bd7e9ca742a",
+      "at": "2024-08-30T05:30:00Z",
+      "requestId": "fixture-iso-32",
+      "actorId": "69aa9699-ea57-5f4d-9679-207b2b19b75c",
+      "actorKind": "PERSON",
+      "action": "TRANSITION",
+      "entityType": "iso_action",
+      "entityId": "5b63ebcf-9607-5400-bec5-52c1e3d466f8",
+      "before": {
+        "state": "OPEN",
+        "doneOn": null
+      },
+      "after": {
+        "action": "COMPLETE",
+        "state": "DONE",
+        "doneOn": "2024-08-30"
+      },
+      "reason": null
+    },
+    {
+      "id": "444035d3-312e-599d-9dbc-9410d6bb7245",
+      "firmId": "520ce557-0294-5abf-ad6e-e46595f7a4f0",
+      "clientId": "db063d65-238b-521a-9925-3bd7e9ca742a",
+      "at": "2024-09-05T05:30:00Z",
+      "requestId": "fixture-iso-29",
+      "actorId": "4d453c8e-2f50-5852-b133-e9c26a46daf7",
+      "actorKind": "PERSON",
+      "action": "TRANSITION",
+      "entityType": "iso_action",
+      "entityId": "50bd9582-1394-5a25-a014-b89bb7579b3e",
+      "before": {
+        "state": "OPEN",
+        "cancelReason": null
+      },
+      "after": {
+        "action": "CANCEL",
+        "state": "CANCELLED",
+        "cancelReason": "No supplier makes handled trays for these ovens; the guard rail covers the hazard."
+      },
+      "reason": "No supplier makes handled trays for these ovens; the guard rail covers the hazard."
+    },
+    {
+      "id": "ad037de4-aacd-5e6f-8a84-46b91444672c",
+      "firmId": "520ce557-0294-5abf-ad6e-e46595f7a4f0",
+      "clientId": "db063d65-238b-521a-9925-3bd7e9ca742a",
+      "at": "2024-09-10T05:30:00Z",
+      "requestId": "fixture-iso-28",
+      "actorId": "487294a3-c71b-5708-9153-f15e95bc7c48",
+      "actorKind": "PERSON",
+      "action": "TRANSITION",
+      "entityType": "iso_action",
+      "entityId": "2ced54f6-02f5-51a4-85e4-ceee6ca66f72",
+      "before": {
+        "state": "OPEN",
+        "doneOn": null
+      },
+      "after": {
+        "action": "COMPLETE",
+        "state": "DONE",
+        "doneOn": "2024-09-10"
+      },
+      "reason": null
+    },
+    {
+      "id": "a5f430d8-4104-561d-bb2a-74a3143f825f",
+      "firmId": "520ce557-0294-5abf-ad6e-e46595f7a4f0",
+      "clientId": "db063d65-238b-521a-9925-3bd7e9ca742a",
+      "at": "2024-09-12T05:30:00Z",
+      "requestId": "fixture-iso-30",
+      "actorId": "487294a3-c71b-5708-9153-f15e95bc7c48",
+      "actorKind": "PERSON",
+      "action": "TRANSITION",
+      "entityType": "iso_action",
+      "entityId": "6ac110da-1a8b-506e-b207-62f490513086",
+      "before": {
+        "state": "OPEN",
+        "doneOn": null
+      },
+      "after": {
+        "action": "COMPLETE",
+        "state": "DONE",
+        "doneOn": "2024-09-12"
+      },
+      "reason": null
+    },
+    {
+      "id": "d3e1e30b-4c0d-5bbf-871b-2c71cd12ca6a",
+      "firmId": "520ce557-0294-5abf-ad6e-e46595f7a4f0",
+      "clientId": "db063d65-238b-521a-9925-3bd7e9ca742a",
+      "at": "2024-09-20T05:30:00Z",
+      "requestId": "fixture-iso-23",
+      "actorId": "69aa9699-ea57-5f4d-9679-207b2b19b75c",
+      "actorKind": "PERSON",
+      "action": "TRANSITION",
+      "entityType": "internal_audit",
+      "entityId": "47373213-8c0f-5cad-805c-be5c1cfbc306",
+      "before": {
+        "state": "IN_PROGRESS",
+        "summary": null,
+        "reportedOn": null
+      },
+      "after": {
+        "action": "REPORT",
+        "state": "REPORTED",
+        "summary": "Aspects and operational controls are in place. Tray changes on line 2 do not follow the hierarchy of controls; water use is not metered by line.",
+        "reportedOn": "2024-09-20"
       },
       "reason": null
     },
@@ -10175,6 +10470,116 @@
         ]
       },
       "reason": null
+    },
+    {
+      "id": "a46bd682-a762-5669-bfbd-54f294f7d15b",
+      "firmId": "520ce557-0294-5abf-ad6e-e46595f7a4f0",
+      "clientId": "db063d65-238b-521a-9925-3bd7e9ca742a",
+      "at": "2024-09-27T05:30:00Z",
+      "requestId": "fixture-iso-34",
+      "actorId": "487294a3-c71b-5708-9153-f15e95bc7c48",
+      "actorKind": "PERSON",
+      "action": "TRANSITION",
+      "entityType": "iso_action",
+      "entityId": "ade8df17-7610-593c-b98c-7bfc9abbb90f",
+      "before": {
+        "state": "OPEN",
+        "doneOn": null
+      },
+      "after": {
+        "action": "COMPLETE",
+        "state": "DONE",
+        "doneOn": "2024-09-27"
+      },
+      "reason": null
+    },
+    {
+      "id": "35284273-65fc-5132-82e7-d23ec980f646",
+      "firmId": "520ce557-0294-5abf-ad6e-e46595f7a4f0",
+      "clientId": "db063d65-238b-521a-9925-3bd7e9ca742a",
+      "at": "2024-10-04T05:30:00Z",
+      "requestId": "fixture-iso-26",
+      "actorId": "487294a3-c71b-5708-9153-f15e95bc7c48",
+      "actorKind": "PERSON",
+      "action": "TRANSITION",
+      "entityType": "objective",
+      "entityId": "7553d8f9-782e-5ea7-a1e9-59cd71500c9f",
+      "before": {
+        "closedOn": null,
+        "outcome": null
+      },
+      "after": {
+        "action": "CLOSE",
+        "closedOn": "2024-10-04",
+        "outcome": "ACHIEVED"
+      },
+      "reason": null
+    },
+    {
+      "id": "e57c1ab1-8ed9-5e39-8472-47460176a17b",
+      "firmId": "520ce557-0294-5abf-ad6e-e46595f7a4f0",
+      "clientId": "db063d65-238b-521a-9925-3bd7e9ca742a",
+      "at": "2024-11-05T05:30:00Z",
+      "requestId": "fixture-iso-25",
+      "actorId": "4d453c8e-2f50-5852-b133-e9c26a46daf7",
+      "actorKind": "PERSON",
+      "action": "TRANSITION",
+      "entityType": "external_audit",
+      "entityId": "dbcf199b-d2bc-5620-9d83-615aa54fe309",
+      "before": {
+        "state": "PLANNED",
+        "responseDueOn": null
+      },
+      "after": {
+        "action": "RECORD_HELD",
+        "state": "HELD",
+        "responseDueOn": "2024-12-04"
+      },
+      "reason": null
+    },
+    {
+      "id": "3d2fd9b3-5d11-56a8-bebc-2de06b6ac8fd",
+      "firmId": "520ce557-0294-5abf-ad6e-e46595f7a4f0",
+      "clientId": "db063d65-238b-521a-9925-3bd7e9ca742a",
+      "at": "2024-11-06T05:30:00Z",
+      "requestId": "fixture-iso-37",
+      "actorId": "4d453c8e-2f50-5852-b133-e9c26a46daf7",
+      "actorKind": "PERSON",
+      "action": "TRANSITION",
+      "entityType": "iso_action",
+      "entityId": "9a61f218-3645-55b3-8192-d1b037f45ea3",
+      "before": {
+        "state": "OPEN",
+        "doneOn": null
+      },
+      "after": {
+        "action": "COMPLETE",
+        "state": "DONE",
+        "doneOn": "2024-11-06"
+      },
+      "reason": null
+    },
+    {
+      "id": "0c59f952-d75e-5c84-b3f6-810fd116dd97",
+      "firmId": "520ce557-0294-5abf-ad6e-e46595f7a4f0",
+      "clientId": "db063d65-238b-521a-9925-3bd7e9ca742a",
+      "at": "2024-11-07T05:30:00Z",
+      "requestId": "fixture-iso-38",
+      "actorId": "4d453c8e-2f50-5852-b133-e9c26a46daf7",
+      "actorKind": "PERSON",
+      "action": "TRANSITION",
+      "entityType": "iso_action",
+      "entityId": "2b128d70-c2b6-5add-acbe-396dd16988c8",
+      "before": {
+        "state": "OPEN",
+        "cancelReason": null
+      },
+      "after": {
+        "action": "CANCEL",
+        "state": "CANCELLED",
+        "cancelReason": "The solar installer's energy survey covers it."
+      },
+      "reason": "The solar installer's energy survey covers it."
     },
     {
       "id": "783cf433-2055-5ff3-b0db-dd3fbcd68ed0",

@@ -935,6 +935,41 @@ describe('updateIsoNonconformity', () => {
     await fails(app, 'updateIsoNonconformity', onNc(nc, { unitId: BENGALURU }), 'VALIDATION', 400);
   });
 
+  it('dates an incident no later than now, nor than the day its nonconformity was reported (ISO-1a3)', async () => {
+    // Now is 06:30 UTC on 2024-11-15 (12:00 in Kolkata), and RAISE reports the nonconformity today.
+    const at = (occurredAt: string) => ({
+      source: 'INCIDENT',
+      standards: ['ISO_45001'],
+      incident: { ...INCIDENT, occurredAt },
+    });
+    await fails(
+      app,
+      'raiseIsoNonconformity',
+      raiseCall(at('2024-11-15T07:00:00Z')),
+      'VALIDATION',
+      400,
+    );
+    const nc = await raise(at('2024-11-15T06:30:00Z'));
+    // Reported on 2024-11-10: a time on a later client-local day is refused, even one that is that day in UTC.
+    ncRow(nc.id).reportedOn = '2024-11-10';
+    for (const occurredAt of ['2024-11-12T04:00:00Z', '2024-11-10T19:00:00Z']) {
+      const refused = await call(
+        app,
+        'updateIsoNonconformity',
+        onNc(nc, { incident: { occurredAt } }),
+      );
+      expect(refused.status, occurredAt).toBe(400);
+      expect(JSON.stringify(refused.json)).toContain('incident.occurredAt');
+    }
+    const moved = await ncStep('updateIsoNonconformity', nc, {
+      incident: { occurredAt: '2024-11-10T18:00:00Z' }, // 23:30 on 2024-11-10 in Kolkata
+    });
+    expect(moved.incident?.occurredAt).toBe('2024-11-10T18:00:00Z');
+    // Only a new or moved time is checked: a stored one is left alone by other edits.
+    ncRow(nc.id).reportedOn = '2024-11-09';
+    await ncStep('updateIsoNonconformity', nc, { incident: { location: 'Dock 3' } });
+  });
+
   it('refuses the incident outcome, which the reassign route changes', async () => {
     const nc = await raise({ source: 'INCIDENT', standards: ['ISO_45001'], incident: INCIDENT });
     const trail = isoEvents(app, nc.id).length;
