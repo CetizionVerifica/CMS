@@ -1,12 +1,13 @@
 import { createHash } from 'node:crypto';
 
-import { ISO_SERVED_ENDPOINTS } from '@canopy/api/src/modules/iso/served.js';
-import { copyIsoCatalogue } from '@canopy/api/src/modules/library/db-iso-catalogue-copy.js';
 import { ENDPOINTS } from '@canopy/contracts';
 import { createDatabase, systemContext, tenantSettings } from '@canopy/db';
 import { expect, request, test } from '@playwright/test';
 import pg from 'pg';
 
+// By path, not through `@canopy/api`: Playwright does not compile TypeScript it reaches through node_modules.
+import { ISO_SERVED_ENDPOINTS } from '../../apps/api/src/modules/iso/served.js';
+import { copyIsoCatalogue } from '../../apps/api/src/modules/library/db-iso-catalogue-copy.js';
 import { anonymousApi, apiAs, itemsOf, type ApiSession } from './api.js';
 import { seeded } from './helpers.js';
 import {
