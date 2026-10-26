@@ -10,6 +10,7 @@ import { compareDates } from '@canopy/engine';
 import type { FastifyInstance } from 'fastify';
 import { unitScope } from '../entities/http/access.js';
 import { fromDuplicate, HttpError, invalid } from '../entities/http/errors.js';
+import { readableKinds, refuseWhenOff } from '../entities/http/iso-switch.js';
 import { pageOf } from '../entities/http/page.js';
 import { mount, type M6Deps } from '../entities/http/route.js';
 import { emit } from '../entities/events.js';
@@ -37,7 +38,12 @@ export function assignmentRoutes(app: FastifyInstance, deps: M6Deps): void {
     if (!person || person.archivedAt !== null) throw invalid('Unknown person.', ['body', field]);
   }
 
-  async function create(tx: Tx, clientId: Id, item: NewAssignment): Promise<Assignment> {
+  async function create(
+    tx: Tx,
+    ctx: RequestContext,
+    clientId: Id,
+    item: NewAssignment,
+  ): Promise<Assignment> {
     await getLive(tx.clients, clientId);
     await liveIn(tx, 'unitId', clientId, item.unitId);
     await liveIn(tx, 'departmentId', clientId, item.departmentId);
@@ -45,6 +51,7 @@ export function assignmentRoutes(app: FastifyInstance, deps: M6Deps): void {
     if (!obligation || obligation.archivedAt !== null) {
       throw invalid('Unknown obligation.', ['body', 'obligationId']);
     }
+    await refuseWhenOff(ctx, await tx.actKindOf.obligation(obligation.id));
     await livePerson(tx, 'defaultOwnerId', item.defaultOwnerId);
     await livePerson(tx, 'defaultApproverId', item.defaultApproverId);
     const assignment = await auditedInsert(
@@ -98,6 +105,7 @@ export function assignmentRoutes(app: FastifyInstance, deps: M6Deps): void {
           ...(ownerId ? { defaultOwnerId: ownerId } : {}),
           ...(approverId ? { defaultApproverId: approverId } : {}),
         },
+        ...(await readableKinds(ctx)),
       });
     });
   });
@@ -105,7 +113,9 @@ export function assignmentRoutes(app: FastifyInstance, deps: M6Deps): void {
   mount(app, deps, ENDPOINTS.createAssignment, async (call) => {
     const clientId = call.params.clientId as Id;
     call.authorize({ type: 'assignment', clientId, unitId: call.body.unitId });
-    return store.transaction(call.ctx, (tx) => create(tx, clientId, call.body as NewAssignment));
+    return store.transaction(call.ctx, (tx) =>
+      create(tx, call.ctx, clientId, call.body as NewAssignment),
+    );
   });
 
   mount(app, deps, ENDPOINTS.bulkCreateAssignments, async (call) => {
@@ -117,7 +127,9 @@ export function assignmentRoutes(app: FastifyInstance, deps: M6Deps): void {
     for (const [index, item] of (call.body.items as NewAssignment[]).entries()) {
       try {
         call.authorize({ type: 'assignment', clientId, unitId: item.unitId });
-        const created = await store.transaction(call.ctx, (tx) => create(tx, clientId, item));
+        const created = await store.transaction(call.ctx, (tx) =>
+          create(tx, call.ctx, clientId, item),
+        );
         results.push({ index, ok: true, item: created });
       } catch (thrown) {
         const error = thrown instanceof DuplicateError ? fromDuplicate(thrown) : thrown;
@@ -133,6 +145,7 @@ export function assignmentRoutes(app: FastifyInstance, deps: M6Deps): void {
     return store.transaction(call.ctx, async (tx) => {
       const row = await getLive(tx.assignments, call.params.id as Id);
       call.authorize({ type: 'assignment', clientId: row.clientId, unitId: row.unitId });
+      await refuseWhenOff(call.ctx, await tx.actKindOf.assignment(row.id));
       if (body.departmentId !== undefined) {
         await liveIn(tx, 'departmentId', row.clientId, body.departmentId);
       }
@@ -198,6 +211,7 @@ export function assignmentRoutes(app: FastifyInstance, deps: M6Deps): void {
     return store.transaction(call.ctx, async (tx) => {
       const row = await getLive(tx.assignments, call.params.id as Id);
       call.authorize({ type: 'assignment', clientId: row.clientId, unitId: row.unitId });
+      await refuseWhenOff(call.ctx, await tx.actKindOf.assignment(row.id));
       // NOT_APPLICABLE stops future generation; open instances still need per-instance NA approval (endpoints.md §3).
       const assignment = await auditedUpdate({
         tx,
@@ -237,6 +251,7 @@ export function assignmentRoutes(app: FastifyInstance, deps: M6Deps): void {
     return store.transaction(call.ctx, async (tx) => {
       const row = await getLive(tx.assignments, call.params.id as Id);
       call.authorize({ type: 'assignment', clientId: row.clientId, unitId: row.unitId });
+      await refuseWhenOff(call.ctx, await tx.actKindOf.assignment(row.id));
       const assignment = await auditedUpdate({
         tx,
         repo: tx.assignments,

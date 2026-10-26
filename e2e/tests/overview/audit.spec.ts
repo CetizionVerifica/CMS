@@ -19,10 +19,12 @@ test.describe('audit trail', () => {
     await page.goto(AUDIT);
     await expect(page).toHaveTitle('Audit trail · Demo Metals · PlanetPulse Compliance');
     const table = page.getByRole('table', { name: 'Audit trail' });
-    const first = table.getByRole('row').nth(1);
-    await expect(first).toContainText('Added a department');
-    await expect(first).toContainText(name);
-    await expect(first).toContainText(`Name: ${name}`);
+    // Found by its unique name, not as the first row: another journey's change on the demo firm can share the mock's
+    // fixed timestamp and sort above it.
+    const added = table.getByRole('row').filter({ hasText: `Name: ${name}` });
+    await expect(added).toHaveCount(1);
+    await expect(added).toContainText('Added a department');
+    await expect(added).toContainText(name);
     await checkSettled(page);
 
     await page.getByRole('button', { name: /Kind of change/ }).click();

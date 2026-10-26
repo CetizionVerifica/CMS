@@ -40,8 +40,8 @@ import {
   standardOf,
   touchIso,
 } from '../../iso/common.js';
-import { isoTiming } from '../../iso/derive.js';
-import type { FirmState, IsoAuditEvent, IsoRow } from '../../store.js';
+import { isoTiming, localDate } from '../../iso/derive.js';
+import type { FirmState, AuditRecord, IsoRow } from '../../store.js';
 
 type Ids =
   | 'listIsoNonconformities'
@@ -171,7 +171,7 @@ const isIncident = (nc: { source: string }) => INCIDENT_SOURCE_LIST.includes(nc.
 // ---------- nonconformities: history (model §4 preamble, §4.1) ----------
 
 /** The §4.1 step an audit event of a nonconformity records: RAISE is its CREATE, the others TRANSITIONs. */
-function stepOf(event: IsoAuditEvent): string | undefined {
+function stepOf(event: AuditRecord): string | undefined {
   if (event.action === 'CREATE') return 'RAISE';
   if (event.action !== 'TRANSITION') return undefined;
   const step = event.after?.action;
@@ -184,7 +184,7 @@ function lastStep(
   nc: Nc,
   steps: readonly string[],
 ): { index: number; at: string } | null {
-  const events = firm.isoAuditEvents;
+  const events = firm.data.auditEvents;
   for (let index = events.length - 1; index >= 0; index -= 1) {
     const event = events[index]!;
     if (event.entityType !== 'nonconformity' || event.entityId !== nc.id) continue;
@@ -199,7 +199,7 @@ function lastStep(
  */
 function makersOf(firm: FirmState, nc: Nc): string[] {
   const start = lastStep(firm, nc, CHECKER_RESETS)?.index ?? -1;
-  return firm.isoAuditEvents
+  return firm.data.auditEvents
     .slice(start + 1)
     .filter(
       (e) =>
@@ -216,7 +216,7 @@ function makersOf(firm: FirmState, nc: Nc): string[] {
  * pin every instant), else by its `createdAt`.
  */
 function createdSince(firm: FirmState, action: Action, step: { index: number; at: string }) {
-  const index = firm.isoAuditEvents.findIndex(
+  const index = firm.data.auditEvents.findIndex(
     (e) => e.entityType === 'iso_action' && e.entityId === action.id && e.action === 'CREATE',
   );
   return index >= 0 ? index > step.index : action.createdAt > step.at;
@@ -257,7 +257,7 @@ function noActionRefusals(firm: FirmState, nc: Nc): Issue[] {
 function submittedWithoutAction(firm: FirmState, nc: Nc): boolean {
   if (nc.state !== 'AWAITING_VERIFICATION' || nc.noActionReason === null) return false;
   const submit = lastStep(firm, nc, ['SUBMIT', 'SUBMIT_NO_ACTION']);
-  return submit === null || stepOf(firm.isoAuditEvents[submit.index]!) === 'SUBMIT_NO_ACTION';
+  return submit === null || stepOf(firm.data.auditEvents[submit.index]!) === 'SUBMIT_NO_ACTION';
 }
 
 /**
@@ -435,7 +435,11 @@ function checkStandards(
   }
 }
 
-/** The incident's investigators and statutory notice (model §3.11); `all` rechecks everyone after a unit change. */
+/**
+ * The incident's time, investigators and statutory notice (model §3.11); `all` rechecks everyone after a unit change.
+ * A new or moved `occurredAt` is not after now, and its client-local day not after the NC's `reportedOn`, so an
+ * incident is never dated after its NC was raised and the review figures can place it by the NC (model §5.4).
+ */
 function checkIncident(
   actor: Actor,
   clientId: string,
@@ -443,7 +447,17 @@ function checkIncident(
   incident: Incident,
   before: Incident | null,
   all: boolean,
+  when: { now: string; reportedOn: string },
 ): void {
+  if (incident.occurredAt !== before?.occurredAt) {
+    if (incident.occurredAt > when.now) {
+      invalid('incident.occurredAt', 'The incident cannot have occurred after now');
+    }
+    const timeZone = actor.firm.data.clients.find((c) => c.id === clientId)!.settings.timeZone;
+    if (localDate(incident.occurredAt, timeZone) > when.reportedOn) {
+      invalid('incident.occurredAt', 'The incident cannot have occurred after it was reported');
+    }
+  }
   for (const id of incident.investigatorIds) {
     if (all || !(before?.investigatorIds ?? []).includes(id)) {
       checkPerson(actor, clientId, id, 'incident.investigatorIds', unitId);
@@ -466,7 +480,7 @@ function checkIncident(
  * and clauses, people (all of them when the unit moves), linked instances, risk items and documents, the disposition
  * (no later than ADD_ROOT_CAUSE), the effectiveness date, and finally every rule of the stored shape.
  */
-function checkNcChanges(actor: Actor, nc: Nc, next: Nc, today: string): void {
+function checkNcChanges(actor: Actor, nc: Nc, next: Nc, today: string, now: string): void {
   const firm = actor.firm;
   const clientId = nc.clientId;
   const changed = (key: keyof Nc) => !same(nc[key], next[key]);
@@ -527,7 +541,10 @@ function checkNcChanges(actor: Actor, nc: Nc, next: Nc, today: string): void {
     'changedDocumentIds',
   );
   if (next.incident !== null) {
-    checkIncident(actor, clientId, next.unitId, next.incident, nc.incident, unitMoved);
+    checkIncident(actor, clientId, next.unitId, next.incident, nc.incident, unitMoved, {
+      now,
+      reportedOn: next.reportedOn,
+    });
   }
   if (changed('effectivenessDueOn')) {
     if (nc.effectivenessDueOn === null) {
@@ -608,7 +625,7 @@ function backToChange(
 }
 
 /** Audit groups of a nonconformity edit: people are a reassignment, dates a due-date change (model §8). */
-const EDIT_GROUPS: [IsoAuditEvent['action'], (key: string) => boolean][] = [
+const EDIT_GROUPS: [AuditRecord['action'], (key: string) => boolean][] = [
   ['REASSIGN', (k) => k === 'ownerId' || k === 'approverId'],
   ['DUE_DATE_CHANGE', (k) => k === 'dueOn' || k === 'effectivenessDueOn'],
   ['UPDATE', (k) => !['ownerId', 'approverId', 'dueOn', 'effectivenessDueOn'].includes(k)],
@@ -655,7 +672,7 @@ export function patchIsoUnrecorded<
  * (`isoNc.reassign` always has one); an edit that changes nothing writes nothing.
  */
 function saveNcEdit(ctx: IsoCtx, actor: Actor, nc: Nc, next: Nc, reason: string | null): NcOut {
-  checkNcChanges(actor, nc, next, ctx.clock.today());
+  checkNcChanges(actor, nc, next, ctx.clock.today(), ctx.clock.now());
   const changes = diff(nc, next);
   const changed = Object.keys(changes.after);
   if (changed.length === 0) return ncView(ctx, actor, nc);
@@ -1113,7 +1130,10 @@ export const nonconformitiesHandlers: PartialHandlers<Ids> = {
       );
     }
     if (body.incident !== null) {
-      checkIncident(actor, clientId, body.unitId, body.incident, null, true);
+      checkIncident(actor, clientId, body.unitId, body.incident, null, true, {
+        now: ctx.clock.now(),
+        reportedOn: today,
+      });
     }
     const number =
       Math.max(
@@ -1267,7 +1287,13 @@ export const nonconformitiesHandlers: PartialHandlers<Ids> = {
       });
     }
     if (issues.length > 0) invalidAll(issues);
-    checkNcChanges(actor, nc, { ...next, state: 'ROOT_CAUSE_FOUND' }, ctx.clock.today());
+    checkNcChanges(
+      actor,
+      nc,
+      { ...next, state: 'ROOT_CAUSE_FOUND' },
+      ctx.clock.today(),
+      ctx.clock.now(),
+    );
     moveNc(
       ctx,
       actor,

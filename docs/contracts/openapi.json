@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Canopy API",
-    "version": "1.8.1",
+    "version": "1.8.4",
     "description": "Generated from @canopy/contracts; do not edit. Conventions: docs/contracts/api-conventions.md. Role permissions per operation are in x-canopy-roles (all, own, limited); a missing role is 403. An operation with x-canopy-feature needs that add-on: 403 FEATURE_NOT_ENABLED without it, and 409 FEATURE_NOT_READY while the account is still being set up for it."
   },
   "servers": [
@@ -6515,7 +6515,25 @@
                 "evidence",
                 "import_batch",
                 "export",
-                "account"
+                "account",
+                "management_system",
+                "certification",
+                "external_audit",
+                "context_item",
+                "clause_assessment",
+                "controlled_document",
+                "document_revision",
+                "risk_item",
+                "risk_control",
+                "objective",
+                "objective_reading",
+                "audit_programme",
+                "internal_audit",
+                "audit_checklist_item",
+                "audit_finding",
+                "nonconformity",
+                "iso_action",
+                "management_review"
               ]
             }
           },
@@ -20777,7 +20795,7 @@
     "/clients/{clientId}/iso/management-reviews/{id}/held": {
       "post": {
         "operationId": "recordIsoManagementReviewHeld",
-        "summary": "RECORD_HELD: date, attendees and notes on every input.",
+        "summary": "RECORD_HELD: date, attendees and notes on every input; stores each input's figures as of heldOn.",
         "tags": ["M16"],
         "parameters": [
           {
@@ -20817,7 +20835,7 @@
         },
         "responses": {
           "200": {
-            "description": "RECORD_HELD: date, attendees and notes on every input.",
+            "description": "RECORD_HELD: date, attendees and notes on every input; stores each input's figures as of heldOn.",
             "headers": {
               "X-Request-Id": {
                 "$ref": "#/components/headers/RequestId"
@@ -21079,7 +21097,7 @@
           "VIEWER": "all"
         },
         "x-canopy-idempotent": false,
-        "x-canopy-notes": "AP/OW limited to their units (plan §3.3).",
+        "x-canopy-notes": "Stored at RECORD_HELD for a HELD or CLOSED review, computed for a PLANNED one. Values cover the whole system; ids list only the records the caller may read (plan §3.3).",
         "x-canopy-feature": "isoManagement"
       }
     },
@@ -22662,7 +22680,25 @@
               "evidence",
               "import_batch",
               "export",
-              "account"
+              "account",
+              "management_system",
+              "certification",
+              "external_audit",
+              "context_item",
+              "clause_assessment",
+              "controlled_document",
+              "document_revision",
+              "risk_item",
+              "risk_control",
+              "objective",
+              "objective_reading",
+              "audit_programme",
+              "internal_audit",
+              "audit_checklist_item",
+              "audit_finding",
+              "nonconformity",
+              "iso_action",
+              "management_review"
             ]
           },
           "entityId": {
@@ -23814,7 +23850,11 @@
               "ACT_REPORT_XLSX",
               "DEPARTMENT_REPORT_XLSX",
               "OVERDUE_REPORT_XLSX",
-              "CLIENT_ARCHIVE_ZIP"
+              "CLIENT_ARCHIVE_ZIP",
+              "ISO_NC_LOG_XLSX",
+              "ISO_RISK_REGISTER_XLSX",
+              "ISO_AUDIT_REPORT_PDF",
+              "ISO_REVIEW_PACK_PDF"
             ]
           },
           "filters": {
@@ -28534,7 +28574,11 @@
               "ACT_REPORT_XLSX",
               "DEPARTMENT_REPORT_XLSX",
               "OVERDUE_REPORT_XLSX",
-              "CLIENT_ARCHIVE_ZIP"
+              "CLIENT_ARCHIVE_ZIP",
+              "ISO_NC_LOG_XLSX",
+              "ISO_RISK_REGISTER_XLSX",
+              "ISO_AUDIT_REPORT_PDF",
+              "ISO_REVIEW_PACK_PDF"
             ]
           },
           "params": {
@@ -35958,6 +36002,73 @@
               }
             ]
           },
+          "sourceFigures": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "source": {
+                    "type": "string",
+                    "enum": [
+                      "PREVIOUS_ACTIONS",
+                      "CONTEXT",
+                      "RISKS",
+                      "OBJECTIVES",
+                      "NONCONFORMITIES",
+                      "INCIDENTS",
+                      "AUDIT_RESULTS",
+                      "COMPLIANCE_EVALUATION",
+                      "MANUAL"
+                    ]
+                  },
+                  "since": {
+                    "$ref": "#/components/schemas/LocalDate"
+                  },
+                  "asOf": {
+                    "$ref": "#/components/schemas/LocalDate"
+                  },
+                  "figures": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "key": {
+                          "type": "string",
+                          "pattern": "^[a-z][a-zA-Z0-9]*$"
+                        },
+                        "value": {
+                          "type": "number"
+                        },
+                        "ids": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/Id"
+                          }
+                        }
+                      },
+                      "required": ["key", "value", "ids"],
+                      "additionalProperties": false
+                    }
+                  }
+                },
+                "required": ["source", "since", "asOf", "figures"],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "figuresStoredAt": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Instant"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "key": {
             "type": "string",
             "enum": [
@@ -36031,62 +36142,8 @@
               "additionalProperties": false
             }
           },
-          "sourceFigures": {
-            "anyOf": [
-              {
-                "type": "object",
-                "properties": {
-                  "source": {
-                    "type": "string",
-                    "enum": [
-                      "PREVIOUS_ACTIONS",
-                      "CONTEXT",
-                      "RISKS",
-                      "OBJECTIVES",
-                      "NONCONFORMITIES",
-                      "INCIDENTS",
-                      "AUDIT_RESULTS",
-                      "COMPLIANCE_EVALUATION",
-                      "MANUAL"
-                    ]
-                  },
-                  "since": {
-                    "$ref": "#/components/schemas/LocalDate"
-                  },
-                  "asOf": {
-                    "$ref": "#/components/schemas/LocalDate"
-                  },
-                  "figures": {
-                    "type": "array",
-                    "items": {
-                      "type": "object",
-                      "properties": {
-                        "key": {
-                          "type": "string",
-                          "pattern": "^[a-z][a-zA-Z0-9]*$"
-                        },
-                        "value": {
-                          "type": "number"
-                        },
-                        "ids": {
-                          "type": "array",
-                          "items": {
-                            "$ref": "#/components/schemas/Id"
-                          }
-                        }
-                      },
-                      "required": ["key", "value", "ids"],
-                      "additionalProperties": false
-                    }
-                  }
-                },
-                "required": ["source", "since", "asOf", "figures"],
-                "additionalProperties": false
-              },
-              {
-                "type": "null"
-              }
-            ]
+          "figuresWithheld": {
+            "type": "boolean"
           }
         },
         "required": [
@@ -36100,11 +36157,13 @@
           "managementReviewId",
           "inputDefId",
           "notes",
+          "sourceFigures",
+          "figuresStoredAt",
           "key",
           "title",
           "source",
           "clauseRefs",
-          "sourceFigures"
+          "figuresWithheld"
         ],
         "additionalProperties": false
       },

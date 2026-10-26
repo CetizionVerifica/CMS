@@ -49,7 +49,15 @@ import {
   type NewEntity,
   type Page,
   type PageRequest,
+  type Query,
 } from './crud.js';
+import {
+  ActKinds,
+  actIdOfKind,
+  actKindIs,
+  obligationIdOfKind,
+  type ActKindFilter,
+} from './act-kind.js';
 
 /** Work: assignments, instances, evidence, comments, audit (domain-model.md §5). */
 
@@ -116,10 +124,19 @@ export const assignments = {
   },
   get: assignmentEntity.get,
   require: assignmentEntity.require,
-  query: assignmentEntity.query,
+  /** `actKinds` keeps the assignments whose obligation's act is of those kinds (docs/iso/plan.md §4.6). */
+  query: (tx: TenantTx, q?: Query<Assignment>, filter: ActKindFilter = {}) =>
+    assignmentEntity.query(tx, q, obligationIdOfKind(s.assignment.obligationId, filter.actKinds)),
   findAll: assignmentEntity.findAll,
-  list: (tx: TenantTx, clientId: string, page?: PageRequest) =>
-    assignmentEntity.list(tx, eq(s.assignment.clientId, clientId), page),
+  list: (tx: TenantTx, clientId: string, page?: PageRequest, filter: ActKindFilter = {}) =>
+    assignmentEntity.list(
+      tx,
+      and(
+        eq(s.assignment.clientId, clientId),
+        obligationIdOfKind(s.assignment.obligationId, filter.actKinds),
+      ),
+      page,
+    ),
   /** The non-archived assignment for (unit, obligation, department), the unique key. */
   async findByKey(
     tx: TenantTx,
@@ -182,6 +199,11 @@ export const RegisterFilter = z.strictObject({
   actIds: z.array(Id).optional(),
   categoryIds: z.array(Id).optional(),
   instanceIds: z.array(Id).max(10_000).optional(),
+  /**
+   * Act kinds (docs/iso/plan.md §4.6): `['STATUTE']` for the statutory numbers and the add-on's LAW source,
+   * `['STANDARD']` for its ISO source; absent reads both. An empty list matches nothing.
+   */
+  actKinds: ActKinds.optional(),
 });
 export type RegisterFilter = z.input<typeof RegisterFilter>;
 
@@ -217,6 +239,8 @@ function registerConditions(clientId: string, f: z.output<typeof RegisterFilter>
   if (f.workflowState) c.push(inArray(i.workflowState, f.workflowState));
   if (f.timelineType) c.push(eq(s.obligation.timelineType, f.timelineType));
   if (f.domain) c.push(inArray(s.obligation.domain, f.domain));
+  const kinds = actKindIs(f.actKinds);
+  if (kinds) c.push(kinds);
   if (f.dueFrom) c.push(gte(i.dueDate, f.dueFrom));
   if (f.dueTo) c.push(lte(i.dueDate, f.dueTo));
   if (f.completedFrom) c.push(gte(i.completedOn, f.completedFrom));
@@ -496,6 +520,8 @@ export const EvidenceVaultFilter = z.strictObject({
   unitIds: z.array(Id).optional(),
   actIds: z.array(Id).optional(),
   departmentIds: z.array(Id).optional(),
+  /** As the register's `actKinds`: absent reads both kinds, an empty list matches nothing. */
+  actKinds: ActKinds.optional(),
   uploadedFrom: Instant.optional(),
   uploadedTo: Instant.optional(),
   scanStatus: z.array(ScanStatus).optional(),
@@ -582,6 +608,7 @@ export const evidence = {
           isNull(e.archivedAt),
           anyOf(s.complianceInstance.unitId, f.unitIds),
           anyOf(s.obligation.actId, f.actIds),
+          actIdOfKind(s.obligation.actId, f.actKinds),
           anyOf(s.assignment.departmentId, f.departmentIds),
           f.scanStatus === undefined
             ? undefined

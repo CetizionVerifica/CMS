@@ -19,6 +19,12 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useCallback, useMemo, useState, useTransition, type ReactNode } from 'react';
 
 import { fileSize, openEvidence, SCAN_TEXT } from '../../register/_lib/evidence-files';
+import {
+  SOURCE_OPTIONS,
+  SOURCE_PARAM,
+  sourceOfTicks,
+  withSource,
+} from '../../register/_lib/source';
 import { evidenceDownload } from '../../register/instance-actions';
 import { loadMoreEvidence } from '../actions';
 import { instanceHref, type VaultLookups, type VaultPage } from '../_lib/vault-api';
@@ -31,6 +37,8 @@ export type EvidenceVaultProps = {
   lookups: VaultLookups;
   /** The client's IANA time zone, for upload times. */
   timeZone: string;
+  /** The account has the ISO add-on: the Source filter is shown. */
+  iso?: boolean;
 };
 
 const SCAN_OPTIONS = (['CLEAN', 'PENDING', 'INFECTED', 'FAILED'] as const).map((value) => ({
@@ -43,10 +51,10 @@ type Column = DataTableProps<EvidenceView>['columns'][number];
 /** The roving tab stop DataTable gives each row's controls. */
 type RowFocus = { rowTabIndex?: (row: unknown) => number };
 
-/** The URL's filters as the FilterBar shows them. */
+/** The URL's filters as the FilterBar shows them. `search` is the vault query, so a `source` in it is a valid one. */
 export function filterValue(search: URLSearchParams): Record<string, FilterValue> {
   const value: Record<string, FilterValue> = {};
-  for (const key of ['scanStatus', 'unitId']) {
+  for (const key of ['scanStatus', 'unitId', SOURCE_PARAM]) {
     const csv = search.get(key);
     if (csv) value[key] = csv.split(',');
   }
@@ -61,7 +69,8 @@ export function withFilters(
   search: URLSearchParams,
   value: Record<string, FilterValue>,
 ): URLSearchParams {
-  const next = new URLSearchParams();
+  const source = value[SOURCE_PARAM];
+  const next = withSource('', sourceOfTicks(Array.isArray(source) ? source : undefined));
   const q = search.get('q');
   if (q) next.set('q', q);
   for (const key of ['scanStatus', 'unitId']) {
@@ -76,7 +85,14 @@ export function withFilters(
   return next;
 }
 
-export function EvidenceVault({ clientId, query, page, lookups, timeZone }: EvidenceVaultProps) {
+export function EvidenceVault({
+  clientId,
+  query,
+  page,
+  lookups,
+  timeZone,
+  iso = false,
+}: EvidenceVaultProps) {
   const router = useRouter();
   const pathname = usePathname();
   const search = useMemo(() => new URLSearchParams(query), [query]);
@@ -131,8 +147,19 @@ export function EvidenceVault({ clientId, query, page, lookups, timeZone }: Evid
       },
       { key: 'unitId', label: 'Unit', kind: 'multi', options: lookups.units },
       { key: 'uploaded', label: 'Uploaded', kind: 'dateRange' },
+      ...(iso
+        ? [
+            {
+              key: SOURCE_PARAM,
+              label: 'Source',
+              kind: 'multi',
+              order: 'given',
+              options: [...SOURCE_OPTIONS],
+            } satisfies FilterDef,
+          ]
+        : []),
     ],
-    [lookups.units],
+    [iso, lookups.units],
   );
 
   const columns = useMemo<Column[]>(
@@ -220,7 +247,7 @@ export function EvidenceVault({ clientId, query, page, lookups, timeZone }: Evid
           },
           placeholder: 'Search file names',
         }}
-        primaryKeys={['scanStatus', 'unitId', 'uploaded']}
+        primaryKeys={['scanStatus', 'unitId', 'uploaded', ...(iso ? [SOURCE_PARAM] : [])]}
         resultText={`${count} ${count === 1 ? COUNT_NOUN.one : COUNT_NOUN.other} match`}
         resultCount={count}
       />

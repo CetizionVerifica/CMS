@@ -19,7 +19,7 @@ ISO add-on (M16): its records, engine interface, 119 routes (1.8.1), catalogue a
 | [CHANGELOG.md](CHANGELOG.md) | Contract versions | everyone |
 
 ## Status
-Version `1.8.0` (`CONTRACTS_VERSION` in `packages/contracts/src/version.ts`). The domain model in §1-8 of
+Version `1.8.4` (`CONTRACTS_VERSION` in `packages/contracts/src/version.ts`). The domain model in §1-8 of
 [domain-model.md](domain-model.md) is published as v1 so wave 1 (M3, M4, M8, M11) can build against it. Each consumer
 module owner still reviews its part (MODULES.md M0 acceptance); review findings ship as additive changes or, if breaking,
 with sign-off per "How to change a contract".
@@ -213,8 +213,8 @@ with sign-off per "How to change a contract".
     already recorded (a reset does). The copy writes the catalogue tables, reuses a live STANDARD act or a live
     category of the same name, adds the obligations, records itself once and, when a route runs it, writes a SYSTEM
     `CREATE` audit event per act, category and obligation it adds; the fixture load writes none. ISO audit events
-    are kept apart from the register's while their entity types are staged (decision 42), so the client audit trail
-    does not list them before ISO-1b; a delegated step has `delegated: true` in `after`. ISO statuses and figures come
+    were kept apart from the register's while their entity types were staged (decision 42); since 1.8.3 they are in
+    the client audit trail (decision 53). A delegated step has `delegated: true` in `after`. ISO statuses and figures come
     from the mock's test double (`src/mock/iso/derive.ts`), as decision 35 says for instances; one rule each for
     objective progress, certification cycles and programme coverage serves every screen that shows them. As in
     decision 37, a confirmed ISO file is PENDING and is CLEAN on the next read of its subject's files or of a download
@@ -274,9 +274,9 @@ with sign-off per "How to change a contract".
     document (issued and approved by its issuer, not a person in the client: null) from an internal revision (always
     the approver). That rule is the provider's: RECORD_EDITION leaves it null and APPROVE always sets it, as the mock
     does; M3 may check it across the two tables.
-    (n) `ExportCreateBody.kind` stays `ExportKind` rather than taking `IsoExportKind` too, so it refuses the ISO kinds
-    until ISO-1b joins them. Its filter check already goes through `exportFilterQuery(kind)`, which
-    picks `ISO_EXPORT_FILTERS[kind]` for an ISO kind, so ISO-1b changes no schema there.
+    (n) `ExportCreateBody.kind` stays `ExportKind` rather than taking `IsoExportKind` too, so it refused the ISO kinds
+    until ISO-1b joined them (1.8.3, decision 53). Its filter check goes through `exportFilterQuery(kind)`, which
+    picks `ISO_EXPORT_FILTERS[kind]` for an ISO kind, so ISO-1b changed no schema there.
     (o) 1.8.1 (ISO-1a): every route has one action. The stub `can()` grants an action to every role of any route that
     lists it, and the generic gate checks `actions[0]`, so the two-action routes of 1.8.0 leaked rights: an NC owner
     got `isoNc.reassign`, FA and CO `isoNc.work`, a chair `isoReview.plan`. The NC PATCH is now `isoNc.work` only
@@ -291,7 +291,8 @@ with sign-off per "How to change a contract".
     objective owner and due date; internal audit dates and lead; external audit response date; action owner and due
     date; review date and chair (replan). The rule is checked at the edge, on the body: a body that names one of those
     fields needs a reason even when the value is unchanged, so a client sends only the fields it changes (PATCH
-    semantics). Other edits are `UPDATE` with no reason, except a severity or incident-outcome change on the reassign
+    semantics). M13's and M17's edit forms therefore send only the fields the person changed, and ask for a reason
+    only when one of those is in `reasonWith`. Other edits are `UPDATE` with no reason, except a severity or incident-outcome change on the reassign
     route, which carries the reason that route always needs. A date a step sets (RECORD_HELD's
     visit dates, a risk's review date when a treatment action puts a control in place) needs none; its event names
     the step or the action.
@@ -308,3 +309,69 @@ with sign-off per "How to change a contract".
     client's time zone, from the engine's date helper) and `{ fyStartMonth }`, not `createdAt`: root rule 4 forbids
     the engine turning a timestamp into a date without a zone, and reading periods follow the client's financial year,
     as `generateInstances` does.
+52. Stored management review figures (contracts 1.8.2, ISO-1a2; docs/iso/model.md §1.7, §3.13, §5.4). A held
+    review's figures are a record, not a cache: RECORD_HELD stores each non-MANUAL input's figures once, counted up to
+    `heldOn` over the review's whole system, in `ReviewInput.sourceFigures`, with `figuresStoredAt` and
+    `figuresEngineVersion`. The three are set together or not at all, and default to null when absent so a stored row
+    from before 1.8.2 still parses (M3 adds the columns in ISO-2g). `ReviewInputView` answers the stored copy for a
+    HELD or CLOSED review and figures computed as of the client-local today for a PLANNED one; `figuresStoredAt` is
+    set exactly when it is the stored copy, and the engine version stays off the view (the pack and the archive read
+    it from the row, model §9). Every reader sees each value and only the ids of the records they may read (plan
+    §3.3). `reviewInputFigures` reads `ReviewFigureData[source]`, typed per source: client-local creation and
+    archive days on every row, and the event days of the window counts that have no date field of their own, so the
+    engine applies §5.4's date rules without rebuilding records from the audit trail. The 1.8.1 mock's as-of rebuild
+    is gone. `IsoEngineApi.reviewInputFigures` keeps 1.8.1's untyped `data` for now: ISO-3's engine (merged) takes
+    its own shapes and checks itself with `satisfies IsoEngineApi`, so narrowing the signature here would break its
+    build, and M0 cannot change packages/engine. M4 takes `TypedReviewInputFigures` in ISO-3b (a function typed that
+    way satisfies the 1.8.2 signature, test/engine-api.test.ts), and M0 narrows `IsoEngineApi` to it in the next
+    contracts PR after that merges. `ReviewFigure` and `ReviewInputFigures` move to `src/schemas/iso.ts`, beside the
+    record that stores them; the package exports the same names.
+53. The ISO values join the contract enums (contracts 1.8.3, ISO-1b; plan §5.1 step 4). `ISO_ENTITY_TYPES`,
+    `ISO_NOTIFICATION_KINDS` and `ISO_EXPORT_KINDS` are now the last values of `EntityType`, `NotificationKind` and
+    `ExportKind`, in their own order, so the Postgres enums M3 builds as `new Set([...X.options, ...staged])` keep
+    their order; the constants and `IsoEntityType`, `IsoNotificationKind` and `IsoExportKind` stay as the subsets.
+    Each step before it has merged: M3 stores the values (ISO-2b), the audit trail page has words for the entity types
+    (ISO-12a) and M10's export builder refuses at create a kind it does not build yet (ISO-11e). From here an ISO route
+    may write an `AuditEvent` with an ISO entity type and a `can()` resource may name one, and `ExportCreateBody`
+    takes the ISO kinds with the ISO list filters of decision 51 n. It is a patch, as 1.5.1 and 1.5.2 were when
+    `account` and `CLIENT_ARCHIVE_ZIP` joined: every value was already stored and every reader already handled it. A
+    reader that switches over one of the three enums with no default now sees the new values (TypeScript names any
+    switch that misses one). The mock follows: an ISO record's events are in firm B's `auditEvents`, so
+    `GET /clients/{clientId}/audit` lists them, filters them by an ISO `entityType` and keeps them while the add-on is
+    off (plan §4.4); an ISO export kind is created with its list's filters, writes its `EXPORT` event and, while the
+    add-on is off, answers `403 FEATURE_NOT_ENABLED` on create, job read and download, after the role check (plan
+    §4.5); the statutory kinds and the client archive stay open. `firm-b.iso.json` gains `auditEvents`: a sample of the
+    trail, each event as the mock's route writes it, that names every ISO entity type (fixtures.md §8).
+54. Review figures place a backdated record by its step (contracts 1.8.4, ISO-1a3; docs/iso/model.md §3.11, §3.13,
+    §5.4, plan v2.5.1). A date the user enters places its record by the later of that date and the client-local day
+    of the latest step that set it, so a record settled or entered after a review was recorded, dated before that
+    review, counts in the next review instead of in neither. `ReviewFigureData` carries those days: `settledOn` on
+    every action (its latest COMPLETE or CANCEL, so one reopened and settled again counts by the later step),
+    `closeStepOn` on objectives, `reportStepOn` on internal audits and `heldStepOn` on external audits (its latest
+    RECORD_HELD or a later `UPDATE` moving `endOn`), each null before its step. A record whose trail has no such step
+    (seeded or loaded data) takes its creation day, never `updatedAt`, which any later write moves. Each climate
+    decision counts by its own day (CONTEXT's `climateDecisions`; every call that changes a climate field, a new
+    rationale alone included, plus the decision a system was seeded with): `climateDecided` from the first decision on
+    or before as-of, so a decision changed later still counts, `climateDecidedInPeriod` when any falls in the window,
+    `climateRelevant` as it is now. PREVIOUS_ACTIONS counts DONE and CANCELLED review actions by their settled day in
+    the window, and RISKS DONE treatment actions likewise (a cancelled one is in no RISKS figure), each OPEN on as-of
+    until that day; a nonconformity, and the incident on it, by its counting day (the
+    later of its creation day and `reportedOn`), so the mock now refuses an `occurredAt` after now or with a day after
+    `reportedOn`; a finding by the later of its audit's day and its own creation day; `correctiveActionsOverdue` counts
+    only the actions of nonconformities open on as-of. A review held before its system's creation day stores no
+    figures. The caller picks the records the engine counts: `reviewRiskKinds(key, standards)` gives a RISKS input's
+    kinds by its key, which RISKS's `kinds` carries (SIGNIFICANT_ASPECTS aspects; RISKS_AND_OPPORTUNITIES risks and
+    opportunities, and hazards with ISO 45001; RISK_ACTIONS risks and opportunities), and the engine emits a
+    `significant<Kind>` key only for those, so a 14001 review's two RISKS rows never count, or show a zero for, each
+    other's items; AUDIT_RESULTS takes only findings whose clauses' standards overlap the input's.
+    `REVIEW_FIGURE_KEYS` lists every figure key per source, with the entity type of its ids and whether its value
+    counts them, so the engine (ISO-3b), the caller (ISO-2h) and the screens (M17) agree on one list and M16 cuts ids
+    per reader by table. `ReviewInputView` gains `figuresWithheld`: incidents are the limit of the figures' exception
+    to unit scope, so an INCIDENTS row that has figures goes without `sourceFigures`, `figuresStoredAt` and `notes` to
+    a reader for whom cutting its ids drops any id and who is neither the chair nor an attendee. It reads the incidents
+    the row counts, not the system's units, which can be narrowed after an incident was counted (endpoints.md §10
+    Scope). It is a patch: the data fields and the view field are additions no module reads yet (ISO-2h, ISO-3b and
+    M17 build against them), and `IsoEngineApi` is unchanged until ISO-3b merges. The mock gathers each input's data
+    from the store and its audit trail and computes the figures from that data alone, as M3 and M4 will;
+    `firm-b.iso.json` gains the step events those days come from (176 events), and of the held review's stored
+    figures only the three RISKS rows change, by the kinds rule.

@@ -1545,6 +1545,134 @@ describe('management reviews', () => {
     ).toBe('23505');
   });
 
+  it('store figures once (migration 0043): all three together, an object, then fixed but for notes', async () => {
+    const figures = {
+      source: 'PREVIOUS_ACTIONS',
+      since: '2026-04-01',
+      asOf: '2027-03-15',
+      figures: [{ key: 'actionsOpen', value: 2, ids: [w.ownerId] }],
+    };
+    const { review, input, other } = await asAdmin(async (tx) => {
+      const made = await r.managementReviews.create(tx, newReview());
+      const [first, second] = await r.reviewInputs.addForReview(tx, made, [w.iso9001]);
+      return { review: made, input: first!, other: second! };
+    });
+    expect(input).toMatchObject({
+      sourceFigures: null,
+      figuresStoredAt: null,
+      figuresEngineVersion: null,
+    });
+    const run = (statement: string) => failure(asAdmin((tx) => tx.execute(sql.raw(statement))));
+    const set = (id: string, assignments: string) =>
+      run(`UPDATE review_input SET ${assignments} WHERE id = '${id}'`);
+    const json = `'${JSON.stringify(figures)}'::jsonb`;
+    // Not all three at once, or not an object.
+    expect(await set(input.id, `source_figures = ${json}`)).toBe('23514');
+    expect(await set(input.id, `figures_stored_at = now(), figures_engine_version = '1.1.0'`)).toBe(
+      '23514',
+    );
+    expect(
+      await set(
+        input.id,
+        `source_figures = '[]'::jsonb, figures_stored_at = now(), figures_engine_version = '1.1.0'`,
+      ),
+    ).toBe('23514');
+    expect(
+      await set(
+        input.id,
+        `source_figures = ${json}, figures_stored_at = now(), figures_engine_version = ''`,
+      ),
+    ).toBe('23514');
+    // The one allowed write.
+    expect(
+      await set(
+        input.id,
+        `source_figures = ${json}, figures_stored_at = now(), figures_engine_version = '1.1.0'`,
+      ),
+    ).toBe('resolved');
+    const stored = await asAdmin((tx) => r.reviewInputs.require(tx, input.id));
+    expect(stored).toMatchObject({ sourceFigures: figures, figuresEngineVersion: '1.1.0' });
+    expect(stored.figuresStoredAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+    // Then nothing of the record changes, whatever the column.
+    const otherReview = await asAdmin((tx) => r.managementReviews.create(tx, newReview()));
+    for (const change of [
+      `source_figures = '{"source": "CONTEXT", "since": "2026-04-01", "asOf": "2027-03-15", "figures": []}'::jsonb`,
+      `figures_stored_at = now() + interval '1 day'`,
+      `figures_engine_version = '1.2.0'`,
+      `source_figures = null, figures_stored_at = null, figures_engine_version = null`,
+      `input_def_id = '${other?.inputDefId ?? input.inputDefId}'::uuid, notes = 'moved'`,
+      `management_review_id = '${otherReview.id}'`,
+      `archived_at = now()`,
+    ]) {
+      expect(await set(input.id, change), change).toBe('23514');
+    }
+    expect(
+      await failure(
+        asAdmin((tx) =>
+          tx.execute(sql`UPDATE review_input SET archived_at = now() WHERE id = ${input.id}`),
+        ),
+      ),
+    ).toBe('23514');
+    // notes stays free, and the read returns the record unchanged.
+    const noted = await asAdmin((tx) =>
+      r.reviewInputs.update(tx, stored.id, stored.version, { notes: 'Read at the review' }),
+    );
+    expect(noted).toMatchObject({
+      notes: 'Read at the review',
+      sourceFigures: figures,
+      figuresStoredAt: stored.figuresStoredAt,
+      figuresEngineVersion: '1.1.0',
+    });
+    expect((await asAdmin((tx) => r.reviewInputs.forReview(tx, review.id)))[0]).toEqual(
+      expect.objectContaining({ id: input.id, sourceFigures: figures }),
+    );
+  });
+
+  it('keep one live input and output row per key, beside archived ones (migration 0043)', async () => {
+    await asAdmin(async (tx) => {
+      const review = await r.managementReviews.create(tx, newReview());
+      const inputs = await r.reviewInputs.addForReview(tx, review, [w.iso9001]);
+      const outputs = await r.reviewOutputs.addForReview(tx, review, [w.iso9001]);
+      expect(inputs).toHaveLength(2);
+      expect(outputs).toHaveLength(1);
+      // Run twice: nothing more.
+      expect(await r.reviewInputs.addForReview(tx, review, [w.iso9001])).toEqual([]);
+      expect(await r.reviewOutputs.addForReview(tx, review, [w.iso9001])).toEqual([]);
+      // A replan drops the standard (rows archived), then adds it back: new live rows beside the archived ones.
+      await tx.execute(
+        sql`UPDATE review_input SET archived_at = now() WHERE management_review_id = ${review.id}`,
+      );
+      await tx.execute(
+        sql`UPDATE review_output SET archived_at = now() WHERE management_review_id = ${review.id}`,
+      );
+      const againIn = await r.reviewInputs.addForReview(tx, review, [w.iso9001]);
+      const againOut = await r.reviewOutputs.addForReview(tx, review, [w.iso9001]);
+      expect(againIn.map((x) => x.inputDefId).sort()).toEqual(
+        inputs.map((x) => x.inputDefId).sort(),
+      );
+      expect(againOut.map((x) => x.outputDefId)).toEqual(outputs.map((x) => x.outputDefId));
+      expect(againIn.map((x) => x.id)).not.toContain(inputs[0]!.id);
+      expect(await r.reviewInputs.forReview(tx, review.id)).toEqual(againIn);
+      const { rows } = await tx.execute<{ live: number; archived: number }>(
+        sql`SELECT count(*) FILTER (WHERE archived_at IS NULL)::int AS live,
+                   count(*) FILTER (WHERE archived_at IS NOT NULL)::int AS archived
+            FROM review_input WHERE management_review_id = ${review.id}`,
+      );
+      expect(rows).toEqual([{ live: 2, archived: 2 }]);
+    });
+    // A second live row for one key is still refused.
+    expect(
+      await failure(
+        asAdmin(async (tx) => {
+          const review = await r.managementReviews.create(tx, newReview());
+          const [output] = await r.reviewOutputs.addForReview(tx, review, [w.iso9001]);
+          await tx.execute(sql`INSERT INTO review_output (client_id, management_review_id, output_def_id)
+            VALUES (${w.kestrel}, ${review.id}, ${output!.outputDefId})`);
+        }),
+      ),
+    ).toBe('23505');
+  });
+
   it('list by planned date and unit scope: the system units, or the chair or an attendee', async () => {
     const made = await asAdmin(async (tx) => ({
       riverbend: (await r.managementReviews.create(tx, newReview({ plannedOn: day('2027-06-01') })))
@@ -1584,6 +1712,471 @@ describe('management reviews', () => {
         ),
       ).toEqual([made.riverbend, made.chaired]);
     });
+  });
+});
+
+describe('ids on the four ISO lists (ISO-2i)', () => {
+  type Lister = (
+    tx: TenantTx,
+    clientId: string,
+    filter: Record<string, unknown>,
+  ) => Promise<{ items: { id: string }[]; nextCursor: string | null; total?: number }>;
+
+  /**
+   * What every list does with `ids`: the list's own order, an id of another client left out, an archived row left
+   * out, three ids read two at a time, and 0, repeated or 201 ids refused. `inOrder` holds three Kestrel rows in the
+   * list's order.
+   */
+  async function commonIds(list: Lister, inOrder: string[], ospreyId: string, archivedId: string) {
+    await asAdmin(async (tx) => {
+      expect(ids(await list(tx, w.kestrel, { ids: [...inOrder].reverse() }))).toEqual(inOrder);
+      expect(ids(await list(tx, w.kestrel, { ids: [inOrder[0]!, ospreyId] }))).toEqual([
+        inOrder[0],
+      ]);
+      expect(ids(await list(tx, w.kestrel, { ids: [archivedId] }))).toEqual([]);
+      const first = await list(tx, w.kestrel, { ids: inOrder, limit: 2, count: true });
+      expect([ids(first), first.total]).toEqual([inOrder.slice(0, 2), 3]);
+      const second = await list(tx, w.kestrel, {
+        ids: inOrder,
+        limit: 2,
+        cursor: first.nextCursor,
+      });
+      expect([ids(second), second.nextCursor]).toEqual([inOrder.slice(2), null]);
+    });
+    const many = Array.from({ length: 201 }, () => crypto.randomUUID());
+    for (const bad of [[], [inOrder[0], inOrder[0]], many, ['not-an-id']]) {
+      expect(await failure(asAdmin((tx) => list(tx, w.kestrel, { ids: bad })))).toBe('VALIDATION');
+    }
+  }
+
+  it('risk items: alone, with another filter, in scope, archived only with includeArchived', async () => {
+    const made = await asAdmin(async (tx) => {
+      const a = await r.riskItems.create(tx, newRisk({ activity: 'ids a' }));
+      const b = await r.riskItems.create(
+        tx,
+        newRisk({ managementSystemId: w.stonebridgeSystem, unitId: w.stonebridge }),
+      );
+      const c = await r.riskItems.create(tx, newRisk({ kind: 'OPPORTUNITY', activity: 'ids c' }));
+      const gone = await r.riskItems.create(tx, newRisk());
+      await r.riskItems.archive(tx, gone.id, gone.version);
+      const osprey = await r.riskItems.create(
+        tx,
+        newRisk({ clientId: w.osprey, managementSystemId: w.ospreySystem }),
+      );
+      return { a: a.id, b: b.id, c: c.id, gone: gone.id, osprey: osprey.id };
+    });
+    const list: Lister = (tx, clientId, f) => r.riskItems.list(tx, clientId, f);
+    await commonIds(list, [made.a, made.b, made.c], made.osprey, made.gone);
+    await asAdmin(async (tx) => {
+      const all = [made.a, made.b, made.c];
+      expect(
+        ids(await r.riskItems.list(tx, w.kestrel, { ids: all, kind: ['OPPORTUNITY'] })),
+      ).toEqual([made.c]);
+      expect(
+        ids(await r.riskItems.list(tx, w.kestrel, { ids: all, scope: scoped([w.riverbend]) })),
+      ).toEqual([made.a, made.c]);
+      expect(
+        ids(await r.riskItems.list(tx, w.kestrel, { ids: [made.gone], includeArchived: true })),
+      ).toEqual([made.gone]);
+    });
+  });
+
+  it('objectives: alone, with another filter, in scope, archived left out', async () => {
+    const made = await asAdmin(async (tx) => {
+      const a = await r.objectives.create(tx, newObjective({ dueOn: day('2027-01-31') }));
+      const b = await r.objectives.create(
+        tx,
+        newObjective({ managementSystemId: w.stonebridgeSystem, dueOn: day('2027-02-28') }),
+      );
+      const c = await r.objectives.create(
+        tx,
+        newObjective({ standards: ['ISO_14001'], dueOn: day('2027-03-31') }),
+      );
+      const gone = await r.objectives.create(tx, newObjective());
+      await r.objectives.archive(tx, gone.id, gone.version);
+      const osprey = await r.objectives.create(
+        tx,
+        newObjective({ clientId: w.osprey, managementSystemId: w.ospreySystem }),
+      );
+      return { a: a.id, b: b.id, c: c.id, gone: gone.id, osprey: osprey.id };
+    });
+    const list: Lister = (tx, clientId, f) => r.objectives.list(tx, clientId, f);
+    await commonIds(list, [made.a, made.b, made.c], made.osprey, made.gone);
+    await asAdmin(async (tx) => {
+      const all = [made.a, made.b, made.c];
+      expect(
+        ids(await r.objectives.list(tx, w.kestrel, { ids: all, standard: 'ISO_14001' })),
+      ).toEqual([made.c]);
+      expect(
+        ids(await r.objectives.list(tx, w.kestrel, { ids: all, scope: scoped([w.stonebridge]) })),
+      ).toEqual([made.b]);
+    });
+  });
+
+  it('nonconformities: alone, with another filter, in scope, archived left out', async () => {
+    const made = await asAdmin(async (tx) => {
+      const a = await r.nonconformities.create(tx, newNc({ unitId: w.riverbend }));
+      const b = await r.nonconformities.create(
+        tx,
+        newNc({ managementSystemId: w.stonebridgeSystem, unitId: w.stonebridge }),
+      );
+      const c = await r.nonconformities.create(tx, newNc({ severity: 'MAJOR' }));
+      const gone = await r.nonconformities.create(tx, newNc());
+      await r.nonconformities.archive(tx, gone.id, gone.version);
+      const osprey = await r.nonconformities.create(
+        tx,
+        newNc({ clientId: w.osprey, managementSystemId: w.ospreySystem }),
+      );
+      return { a: a.id, b: b.id, c: c.id, gone: gone.id, osprey: osprey.id };
+    });
+    const list: Lister = (tx, clientId, f) => r.nonconformities.list(tx, clientId, f);
+    await commonIds(list, [made.a, made.b, made.c], made.osprey, made.gone);
+    await asAdmin(async (tx) => {
+      const all = [made.a, made.b, made.c];
+      expect(
+        ids(await r.nonconformities.list(tx, w.kestrel, { ids: all, severity: ['MAJOR'] })),
+      ).toEqual([made.c]);
+      // Scope by unit only: the owner and approver named on every row are not the scope's person.
+      expect(
+        ids(
+          await r.nonconformities.list(tx, w.kestrel, { ids: all, scope: scoped([w.stonebridge]) }),
+        ),
+      ).toEqual([made.b]);
+    });
+  });
+
+  it('documents: not ACTIVE returned with ids, alone or filtered, in scope, archived left out; found by issuer and reference', async () => {
+    const doc = (code: string, extra: Record<string, unknown> = {}) => ({
+      clientId: w.kestrel,
+      managementSystemId: w.riverbendSystem,
+      code,
+      title: `Document ${code}`,
+      type: 'PROCEDURE' as const,
+      clauseIds: [],
+      status: 'ACTIVE' as const,
+      currentRevisionId: null,
+      ownerId: w.ownerId,
+      approverId: w.approverId,
+      reviewDueOn: null,
+      lastReviewedOn: null,
+      retention: null,
+      issuer: null,
+      externalRef: null,
+      ...extra,
+    });
+    const made = await asAdmin(async (tx) => {
+      const a = await r.controlledDocuments.create(tx, doc('IDS-01'));
+      const b = await r.controlledDocuments.create(
+        tx,
+        doc('IDS-02', { managementSystemId: w.stonebridgeSystem, status: 'OBSOLETE' }),
+      );
+      const c = await r.controlledDocuments.create(
+        tx,
+        doc('IDS-03', {
+          type: 'EXTERNAL',
+          issuer: 'Riverbend Pollution Control Board',
+          externalRef: 'RPCB/CTO/2026-117',
+        }),
+      );
+      const gone = await r.controlledDocuments.create(tx, doc('IDS-04'));
+      await r.controlledDocuments.archive(tx, gone.id, gone.version);
+      const osprey = await r.controlledDocuments.create(
+        tx,
+        doc('IDS-05', { clientId: w.osprey, managementSystemId: w.ospreySystem }),
+      );
+      return { a: a.id, b: b.id, c: c.id, gone: gone.id, osprey: osprey.id };
+    });
+    const list: Lister = (tx, clientId, f) => r.controlledDocuments.list(tx, clientId, f);
+    await commonIds(list, [made.a, made.b, made.c], made.osprey, made.gone);
+    await asAdmin(async (tx) => {
+      const all = [made.a, made.b, made.c];
+      const docs = (f: Record<string, unknown>) =>
+        r.controlledDocuments.list(tx, w.kestrel, f).then(ids);
+      expect(await docs({ ids: all, status: ['ACTIVE'] })).toEqual([made.a, made.c]);
+      expect(await docs({ ids: all, type: ['EXTERNAL'] })).toEqual([made.c]);
+      expect(await docs({ ids: all, scope: scoped([w.stonebridge]) })).toEqual([made.b]);
+      // Without ids the ACTIVE-only default stands.
+      expect(await docs({ q: 'IDS-0' })).toEqual([made.a, made.c]);
+      expect(await docs({ q: 'pollution control' })).toEqual([made.c]);
+      expect(await docs({ q: 'rpcb/cto/2026' })).toEqual([made.c]);
+      expect(await docs({ q: 'Document IDS-03' })).toEqual([made.c]);
+    });
+  });
+});
+
+describe('filters added by ISO-2j', () => {
+  it('actions: by subject system (a finding through its audit), subject id, text and due range', async () => {
+    const made = await asAdmin(async (tx) => {
+      const nc = await r.nonconformities.create(tx, newNc());
+      const risk = await r.riskItems.create(
+        tx,
+        newRisk({ managementSystemId: w.stonebridgeSystem }),
+      );
+      const objective = await r.objectives.create(tx, newObjective());
+      const review = await r.managementReviews.create(
+        tx,
+        newReview({ managementSystemId: w.stonebridgeSystem }),
+      );
+      const programme = await r.auditProgrammes.create(tx, {
+        clientId: w.kestrel,
+        managementSystemId: w.riverbendSystem,
+        fy: '2029-30',
+        notes: null,
+      });
+      const audit = await r.internalAudits.create(tx, newAudit(programme.id));
+      const finding = (internalAuditId: string | null, externalAuditId: string | null) =>
+        r.auditFindings.create(tx, {
+          clientId: w.kestrel,
+          internalAuditId,
+          externalAuditId,
+          type: 'OFI',
+          clauseIds: [],
+          unitId: null,
+          description: 'Zeta finding',
+          nonconformityId: null,
+        });
+      const internalFinding = await finding(audit.id, null);
+      const externalFinding = await finding(null, w.externalAuditId);
+      const action = async (
+        subject: IsoAction['subject'],
+        text: string,
+        dueOn: string,
+        o: Partial<NewEntity<IsoAction>> = {},
+      ) =>
+        (await r.isoActions.create(tx, newAction(subject, { text, dueOn: day(dueOn), ...o }))).id;
+      return {
+        nc: nc.id,
+        externalFinding: externalFinding.id,
+        onNc: await action({ type: 'NONCONFORMITY', id: nc.id }, 'Zeta calibrate', '2027-01-10'),
+        onRisk: await action({ type: 'RISK_ITEM', id: risk.id }, 'Zeta guard', '2027-02-01'),
+        onObjective: await action(
+          { type: 'OBJECTIVE', id: objective.id },
+          'Zeta train',
+          '2027-03-01',
+        ),
+        onReview: await action(
+          { type: 'MANAGEMENT_REVIEW', id: review.id },
+          'Zeta budget',
+          '2027-04-01',
+          { outputKey: 'IMPROVEMENT' },
+        ),
+        onInternal: await action(
+          { type: 'AUDIT_FINDING', id: internalFinding.id },
+          'Zeta relabel',
+          '2027-05-01',
+        ),
+        onExternal: await action(
+          { type: 'AUDIT_FINDING', id: externalFinding.id },
+          'Zeta respond',
+          '2027-06-01',
+        ),
+      };
+    });
+    await asAdmin(async (tx) => {
+      const list = (f: Parameters<typeof r.isoActions.list>[2]) =>
+        r.isoActions.list(tx, w.kestrel, { limit: 200, ...f }).then(ids);
+      const all = [
+        made.onNc,
+        made.onRisk,
+        made.onObjective,
+        made.onReview,
+        made.onInternal,
+        made.onExternal,
+      ];
+      expect(await list({ q: 'zeta' })).toEqual(all);
+      expect(await list({ q: 'ZETA RELABEL' })).toEqual([made.onInternal]);
+      expect(await list({ q: 'zeta', managementSystemIds: [w.riverbendSystem] })).toEqual([
+        made.onNc,
+        made.onObjective,
+        made.onInternal,
+      ]);
+      expect(await list({ q: 'zeta', managementSystemIds: [w.stonebridgeSystem] })).toEqual([
+        made.onRisk,
+        made.onReview,
+        made.onExternal,
+      ]);
+      expect(
+        await list({ q: 'zeta', managementSystemIds: [w.riverbendSystem, w.stonebridgeSystem] }),
+      ).toEqual(all);
+      expect(await list({ q: 'zeta', managementSystemIds: [w.ospreySystem] })).toEqual([]);
+      expect(await list({ managementSystemIds: [] })).toEqual([]);
+      expect(await list({ subjectId: made.nc })).toEqual([made.onNc]);
+      expect(await list({ subjectId: made.externalFinding })).toEqual([made.onExternal]);
+      expect(await list({ q: 'zeta', dueFrom: day('2027-03-01') })).toEqual(all.slice(2));
+      expect(
+        await list({ q: 'zeta', dueFrom: day('2027-02-01'), dueTo: day('2027-04-01') }),
+      ).toEqual(all.slice(1, 4));
+      // Two pages of a system filter, and a unit-limited scope (the finding through its audit's system).
+      const riverbend = { q: 'zeta', managementSystemIds: [w.riverbendSystem], limit: 2 };
+      const first = await r.isoActions.list(tx, w.kestrel, { ...riverbend, count: true });
+      expect([ids(first), first.total]).toEqual([[made.onNc, made.onObjective], 3]);
+      const second = await r.isoActions.list(tx, w.kestrel, {
+        ...riverbend,
+        cursor: first.nextCursor,
+      });
+      expect([ids(second), second.nextCursor]).toEqual([[made.onInternal], null]);
+      expect(await list({ q: 'zeta', scope: scoped([w.stonebridge]) })).toEqual([
+        made.onRisk,
+        made.onReview,
+        made.onExternal,
+      ]);
+      expect(
+        await list({ q: 'zeta', dueFrom: day('2027-02-01'), scope: scoped([w.riverbend]) }),
+      ).toEqual([made.onObjective, made.onInternal]);
+    });
+    for (const bad of [{ q: '' }, { dueFrom: '2027-02-30' }, { subjectId: 'nc' }]) {
+      expect(await failure(asAdmin((tx) => r.isoActions.list(tx, w.kestrel, bad as never)))).toBe(
+        'VALIDATION',
+      );
+    }
+  });
+
+  it('nonconformities: by standard, any of them', async () => {
+    const made = await asAdmin(async (tx) => ({
+      quality: (await r.nonconformities.create(tx, newNc({ description: 'Zeta quality' }))).id,
+      both: (
+        await r.nonconformities.create(
+          tx,
+          newNc({ standards: ['ISO_9001', 'ISO_14001'], description: 'Zeta both' }),
+        )
+      ).id,
+      environment: (
+        await r.nonconformities.create(
+          tx,
+          newNc({ standards: ['ISO_14001'], description: 'Zeta environment' }),
+        )
+      ).id,
+      stonebridge: (
+        await r.nonconformities.create(
+          tx,
+          newNc({
+            managementSystemId: w.stonebridgeSystem,
+            standards: ['ISO_14001'],
+            description: 'Zeta stonebridge',
+          }),
+        )
+      ).id,
+    }));
+    await asAdmin(async (tx) => {
+      const list = (standards: ('ISO_9001' | 'ISO_14001' | 'ISO_45001')[]) =>
+        r.nonconformities.list(tx, w.kestrel, { q: 'zeta', standards, limit: 200 }).then(ids);
+      expect(await list(['ISO_9001'])).toEqual([made.quality, made.both]);
+      expect(await list(['ISO_14001'])).toEqual([made.both, made.environment, made.stonebridge]);
+      expect(await list(['ISO_9001', 'ISO_14001'])).toEqual([
+        made.quality,
+        made.both,
+        made.environment,
+        made.stonebridge,
+      ]);
+      const filter = { q: 'zeta', standards: ['ISO_14001' as const], limit: 2 };
+      const first = await r.nonconformities.list(tx, w.kestrel, filter);
+      const second = await r.nonconformities.list(tx, w.kestrel, {
+        ...filter,
+        cursor: first.nextCursor,
+      });
+      expect([ids(first), ids(second), second.nextCursor]).toEqual([
+        [made.both, made.environment],
+        [made.stonebridge],
+        null,
+      ]);
+      expect(
+        ids(
+          await r.nonconformities.list(tx, w.kestrel, {
+            q: 'zeta',
+            standards: ['ISO_14001'],
+            scope: scoped([w.stonebridge]),
+          }),
+        ),
+      ).toEqual([made.stonebridge]);
+      expect(
+        ids(
+          await r.nonconformities.list(tx, w.kestrel, {
+            q: 'zeta',
+            standards: ['ISO_9001'],
+            severity: ['MINOR'],
+            scope: scoped([w.stonebridge]),
+          }),
+        ),
+      ).toEqual([]);
+      expect(await list(['ISO_45001'])).toEqual([]);
+      expect(await list([])).toEqual([]);
+    });
+    expect(
+      await failure(
+        asAdmin((tx) =>
+          r.nonconformities.list(tx, w.kestrel, { standards: ['ISO_27001' as never] }),
+        ),
+      ),
+    ).toBe('VALIDATION');
+  });
+
+  it('internal audits: ids alone, with another filter, in scope, archived left out, page by page', async () => {
+    const made = await asAdmin(async (tx) => {
+      const programme = async (systemId: string) =>
+        (
+          await r.auditProgrammes.create(tx, {
+            clientId: w.kestrel,
+            managementSystemId: systemId,
+            fy: '2030-31',
+            notes: null,
+          })
+        ).id;
+      const riverbend = await programme(w.riverbendSystem);
+      const stonebridge = await programme(w.stonebridgeSystem);
+      const audit = async (programmeId: string, plannedStart: string, o = {}) =>
+        r.internalAudits.create(
+          tx,
+          newAudit(programmeId, {
+            plannedStart: day(plannedStart),
+            plannedEnd: day(plannedStart),
+            ...o,
+          }),
+        );
+      const a = await audit(riverbend, '2030-05-01');
+      const b = await audit(stonebridge, '2030-06-01');
+      const c = await audit(riverbend, '2030-07-01', {
+        state: 'CANCELLED',
+        cancelReason: 'Merged',
+      });
+      const gone = await audit(riverbend, '2030-08-01');
+      await r.internalAudits.archive(tx, gone.id, gone.version);
+      const [ospreyProgramme] = await Promise.all([
+        r.auditProgrammes.create(tx, {
+          clientId: w.osprey,
+          managementSystemId: w.ospreySystem,
+          fy: '2030-31',
+          notes: null,
+        }),
+      ]);
+      const osprey = await r.internalAudits.create(
+        tx,
+        newAudit(ospreyProgramme.id, { clientId: w.osprey, clauseIds: [] }),
+      );
+      return { a: a.id, b: b.id, c: c.id, gone: gone.id, osprey: osprey.id };
+    });
+    const all = [made.a, made.b, made.c];
+    await asAdmin(async (tx) => {
+      const list = (f: Parameters<typeof r.internalAudits.list>[2]) =>
+        r.internalAudits.list(tx, w.kestrel, f);
+      expect(ids(await list({ ids: [...all].reverse() }))).toEqual(all);
+      expect(ids(await list({ ids: [made.a, made.osprey] }))).toEqual([made.a]);
+      expect(ids(await list({ ids: [made.gone] }))).toEqual([]);
+      expect(ids(await list({ ids: all, state: ['CANCELLED'] }))).toEqual([made.c]);
+      expect(ids(await list({ ids: all, scope: scoped([w.stonebridge]) }))).toEqual([made.b]);
+      const first = await list({ ids: all, limit: 2, count: true });
+      expect([ids(first), first.total]).toEqual([all.slice(0, 2), 3]);
+      const second = await list({ ids: all, limit: 2, cursor: first.nextCursor });
+      expect([ids(second), second.nextCursor]).toEqual([all.slice(2), null]);
+    });
+    for (const bad of [
+      [],
+      [made.a, made.a],
+      Array.from({ length: 201 }, () => crypto.randomUUID()),
+    ]) {
+      expect(
+        await failure(asAdmin((tx) => r.internalAudits.list(tx, w.kestrel, { ids: bad }))),
+      ).toBe('VALIDATION');
+    }
   });
 });
 

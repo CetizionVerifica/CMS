@@ -8,6 +8,8 @@ import { checkPage, DEMO_METALS, signIn } from '../shell/helpers.js';
 const REGISTER = `/c/${DEMO_METALS}/register`;
 const APPROVALS = `/c/${DEMO_METALS}/approvals`;
 const FY = 'fy=2023-24';
+/** The names of Demo Metals' ISO activities' Acts (catalogue §3), as the drawer and approvals show them. */
+const ISO_ACT = /ISO \d+|Integrated management system/;
 
 const matchCount = (page: Page) => page.getByText(/^\d+ instances? match$/);
 
@@ -271,6 +273,77 @@ test.describe('register', () => {
     await page.keyboard.type('The unit does have a boiler.');
     await page.keyboard.press('Control+Enter');
     await expect(page.getByText(/^Sent “.+” back to /).first()).toBeVisible();
+    await expect(page.getByText('Nothing waiting for your approval.')).toBeVisible();
+    await checkPage(page);
+  });
+
+  // ISO-11c, after the inbox above is empty: the owner asks for an ISO activity to be marked not applicable, and the
+  // approver finds it under the ISO source alone, keeps the filter through its drawer, and sends it back.
+  test('an approver narrows the inbox to ISO activities and keeps the filter on the drawer', async ({
+    page,
+  }) => {
+    await signIn(
+      page,
+      'owner@demo.test',
+      `${REGISTER}?fy=2024-25&ownerId=me&workflowState=OPEN&source=ISO`,
+    );
+    const link = page.getByRole('table', { name: 'Register' }).getByRole('link').first();
+    await expect(link).toBeVisible();
+    const title = await link.innerText();
+    await link.click();
+    const owned = page.getByRole('dialog', { name: title });
+    await expect(owned).toContainText(ISO_ACT);
+    await owned.getByRole('button', { name: 'Not applicable…' }).click();
+    const na = page.getByRole('alertdialog', { name: 'Ask to mark this not applicable?' });
+    await na.getByLabel(/doesn’t apply/).fill('The site has no certified system yet.');
+    await na.getByRole('button', { name: 'Ask for not applicable' }).click();
+    await expect(page.getByText('Sent to the approver as not applicable.').first()).toBeVisible();
+    await page.context().clearCookies();
+
+    await signIn(page, 'approver@demo.test', APPROVALS);
+    const source = page.getByRole('group', { name: 'Source' });
+    const list = page.getByRole('list', { name: 'Waiting for approval' });
+    const rows = list.getByRole('link');
+    await expect(rows).toHaveCount(1);
+
+    // Law alone hides it; ISO alone shows it, and only ISO work.
+    await source.getByRole('button', { name: 'Law', exact: true }).click();
+    await expect(page).toHaveURL(`${APPROVALS}?source=LAW`);
+    await expect(page.getByText('Nothing waiting for your approval.')).toBeVisible();
+    await source.getByRole('button', { name: 'ISO', exact: true }).click();
+    await expect(page).toHaveURL(`${APPROVALS}?source=ISO`);
+    await expect(source.getByRole('button', { name: 'ISO', exact: true })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+    await expect(
+      page.getByRole('heading', { name: /^1 item waiting for your approval here\.$/ }),
+    ).toBeVisible();
+    await expect(rows).toHaveCount(1);
+    await expect(list).toContainText(ISO_ACT);
+    await expect(list).toContainText('asks to mark not applicable');
+    await checkPage(page);
+
+    // Its drawer keeps `?source=ISO`; Back returns to the filtered inbox.
+    await rows.first().click();
+    const drawer = page.getByRole('dialog', { name: title });
+    await expect(drawer.getByRole('button', { name: 'Approve as not applicable' })).toBeVisible();
+    await expect(page).toHaveURL(/\/approvals\/[0-9a-f-]{36}\?source=ISO$/);
+    await settled(page);
+    await expectNoA11yViolations(page);
+    await drawer.getByRole('button', { name: 'Close' }).click();
+    await expect(drawer).toBeHidden();
+    await expect(page).toHaveURL(`${APPROVALS}?source=ISO`);
+
+    // Deciding it from the drawer leaves the filtered inbox empty, still filtered.
+    await rows.first().click();
+    await drawer.getByRole('button', { name: 'Send back…' }).click();
+    const reason = page.getByRole('alertdialog', { name: 'Send this back to the owner?' });
+    await reason.getByLabel('Reason').fill('The site is certified; record the inspection.');
+    await reason.getByRole('button', { name: 'Send back' }).click();
+    await expect(page.getByText('Sent back to the owner.').first()).toBeVisible();
+    await drawer.getByRole('button', { name: 'Close' }).click();
+    await expect(page).toHaveURL(`${APPROVALS}?source=ISO`);
     await expect(page.getByText('Nothing waiting for your approval.')).toBeVisible();
     await checkPage(page);
   });

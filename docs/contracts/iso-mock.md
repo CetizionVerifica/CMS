@@ -20,6 +20,14 @@ README decisions 42-51. M4 owns every formula marked "stand-in".
   finding descriptions are never copied into audit events (non-negotiable 6): a RAISE (by hand, or from an internal or
   external finding, which adds `auditFindingId`) and a finding's `CREATE` leave them out, and an edit of a
   nonconformity's or a finding's description or an incident's location shows `[not recorded]` on both sides.
+- **The client audit trail.** Since 1.8.3 the ISO events are in firm B's `auditEvents` with the client's other events,
+  so `GET /clients/{clientId}/audit` lists and filters them, with the add-on on or off (plan §4.4). The fixture's
+  sample trail (fixtures.md §8) loads with them. The mock's clock does not move, so both trails list the events of
+  one instant newest first, in reverse order of writing (1.8.4).
+- **ISO exports.** The mock writes no file: an ISO export kind is checked (its filters against `ISO_EXPORT_FILTERS`, by
+  the body schema), kept as a `DONE` job named `iso-...-<today>.xlsx` or `.pdf` and audited as `EXPORT`. While the
+  add-on is off, its create, job read and download URL answer `403 FEATURE_NOT_ENABLED` after the role check; the
+  mock does not check that the audit or review a PDF names exists or is in the reader's units (M10 does, ISO-11d).
 - **File scans.** A confirmed file is `PENDING` and becomes `CLEAN` (or `INFECTED` for an "eicar" name) on the next
   read of its subject's files or download URL, or when a step relies on it: a revision's SUBMIT or RECORD_EDITION, an
   external audit's RECORD_HELD.
@@ -51,24 +59,84 @@ README decisions 42-51. M4 owns every formula marked "stand-in".
   POLICY gate accepts a link to clause 5.2 or a 5.2.x sub-clause. Objectives without a plan ignore CANCELLED actions.
 - **NC status** is OVERDUE when the earliest of `dueOn` (before AWAITING_VERIFICATION) and its OPEN actions' due
   dates is before today.
-- **Management review figures**: `since` is the standard's last HELD or CLOSED review of the same system before this
-  one, else the system's creation day, and never after as-of (a review held before its system was set up in the app
-  reviews just its own day). As-of is the review's `heldOn` once it is held (the window it reviewed), else today (a
-  PLANNED review, or a CANCELLED one, which was never held). A held review's figures read the records as they stood
-  on its `heldOn`: a record counts once it was created by then (a nonconformity, incidents included, once reported),
-  and a field takes the `before` value of its first audited change on a later client-local day, else its value now.
-  So open, overdue, done, cancelled, significance, severity, incident outcome, an objective's target and readings, an
-  audit's state, report date and visit dates, a finding's type and the climate decision are those of `heldOn`, and a
-  context item is changed in the window by an audited UPDATE in it. A row with no trail is read by its dates
-  (`closedOn`, `doneOn`, `updatedAt`, and for a cancel its last change, since a cancelled record takes no edits); a
-  cancel counts from its CANCEL step, so a row cancelled before its trail began and reopened later reads as not
-  cancelled. A review not held reads every record as it is now. Archived records appear in no figure but
-  `contextItemsRemoved`, whatever the day, since their ids no longer open. COMPLIANCE_EVALUATION reads the instances'
-  workflow as it is now, as the core score's as-of does. Figures count only records the caller can see
-  and whose standards overlap the review's; an internal audit's standards are those of its clauses (its system's when
-  it lists none), and findings follow their audit. INCIDENTS uses the overview's rule, so cancelled NCs are left out
-  of both. `readingsRecorded` counts every reading recorded in the window, whatever its period; on-track reads only
-  periods ended by as-of.
+- **Management review figures** (model §3.13, §5.4). A held review's figures are a record: RECORD_HELD stores each
+  non-MANUAL input's figures once, counted up to `heldOn`, with `figuresStoredAt` (when it was recorded held) and the
+  engine version `mock-1`, and a HELD or CLOSED review then always answers that copy, whatever changes later. A
+  PLANNED review's figures are computed on each read, as of today in the client's time zone, with `figuresStoredAt`
+  null, and RECORD_HELD refuses a `heldOn` after that day; a CANCELLED review and a MANUAL input have none. Storing
+  them does not move the input's version, so notes stay editable with the version read before. The RECORD_HELD event
+  carries each stored input's key, source, window and values, with no ids, and the engine version. The fixture JSON
+  holds no figures: the mock stores those of the fixtures' held reviews when it loads, as of their `heldOn`, at their
+  `updatedAt`, in that order (ties by id), each counting as earlier only the reviews stored before it, so two held on
+  one day get the same figures on every load. The mock works as M3 and M4 will (ISO-1a3): it gathers each input's
+  `ReviewFigureData` from the store and its audit trail, as ISO-2h's gather will, then computes the figures from that
+  data and the window alone, typed as `TypedReviewInputFigures`, as ISO-3b's engine will.
+  - **Window.** `since` is worked out per standard of the input: the later of the system's creation day and the
+    `heldOn` of the last other HELD or CLOSED review of the system that covers the standard with `heldOn` on or
+    before as-of. The input's `since` is the earliest of these, and never after as-of. At RECORD_HELD the review is
+    still PLANNED, so only reviews already held count: one recorded earlier with the same `heldOn` counts as earlier,
+    and a review recorded with a `heldOn` before another held review's takes its `since` only from reviews held on or
+    before its own `heldOn`, leaving the other's stored figures as they are. A review held before its system's
+    creation day stores no figures (the app held none of its records then): its rows keep null figures and its
+    RECORD_HELD event carries `figures: []`. One held on that day stores the figures of that one day.
+  - **Dates.** Each record is read as it is now, except where its dates place it on as-of, by client-local days. A
+    record counts from its creation day. A date the user enters places its record by the later of that date and the
+    day of the step that set it, the latest such step, so a record settled or entered after a review was recorded,
+    dated before it, counts in the next review instead of in neither: an action's settled day is the later of
+    `doneOn` and its COMPLETE step when DONE, and its CANCEL step when CANCELLED (the latest, so one completed,
+    reopened and completed again counts by the later COMPLETE), and it is OPEN on as-of until then; an objective's
+    CLOSE step with `closedOn` (open on as-of until then); an internal audit's REPORT step with `reportedOn`; and an
+    external audit's `endOn` with the latest event that set it, its RECORD_HELD or a later `UPDATE` naming `endOn`
+    (the visit's dates stay editable while HELD or RESPONDED; moved after a review counted it, the audit and its
+    findings count again in the next one, and the stored ids show it). A row seeded or loaded without that step in
+    its trail takes its `createdAt` as the step's time, so it is placed by the later of its entered date and its
+    creation day. `createdAt` never changes, so the row is placed once; `updatedAt` is not used, since any later write
+    (an internal audit's CLOSE, an external audit's RECORD_RESPONSE, a system PATCH) moves it. A nonconformity, incidents included, is raised and
+    counts from its counting day, the later of its creation day and its `reportedOn` (which may be backdated), and an
+    incident is placed by that day too (its `occurredAt` day is never later, below); a finding by the later of its
+    audit's day and its own creation day, whether or not its audit counts in the window. DONE and CANCELLED review
+    actions (PREVIOUS_ACTIONS), and DONE treatment actions (RISKS, which has no cancelled figure), count only when
+    their settled day is in the window, so an action settled before `since` is not counted again. A record reopened since is read as it is now: REOPEN clears an action's
+    `doneOn` and a nonconformity's `closedOn`, so live figures for any as-of read either as open. A record archived
+    after as-of counts as live; one archived on or before as-of counts only in `contextItemsRemoved`, which lists the
+    items archived in the window. `correctiveActionsOverdue` counts only the actions of nonconformities open on as-of.
+    `readingsRecorded` counts the readings created in the window, whatever their period; on-track reads the readings
+    created by as-of for periods ended by then.
+  - **Climate.** Each management system `UPDATE` naming `climateChangeRelevant`, `climateChangeRationale` or
+    `climateDecidedOn` is a decision on its own day. Only the climate route writes them, and only for the fields it
+    changes, so every call that changes any of the three is a decision: a new rationale alone, with the same
+    relevance and date, is one too. `climateDecided` counts from the first decision on or before as-of, so a
+    decision changed after as-of still counts; `climateDecidedInPeriod` counts when any decision falls in the window;
+    `climateRelevant` reads the decision as it is now. A system seeded or loaded decided has that decision too, when
+    its trail has no decision or its first does not move `climateChangeRelevant` from null (its events are then later
+    decisions): placed by the later of the `climateDecidedOn` it was seeded with (the `before` of the decisions since
+    gives it back) and its creation day.
+  - **Events.** Counts with no date field of their own take the client-local days of audited events in the window: a
+    context item's `UPDATE` (changed; an item added in the window counts only as added), a risk item's `UPDATE` whose
+    `after` names `likelihood`, `severity`, `residualLikelihood` or `residualSeverity` (re-rated; the clearing of a
+    residual rating when a treatment action puts the last control in place names its `sourceActionId` and is not
+    one), and a nonconformity `TRANSITION` whose `after.action` is VERIFY_NOT_EFFECTIVE (`verifiedNotEffective`
+    counts the steps and lists the nonconformities). Everything else is read as it is now: whether a record is
+    cancelled, significance, severity, incident outcome, finding type, audit state and, for COMPLIANCE_EVALUATION,
+    the instances' workflow, as the core score's as-of does.
+  - **Records.** Each source reads the records of the review's system whose standards overlap the input's. A RISKS
+    input reads the kinds of its key (`reviewRiskKinds`): SIGNIFICANT_ASPECTS aspects only, RISKS_AND_OPPORTUNITIES
+    risks and opportunities, and hazards too when ISO 45001 is among the input's standards, and RISK_ACTIONS risks and
+    opportunities. It has a `significant<Kind>` figure only for those kinds, so a 14001 review's two RISKS rows never
+    count, or show a zero for, each other's items. An
+    internal audit's standards are those of its clauses (its system's when it lists none), and a finding's those of
+    its clauses (its audit's when it lists none), so a 9001-only input counts no finding on a 14001 clause.
+    INCIDENTS uses the overview's rule, so cancelled NCs are left out of both. PREVIOUS_ACTIONS reads the review
+    actions of every earlier held review in the window above that covers one of the input's standards.
+  - **Readers.** Figures count the review's whole system with no unit scope (plan §3.3): every reader sees each
+    value, and the ids only of the records they may read in the table `REVIEW_FIGURE_KEYS` names for the key (none
+    for the score), so a value can be larger than its list of ids. A record archived since, a compliance instance
+    included, keeps its id in the stored copy for whoever may read it, but the id no longer opens, so M17 shows it
+    without a link. Incidents are the limit (model §3.13 item 4): when cutting an INCIDENTS row's ids for a reader
+    drops any id, the row answers `figuresWithheld: true`, with no `sourceFigures`, `figuresStoredAt` or `notes`,
+    unless the reader chairs or attends the review. The mock reads the ids the row counts, so a system whose units
+    were narrowed after an incident was counted still withholds it from an owner of the remaining units; a row with
+    no figures, and a client-wide reader, never are.
 
 ## Area by area
 
@@ -103,7 +171,9 @@ owner's and a CA's (investigation fields); the reassign route is FA's, CO's and 
 severity and the incident outcome, with a reason). Severity and outcome change only while OPEN or ROOT_CAUSE_FOUND;
 `lostDays` moves with the outcome on reassign, and alone only on the PATCH while the outcome stays LOST_TIME. A
 finding's NC refuses a severity change, and an NC without incident fields refuses an outcome, `400` in any open
-state (CLOSED or CANCELLED answers `409 INVALID_TRANSITION` first).
+state (CLOSED or CANCELLED answers `409 INVALID_TRANSITION` first). An incident's `occurredAt` may not be after now,
+nor its client-local day after the NC's `reportedOn` (`400 VALIDATION` on RAISE and on the PATCH, model §3.11); the
+mock checks it only when RAISE or the PATCH sets a new time, so a row loaded before 1.8.4 keeps its time until then.
 VERIFY_EFFECTIVE re-checks the SUBMIT_NO_ACTION rule on an NC submitted with none (the later of SUBMIT and
 SUBMIT_NO_ACTION in its trail), to catch rows changed outside these routes. VERIFY_NOT_EFFECTIVE
 may come before `effectivenessDueOn`; VERIFY_EFFECTIVE waits for it. `effectivenessDueOn` can move but never be cleared
@@ -120,7 +190,8 @@ unit, else none.
 
 **Management reviews and files.** A CANCELLED review is locked like a CLOSED one. The chair (or FA, CO, CA) edits
 attendees and minutes until it is CLOSED or CANCELLED; replanning is FA's, CO's and CA's, only while PLANNED. Changing
-standards while PLANNED archives the rows of keys no longer wanted and adds rows for new keys. A HELD review keeps every input's notes. Only
+standards while PLANNED archives the rows of keys no longer wanted and adds rows for new keys; a key added back gets a
+new row, and the archived one keeps its notes. A HELD review keeps every input's notes. Only
 the person who asked for an upload ticket confirms it. FA and CO read but do not add or remove files on an NC. The
 incident restriction on downloads covers files on the incident NC's actions too.
 

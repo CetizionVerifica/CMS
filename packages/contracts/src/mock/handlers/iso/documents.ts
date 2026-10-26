@@ -36,7 +36,7 @@ import {
   touchIso,
 } from '../../iso/common.js';
 import { isoTiming } from '../../iso/derive.js';
-import type { FirmState, IsoAuditEvent, IsoRow } from '../../store.js';
+import type { FirmState, AuditRecord, IsoRow } from '../../store.js';
 
 type Ids =
   | 'listIsoDocuments'
@@ -159,7 +159,7 @@ function takesApproverSteps(actor: Actor, doc: Doc, reach: IsoReach): boolean {
  * starts at DRAFT_REVISION, so every SUBMIT it has had counts. None of them approves it.
  */
 function makersOf(firm: FirmState, revision: Revision): string[] {
-  const submitters = firm.isoAuditEvents
+  const submitters = firm.data.auditEvents
     .filter(
       (e) =>
         e.entityType === 'document_revision' &&
@@ -370,7 +370,7 @@ function putInForce(
  * Audit groups of a document edit: a change of people is a reassignment, of `reviewDueOn` a due-date change (§8), each
  * with the body's reason.
  */
-const EDIT_GROUPS: [IsoAuditEvent['action'], string[]][] = [
+const EDIT_GROUPS: [AuditRecord['action'], string[]][] = [
   ['REASSIGN', ['ownerId', 'approverId']],
   ['DUE_DATE_CHANGE', ['reviewDueOn']],
   ['UPDATE', ['title', 'clauseIds', 'retention', 'issuer', 'externalRef']],

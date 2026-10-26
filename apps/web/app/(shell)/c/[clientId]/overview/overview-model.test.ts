@@ -7,6 +7,7 @@ import {
   departmentRows,
   greeting,
   kpis,
+  lawSource,
   overviewModel,
   registerHref,
   taskItems,
@@ -47,6 +48,23 @@ describe('registerHref', () => {
 
   it('leaves the query off when there is nothing to filter', () => {
     expect(registerHref(CLIENT, {}, undefined, 'calendar')).toBe(`/c/${CLIENT}/calendar`);
+  });
+
+  it('puts a source between the filters and the period', () => {
+    expect(registerHref(CLIENT, { status: 'OVERDUE' }, Q3, 'register', 'LAW')).toBe(
+      `${reg}?status=OVERDUE&source=LAW&fy=2022-23&q=Q3`,
+    );
+    expect(registerHref(CLIENT, {}, undefined, 'calendar', 'LAW')).toBe(
+      `/c/${CLIENT}/calendar?source=LAW`,
+    );
+  });
+});
+
+describe('lawSource', () => {
+  it('is LAW with the ISO add-on and nothing without it', () => {
+    expect(lawSource(['isoManagement'])).toBe('LAW');
+    expect(lawSource([])).toBeUndefined();
+    expect(lawSource(['somethingElse'])).toBeUndefined();
   });
 });
 
@@ -311,5 +329,51 @@ describe('overviewModel', () => {
     expect(model.kpis).toHaveLength(4);
     expect(model.upcoming).toHaveLength(1);
     expect(model.myTasks).toHaveLength(1);
+  });
+
+  // Every link on the page, from the KPIs and their details to the Act segments and the instance lists.
+  const hrefs = (features?: string[]) => {
+    const model = overviewModel({
+      clientId: CLIENT,
+      period: Q3,
+      overview: overview(
+        result({ OVERDUE: 2, DUE_SOON: 1, COMPLIED: 1 }, 50, 100),
+        [instance(1)],
+        [instance(2)],
+      ),
+      byDepartment: breakdown('department', [
+        { key: id(0x30), label: 'Finance', result: result({ OVERDUE: 1 }) },
+      ]),
+      byAct: breakdown('act', [
+        { key: id(0x40), label: 'Factories Act', result: result({ OVERDUE: 1 }) },
+      ]),
+      byCriticality: crit(1),
+      ...(features ? { features } : {}),
+    });
+    const all = [
+      ...model.kpis.flatMap((k) => [k.href, ...(k.detail ? [k.detail.href] : [])]),
+      ...model.departments.flatMap((d) => [d.href, d.overdueHref, d.compliedHref]),
+      ...model.acts.flatMap((a) => [a.href, ...a.segments.map((s) => s.href)]),
+      ...model.upcoming.map((d) => d.href!),
+      ...model.myTasks.map((t) => t.href!),
+      model.calendarHref,
+      model.myItemsHref,
+    ];
+    expect(all).toHaveLength(4 + 3 + 3 + 5 + 1 + 1 + 2);
+    return all;
+  };
+
+  it('with the ISO add-on, every link says Law, so each number equals the list it opens', () => {
+    for (const href of hrefs(['isoManagement'])) {
+      expect(new URL(href, 'https://x').searchParams.get('source'), href).toBe('LAW');
+      expect(href).toMatch(/&fy=2022-23&q=Q3$/);
+    }
+  });
+
+  it('without the add-on, the links are as they were', () => {
+    for (const href of [...hrefs(), ...hrefs([])]) {
+      expect(href).not.toContain('source=');
+      expect(href).toMatch(/fy=2022-23&q=Q3$/);
+    }
   });
 });

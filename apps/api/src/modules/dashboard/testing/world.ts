@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { DEFAULT_CLIENT_SETTINGS, type Role } from '@canopy/contracts';
 import { asLocalDate } from '@canopy/engine';
-import { createTestAuth, type MembershipInput } from '../../../auth/testing.js';
+import { accountView, createTestAuth, type MembershipInput } from '../../../auth/testing.js';
 import { buildServer } from '../../../server.js';
 import { InProcessRunner } from '../../reports/service.js';
 import { MemoryExportFiles } from '../../reports/files.js';
@@ -172,6 +172,43 @@ export function createWorld() {
     after: {},
   });
 
+  /**
+   * Turns the ISO add-on on or off for firm A, as the console's switch does: both the request's feature check
+   * (M5's store) and the export worker's read (the reports store) see it (docs/iso/plan.md §4.2).
+   */
+  function setIso(on: boolean) {
+    const features = on ? ['isoManagement'] : [];
+    const view = accountView(firmId);
+    auth.store.accounts.set(
+      firmId,
+      accountView(firmId, { entitlements: { ...view.entitlements, features } }),
+    );
+    store.features.set(firmId, features);
+  }
+
+  const isoAct = { actId: randomUUID(), actName: 'Environmental management systems' };
+  const quality = { departmentId: randomUUID(), departmentName: 'Quality' };
+  /**
+   * ISO activities in Beta Group (instances under a STANDARD act), each on a day and in a state a statutory row of
+   * the world also has, so a number that counted them would move. Added on request: the base world has none.
+   */
+  function addIsoRows(): Record<'overdue' | 'dueSoon' | 'complied' | 'upcoming', MemoryRow> {
+    const iso = (fields: Partial<MemoryRow>) =>
+      makeRow({ ...base(unit1), ...quality, ...isoAct, ...mine, actKind: 'STANDARD', ...fields });
+    const added = {
+      overdue: iso({ dueDate: d('2026-09-30'), criticality: 'CRITICAL' }),
+      dueSoon: iso({ dueDate: d('2026-10-15') }),
+      complied: iso({
+        dueDate: d('2026-06-30'),
+        workflowState: 'APPROVED',
+        completedOn: d('2026-06-20'),
+      }),
+      upcoming: iso({ dueDate: d('2027-02-28') }),
+    };
+    store.rows.push(...Object.values(added));
+    return added;
+  }
+
   /** Signs in with one membership of `role` in the Beta Group client (or firm-wide for firm roles). */
   function as(role: Role, extra: Partial<MembershipInput> = {}, personId?: string) {
     const membership: MembershipInput =
@@ -207,6 +244,9 @@ export function createWorld() {
     act,
     rows,
     as,
+    setIso,
+    addIsoRows,
+    isoAct,
   };
 }
 

@@ -77,7 +77,10 @@ ISO add-on, part 2 (ISO-2e, migration 0041; docs/iso/model.md §3.5-3.13)
   `audit_finding` (exactly one of internal or external audit; an NC link exactly for MAJOR_NC and MINOR_NC, one finding
   per NC), `nonconformity` (incident fields as `incident_*` columns, set exactly for INCIDENT and NEAR_MISS; composite
   keys to `compliance_instance` for `source_instance_id` and `statutory_instance_id`), `iso_action` (exactly one of five
-  subject columns), `management_review`, `review_input` and `review_output` (one per review and definition).
+  subject columns), `management_review`, `review_input` and `review_output` (one live row per review and definition, archived
+  rows beside it; migration 0043). `review_input` stores a held review's figures once: all three figure columns or
+  none, the figures a JSON object, then a trigger refuses any change to them, the definition, the review or the archive
+  (`notes` stays editable).
 - `nonconformity.number` counts per client from 1: a trigger sets it on insert under a transaction lock on the client
   and keeps it on update; a unique key backs it. Callers never pass it.
 - Lists of people and ISO records are join rows, archived when removed, with a partial key on live rows:
@@ -109,7 +112,7 @@ Field-level definitions are in `docs/contracts/domain-model.md` (M0); that file 
    has EXECUTE on it, and `createDatabase` refuses a login that is, or can `SET ROLE` to, `canopy_purge`. Every new
    table with `firm_id` must join that list, or the kept list of ADR M15-0002 decision 4, in the same migration (a
    schema test checks both).
-7. **Derived status is not stored** as the source of truth; the engine derives it. A materialised `status_cache` column is allowed for list performance if a job refreshes it daily and on every transition, and tests prove it matches the engine.
+7. **Derived status is not stored** as the source of truth; the engine derives it. A materialised `status_cache` column is allowed for list performance if a job refreshes it daily and on every transition, and tests prove it matches the engine. One exception, which is a record and not a cache: a held review's figures (`review_input.source_figures`, `figures_stored_at`, `figures_engine_version`; model §1.7, §3.13) are stored once at RECORD_HELD and a trigger keeps them unchanged (migration 0043).
 8. **Migrations**: Drizzle Kit generated, reviewed by hand, forward-only. Each migration is safe on a populated table (add nullable, backfill, then constrain). Never edit an applied migration.
 9. **Indexes** at least on `(firm_id, client_id, due_date)`, `(assignment_id, period_start)`, `(owner_id, workflow_state)`, `(approver_id, workflow_state)`.
 10. **Seeds**: `pnpm db:seed` creates two firms and loads the sample register through the importer, not with hand-written inserts.
@@ -153,6 +156,25 @@ Decisions and their reasons: `docs/adr/0003-m3-tenant-isolation-in-postgres.md`.
   each firm then runs in `withTenant(systemContext(firmId, ...))` with the `jobs` read models and
   `notificationSends` (`claim` returns NEW, PENDING or DONE; `listDone` lists instance and digest sends, `listDoneIso`
   ISO reminders with their subject).
+  `db.listFirmIdsWithFeature(flag)` (migration 0042) returns only the TRIAL and ACTIVE firms whose effective features
+  include `flag`, also ids only, from a function owned by `canopy_lookup` with column grants on what it reads.
+- Act kinds (ISO-2f, docs/iso/plan.md §4.6): the register, the evidence vault, `jobs.listScoreItems` and the act,
+  obligation and assignment lists take `actKinds` (`['STATUTE']` for statutory numbers; absent reads both, an empty
+  list matches nothing). `actKindOf.instance|obligation|assignment` gives the kind behind one row, or null when it is
+  not visible, for the add-on's off-switch checks; `actKindOf.instances(tx, ids)` answers many instances in one read
+  per 1,000 ids (a `Map`, unseen ids left out; ISO-2j).
+- ISO file scans (ISO-2j): `isoFiles.settleScan(tx, id, status)` writes a result only on a live PENDING file (in the
+  UPDATE's WHERE) and returns whether it wrote, so a remove that commits first is not overwritten.
+- ISO lists by id (ISO-2i): the nonconformity, risk, objective and document filters take `ids` (1 to 200, each once),
+  AND'd with the other filters and the unit scope before keyset paging; with `ids` the document list drops its
+  ACTIVE-only default; internal audits take `ids` too (ISO-2j). The document list's `q` matches code, title, issuer and
+  external reference. ISO-2j adds `standards` (any of) on nonconformities, and on actions `managementSystemIds` (the
+  subject's system; a finding's through its audit), `subjectId`, `q` on the text and `dueFrom`.
+- Role lookup (ISO-2i, model §1 rule 5): `memberships.holdsRole(tx, { personId, roles, clientId, unitId? })` says
+  whether a live person (not archived or DISABLED; migration 0045) holds a live role in a client covering the unit,
+  including memberships the context cannot read (a firm admin's or consultant's, for a client role). It calls `canopy_person_holds_role` (migration 0044), owned by
+  `canopy_lookup` with a firm-limited `role_lookup` policy on `membership` and column grants; false for a client the
+  context may not see.
 - In a single-table select, Drizzle leaves columns unqualified, so a correlated subquery inside `sql` binds them to
   the inner table. Use a join or two queries instead.
 - Imports (M8): `importBatches.create` takes an optional `id` (a UUIDv7 from `uuidv7()`, exported here) so an upload

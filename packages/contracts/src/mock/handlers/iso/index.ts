@@ -7,6 +7,8 @@ import { certificationsHandlers } from './certifications.js';
 import { nonconformitiesHandlers } from './nonconformities.js';
 import { reviewsHandlers } from './reviews.js';
 
+export { storeFixtureFigures } from './reviews.js';
+
 export const isoHandlers = {
   ...systemsHandlers,
   ...documentsHandlers,

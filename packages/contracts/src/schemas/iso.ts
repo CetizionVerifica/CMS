@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { IsoEntityType, IsoStandardCode, ScanStatus } from '../enums.js';
+import { type EntityType, IsoEntityType, IsoStandardCode, ScanStatus } from '../enums.js';
 import {
   baseShape,
   ClauseNumber,
@@ -1229,13 +1229,203 @@ export const ManagementReview = z
   });
 export type ManagementReview = z.infer<typeof ManagementReview>;
 
-/** One input row of a review: one per input key of its standards (a key shared by several appears once). */
-export const ReviewInput = z.strictObject({
-  ...isoShape,
-  managementReviewId: Id,
-  inputDefId: Id,
-  notes: LongText.max(8000).nullable(),
+/** One figure of a review input: a camelCase key, its value and the ids behind it (empty for a score). */
+export const ReviewFigure = z.strictObject({
+  key: z.string().regex(/^[a-z][a-zA-Z0-9]*$/, 'Expected a camelCase key'),
+  value: z.number().finite(),
+  ids: z.array(Id),
 });
+export type ReviewFigure = z.infer<typeof ReviewFigure>;
+
+/**
+ * `reviewInputFigures` (model §5.4): one input source's figures between `since` and `asOf`, both days included
+ * (`since` never after `asOf`), over the review's whole system; none for MANUAL. A PLANNED review's are computed as of
+ * today; a held review's are the copy its input row stored at RECORD_HELD, counted up to its `heldOn` (§3.13).
+ */
+export const ReviewInputFigures = z
+  .strictObject({
+    source: ReviewInputSource,
+    since: LocalDate,
+    asOf: LocalDate,
+    figures: z.array(ReviewFigure),
+  })
+  .refine((f) => f.since <= f.asOf, { message: 'since is after asOf', path: ['since'] });
+export type ReviewInputFigures = z.infer<typeof ReviewInputFigures>;
+
+/**
+ * What one figure key of `reviewInputFigures` means for its readers: `entityType`, the audit-trail entity type its ids
+ * name (an ISO type is also its table's name; `instance` is a compliance instance), null for a score with no ids; and
+ * `countsIds`, whether its value is the number of its ids. It is not for `lostDays` (a sum of days),
+ * `verifiedNotEffective` (a number of steps, with each NC once) or a score, so a screen that says "N (M you can open)"
+ * reads M from the ids only when `countsIds` is true.
+ */
+export interface ReviewFigureKeyInfo {
+  entityType: EntityType | null;
+  countsIds: boolean;
+}
+
+/** A figure whose value is the number of its ids, all of `entityType`. */
+const counts = <T extends EntityType>(entityType: T) => ({ entityType, countsIds: true }) as const;
+
+/**
+ * Every figure key `reviewInputFigures` emits, by source (model §5.4), with what it means (`ReviewFigureKeyInfo`). The
+ * engine emits each key of its source on every call, except `statutoryScore` when nothing is due in the window and the
+ * `significant<Kind>` keys of RISKS for a kind the input's key does not read (`reviewRiskKinds`), and every key it
+ * emits is listed here. A stored figure keeps its key for good (9001 7.5.3), so keys are only ever added:
+ * a key whose meaning changes gets a new name. M17 and M10 word every key listed; M3's `isoVisibleIds` (ISO-2h) takes
+ * each figure's entity type from here.
+ */
+export const REVIEW_FIGURE_KEYS = {
+  PREVIOUS_ACTIONS: {
+    actionsOpen: counts('iso_action'),
+    actionsOverdue: counts('iso_action'),
+    actionsDone: counts('iso_action'),
+    actionsCancelled: counts('iso_action'),
+  },
+  CONTEXT: {
+    issuesAdded: counts('context_item'),
+    issuesChanged: counts('context_item'),
+    interestedPartiesAdded: counts('context_item'),
+    interestedPartiesChanged: counts('context_item'),
+    contextItemsRemoved: counts('context_item'),
+    climateDecided: counts('management_system'),
+    climateRelevant: counts('management_system'),
+    climateDecidedInPeriod: counts('management_system'),
+  },
+  RISKS: {
+    itemsAdded: counts('risk_item'),
+    itemsRerated: counts('risk_item'),
+    // Only for the kinds the input's key reads (`reviewRiskKinds`).
+    significantRisk: counts('risk_item'),
+    significantOpportunity: counts('risk_item'),
+    significantAspect: counts('risk_item'),
+    significantHazard: counts('risk_item'),
+    treatmentActionsDone: counts('iso_action'),
+    treatmentActionsOpen: counts('iso_action'),
+  },
+  OBJECTIVES: {
+    objectivesOpen: counts('objective'),
+    onTrack: counts('objective'),
+    offTrack: counts('objective'),
+    withoutReading: counts('objective'),
+    achieved: counts('objective'),
+    notAchieved: counts('objective'),
+    readingsRecorded: counts('objective_reading'),
+  },
+  NONCONFORMITIES: {
+    raised: counts('nonconformity'),
+    closed: counts('nonconformity'),
+    raisedMajor: counts('nonconformity'),
+    raisedMinor: counts('nonconformity'),
+    raisedInternalAudit: counts('nonconformity'),
+    raisedExternalAudit: counts('nonconformity'),
+    raisedIncident: counts('nonconformity'),
+    raisedNearMiss: counts('nonconformity'),
+    raisedComplaint: counts('nonconformity'),
+    raisedProcess: counts('nonconformity'),
+    raisedLegal: counts('nonconformity'),
+    raisedOther: counts('nonconformity'),
+    closedMajor: counts('nonconformity'),
+    closedMinor: counts('nonconformity'),
+    closedInternalAudit: counts('nonconformity'),
+    closedExternalAudit: counts('nonconformity'),
+    closedIncident: counts('nonconformity'),
+    closedNearMiss: counts('nonconformity'),
+    closedComplaint: counts('nonconformity'),
+    closedProcess: counts('nonconformity'),
+    closedLegal: counts('nonconformity'),
+    closedOther: counts('nonconformity'),
+    verifiedNotEffective: { entityType: 'nonconformity', countsIds: false },
+    open: counts('nonconformity'),
+    correctiveActionsOverdue: counts('iso_action'),
+  },
+  INCIDENTS: {
+    incidents: counts('nonconformity'),
+    typeInjury: counts('nonconformity'),
+    typeIllHealth: counts('nonconformity'),
+    typeDangerousOccurrence: counts('nonconformity'),
+    typeEnvironmentalRelease: counts('nonconformity'),
+    typeFire: counts('nonconformity'),
+    typePropertyDamage: counts('nonconformity'),
+    typeNearMiss: counts('nonconformity'),
+    outcomeNone: counts('nonconformity'),
+    outcomeFirstAid: counts('nonconformity'),
+    outcomeMedicalTreatment: counts('nonconformity'),
+    outcomeRestrictedWork: counts('nonconformity'),
+    outcomeLostTime: counts('nonconformity'),
+    outcomeFatality: counts('nonconformity'),
+    lostDays: { entityType: 'nonconformity', countsIds: false },
+  },
+  AUDIT_RESULTS: {
+    internalAuditsReported: counts('internal_audit'),
+    externalAuditsHeld: counts('external_audit'),
+    findingsMajorNc: counts('audit_finding'),
+    findingsMinorNc: counts('audit_finding'),
+    findingsObservation: counts('audit_finding'),
+    findingsOfi: counts('audit_finding'),
+    findingsGoodPractice: counts('audit_finding'),
+  },
+  COMPLIANCE_EVALUATION: {
+    evaluationsDue: counts('instance'),
+    evaluationsDone: counts('instance'),
+    latestEvaluation: counts('instance'),
+    statutoryInstancesDue: counts('instance'),
+    statutoryScore: { entityType: null, countsIds: false },
+  },
+} as const satisfies Record<
+  Exclude<ReviewInputSource, 'MANUAL'>,
+  Record<string, ReviewFigureKeyInfo>
+>;
+
+/** A figure key of one source, as `REVIEW_FIGURE_KEYS` lists it. */
+export type ReviewFigureKey<
+  S extends keyof typeof REVIEW_FIGURE_KEYS = keyof typeof REVIEW_FIGURE_KEYS,
+> = S extends keyof typeof REVIEW_FIGURE_KEYS ? keyof (typeof REVIEW_FIGURE_KEYS)[S] : never;
+
+/**
+ * The risk kinds a RISKS input reads (model §5.4, catalogue §5): `SIGNIFICANT_ASPECTS` aspects only;
+ * `RISKS_AND_OPPORTUNITIES` risks and opportunities, and hazards when ISO 45001 is among the input's standards (the
+ * review's standards that ask for it); `RISK_ACTIONS` (9001 only) risks and opportunities. So a 14001 review's two RISKS
+ * rows never count the same item. Any other key reads no risk items. In `RiskKind` order; the caller gathers only these
+ * kinds (M3, ISO-2h), and the figures have a `significant<Kind>` key for these kinds only.
+ */
+export function reviewRiskKinds(
+  key: ReviewInputKey,
+  standards: readonly IsoStandardCode[],
+): RiskKind[] {
+  if (key === 'SIGNIFICANT_ASPECTS') return ['ASPECT'];
+  if (key === 'RISKS_AND_OPPORTUNITIES' && standards.includes('ISO_45001')) {
+    return ['RISK', 'OPPORTUNITY', 'HAZARD'];
+  }
+  return key === 'RISKS_AND_OPPORTUNITIES' || key === 'RISK_ACTIONS' ? ['RISK', 'OPPORTUNITY'] : [];
+}
+
+/**
+ * One input row of a review: one per input key of its standards (a key shared by several appears once). A held
+ * review's figures are a record, not a cache (model §1.7, §3.13): at RECORD_HELD each live row whose source is not
+ * MANUAL stores `sourceFigures` (the whole system, no unit scope), `figuresStoredAt` (the step's time) and
+ * `figuresEngineVersion` (`ENGINE_VERSION`), all three at once, and they never change after. A row stored before
+ * 1.8.2 has none of them, so they parse as null when absent.
+ */
+export const ReviewInput = z
+  .strictObject({
+    ...isoShape,
+    managementReviewId: Id,
+    inputDefId: Id,
+    notes: LongText.max(8000).nullable(),
+    sourceFigures: ReviewInputFigures.nullable().default(null),
+    figuresStoredAt: Instant.nullable().default(null),
+    figuresEngineVersion: Text.max(40).nullable().default(null),
+  })
+  .refine(
+    (r) =>
+      (r.sourceFigures === null) === (r.figuresStoredAt === null) &&
+      (r.sourceFigures === null) === (r.figuresEngineVersion === null),
+    {
+      path: ['sourceFigures'],
+      message: 'sourceFigures, figuresStoredAt and figuresEngineVersion are stored together',
+    },
+  );
 export type ReviewInput = z.infer<typeof ReviewInput>;
 
 /** One output row of a review: one per output key of its standards. */

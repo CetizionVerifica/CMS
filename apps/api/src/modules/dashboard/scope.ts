@@ -1,5 +1,7 @@
 import type {
   Action,
+  ActKind,
+  ActivitySource,
   FirmSettings,
   InstanceRow,
   LocalDate,
@@ -8,13 +10,40 @@ import type {
 } from '@canopy/contracts';
 import { engine, fyBounds, fyLabel, fyRangeOf, fyStartYear, localDateIn } from '@canopy/engine';
 import type { RegisterRow } from '@canopy/db';
-import { ApiError, can } from '../../auth/index.js';
+import { ApiError, can, hasFeature } from '../../auth/index.js';
 import type { ClientInfo, ReportsStore, RowFilter } from './ports.js';
 
 /**
  * What every M10 read shares: who may set `asOf`, which units an actor sees, the period, and turning stored
  * rows into register rows with the engine's status. No status or score maths here (root CLAUDE.md rule 3).
  */
+
+/** The ISO add-on's feature flag (docs/iso/plan.md §4.1). */
+export const ISO_FEATURE = 'isoManagement';
+
+/**
+ * Statutory numbers (scores, KPIs, breakdowns, the act-wise, department-wise and overdue reports, the certificate)
+ * read STATUTE-act instances only, with the ISO add-on on or off (docs/iso/plan.md §4.6).
+ */
+export const STATUTORY: Readonly<Pick<RowFilter, 'actKinds'>> = { actKinds: ['STATUTE'] };
+
+/**
+ * The act kinds a list of `source` reads (the calendar, the register export): with the ISO add-on off STATUTE only,
+ * whatever `source` says; with it on `LAW` = STATUTE, `ISO` = STANDARD and both when `source` is absent
+ * (docs/iso/plan.md §4.4, §4.6).
+ */
+export function sourceKinds(
+  isoOn: boolean,
+  source: ActivitySource | undefined,
+): Pick<RowFilter, 'actKinds'> {
+  if (!isoOn) return STATUTORY;
+  if (source === undefined) return {};
+  const kind: ActKind = source === 'ISO' ? 'STANDARD' : 'STATUTE';
+  return { actKinds: [kind] };
+}
+
+/** Whether the request's account has the ISO add-on now (M5's `hasFeature`, read fresh on every request). */
+export const isoOn = (ctx: RequestContext): Promise<boolean> => hasFeature(ctx, ISO_FEATURE);
 
 /** Roles that may report "as at" another date (api-conventions.md §1). */
 const AS_OF_ROLES = new Set(['FIRM_ADMIN', 'CONSULTANT', 'VIEWER']);

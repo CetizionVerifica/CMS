@@ -43,13 +43,14 @@ rows), so a firm's own statutory Act of the same name never blocks the copy. The
 same name whatever its origin, and creates only what is missing. M8's import matches and creates STATUTE acts only
 (ISO-16): STANDARD acts are left out of the names it knows and out of its commit lookup.
 
-Staff may edit a copied STANDARD obligation's rule, description, criticality, forms and log sheets like any library
-row (the rule lives on the obligation, so a change applies to the whole account), and may add their own activities
-under a STANDARD act. Nobody may change an act's kind, move an obligation between a STATUTE and a STANDARD act, or
-merge acts of different kinds (M6 answers `400 VALIDATION`, ISO-9b). Nobody may edit, archive or merge a STANDARD act
-either: its values above are fixed, and the copy finds it by name (`400 VALIDATION`, ISO-9b). `clauseRefs` belong to
-obligations under a STANDARD act: M6 refuses a non-empty list on a STATUTE obligation (`400 VALIDATION`) and on any
-obligation while the add-on is off (`403 FEATURE_NOT_ENABLED`).
+Staff may edit a copied STANDARD obligation's rule, description, criticality, forms and log sheets like any library row
+(the rule lives on the obligation, so a change applies to the whole account), and may add their own activities under a
+STANDARD act. Nobody may change an act's kind, move an obligation between a STATUTE and a STANDARD act, or merge acts of
+different kinds (M6 answers `400 VALIDATION`, ISO-9b). Nobody may edit or merge a STANDARD act either (there is no
+act-archive route, and the merge route, which archives its source acts, refuses a STANDARD source): its values above are
+fixed, and the copy finds it by name (`400 VALIDATION`, ISO-9b). Only the copy writes `clauseRefs` in v1. The obligation
+create and update bodies have no such field, so a body that names it answers `400 VALIDATION`, and an activity staff add
+under a STANDARD act has no clause references (a clause picker is Later, plan §2).
 
 ## 3. Recurring activity catalogue (minimum for v1)
 
@@ -105,7 +106,9 @@ A failed instance (a drill that went wrong, an instrument out of calibration) is
 ## 5. Management review inputs and outputs
 
 One key per input or output; a key shared by several standards appears once in an integrated review. Titles are ours.
-`source` says which records pre-fill the review pack; `MANUAL` inputs are written by hand.
+`source` says which records pre-fill the review pack; `MANUAL` inputs are written by hand. The RISKS inputs read
+different kinds: `SIGNIFICANT_ASPECTS` aspects only; `RISKS_AND_OPPORTUNITIES` risks and opportunities, and hazards when
+ISO 45001 is among the review's standards that list it; `RISK_ACTIONS` (9001 only) risks and opportunities (model §5.4).
 
 | Input key | Title (ours) | 9001 | 14001 | 45001 | Source |
 |---|---|---|---|---|---|
@@ -153,8 +156,11 @@ and records them in its ADR.
 | ISO 14001 | 2015 + Amd 1:2024 |
 | ISO 45001 | 2018 + Amd 1:2024 |
 
-Editions are data. If a revised ISO 9001 or ISO 14001 has been published by the day ISO-9 starts, ISO-9 also seeds
-that edition as a separate edition that new management systems may choose; existing systems keep theirs. Every
-record keeps the clause ids of the edition it was made under. **Moving an existing system to a newer edition**
-(a clause mapping, carrying assessments over, an edition-move action) **is Later**; until then a client that wants
-the new edition sets up a new management system on it.
+Editions are data. A revised ISO 9001 or ISO 14001 is seeded as a separate edition that new management systems may
+choose; existing systems keep theirs. ISO-9 (#279) seeded the editions above only: ISO 14001:2026 and ISO 9001:2026,
+published in 2026, follow in a later package once their clause lists are checked against the published texts, before any
+production account turns the add-on on. The copy runs once per account, so an account that copied version 1 gets them
+only through a top-up (ADR M6-0003 decision 8); the next plan change sets the package and the top-up. Every record keeps
+the clause ids of the edition it was made under. **Moving an existing system to a newer edition** (a clause mapping,
+carrying assessments over, an edition-move action) **is Later**; until then a client that wants the new edition sets up
+a new management system on it.

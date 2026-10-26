@@ -169,8 +169,10 @@ AP and OW dashboards are limited to their units (and owners see the same numbers
 Statutory numbers (portfolio, overview, breakdowns, the act-wise, department-wise and overdue reports, the certificate
 PDF) count STATUTE-act instances only, with the ISO add-on on or off (`docs/iso/plan.md` §4.6); while it is on,
 `PortfolioRow.dueThisWeekFilter.source` is `LAW`, so the linked register lists exactly the items counted. The ISO
-export kinds (`ISO_EXPORT_KINDS`) are staged: `kind` refuses them until ISO-1b joins them to `ExportKind`, after which
-their `filters` are checked against the ISO list queries (`ISO_EXPORT_FILTERS`), not the register's.
+export kinds (`ISO_EXPORT_KINDS`, part of `ExportKind` since 1.8.3) take the ISO list filters (`ISO_EXPORT_FILTERS`),
+not the register's: the NC log and risk register their list's query without paging, the audit report
+`internalAuditId=` and the review pack `managementReviewId=`. They are ISO data: while the add-on is off, creating one
+and reading or downloading its job answer `403 FEATURE_NOT_ENABLED`, after the role check (`docs/iso/plan.md` §4.5).
 `REGISTER_XLSX` uses the 19 sample headers in the same order so it re-imports with no changes.
 `CLIENT_ARCHIVE_ZIP` is the account export, one client at a time: FA only (`403 FORBIDDEN` for anyone else), no
 `filters`, `unitId` or `fy`; a zip of the client's whole register (every FY, the `REGISTER_XLSX` layout) and its clean
@@ -224,10 +226,15 @@ internal audit or certificate means its management system's units, an empty list
 the client); when it has no unit of its own and its management system's units qualify; or when it names them (owner,
 approver, lead auditor, auditor, auditee, reported-to, chair, attendee or investigator). A child record (finding,
 action, revision, reading, checklist row or item, control, input, output, file) takes its parent's units. Outside them a
-single read or write is `404`, and lists and overview counts leave the record out. The current approved revision of a
-system document, and its file, stays readable by every member of the client. The catalogue routes read the account's
-own copy, which is firm-wide and the same for every client: clause numbers, titles and summaries in our own words,
-never a standard's text.
+single read or write is `404`, and lists and overview counts leave the record out. Management review figures are the
+one exception (model §3.13 item 4): an input's values count the review's whole system, and each figure lists only the
+ids its reader may read (so a value can be larger than its list). Incidents are the limit: when cutting an INCIDENTS
+row's ids for a reader drops any id, the row answers `figuresWithheld: true`, with no `sourceFigures`,
+`figuresStoredAt` or `notes`, unless the reader is the review's chair or an attendee. The test reads the incidents the
+row counts, not the system's units, which can be narrowed after an incident was counted; a row with no figures, and a
+client-wide reader, are never withheld. The current approved revision of a system document, and its file, stays
+readable by every member of the client. The catalogue routes read the account's own copy, which is firm-wide and the
+same for every client: clause numbers, titles and summaries in our own words, never a standard's text.
 
 **Writes.** Every update and machine step carries `version` (`409 STALE_VERSION`). A step the record's state does not
 allow is `409 INVALID_TRANSITION` with `{ entity, from, action }`: the ISO entity type, its state (or a checklist row's
@@ -239,7 +246,8 @@ review or response date) needs a `reason`, and the event carries it (README deci
 one are listed in `src/api/iso.ts` per body, and a body that names one needs the reason even if the value is
 unchanged, so send only the fields that change. A date or owner a step sets itself (RECORD_HELD's dates, a risk's review
 date when a treatment action puts a control in place) needs none. Every create, edit, state change, list change and file add, remove or download writes an `AuditEvent` with
-the model §8 entity type (`ISO_ENTITY_TYPES`, staged: no route writes one before ISO-1b joins them to `EntityType`).
+the model §8 entity type (`ISO_ENTITY_TYPES`, part of `EntityType` since 1.8.3); `GET /clients/{clientId}/audit`
+lists those events with the client's other events, with the add-on on or off (`docs/iso/plan.md` §4.4).
 Views of records with a machine carry `allowedActions`, the steps the signed-in person may take now. Machine steps
 honour `Idempotency-Key` (api-conventions.md §2), RAISE and PLAN included, and so do a risk item's REVIEW, closing an
 objective, a nonconformity's reassign and a management review's replan; DRAFT_REVISION, like every other create, does
@@ -403,9 +411,9 @@ on the URL.
 | PATCH | `/clients/{clientId}/iso/management-reviews/{id}` `{ version, attendeeIds?, minutes? }` | `isoReview.write` | ✓ | ✓ | ✓ | own | own | | attendees and minutes until CLOSED or CANCELLED; AP/OW only as its chair |
 | POST | `/clients/{clientId}/iso/management-reviews/{id}/replan` `{ version, standards?, plannedOn?, chairId?, reason? }` | `isoReview.plan` | ✓ | ✓ | ✓ | | | | while PLANNED; a new date or chair needs a reason; changing standards adds and archives input and output rows |
 | POST | `/clients/{clientId}/iso/management-reviews/{id}/cancel` `{ version, reason }` | `isoReview.plan` | ✓ | ✓ | ✓ | | | | CANCEL a PLANNED review |
-| POST | `/clients/{clientId}/iso/management-reviews/{id}/held` `{ version, heldOn, attendeeIds?, minutes? }` | `isoReview.write` | ✓ | ✓ | ✓ | own | own | | RECORD_HELD: notes on every input; AP/OW only as its chair |
+| POST | `/clients/{clientId}/iso/management-reviews/{id}/held` `{ version, heldOn, attendeeIds?, minutes? }` | `isoReview.write` | ✓ | ✓ | ✓ | own | own | | RECORD_HELD: notes on every input; stores each input's figures as of `heldOn`; AP/OW only as its chair |
 | POST | `/clients/{clientId}/iso/management-reviews/{id}/close` | `isoReview.write` | ✓ | ✓ | ✓ | own | own | | CLOSE: a decision on every output, every review action DONE or CANCELLED |
-| GET | `/clients/{clientId}/iso/management-reviews/{id}/inputs` | `isoReview.read` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | each with its source's figures (`reviewInputFigures`); AP/OW limited to their units (plan §3.3) |
+| GET | `/clients/{clientId}/iso/management-reviews/{id}/inputs` | `isoReview.read` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | each with its source's figures: stored at RECORD_HELD for a HELD or CLOSED review (none for one held before its system was set up), computed for a PLANNED one; values cover the whole system, ids only the records the reader may read; the INCIDENTS row withheld, figures and notes, from a reader who may not read every incident it counts and is neither chair nor attendee (Scope above) |
 | PATCH | `/clients/{clientId}/iso/management-reviews/{id}/inputs/{inputId}` | `isoReview.write` | ✓ | ✓ | ✓ | own | own | | notes on one input |
 | GET | `/clients/{clientId}/iso/management-reviews/{id}/outputs` | `isoReview.read` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | AP/OW limited to their units (plan §3.3) |
 | PATCH | `/clients/{clientId}/iso/management-reviews/{id}/outputs/{outputId}` | `isoReview.write` | ✓ | ✓ | ✓ | own | own | | the decision on one output |

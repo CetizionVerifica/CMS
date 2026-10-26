@@ -225,3 +225,64 @@ action, names the step on clause N/A events, audits a system's status as an UPDA
 figures as the records stood on its `heldOn`, from their audit trail, with a window that never runs backwards
 (`iso-mock.md`). Tests pin the catalogue to its generator (201 clauses, 137 assessable) and the
 `objectiveProgress` stand-in at a client-local day boundary.
+
+## 1.8.2 · 2026-10-25
+ISO-1a2: stored management review figures and the rest of the 1.8.1 audit. A held review's figures are a record
+(README decision 52): `ReviewInput` gains `sourceFigures`, `figuresStoredAt` and `figuresEngineVersion`, stored
+together once at RECORD_HELD and null before, each null when absent so stored rows still parse.
+`ReviewInputView.sourceFigures` is the stored copy for a HELD or CLOSED review, computed as of the client-local today
+for a PLANNED one, and null for a CANCELLED review or a MANUAL input; the new `figuresStoredAt` is set exactly when it
+is the stored copy. `ReviewFigure` and `ReviewInputFigures` move from `schemas/iso-results.ts` to `schemas/iso.ts`
+under the same exported names. `ReviewFigureData` types the data of `reviewInputFigures` per source: every row with
+`createdOn` and `archivedOn`, actions also with `subject` and `doneOn`, nonconformities with `reportedOn`, and the
+event days `contextChanges`, `ratingChanges` and `notEffectiveSteps` (`ReviewFigureEventDay { entityId, on }`).
+`TypedReviewInputFigures` is the signature over it; `IsoEngineApi.reviewInputFigures` keeps its untyped `data` until
+M4 adopts that shape in ISO-3b, since ISO-3's engine checks itself against `IsoEngineApi` (README decision 52). This
+is a patch, as 1.0.1 and 1.8.1 were: 1.8.1 narrowed request bodies and split two routes while no module provided or
+called an ISO route, and 1.8.2 only adds types, an optional view field and record fields that are optional on
+parse.
+The mock stores the figures at RECORD_HELD as of `heldOn` over the whole system, puts their values (no ids) and the
+engine version in the event, answers that copy for a HELD or CLOSED review whatever changes later, and cuts each
+figure's ids to those the reader may read. It drops the 1.8.1 rebuild from the audit trail and applies model §5.4's
+date rules: a nonconformity counts from the later of its creation day and `reportedOn`; records archived, closed or
+done after as-of count as live, open or OPEN; event days are client-local; the clearing of a residual rating by a
+treatment action is not a re-rating; a review not held counts as of the client-local today, and RECORD_HELD refuses a `heldOn` after it; a stored id
+keeps its place for every reader who may read the record, an instance archived since included. The fixtures' held review
+gets its figures when the mock loads. An `Idempotency-Key` is cached per caller, route and record, so the same key
+on another record is a new request. A test pins the role matrix the stub `can()` reads: every ISO action has the same
+access on every route that checks it, and only the four older actions whose routes differ (`audit.read`,
+`instance.read`, `library.read`, `person.read`) may over-grant in the stub, which M5's policy settles. Decision 51 p
+says M13's and M17's edit forms send only the fields the person changed.
+
+## 1.8.3 · 2026-10-26
+ISO-1b: the staged ISO values join their contract enums (README decision 53). `ISO_ENTITY_TYPES` are the last values of
+`EntityType`, `ISO_NOTIFICATION_KINDS` of `NotificationKind` and `ISO_EXPORT_KINDS` of `ExportKind`, in their own
+order, so the Postgres enums keep theirs; the staged constants and their `Iso*` enums stay as subsets. M3 already
+stores every value (ISO-2b), M13 labels the entity types (ISO-12a) and M10 refuses at create a kind it does not build
+yet (ISO-11e), so this is a patch. `ExportCreateBody` now takes the ISO kinds, checking their filters against
+`ISO_EXPORT_FILTERS` as 1.8.0 set up; no schema shape changes. `IsoFixtureSet` gains `auditEvents` and
+`firm-b.iso.json` a sample of Northwind's ISO audit trail (158 events: the system's set-up with its 137 checklist rows,
+one record of each other kind created, and one form's first revision from draft to approval), each event as the mock's
+route writes it, leaving out every step the mock's rules or the held review's figures read. The mock moves ISO events
+into firm B's `auditEvents`, so the client audit trail lists and filters them, with the add-on on or off; it creates the
+ISO export kinds (`.xlsx` or `.pdf`) and, while the add-on is off, answers `403 FEATURE_NOT_ENABLED` on their create,
+job read and download, after the role check.
+
+## 1.8.4 · 2026-10-26
+ISO-1a3: management review figures place a backdated record by the step that set its date (README decision 54, plan
+v2.5.1). `ReviewFigureData` gains the step days (`settledOn` on actions, the latest settle; `closeStepOn`,
+`reportStepOn`, `heldStepOn`), CONTEXT's `climateDecisions` (the day of every climate decision) and RISKS's `kinds`,
+and its docs say how each source places and picks its records: DONE and CANCELLED actions by their settled day in the
+window, a nonconformity and its incident by the NC's counting day, a finding by the later of its audit's day and its
+creation day, a record with no step in its trail by its creation day, the climate decision from the first decision
+(a system decided when seeded keeping that decision), overdue corrective actions only of NCs open on as-of,
+RISKS kinds by input key (`reviewRiskKinds`, with a `significant<Kind>` key only for a kind read) and findings by
+their clauses' standards. New `REVIEW_FIGURE_KEYS` lists every figure key per source with its entity type and whether
+its value counts its ids. `ReviewInputView.figuresWithheld` withholds an INCIDENTS row, figures and notes, from a
+reader who may not read every incident it counts and is neither the chair nor an attendee. A review held before its
+system was set up stores no figures. The mock refuses an incident's `occurredAt` after now or with a client-local day
+after its NC's `reportedOn` (`400 VALIDATION`, model §3.11). `IsoEngineApi` is unchanged. This is a patch: every
+change adds a type, a field or a constant that no module reads yet, or is a mock rule. The mock gathers each input's
+data and computes the figures from it alone, stores the fixtures' held reviews in a stable order, and lists the client
+and instance audit trails newest first within one instant. `firm-b.iso.json` gains 18 step events (176 in all); of the
+held review's stored figures only its three RISKS rows change, by the kinds rule.

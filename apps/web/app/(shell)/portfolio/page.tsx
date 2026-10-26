@@ -37,6 +37,7 @@ export default async function PortfolioPage() {
   const items = portfolioItems(
     rows,
     Object.fromEntries(model.clients.map((c) => [c.id, c.timeZone])),
+    model.features,
   );
   // Account admins add clients here; a support session looks but does not add (ADR M15-0001 decision 11), and a
   // closing account adds nothing (decision 5).

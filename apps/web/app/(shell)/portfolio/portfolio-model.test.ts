@@ -1,7 +1,7 @@
 import { DerivedStatus, LocalDate, type PortfolioRow } from '@canopy/contracts';
 import { describe, expect, it } from 'vitest';
 
-import { portfolioItems, portfolioSummary, registerHref } from './portfolio-model';
+import { dueThisWeekHref, portfolioItems, portfolioSummary, registerHref } from './portfolio-model';
 
 const id = (n: number) => `00000000-0000-5000-8000-${n.toString(16).padStart(12, '0')}`;
 
@@ -38,6 +38,36 @@ describe('registerHref', () => {
   it('encodes the client id', () => {
     expect(registerHref('a/b', 'OVERDUE')).toBe('/c/a%2Fb/register?status=OVERDUE');
   });
+
+  it('adds the source when given one', () => {
+    expect(registerHref(id(1), 'OVERDUE', 'LAW')).toBe(
+      `/c/${id(1)}/register?status=OVERDUE&source=LAW`,
+    );
+  });
+});
+
+describe('dueThisWeekHref', () => {
+  const filter = {
+    dueFrom: LocalDate.parse('2023-03-15'),
+    dueTo: LocalDate.parse('2023-03-21'),
+    workflowState: ['OPEN' as const, 'SENT_BACK' as const],
+  };
+  const register = `/c/${id(1)}/register?workflowState=OPEN%2CSENT_BACK&dueFrom=2023-03-15&dueTo=2023-03-21`;
+
+  it('links to the register filtered to the API filter, unchanged without the ISO add-on', () => {
+    expect(dueThisWeekHref(id(1), filter)).toBe(register);
+  });
+
+  it('keeps the source the API put on the filter', () => {
+    expect(dueThisWeekHref(id(1), { ...filter, source: 'LAW' })).toBe(`${register}&source=LAW`);
+    expect(dueThisWeekHref(id(1), { ...filter, source: 'LAW' }, 'LAW')).toBe(
+      `${register}&source=LAW`,
+    );
+  });
+
+  it('says Law with the ISO add-on when the API filter has no source', () => {
+    expect(dueThisWeekHref(id(1), filter, 'LAW')).toBe(`${register}&source=LAW`);
+  });
 });
 
 describe('portfolioItems', () => {
@@ -54,6 +84,31 @@ describe('portfolioItems', () => {
       overviewHref: `/c/${id(1)}/overview`,
       overdueHref: `/c/${id(1)}/register?status=OVERDUE`,
     });
+  });
+
+  it('with the ISO add-on, the overdue and due-this-week links say Law', () => {
+    const filter = {
+      dueFrom: LocalDate.parse('2023-03-15'),
+      dueTo: LocalDate.parse('2023-03-21'),
+      workflowState: ['OPEN' as const],
+    };
+    const rows = [{ ...row(1, 'Alpha', 3, 82.5), dueThisWeekFilter: filter }];
+    const [on] = portfolioItems(rows, {}, ['isoManagement']);
+    expect(on!.overdueHref).toBe(`/c/${id(1)}/register?status=OVERDUE&source=LAW`);
+    expect(on!.dueThisWeekHref).toBe(
+      `/c/${id(1)}/register?workflowState=OPEN&dueFrom=2023-03-15&dueTo=2023-03-21&source=LAW`,
+    );
+    const [off] = portfolioItems(rows, {}, []);
+    expect(off!.overdueHref).toBe(`/c/${id(1)}/register?status=OVERDUE`);
+    expect(off!.dueThisWeekHref).toBe(
+      `/c/${id(1)}/register?workflowState=OPEN&dueFrom=2023-03-15&dueTo=2023-03-21`,
+    );
+  });
+
+  it('has no due-this-week link when the API does not say which rows it counted', () => {
+    expect(portfolioItems([row(1, 'Alpha', 3, 82.5)], {}, ['isoManagement'])[0]).not.toHaveProperty(
+      'dueThisWeekHref',
+    );
   });
 
   it('falls back to India time when the client time zone is unknown', () => {

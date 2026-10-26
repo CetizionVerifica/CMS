@@ -7,6 +7,7 @@ import { NoPermission, PageHeader } from '../../../../../lib/patterns';
 import { periodFromParams } from '../../../../../lib/period';
 import { homeHref } from '../../../../../lib/shell/model';
 import { loadShell } from '../../../../../lib/shell/server';
+import { isoOn, sourceFromParams } from '../register/_lib/source';
 import { CalendarView } from './_components/CalendarView';
 import { loadMonth } from './_lib/calendar-api';
 import { monthToShow, todayIn } from './_lib/month';
@@ -46,9 +47,12 @@ export default async function CalendarPage({ params, searchParams }: Props) {
   const today = todayIn(client.timeZone);
   const period = periodFromParams(search) ?? client.thisPeriod;
   const month = monthToShow(period, client.fyStartMonth, today);
+  // With the ISO add-on the calendar takes the Source filter from the URL; without it a stale `source` is ignored.
+  const iso = isoOn(model.features);
+  const source = sourceFromParams(search, iso);
   let due;
   try {
-    due = await loadMonth(await serverApi(), clientId, month);
+    due = await loadMonth(await serverApi(), clientId, month, source);
   } catch (error) {
     if (isApiError(error, 'FORBIDDEN', 'ACCESS_EXPIRED')) {
       return (
@@ -71,6 +75,8 @@ export default async function CalendarPage({ params, searchParams }: Props) {
         fyStartMonth={client.fyStartMonth}
         view={search.get('view') === 'list' ? 'list' : 'month'}
         query={search.toString()}
+        iso={iso}
+        source={source}
       />
     </>
   );

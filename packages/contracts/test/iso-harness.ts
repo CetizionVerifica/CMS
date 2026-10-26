@@ -121,9 +121,9 @@ export function standardId(app: App, code: IsoStandardCode): string {
   return firmB(app).isoCatalogue.standards.find((s) => s.code === code)!.id;
 }
 
-/** ISO audit events written for one record, oldest first. */
+/** Audit events written for one ISO record, oldest first. */
 export const isoEvents = (app: App, entityId: string) =>
-  firmB(app).isoAuditEvents.filter((e) => e.entityId === entityId);
+  firmB(app).data.auditEvents.filter((e) => e.entityId === entityId);
 
 let seq = 0;
 /** A fresh deterministic-enough id for seeded rows. */

@@ -2,6 +2,7 @@
 // scores, counts, statuses and overdue days are the API's (engine output). This file groups statuses into the cards'
 // words, picks the greeting line and builds the register links, each filtered to exactly the rows behind a number.
 import type {
+  ActivitySource,
   Breakdown,
   ClientOverview,
   DerivedStatus,
@@ -23,17 +24,31 @@ const sum = (result: ScoreResult, statuses: readonly DerivedStatus[]) =>
 
 const plural = (n: number, one: string, other: string) => `${n} ${n === 1 ? one : other}`;
 
+/** The add-on that puts ISO activities in the register beside the statutory work (`ShellModel.features`). */
+const ISO_FEATURE = 'isoManagement';
+
+/**
+ * The source every link from a statutory number carries: `LAW` while the account has the ISO add-on, because the
+ * register, calendar and approvals then list ISO activities too, while the numbers count STATUTE-act instances only
+ * (docs/iso/plan.md §4.6). Without the add-on the register is statutory anyway, so links stay as they were.
+ */
+export function lawSource(features: readonly string[]): ActivitySource | undefined {
+  return features.includes(ISO_FEATURE) ? 'LAW' : undefined;
+}
+
 /**
  * A register link in the filter language of api-conventions.md §3, carrying the page's period (`?fy=&q=`) so the
- * register opens on the same rows the number counted.
+ * register opens on the same rows the number counted, and the `source` those rows come from (see `lawSource`).
  */
 export function registerHref(
   clientId: string,
   filters: Record<string, string>,
   period?: Period,
   path = 'register',
+  source?: ActivitySource,
 ): string {
   const params = new URLSearchParams(filters);
+  if (source) params.set('source', source);
   const query = (period ? withPeriod(params, period) : params).toString();
   return `${clientHref(clientId, path)}${query ? `?${query}` : ''}`;
 }
@@ -81,6 +96,7 @@ export function kpis(
   result: ScoreResult,
   period: Period | undefined,
   byCriticality: Breakdown | undefined,
+  source?: ActivitySource,
 ): Kpi[] {
   const open = sum(result, OPEN_STATUSES);
   const overdue = result.counts.OVERDUE;
@@ -88,7 +104,7 @@ export function kpis(
     byCriticality?.rows.find((r) => r.key === 'SUPER_CRITICAL')?.result.counts.OVERDUE ?? 0;
   const complied = sum(result, COMPLIED_STATUSES);
   const link = (statuses: readonly DerivedStatus[], filters: Record<string, string> = {}) =>
-    registerHref(clientId, { status: statuses.join(','), ...filters }, period);
+    registerHref(clientId, { status: statuses.join(','), ...filters }, period, 'register', source);
   const dueSoon = result.counts.DUE_SOON;
   return [
     {
@@ -166,7 +182,10 @@ export function departmentRows(
   clientId: string,
   breakdown: Breakdown,
   period: Period | undefined,
+  source?: ActivitySource,
 ): DepartmentRow[] {
+  const link = (filters: Record<string, string>) =>
+    registerHref(clientId, filters, period, 'register', source);
   return breakdown.rows
     .map((row) => ({
       id: row.key,
@@ -174,13 +193,9 @@ export function departmentRows(
       score: row.result.score,
       complied: sum(row.result, COMPLIED_STATUSES),
       overdue: row.result.counts.OVERDUE,
-      href: registerHref(clientId, { departmentId: row.key }, period),
-      overdueHref: registerHref(clientId, { departmentId: row.key, status: 'OVERDUE' }, period),
-      compliedHref: registerHref(
-        clientId,
-        { departmentId: row.key, status: COMPLIED_STATUSES.join(',') },
-        period,
-      ),
+      href: link({ departmentId: row.key }),
+      overdueHref: link({ departmentId: row.key, status: 'OVERDUE' }),
+      compliedHref: link({ departmentId: row.key, status: COMPLIED_STATUSES.join(',') }),
     }))
     .sort(
       (a, b) =>
@@ -210,7 +225,10 @@ export function actRows(
   clientId: string,
   breakdown: Breakdown,
   period: Period | undefined,
+  source?: ActivitySource,
 ): ActRow[] {
+  const link = (filters: Record<string, string>) =>
+    registerHref(clientId, filters, period, 'register', source);
   return breakdown.rows
     .map((row) => ({
       id: row.key,
@@ -219,19 +237,24 @@ export function actRows(
         key,
         label,
         count: sum(row.result, statuses),
-        href: registerHref(clientId, { actId: row.key, status: statuses.join(',') }, period),
+        href: link({ actId: row.key, status: statuses.join(',') }),
       })),
-      href: registerHref(clientId, { actId: row.key }, period),
+      href: link({ actId: row.key }),
     }))
     .sort(
       (a, b) => b.segments[2]!.count - a.segments[2]!.count || a.name.localeCompare(b.name, 'en'),
     );
 }
 
-const instanceHref = (row: InstanceRow, period: Period | undefined) =>
-  registerHref(row.clientId, {}, period, `register/${encodeURIComponent(row.id)}`);
+// The register behind an instance keeps the source too, so closing the record shows the list the overview counted.
+const instanceHref = (row: InstanceRow, period: Period | undefined, source?: ActivitySource) =>
+  registerHref(row.clientId, {}, period, `register/${encodeURIComponent(row.id)}`, source);
 
-export function deadlineItems(rows: readonly InstanceRow[], period?: Period): DeadlineItem[] {
+export function deadlineItems(
+  rows: readonly InstanceRow[],
+  period?: Period,
+  source?: ActivitySource,
+): DeadlineItem[] {
   return rows.map((row) => ({
     id: row.id,
     dueDate: row.dueDate,
@@ -239,11 +262,15 @@ export function deadlineItems(rows: readonly InstanceRow[], period?: Period): De
     meta: `${row.departmentName} · ${row.ownerName}`,
     status: row.status,
     days: row.overdueDays ?? undefined,
-    href: instanceHref(row, period),
+    href: instanceHref(row, period, source),
   }));
 }
 
-export function taskItems(rows: readonly InstanceRow[], period?: Period): TaskItem[] {
+export function taskItems(
+  rows: readonly InstanceRow[],
+  period?: Period,
+  source?: ActivitySource,
+): TaskItem[] {
   return rows.map((row) => ({
     id: row.id,
     title: row.title,
@@ -251,7 +278,7 @@ export function taskItems(rows: readonly InstanceRow[], period?: Period): TaskIt
     dueDate: row.dueDate,
     status: row.status,
     days: row.overdueDays ?? undefined,
-    href: instanceHref(row, period),
+    href: instanceHref(row, period, source),
   }));
 }
 
@@ -275,17 +302,26 @@ export function overviewModel(input: {
   byDepartment: Breakdown;
   byAct: Breakdown;
   byCriticality?: Breakdown;
+  /** The account's add-ons (`ShellModel.features`): with ISO on, every link says `source=LAW` (`lawSource`). */
+  features?: readonly string[];
 }): OverviewModel {
   const { clientId, period, overview } = input;
+  const source = lawSource(input.features ?? []);
   return {
     greeting: greeting(overview.result, input.byCriticality),
-    kpis: kpis(clientId, overview.result, period, input.byCriticality),
-    departments: departmentRows(clientId, input.byDepartment, period),
-    acts: actRows(clientId, input.byAct, period),
-    upcoming: deadlineItems(overview.upcoming, period),
-    myTasks: taskItems(overview.myTasks, period),
+    kpis: kpis(clientId, overview.result, period, input.byCriticality, source),
+    departments: departmentRows(clientId, input.byDepartment, period, source),
+    acts: actRows(clientId, input.byAct, period, source),
+    upcoming: deadlineItems(overview.upcoming, period, source),
+    myTasks: taskItems(overview.myTasks, period, source),
     today: overview.result.asOf,
-    calendarHref: registerHref(clientId, {}, period, 'calendar'),
-    myItemsHref: registerHref(clientId, { ownerId: 'me', status: OPEN_STATUSES.join(',') }, period),
+    calendarHref: registerHref(clientId, {}, period, 'calendar', source),
+    myItemsHref: registerHref(
+      clientId,
+      { ownerId: 'me', status: OPEN_STATUSES.join(',') },
+      period,
+      'register',
+      source,
+    ),
   };
 }

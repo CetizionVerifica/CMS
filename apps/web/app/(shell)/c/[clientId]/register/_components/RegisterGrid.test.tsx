@@ -412,3 +412,43 @@ describe('saved views', () => {
     setItem.mockRestore();
   });
 });
+
+describe('RegisterGrid’s Source filter (ISO add-on)', () => {
+  const filters = () => screen.getByRole('group', { name: 'Filters' });
+
+  it('is absent without the add-on, even when the URL carries a source', () => {
+    nav.search = 'source=ISO';
+    renderGrid();
+    expect(within(filters()).queryByRole('button', { name: /^Source/ })).toBeNull();
+    // A stale source is no filter: the empty state is the first-use one, not "no matches".
+    renderGrid({ rows: [] });
+    expect(screen.getByText('Nothing in the register for this period')).toBeTruthy();
+  });
+
+  it('writes one source into the URL, keeping the period, and both ticked means both', async () => {
+    const user = userEvent.setup();
+    nav.search = 'fy=2024-25&q=Q3';
+    const { rerender } = renderGrid({ iso: true });
+    await user.click(within(filters()).getByRole('button', { name: 'Source' }));
+    await user.click(screen.getByRole('checkbox', { name: 'ISO' }));
+    expect(lastUrl()).toBe(`${PATH}?fy=2024-25&q=Q3&source=ISO`);
+    rerender({ iso: true });
+    expect(screen.getByRole('button', { name: 'Source filter: ISO. Change' })).toBeTruthy();
+    // The chip's list is still open: ticking Law as well means both, which the URL leaves out.
+    await user.click(screen.getByRole('checkbox', { name: /Law/ }));
+    expect(lastUrl()).toBe(`${PATH}?fy=2024-25&q=Q3`);
+  });
+
+  it('is saved with a view', async () => {
+    const user = userEvent.setup();
+    nav.search = 'fy=2024-25&source=LAW';
+    renderGrid({ iso: true });
+    await user.click(screen.getByRole('button', { name: /^View: / }));
+    await user.click(screen.getByRole('menuitem', { name: 'Save current view…' }));
+    await user.type(screen.getByRole('textbox', { name: /View name/ }), 'Statutory{Enter}');
+    const stored = JSON.parse(localStorage.getItem(storageKey(PERSON_ID, CLIENT_ID))!) as {
+      views: { name: string; query: string }[];
+    };
+    expect(stored.views.find((v) => v.name === 'Statutory')?.query).toBe('source=LAW');
+  });
+});

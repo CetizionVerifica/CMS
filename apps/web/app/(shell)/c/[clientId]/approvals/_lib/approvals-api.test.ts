@@ -68,6 +68,28 @@ describe('loadQueue', () => {
       },
     });
   });
+
+  it('narrows to the statutory work or the ISO activities when given a source', async () => {
+    const call = vi.fn(async () => ({ data: { items: [], nextCursor: null } }));
+    await loadQueue({ call } as never, CLIENT, 'client', undefined, 'ISO');
+    expect(call).toHaveBeenCalledWith('listInstances', {
+      params: { clientId: CLIENT },
+      query: {
+        workflowState: 'SUBMITTED',
+        source: 'ISO',
+        sort: 'dueDate',
+        limit: String(MAX_PAGE_LIMIT),
+        count: 'true',
+      },
+    });
+    // Against the demo, whose consultant's account has the add-on: Law and ISO split the queue between them.
+    const consultant = await as('consultant@demo.test', true);
+    const all = (await loadQueue(consultant, CLIENT, 'client')).total!;
+    const law = (await loadQueue(consultant, CLIENT, 'client', undefined, 'LAW')).total!;
+    const iso = (await loadQueue(consultant, CLIENT, 'client', undefined, 'ISO')).total!;
+    expect(law + iso).toBe(all);
+    expect(law).toBeGreaterThan(0);
+  });
 });
 
 describe('rows', () => {
@@ -94,6 +116,15 @@ describe('rows', () => {
       href: `/c/${CLIENT}/approvals/${done.id}`,
     });
     expect(taskItem(CLIENT, na)).toMatchObject({ status: 'OVERDUE', days: 4 });
+  });
+
+  it('keeps the page’s Source filter on the inbox and drawer paths', () => {
+    expect(approvalsHref(CLIENT, undefined, 'source=ISO')).toBe(
+      `/c/${CLIENT}/approvals?source=ISO`,
+    );
+    expect(approvalsHref(CLIENT, 'i1', 'source=LAW')).toBe(`/c/${CLIENT}/approvals/i1?source=LAW`);
+    const row = taskItem(CLIENT, { ...makeRow(3), id: 'i2' }, 'source=ISO');
+    expect(row.href).toBe(`/c/${CLIENT}/approvals/i2?source=ISO`);
   });
 
   it('reads the open instance from the path', () => {

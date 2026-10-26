@@ -23,6 +23,27 @@ describe('loadMonth', () => {
       params: { clientId: CLIENT },
       query: { from: '2024-02-01', to: '2024-02-29' },
     });
+    await loadMonth({ call } as never, CLIENT, '2024-11', 'ISO');
+    expect(call).toHaveBeenLastCalledWith('calendar', {
+      params: { clientId: CLIENT },
+      query: { from: '2024-11-01', to: '2024-11-30', source: 'ISO' },
+    });
+  });
+
+  it('splits a month between the statutory work and the ISO activities', async () => {
+    const { setCookies } = await api().login({
+      email: 'consultant@demo.test',
+      password: MOCK_PASSWORD,
+    });
+    let cookie = setCookies[0]!.split(';')[0]!;
+    cookie = (await api(cookie).verifyMfa(MOCK_MFA_CODE)).setCookies[0]!.split(';')[0]!;
+    const count = (due: Record<string, unknown[]>) =>
+      Object.values(due).reduce((n, items) => n + items.length, 0);
+    const all = count(await loadMonth(api(cookie), CLIENT, '2024-11'));
+    const law = count(await loadMonth(api(cookie), CLIENT, '2024-11', 'LAW'));
+    const iso = count(await loadMonth(api(cookie), CLIENT, '2024-11', 'ISO'));
+    expect(iso).toBeGreaterThan(0);
+    expect(law + iso).toBe(all);
   });
 
   it('groups the demo client’s due instances by their due date', async () => {

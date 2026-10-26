@@ -4,13 +4,22 @@
 // subject's files or of a download URL (a file name containing "eicar" fails it instead), as evidence does (work.ts).
 import type { z } from 'zod';
 import { SIGNED_URL_TTL_SECONDS } from '../../../api/common.js';
+import { DEFAULT_ISO_RISK_RULE } from '../../../defaults.js';
 import type {
   ManagementReviewView,
   ReviewClauseRef,
   ReviewInputView,
   ReviewOutputView,
 } from '../../../api/iso.js';
-import { IsoStandardCode, type Role } from '../../../enums.js';
+import { type EntityType, IsoStandardCode, type Role } from '../../../enums.js';
+import type {
+  ReviewFigureAction,
+  ReviewFigureData,
+  ReviewFigureDays,
+  ReviewFigureEventDay,
+  TypedReviewInputFigures,
+} from '../../../engine-api.js';
+import type { LocalDate } from '../../../primitives.js';
 import {
   FindingType,
   IncidentOutcome,
@@ -20,24 +29,29 @@ import {
   type IsoFileView,
   NcSeverity,
   NcSource,
+  REVIEW_FIGURE_KEYS,
+  type ReviewFigure,
+  type ReviewFigureKeyInfo,
+  type ReviewInputFigures,
   ReviewInputKey,
   type ReviewInputSource,
   ReviewOutputKey,
+  reviewRiskKinds,
 } from '../../../schemas/iso.js';
-import type { ReviewFigure, ReviewInputFigures } from '../../../schemas/iso-results.js';
 import {
   type Actor,
   type Clock,
   fileUrl,
   Lookup,
   matches,
+  membershipsFor,
   MockError,
   notFound,
   paginate,
   type Scope,
-  scoreResult,
-  visibleInstances,
+  MOCK_ENGINE_VERSION,
 } from '../../core.js';
+import { score } from '../../derive.js';
 import { actorOf, type PartialHandlers } from '../../handler.js';
 import {
   canSee,
@@ -66,8 +80,8 @@ import {
   systemUnitIds,
   touchIso,
 } from '../../iso/common.js';
-import { incidentsIn, localDate, objectiveOnTrack } from '../../iso/derive.js';
-import type { FirmState, IsoAuditEvent, IsoRow } from '../../store.js';
+import { localDate, objectiveOnTrackFrom } from '../../iso/derive.js';
+import type { FirmState, AuditRecord, IsoRow } from '../../store.js';
 
 type Ids =
   | 'listIsoManagementReviews'
@@ -120,7 +134,7 @@ const HELD: readonly Review['state'][] = ['HELD', 'CLOSED'];
  * Audit groups of a review edit (model §8): moving its date is a due-date change and a new chair a reassignment, each
  * with the reason, and its standards (with the input and output rows that follow them), attendees and minutes an UPDATE.
  */
-const EDIT_GROUPS: [IsoAuditEvent['action'], (keyof Review)[]][] = [
+const EDIT_GROUPS: [AuditRecord['action'], (keyof Review)[]][] = [
   ['DUE_DATE_CHANGE', ['plannedOn']],
   ['REASSIGN', ['chairId']],
   ['UPDATE', ['standards', 'attendeeIds', 'minutes']],
@@ -450,19 +464,45 @@ function syncRows(
   return Object.fromEntries(Object.entries(changes).filter(([, keys]) => keys.length > 0));
 }
 
-// ---------- review input figures (model §5.4) ----------
+// ---------- review input figures (model §3.13, §5.4) ----------
 
-/** What the figures of one input read: the actor (unit scope), the review, the input's standards and the window. */
-interface FigureScope {
-  actor: Actor;
+// A held review's figures are a record (model §1.7): RECORD_HELD stores each input's figures once, counted up to its
+// `heldOn`, and a HELD or CLOSED review always shows that copy. A PLANNED review's are computed on each read, as of the
+// client's today. Either way they count the whole system, with no unit scope (plan §3.3 exception); each reader gets
+// the ids they may read, and the values as they are, except the INCIDENTS row withheld from a reader who sees only part
+// of the system and takes no part in the review (model §3.13 item 4).
+//
+// The mock splits the work as M3 and M4 do: `gather` builds the contract's `ReviewFigureData` for one input from the
+// store and its audit trail, as ISO-2h's `reviewFigures.gather` will, and `figuresFrom` computes the figures from that
+// data and the window alone, as the engine's `reviewInputFigures` will once typed (`TypedReviewInputFigures`, ISO-3b).
+
+type FigureSource = Exclude<ReviewInputSource, 'MANUAL'>;
+
+/** A contract type as the mock's rows hold it: branded strings (days) as plain strings. */
+type Unbranded<T> = T extends z.$brand
+  ? string
+  : T extends readonly (infer U)[]
+    ? Unbranded<U>[]
+    : T extends object
+      ? { [K in keyof T]: Unbranded<T[K]> }
+      : T;
+type Data<S extends FigureSource> = Unbranded<ReviewFigureData[S]>;
+type FigureAction = Unbranded<ReviewFigureAction>;
+type FigureDays = Unbranded<ReviewFigureDays>;
+type EventDay = Unbranded<ReviewFigureEventDay>;
+
+/** What gathering one input's records reads: the review, its system, the input's key and standards, as-of. */
+interface GatherScope {
   firm: FirmState;
   review: Review;
   system: System;
+  key: InputDef['key'];
   /** The review's standards that ask for this input. */
   codes: readonly Code[];
-  since: string;
   asOf: string;
   timeZone: string;
+  /** The held reviews before this one that cover one of `codes` (`earlierReviews`). */
+  earlier: readonly Review[];
 }
 
 const figure = (key: string, ids: readonly string[]): Figure => ({
@@ -480,495 +520,844 @@ const figureKey = (prefix: string, value: string) =>
 
 const ids = (rows: readonly { id: string }[]) => rows.map((r) => r.id);
 
-/** Between `since` and `asOf`, both days included. */
-const within = (f: FigureScope, date: string | null) =>
-  date !== null && date >= f.since && date <= f.asOf;
+// ----- gather: the records of one input, as ISO-2h's `reviewFigures.gather` reads them -----
 
-const dayOf = (f: FigureScope, instant: string) => localDate(instant, f.timeZone);
+/** An instant's day in the client's time zone (the caller's `localDateIn`). */
+const dayOf = (g: GatherScope, instant: string) => localDate(instant, g.timeZone);
 
-// State on as-of (iso-mock.md "Management review figures"): a held review's figures read each record as it stood on
-// its heldOn, from the audit trail, so the review keeps the picture of the day it was held. A review not held reads
-// the records as they are now, with no day arithmetic across time zones.
+/** A row's creation and archive days. */
+const daysOf = (g: GatherScope, row: { createdAt: string; archivedAt: string | null }) => ({
+  createdOn: dayOf(g, row.createdAt),
+  archivedOn: row.archivedAt === null ? null : dayOf(g, row.archivedAt),
+});
 
-/** Whether the figures look back to a past day: the review was held. */
-const past = (f: FigureScope) => f.review.heldOn !== null;
+/** A table's rows of the review's client, archived ones included. */
+const rowsOf = <K extends IsoTable>(g: GatherScope, table: K): IsoRow<K>[] =>
+  (g.firm.iso[table] as IsoRow<K>[]).filter(
+    (r) => (r as { clientId: string }).clientId === g.review.clientId,
+  );
 
-/** Created by as-of, by its client-local day. */
-const existed = (f: FigureScope, row: { createdAt: string }) =>
-  !past(f) || dayOf(f, row.createdAt) <= f.asOf;
-
-/** The audited changes of `field` of a record (events whose `before` has it), oldest first. */
-const changesOf = (f: FigureScope, entityType: IsoEntity, id: string, field: string) =>
-  f.firm.isoAuditEvents
-    .filter(
-      (e) =>
-        e.entityType === entityType && e.entityId === id && e.before !== null && field in e.before,
-    )
-    .sort((a, b) => a.at.localeCompare(b.at));
-
-/** The first audited change of `field` of a record on a day after as-of (none for a review not held). */
-const changeAfter = (f: FigureScope, entityType: IsoEntity, id: string, field: string) =>
-  past(f) ? changesOf(f, entityType, id, field).find((e) => dayOf(f, e.at) > f.asOf) : undefined;
-
-/** A field's value on as-of: the `before` of its first audited change after as-of, else its value now. */
-function fieldAt<R extends { id: string }, K extends keyof R & string>(
-  f: FigureScope,
+/** The audited events of the given records that pass `test`. */
+const eventsOf = (
+  g: GatherScope,
   entityType: IsoEntity,
-  row: R,
-  field: K,
-): R[K] {
-  const change = changeAfter(f, entityType, row.id, field);
-  return change === undefined ? row[field] : (change.before![field] as R[K]);
-}
+  entityIds: ReadonlySet<string>,
+  test: (e: AuditRecord) => boolean,
+) =>
+  g.firm.data.auditEvents.filter(
+    (e) => e.entityType === entityType && entityIds.has(e.entityId) && test(e),
+  );
+
+/** Event days for model §5.4's window counts: one per event, each on its client-local day. */
+const eventDays = (g: GatherScope, events: readonly AuditRecord[]): EventDay[] =>
+  events.map((e) => ({ entityId: e.entityId, on: dayOf(g, e.at) }));
+
+/** A TRANSITION naming one of `steps` in its `after.action`. */
+const stepIs =
+  (...steps: string[]) =>
+  (e: AuditRecord) =>
+    e.action === 'TRANSITION' && steps.includes(e.after?.action as string);
 
 /**
- * Cancelled by as-of. A cancel counts from its CANCEL step in the trail; a row still CANCELLED with no step after
- * as-of counts from its last change (a cancelled nonconformity or action takes no edits). A row reopened after as-of
- * whose cancel left no step (seeded before the trail) has no day for it, so it reads as not cancelled.
+ * The day of a record's latest step that passes `test` (model §5.4: the latest when it was taken more than once). A
+ * row seeded or loaded without that step in its trail takes its `createdAt` instead, so it is placed by the later of
+ * its entered date and its creation day. `createdAt` never changes; `updatedAt` would move with any later write (an
+ * audit's CLOSE, a response recorded) and place the row a second time.
  */
-function cancelledBy(
-  f: FigureScope,
+function stepDay(
+  g: GatherScope,
   entityType: IsoEntity,
-  row: { id: string; state: string; updatedAt: string },
-): boolean {
-  if (!past(f)) return row.state === 'CANCELLED';
-  const steps = changesOf(f, entityType, row.id, 'state');
-  const later = steps.find((e) => dayOf(f, e.at) > f.asOf);
-  if (later === undefined) return row.state === 'CANCELLED' && dayOf(f, row.updatedAt) <= f.asOf;
-  return (
-    later.before!.state === 'CANCELLED' &&
-    steps.some((e) => e.after?.state === 'CANCELLED' && dayOf(f, e.at) <= f.asOf)
+  row: { id: string; createdAt: string },
+  test: (e: AuditRecord) => boolean,
+): string {
+  const latest = eventsOf(g, entityType, new Set([row.id]), test).reduce<string | null>(
+    (at, e) => (at === null || e.at > at ? e.at : at),
+    null,
   );
+  return dayOf(g, latest ?? row.createdAt);
 }
 
-/**
- * Changed in the window, other than by being created: an audited UPDATE on a day in the window or, for a row with no
- * change after as-of, its last change in the window.
- */
-function changedIn(
-  f: FigureScope,
-  entityType: IsoEntity,
-  row: { id: string; updatedAt: string; createdAt: string },
-) {
-  if (row.updatedAt === row.createdAt) return false;
-  const updates = f.firm.isoAuditEvents.filter(
-    (e) => e.entityType === entityType && e.entityId === row.id && e.action === 'UPDATE',
-  );
-  if (updates.some((e) => within(f, dayOf(f, e.at)))) return true;
-  const laterChange = past(f) && updates.some((e) => dayOf(f, e.at) > f.asOf);
-  return !laterChange && within(f, dayOf(f, row.updatedAt));
-}
+/** An action with its settled day: its latest COMPLETE or CANCEL step, none while OPEN. */
+const actionData = (g: GatherScope, a: Action): FigureAction => ({
+  id: a.id,
+  subject: a.subject,
+  state: a.state,
+  dueOn: a.dueOn,
+  doneOn: a.doneOn,
+  ...daysOf(g, a),
+  settledOn: a.state === 'OPEN' ? null : stepDay(g, 'iso_action', a, stepIs('COMPLETE', 'CANCEL')),
+});
 
-/** On or before as-of. */
-const byAsOf = (f: FigureScope, date: string | null) => date !== null && date <= f.asOf;
+/** The actions on records of one subject type among `subjectIds`. */
+const actionsOn = (g: GatherScope, type: Action['subject']['type'], subjectIds: Set<string>) =>
+  rowsOf(g, 'actions')
+    .filter((a) => a.subject.type === type && subjectIds.has(a.subject.id))
+    .map((a) => actionData(g, a));
 
-/** An action's state on as-of, or null before it was created. */
-function actionStateAt(f: FigureScope, a: Action): Action['state'] | null {
-  if (!existed(f, a)) return null;
-  if (cancelledBy(f, 'iso_action', a)) return 'CANCELLED';
-  return byAsOf(f, fieldAt(f, 'iso_action', a, 'doneOn')) ? 'DONE' : 'OPEN';
-}
-
-/** Open on as-of with its due date on as-of before it. */
-const overdueAt = (f: FigureScope, a: Action) =>
-  actionStateAt(f, a) === 'OPEN' && fieldAt(f, 'iso_action', a, 'dueOn') < f.asOf;
-
-/**
- * A nonconformity as it stood on as-of, in the fields the figures read: severity, incident detail, `closedOn`, and a
- * state that is CANCELLED exactly when it was cancelled by then (one cancelled later with no step in the trail reads
- * as OPEN).
- */
-function ncAt(f: FigureScope, n: Nc): Nc {
-  const at = <K extends keyof Nc & string>(field: K) => fieldAt(f, 'nonconformity', n, field);
-  const cancelled = cancelledBy(f, 'nonconformity', n);
-  const state = at('state');
-  return {
-    ...n,
-    severity: at('severity'),
-    incident: at('incident'),
-    closedOn: at('closedOn'),
-    state: cancelled ? 'CANCELLED' : state === 'CANCELLED' ? 'OPEN' : state,
-  };
-}
-
-/** Neither closed nor cancelled by as-of (`n` as `ncsFor` gives it: reported by then). */
-const ncOpenAt = (f: FigureScope, n: Nc) => !byAsOf(f, n.closedOn) && n.state !== 'CANCELLED';
-
-/** Held reviews of the system before this one (bounded by its own `heldOn`, or today) that covered one of `codes`. */
-function earlierReviews(
-  firm: FirmState,
-  review: Review,
-  codes: readonly Code[],
-  today: string,
-): Review[] {
-  const until = review.heldOn ?? today;
-  return liveIso(firm, 'managementReviews', review.clientId).filter(
-    (r) =>
-      r.id !== review.id &&
-      r.managementSystemId === review.managementSystemId &&
-      HELD.includes(r.state) &&
-      r.heldOn! <= until &&
-      r.standards.some((code) => codes.includes(code)),
-  );
-}
-
-/**
- * `since` for an input (model §5.4): per standard of the input, the `heldOn` of the last earlier held review covering
- * it, or else the system's creation day in the client's time zone; the earliest of those, so the figures leave out
- * nothing a standard has not been reviewed on yet, and never after as-of.
- */
-function sinceFor(f: Omit<FigureScope, 'since'>): string {
-  const earlier = earlierReviews(f.firm, f.review, f.codes, f.asOf);
-  const createdOn = localDate(f.system.createdAt, f.timeZone);
-  const last = f.codes.map((code) =>
-    earlier
-      .filter((r) => r.standards.includes(code))
-      .reduce((latest, r) => (r.heldOn! > latest ? r.heldOn! : latest), createdOn),
-  );
-  const since = [...last].sort()[0]!;
-  // A review held before its system was set up in the app reviews just its own day.
-  return since < f.asOf ? since : f.asOf;
-}
-
-/** PREVIOUS_ACTIONS: the actions of earlier held reviews by their state on as-of, and those overdue on as-of. */
-function previousActionFigures(f: FigureScope): Figure[] {
-  const reviews = new Set(ids(earlierReviews(f.firm, f.review, f.codes, f.asOf)));
-  const actions = liveIso(f.firm, 'actions', f.review.clientId).filter(
-    (a) =>
-      a.subject.type === 'MANAGEMENT_REVIEW' &&
-      reviews.has(a.subject.id) &&
-      canSee(f.actor, actionReach(f.firm, a)),
-  );
-  const inState = (state: Action['state']) =>
-    ids(actions.filter((a) => actionStateAt(f, a) === state));
-  return [
-    figure('actionsOpen', inState('OPEN')),
-    figure('actionsOverdue', ids(actions.filter((a) => overdueAt(f, a)))),
-    figure('actionsDone', inState('DONE')),
-    figure('actionsCancelled', inState('CANCELLED')),
-  ];
-}
-
-/** CONTEXT: issues and interested parties added, changed or removed in the window, and the climate decision on as-of. */
-function contextFigures(f: FigureScope): Figure[] {
-  const items = f.firm.iso.contextItems.filter(
-    (c) =>
-      c.clientId === f.review.clientId &&
-      c.managementSystemId === f.system.id &&
-      canSee(f.actor, systemReach(f.firm, c)),
-  );
-  const live = items.filter((c) => c.archivedAt === null);
-  const added = live.filter((c) => within(f, dayOf(f, c.createdAt)));
-  const changed = live.filter((c) => !added.includes(c) && changedIn(f, 'context_item', c));
-  const party = (c: { kind: string }) => c.kind === 'INTERESTED_PARTY';
-  const system = f.system;
-  const relevant = fieldAt(f, 'management_system', system, 'climateChangeRelevant');
-  const decidedOn = fieldAt(f, 'management_system', system, 'climateDecidedOn');
-  const decided = relevant !== null && byAsOf(f, decidedOn) ? [system.id] : [];
-  return [
-    figure('issuesAdded', ids(added.filter((c) => !party(c)))),
-    figure('issuesChanged', ids(changed.filter((c) => !party(c)))),
-    figure('interestedPartiesAdded', ids(added.filter(party))),
-    figure('interestedPartiesChanged', ids(changed.filter(party))),
-    figure(
-      'contextItemsRemoved',
-      ids(items.filter((c) => c.archivedAt !== null && within(f, dayOf(f, c.archivedAt)))),
-    ),
-    figure('climateDecided', decided),
-    figure('climateRelevant', relevant === true ? decided : []),
-    figure('climateDecidedInPeriod', within(f, decidedOn) ? decided : []),
-  ];
-}
-
-/** Rating fields: an audited change of one of them is a re-rating. */
+/** Rating fields: an audited UPDATE that names one of them in its `after` is a re-rating. */
 const RATING_FIELDS = ['likelihood', 'severity', 'residualLikelihood', 'residualSeverity'];
 
 /**
- * RISKS: items added or re-rated in the window, items significant on as-of by kind, treatment actions done in the
- * window and open on as-of.
+ * A re-rating (model §5.4): a risk item's UPDATE whose `after` names a rating field. The clearing of the residual
+ * rating when a treatment action puts the last control in place names its action (`sourceActionId`) and is not one.
  */
-function riskFigures(f: FigureScope): Figure[] {
-  const items = liveIso(f.firm, 'riskItems', f.review.clientId).filter(
-    (i) =>
-      i.managementSystemId === f.system.id &&
-      existed(f, i) &&
-      canSee(f.actor, riskReach(f.firm, i)),
-  );
-  const added = items.filter((i) => within(f, dayOf(f, i.createdAt)));
-  const rerated = new Set(
-    f.firm.isoAuditEvents
-      .filter(
-        (e) =>
-          e.entityType === 'risk_item' &&
-          within(f, dayOf(f, e.at)) &&
-          RATING_FIELDS.some((field) => e.after !== null && field in e.after),
-      )
-      .map((e) => e.entityId),
-  );
-  const itemIds = new Set(ids(items));
-  const treatments = liveIso(f.firm, 'actions', f.review.clientId).filter(
-    (a) => a.subject.type === 'RISK_ITEM' && itemIds.has(a.subject.id),
-  );
-  const significant = items.filter((i) => fieldAt(f, 'risk_item', i, 'significant'));
-  return [
-    figure('itemsAdded', ids(added)),
-    figure('itemsRerated', ids(items.filter((i) => !added.includes(i) && rerated.has(i.id)))),
-    ...(['RISK', 'OPPORTUNITY', 'ASPECT', 'HAZARD'] as const).map((kind) =>
-      figure(figureKey('significant', kind), ids(significant.filter((i) => i.kind === kind))),
-    ),
-    figure(
-      'treatmentActionsDone',
-      ids(treatments.filter((a) => within(f, fieldAt(f, 'iso_action', a, 'doneOn')))),
-    ),
-    figure('treatmentActionsOpen', ids(treatments.filter((a) => actionStateAt(f, a) === 'OPEN'))),
-  ];
-}
+const isRerating = (e: AuditRecord) =>
+  e.action === 'UPDATE' &&
+  e.after !== null &&
+  !('sourceActionId' in e.after) &&
+  RATING_FIELDS.some((field) => field in e.after!);
+
+/** A climate decision: a management system UPDATE naming a climate field, which only the climate route writes. */
+const CLIMATE_FIELDS = ['climateChangeRelevant', 'climateChangeRationale', 'climateDecidedOn'];
+const setsClimate = (e: AuditRecord) =>
+  e.action === 'UPDATE' && e.after !== null && CLIMATE_FIELDS.some((field) => field in e.after!);
 
 /**
- * OBJECTIVES: `objectiveProgress` of each objective of the input's standards (one listing several counts once here),
- * as it stood on as-of: those open then, on track, off track or without a reading (on track reads the readings
- * recorded by as-of for periods ended by then), those closed in the window by outcome, and the readings recorded in
- * the window, whatever their period.
+ * The decision a system was seeded or loaded with (model §5.4): one decided with no decision in its trail, or whose
+ * first decision (`decisions`, oldest first) does not move `climateChangeRelevant` from null, was decided before its
+ * trail starts. That decision is placed by the later of the `climateDecidedOn` it was seeded with, which the decisions
+ * since give back in their `before`, and its creation day.
  */
-function objectiveFigures(f: FigureScope): Figure[] {
-  const objectives = liveIso(f.firm, 'objectives', f.review.clientId).filter(
-    (o) =>
-      o.managementSystemId === f.system.id &&
-      existed(f, o) &&
-      o.standards.some((code) => f.codes.includes(code)) &&
-      canSee(f.actor, objectiveReach(f.firm, o)),
-  );
-  const readings = liveIso(f.firm, 'readings', f.review.clientId);
-  const readingsOf = (o: Objective) => readings.filter((r) => r.objectiveId === o.id);
-  const closedOn = new Map(objectives.map((o) => [o.id, fieldAt(f, 'objective', o, 'closedOn')]));
-  const open = objectives.filter((o) => !byAsOf(f, closedOn.get(o.id)!));
-  /** The objective and its readings as they stood on as-of. */
-  const onTrack = (o: Objective) =>
-    objectiveOnTrack(
-      {
-        ...o,
-        target: fieldAt(f, 'objective', o, 'target'),
-        baseline: fieldAt(f, 'objective', o, 'baseline'),
-        direction: fieldAt(f, 'objective', o, 'direction'),
-        dueOn: fieldAt(f, 'objective', o, 'dueOn'),
-      },
-      readingsOf(o)
-        .filter((r) => existed(f, r) && r.periodEnd <= f.asOf)
-        .map((r) => ({ ...r, value: fieldAt(f, 'objective_reading', r, 'value') })),
-      f.asOf,
-      f.timeZone,
-    );
-  const track = new Map(open.map((o) => [o.id, onTrack(o)]));
-  const closed = objectives.filter((o) => within(f, closedOn.get(o.id)!));
-  const outcome = (o: Objective) => fieldAt(f, 'objective', o, 'outcome');
-  const recorded = objectives.flatMap(readingsOf).filter((r) => within(f, dayOf(f, r.createdAt)));
-  return [
-    figure('objectivesOpen', ids(open)),
-    figure('onTrack', ids(open.filter((o) => track.get(o.id) === true))),
-    figure('offTrack', ids(open.filter((o) => track.get(o.id) === false))),
-    figure('withoutReading', ids(open.filter((o) => track.get(o.id) === null))),
-    figure('achieved', ids(closed.filter((o) => outcome(o) === 'ACHIEVED'))),
-    figure('notAchieved', ids(closed.filter((o) => outcome(o) === 'NOT_ACHIEVED'))),
-    figure('readingsRecorded', ids(recorded)),
-  ];
+function seededDecision(
+  g: GatherScope,
+  system: System,
+  decisions: readonly AuditRecord[],
+): EventDay[] {
+  if (system.climateChangeRelevant === null) return [];
+  const first = decisions[0];
+  if (first !== undefined && first.before?.climateChangeRelevant === null) return [];
+  let decidedOn = system.climateDecidedOn;
+  for (const e of [...decisions].reverse()) {
+    if (e.before !== null && 'climateDecidedOn' in e.before) {
+      decidedOn = e.before.climateDecidedOn as string | null;
+    }
+  }
+  return [{ entityId: system.id, on: later(decidedOn, dayOf(g, system.createdAt))! }];
 }
 
-/**
- * The system's nonconformities of the input's standards that the actor may see, reported by as-of, as they stood
- * then.
- */
-const ncsFor = (f: FigureScope) =>
-  liveIso(f.firm, 'nonconformities', f.review.clientId)
-    .filter(
-      (n) =>
-        n.managementSystemId === f.system.id &&
-        (!past(f) || n.reportedOn <= f.asOf) &&
-        n.standards.some((code) => f.codes.includes(code)) &&
-        canSee(f.actor, ncReach(f.firm, n)),
-    )
-    .map((n) => ncAt(f, n));
-
-/**
- * NONCONFORMITIES: raised and closed in the window, by source and severity; VERIFY_NOT_EFFECTIVE steps in the window
- * (the number of steps, with the nonconformities behind them); those open on as-of and their corrective actions
- * overdue on as-of.
- */
-function ncFigures(f: FigureScope): Figure[] {
-  const ncs = ncsFor(f);
-  const raised = ncs.filter((n) => within(f, n.reportedOn));
-  const closed = ncs.filter((n) => within(f, n.closedOn));
-  const ncIds = new Set(ids(ncs));
-  const notEffective = f.firm.isoAuditEvents.filter(
-    (e) =>
-      e.entityType === 'nonconformity' &&
-      ncIds.has(e.entityId) &&
-      e.after?.action === 'VERIFY_NOT_EFFECTIVE' &&
-      within(f, dayOf(f, e.at)),
+/** The system's nonconformities of the input's standards. */
+const ncsOf = (g: GatherScope) =>
+  rowsOf(g, 'nonconformities').filter(
+    (n) =>
+      n.managementSystemId === g.system.id && n.standards.some((code) => g.codes.includes(code)),
   );
-  const open = ncs.filter((n) => ncOpenAt(f, n));
-  const overdue = liveIso(f.firm, 'actions', f.review.clientId).filter(
-    (a) => a.subject.type === 'NONCONFORMITY' && ncIds.has(a.subject.id) && overdueAt(f, a),
-  );
-  const by = (prefix: string, rows: Nc[]) => [
-    ...NcSeverity.options.map((s) =>
-      figure(figureKey(prefix, s), ids(rows.filter((n) => n.severity === s))),
-    ),
-    ...NcSource.options.map((s) =>
-      figure(figureKey(prefix, s), ids(rows.filter((n) => n.source === s))),
-    ),
-  ];
-  return [
-    figure('raised', ids(raised)),
-    figure('closed', ids(closed)),
-    ...by('raised', raised),
-    ...by('closed', closed),
-    {
-      key: 'verifiedNotEffective',
-      value: notEffective.length,
-      ids: [...new Set(notEffective.map((e) => e.entityId))],
-    },
-    figure('open', ids(open)),
-    figure('correctiveActionsOverdue', ids(overdue)),
-  ];
-}
-
-/**
- * INCIDENTS (`incidentCounts`, the overview's rule `incidentsIn`): by the client-local day of `occurredAt`, those
- * cancelled by as-of left out, in total, by type and by outcome on as-of.
- */
-function incidentFigures(f: FigureScope): Figure[] {
-  const incidents = incidentsIn(ncsFor(f), { from: f.since, to: f.asOf }, f.timeZone);
-  const lostTime = incidents.filter((n) => n.incident!.lostDays !== null);
-  return [
-    figure('incidents', ids(incidents)),
-    ...IncidentType.options.map((t) =>
-      figure(figureKey('type', t), ids(incidents.filter((n) => n.incident!.type === t))),
-    ),
-    ...IncidentOutcome.options.map((o) =>
-      figure(figureKey('outcome', o), ids(incidents.filter((n) => n.incident!.outcome === o))),
-    ),
-    {
-      key: 'lostDays',
-      value: lostTime.reduce((sum, n) => sum + n.incident!.lostDays!, 0),
-      ids: ids(lostTime),
-    },
-  ];
-}
 
 /** Internal audit states once reported, and external audit states once the visit took place. */
 const REPORTED: readonly string[] = ['REPORTED', 'CLOSED'];
 const VISITED: readonly string[] = ['HELD', 'RESPONDED', 'CLOSED'];
 
-/**
- * AUDIT_RESULTS: internal audits reported and external audits ended (and held) in the window, of the input's
- * standards, and their findings by type, each as it stood on as-of. An internal audit's standards are its clauses' (the system's when it lists
- * none, as for the nonconformities its findings raise).
- */
-function auditFigures(f: FigureScope): Figure[] {
-  const clientId = f.review.clientId;
-  const standards = systemStandards(f.firm, f.system);
-  const covered = f.codes
-    .map((code) => standards.get(code))
-    .filter((id): id is string => id !== undefined);
-  const ofStandards = (a: Audit) =>
-    a.clauseIds.length === 0 ||
-    a.clauseIds.some((id) => covered.includes(clauseOf(f.firm, id)?.standardId ?? ''));
-  const audits = liveIso(f.firm, 'internalAudits', clientId).filter(
-    (a) =>
-      auditSystemId(f.firm, a) === f.system.id &&
-      ofStandards(a) &&
-      REPORTED.includes(fieldAt(f, 'internal_audit', a, 'state')) &&
-      within(f, fieldAt(f, 'internal_audit', a, 'reportedOn')) &&
-      canSee(f.actor, auditReach(f.firm, a)),
-  );
-  const externals = liveIso(f.firm, 'externalAudits', clientId).filter(
-    (e) =>
-      e.managementSystemId === f.system.id &&
-      e.standardIds.some((id) => covered.includes(id)) &&
-      VISITED.includes(fieldAt(f, 'external_audit', e, 'state')) &&
-      within(f, fieldAt(f, 'external_audit', e, 'endOn')) &&
-      canSee(f.actor, systemReach(f.firm, e)),
-  );
-  const auditIds = new Set([...ids(audits), ...ids(externals)]);
-  const findings = liveIso(f.firm, 'findings', clientId).filter(
-    (x) => auditIds.has(x.internalAuditId ?? x.externalAuditId!) && existed(f, x),
-  );
-  const typeOf = (x: Finding) => fieldAt(f, 'audit_finding', x, 'type');
-  return [
-    figure('internalAuditsReported', ids(audits)),
-    figure('externalAuditsHeld', ids(externals)),
-    ...FindingType.options.map((t) =>
-      figure(figureKey('findings', t), ids(findings.filter((x) => typeOf(x) === t))),
-    ),
-  ];
-}
+const GATHER: { [S in FigureSource]: (g: GatherScope) => Data<S> } = {
+  PREVIOUS_ACTIONS: (g) => ({
+    actions: actionsOn(g, 'MANAGEMENT_REVIEW', new Set(ids(g.earlier))),
+  }),
 
-/**
- * COMPLIANCE_EVALUATION: the evaluation activity's instances on the system's units (due and done in the window, and
- * the latest due by as-of), and the STATUTE-only score of the instances due in the window (a score has no ids).
- */
-function complianceFigures(f: FigureScope): Figure[] {
-  const look = new Lookup(f.firm);
-  const units = new Set(systemUnitIds(f.firm, f.system));
-  const instances = visibleInstances(f.actor, f.review.clientId).filter((i) => units.has(i.unitId));
-  const isStandard = (i: (typeof instances)[number]) =>
-    look.acts.get(look.obligationOf(i).actId)?.kind === 'STANDARD';
-  const evaluations = instances.filter(
-    (i) => isStandard(i) && look.obligationOf(i).externalRef === COMPLIANCE_EVALUATION_REF,
-  );
-  const latest = evaluations
-    .filter((i) => i.dueDate <= f.asOf)
-    .sort((a, b) => b.dueDate.localeCompare(a.dueDate))[0];
-  const statutory = instances.filter((i) => !isStandard(i) && within(f, i.dueDate));
-  const score = scoreResult(look, statutory, f.asOf).score;
-  return [
-    figure('evaluationsDue', ids(evaluations.filter((i) => within(f, i.dueDate)))),
-    figure(
-      'evaluationsDone',
-      ids(evaluations.filter((i) => i.workflowState === 'APPROVED' && within(f, i.completedOn))),
-    ),
-    figure('latestEvaluation', latest === undefined ? [] : [latest.id]),
-    figure('statutoryInstancesDue', ids(statutory)),
-    ...(score === null ? [] : [{ key: 'statutoryScore', value: score, ids: [] }]),
-  ];
-}
+  CONTEXT: (g) => {
+    const items = rowsOf(g, 'contextItems').filter((c) => c.managementSystemId === g.system.id);
+    const { system } = g;
+    const updates = eventsOf(g, 'context_item', new Set(ids(items)), (e) => e.action === 'UPDATE');
+    const decisions = eventsOf(g, 'management_system', new Set([system.id]), setsClimate).sort(
+      (a, b) => (a.at < b.at ? -1 : a.at > b.at ? 1 : 0),
+    );
+    return {
+      contextItems: items.map((c) => ({ id: c.id, kind: c.kind, ...daysOf(g, c) })),
+      contextChanges: eventDays(g, updates),
+      system: {
+        id: system.id,
+        climateChangeRelevant: system.climateChangeRelevant,
+        climateDecidedOn: system.climateDecidedOn,
+      },
+      climateDecisions: [...seededDecision(g, system, decisions), ...eventDays(g, decisions)],
+    };
+  },
 
-const FIGURES: Record<Exclude<ReviewInputSource, 'MANUAL'>, (f: FigureScope) => Figure[]> = {
-  PREVIOUS_ACTIONS: previousActionFigures,
-  CONTEXT: contextFigures,
-  RISKS: riskFigures,
-  OBJECTIVES: objectiveFigures,
-  NONCONFORMITIES: ncFigures,
-  INCIDENTS: incidentFigures,
-  AUDIT_RESULTS: auditFigures,
-  COMPLIANCE_EVALUATION: complianceFigures,
+  RISKS: (g) => {
+    const kinds = reviewRiskKinds(g.key, g.codes);
+    const items = rowsOf(g, 'riskItems').filter(
+      (i) => i.managementSystemId === g.system.id && kinds.includes(i.kind),
+    );
+    const itemIds = new Set(ids(items));
+    return {
+      kinds,
+      riskItems: items.map((i) => ({
+        id: i.id,
+        kind: i.kind,
+        significant: i.significant,
+        ...daysOf(g, i),
+      })),
+      ratingChanges: eventDays(g, eventsOf(g, 'risk_item', itemIds, isRerating)),
+      treatmentActions: actionsOn(g, 'RISK_ITEM', itemIds),
+    };
+  },
+
+  OBJECTIVES: (g) => {
+    const readings = rowsOf(g, 'readings');
+    const client = g.firm.data.clients.find((c) => c.id === g.review.clientId)!;
+    return {
+      objectives: rowsOf(g, 'objectives')
+        .filter(
+          (o) =>
+            o.managementSystemId === g.system.id &&
+            o.standards.some((code) => g.codes.includes(code)),
+        )
+        .map((o) => ({
+          id: o.id,
+          target: o.target,
+          baseline: o.baseline,
+          direction: o.direction,
+          readingRule: o.readingRule,
+          dueOn: o.dueOn,
+          closedOn: o.closedOn,
+          outcome: o.outcome,
+          ...daysOf(g, o),
+          closeStepOn: o.closedOn === null ? null : stepDay(g, 'objective', o, stepIs('CLOSE')),
+          readings: readings
+            .filter((r) => r.objectiveId === o.id)
+            .map((r) => ({
+              id: r.id,
+              periodStart: r.periodStart,
+              periodEnd: r.periodEnd,
+              value: r.value,
+              ...daysOf(g, r),
+            })),
+        })),
+      calendar: { fyStartMonth: client.settings.fyStartMonth },
+    };
+  },
+
+  NONCONFORMITIES: (g) => {
+    const ncs = ncsOf(g);
+    const ncIds = new Set(ids(ncs));
+    return {
+      nonconformities: ncs.map((n) => ({
+        id: n.id,
+        state: n.state,
+        severity: n.severity,
+        source: n.source,
+        reportedOn: n.reportedOn,
+        closedOn: n.closedOn,
+        ...daysOf(g, n),
+      })),
+      notEffectiveSteps: eventDays(
+        g,
+        eventsOf(g, 'nonconformity', ncIds, stepIs('VERIFY_NOT_EFFECTIVE')),
+      ),
+      correctiveActions: actionsOn(g, 'NONCONFORMITY', ncIds),
+    };
+  },
+
+  INCIDENTS: (g) => ({
+    nonconformities: ncsOf(g)
+      .filter((n) => n.incident !== null && n.state !== 'CANCELLED')
+      .map((n) => ({
+        id: n.id,
+        state: n.state,
+        reportedOn: n.reportedOn,
+        incident: n.incident,
+        ...daysOf(g, n),
+      })),
+    timeZone: g.timeZone,
+  }),
+
+  AUDIT_RESULTS: (g) => {
+    const standards = systemStandards(g.firm, g.system);
+    const covered = g.codes
+      .map((code) => standards.get(code))
+      .filter((id): id is string => id !== undefined);
+    // A record's standards are its clauses'; one that lists no clauses follows its system (an internal audit) or its
+    // audit (a finding), as for the nonconformities a finding raises.
+    const ofCovered = (clauseIds: readonly string[]) =>
+      clauseIds.length === 0 ||
+      clauseIds.some((id) => covered.includes(clauseOf(g.firm, id)?.standardId ?? ''));
+    const internal = rowsOf(g, 'internalAudits').filter(
+      (a) => auditSystemId(g.firm, a) === g.system.id && ofCovered(a.clauseIds),
+    );
+    const external = rowsOf(g, 'externalAudits').filter(
+      (e) =>
+        e.managementSystemId === g.system.id && e.standardIds.some((id) => covered.includes(id)),
+    );
+    const auditIds = new Set([...ids(internal), ...ids(external)]);
+    // RECORD_HELD sets `endOn`, and so does a later edit of the visit's dates.
+    const setsEnd = (e: AuditRecord) =>
+      stepIs('RECORD_HELD')(e) || (e.action === 'UPDATE' && e.after !== null && 'endOn' in e.after);
+    return {
+      internalAudits: internal.map((a) => ({
+        id: a.id,
+        state: a.state,
+        reportedOn: a.reportedOn,
+        ...daysOf(g, a),
+        reportStepOn:
+          a.reportedOn === null ? null : stepDay(g, 'internal_audit', a, stepIs('REPORT')),
+      })),
+      externalAudits: external.map((e) => ({
+        id: e.id,
+        state: e.state,
+        endOn: e.endOn,
+        ...daysOf(g, e),
+        heldStepOn: VISITED.includes(e.state) ? stepDay(g, 'external_audit', e, setsEnd) : null,
+      })),
+      findings: rowsOf(g, 'findings')
+        .filter(
+          (x) => auditIds.has(x.internalAuditId ?? x.externalAuditId!) && ofCovered(x.clauseIds),
+        )
+        .map((x) => ({
+          id: x.id,
+          auditId: x.internalAuditId ?? x.externalAuditId!,
+          type: x.type,
+          ...daysOf(g, x),
+        })),
+    };
+  },
+
+  COMPLIANCE_EVALUATION: (g) => {
+    const look = new Lookup(g.firm);
+    const units = new Set(systemUnitIds(g.firm, g.system));
+    const instances = g.firm.data.instances.filter(
+      (i) => i.clientId === g.review.clientId && units.has(i.unitId),
+    );
+    const isStandard = (i: (typeof instances)[number]) =>
+      look.acts.get(look.obligationOf(i).actId)?.kind === 'STANDARD';
+    return {
+      evaluations: instances
+        .filter(
+          (i) => isStandard(i) && look.obligationOf(i).externalRef === COMPLIANCE_EVALUATION_REF,
+        )
+        .map((i) => ({
+          id: i.id,
+          dueDate: i.dueDate,
+          workflowState: i.workflowState,
+          completedOn: i.completedOn,
+          ...daysOf(g, i),
+        })),
+      statutoryItems: instances
+        .filter((i) => !isStandard(i))
+        .map((i) => ({
+          instanceId: i.id,
+          criticality: look.obligationOf(i).criticality,
+          dueDate: i.dueDate,
+          workflowState: i.workflowState,
+          pendingKind: i.pendingKind,
+          completedOn: i.completedOn,
+          ...daysOf(g, i),
+        })),
+      settings: {
+        ...g.firm.data.firm.settings,
+        isoRisk: g.firm.data.firm.settings.isoRisk ?? DEFAULT_ISO_RISK_RULE,
+      },
+    };
+  },
 };
 
+// ----- compute: the figures from the data and the window alone, as the engine's `reviewInputFigures` -----
+
+/** The window: `since` to `asOf`, both days included. */
+interface Window {
+  since: string;
+  asOf: string;
+}
+
+/** Between `since` and `asOf`, both days included. */
+const within = (w: Window, day: string | null) => day !== null && day >= w.since && day <= w.asOf;
+
+/** On or before as-of. */
+const byAsOf = (w: Window, day: string | null) => day !== null && day <= w.asOf;
+
+/** The later of two days; a missing one never wins. */
+const later = (a: string | null, b: string | null) => (a === null || (b !== null && b > a) ? b : a);
+
+/** Live on as-of: created by then, and not archived by then (one archived on a later day still counts). */
+const liveOn = (w: Window, row: FigureDays) =>
+  row.createdOn <= w.asOf && (row.archivedOn === null || row.archivedOn > w.asOf);
+
+/** An action's settled day: the later of `doneOn` and its step when DONE, its step when CANCELLED, none while OPEN. */
+const settledDay = (a: FigureAction) =>
+  a.state === 'OPEN' ? null : later(a.state === 'DONE' ? a.doneOn : null, a.settledOn);
+
+/** An action's state on as-of: OPEN until its settled day. */
+const actionStateAt = (w: Window, a: FigureAction): FigureAction['state'] =>
+  byAsOf(w, settledDay(a)) ? a.state : 'OPEN';
+
+/** Open on as-of with its due date before as-of. */
+const overdueAt = (w: Window, a: FigureAction) =>
+  actionStateAt(w, a) === 'OPEN' && a.dueOn < w.asOf;
+
+/** The actions settled in the window in `state`. */
+const settledIn = (w: Window, actions: readonly FigureAction[], state: FigureAction['state']) =>
+  actions.filter((a) => a.state === state && within(w, settledDay(a)));
+
+/** An NC's counting day: the later of its creation day and `reportedOn`, which may be backdated. */
+const countingDay = (n: { createdOn: string; reportedOn: string }) =>
+  later(n.createdOn, n.reportedOn)!;
+
+/** Not archived by as-of. */
+const notArchivedBy = (w: Window, row: FigureDays) =>
+  row.archivedOn === null || row.archivedOn > w.asOf;
+
+const COMPUTE: { [S in FigureSource]: (d: Data<S>, w: Window) => Figure[] } = {
+  /** Open on as-of and overdue then, whichever review raised them; done and cancelled by their settled day. */
+  PREVIOUS_ACTIONS: (d, w) => {
+    const actions = d.actions.filter((a) => liveOn(w, a));
+    return [
+      figure('actionsOpen', ids(actions.filter((a) => actionStateAt(w, a) === 'OPEN'))),
+      figure('actionsOverdue', ids(actions.filter((a) => overdueAt(w, a)))),
+      figure('actionsDone', ids(settledIn(w, actions, 'DONE'))),
+      figure('actionsCancelled', ids(settledIn(w, actions, 'CANCELLED'))),
+    ];
+  },
+
+  /**
+   * Issues and interested parties added, changed (an audited UPDATE in the window) or removed in the window, and the
+   * climate decision: decided from the first decision by as-of (a decision never returns to undecided), relevant as it
+   * is now, and decided in the period when any decision falls in the window.
+   */
+  CONTEXT: (d, w) => {
+    const live = d.contextItems.filter((c) => liveOn(w, c));
+    const added = live.filter((c) => within(w, c.createdOn));
+    const updated = new Set(d.contextChanges.filter((c) => within(w, c.on)).map((c) => c.entityId));
+    const changed = live.filter((c) => !added.includes(c) && updated.has(c.id));
+    const party = (c: { kind: string }) => c.kind === 'INTERESTED_PARTY';
+    const { system } = d;
+    const days = d.climateDecisions.map((c) => c.on);
+    const decided = days.some((day) => byAsOf(w, day)) ? [system.id] : [];
+    return [
+      figure('issuesAdded', ids(added.filter((c) => !party(c)))),
+      figure('issuesChanged', ids(changed.filter((c) => !party(c)))),
+      figure('interestedPartiesAdded', ids(added.filter(party))),
+      figure('interestedPartiesChanged', ids(changed.filter(party))),
+      figure(
+        'contextItemsRemoved',
+        ids(d.contextItems.filter((c) => c.createdOn <= w.asOf && within(w, c.archivedOn))),
+      ),
+      figure('climateDecided', decided),
+      figure('climateRelevant', system.climateChangeRelevant === true ? decided : []),
+      figure('climateDecidedInPeriod', days.some((day) => within(w, day)) ? [system.id] : []),
+    ];
+  },
+
+  /**
+   * Items added or re-rated in the window, items significant (as stored now) for each kind the input's key reads (no
+   * key for another kind), and the treatment actions of the items live on as-of, done in the window by their settled
+   * day and open on as-of.
+   */
+  RISKS: (d, w) => {
+    const items = d.riskItems.filter((i) => liveOn(w, i));
+    const added = items.filter((i) => within(w, i.createdOn));
+    const rerated = new Set(d.ratingChanges.filter((c) => within(w, c.on)).map((c) => c.entityId));
+    const itemIds = new Set(ids(items));
+    const treatments = d.treatmentActions.filter((a) => liveOn(w, a) && itemIds.has(a.subject.id));
+    const significant = items.filter((i) => i.significant);
+    return [
+      figure('itemsAdded', ids(added)),
+      figure('itemsRerated', ids(items.filter((i) => !added.includes(i) && rerated.has(i.id)))),
+      ...d.kinds.map((kind) =>
+        figure(figureKey('significant', kind), ids(significant.filter((i) => i.kind === kind))),
+      ),
+      figure('treatmentActionsDone', ids(settledIn(w, treatments, 'DONE'))),
+      figure('treatmentActionsOpen', ids(treatments.filter((a) => actionStateAt(w, a) === 'OPEN'))),
+    ];
+  },
+
+  /**
+   * `objectiveProgress` of each objective of the input's standards (one listing several counts once here): those open
+   * on as-of, on track, off track or without a reading (on track reads the readings created by as-of for periods ended
+   * by then), those closed in the window by outcome, and the readings created in the window, whatever their period. A
+   * closed objective is placed by the later of `closedOn` and its CLOSE step, and is open on as-of until then.
+   */
+  OBJECTIVES: (d, w) => {
+    const objectives = d.objectives.filter((o) => liveOn(w, o));
+    const closedDay = (o: (typeof objectives)[number]) =>
+      o.closedOn === null ? null : later(o.closedOn, o.closeStepOn);
+    const readingsOf = (o: (typeof objectives)[number]) => o.readings.filter((r) => liveOn(w, r));
+    const open = objectives.filter((o) => !byAsOf(w, closedDay(o)));
+    const track = new Map(
+      open.map((o) => [o.id, objectiveOnTrackFrom(o.createdOn, o, readingsOf(o), w.asOf)]),
+    );
+    const closed = objectives.filter((o) => within(w, closedDay(o)));
+    const recorded = objectives.flatMap(readingsOf).filter((r) => within(w, r.createdOn));
+    return [
+      figure('objectivesOpen', ids(open)),
+      figure('onTrack', ids(open.filter((o) => track.get(o.id) === true))),
+      figure('offTrack', ids(open.filter((o) => track.get(o.id) === false))),
+      figure('withoutReading', ids(open.filter((o) => track.get(o.id) === null))),
+      figure('achieved', ids(closed.filter((o) => o.outcome === 'ACHIEVED'))),
+      figure('notAchieved', ids(closed.filter((o) => o.outcome === 'NOT_ACHIEVED'))),
+      figure('readingsRecorded', ids(recorded)),
+    ];
+  },
+
+  /**
+   * Raised (by its counting day) and closed in the window, by source and severity; VERIFY_NOT_EFFECTIVE steps in the
+   * window (the number of steps, with the nonconformities behind them); those open on as-of (not cancelled, as it is
+   * now, and not closed by then) and the corrective actions of those open NCs that are overdue on as-of.
+   */
+  NONCONFORMITIES: (d, w) => {
+    const ncs = d.nonconformities.filter((n) => countingDay(n) <= w.asOf && notArchivedBy(w, n));
+    const raised = ncs.filter((n) => within(w, countingDay(n)));
+    const closed = ncs.filter((n) => within(w, n.closedOn));
+    const ncIds = new Set(ids(ncs));
+    const notEffective = d.notEffectiveSteps.filter(
+      (s) => ncIds.has(s.entityId) && within(w, s.on),
+    );
+    const open = ncs.filter((n) => n.state !== 'CANCELLED' && !byAsOf(w, n.closedOn));
+    const openIds = new Set(ids(open));
+    const overdue = d.correctiveActions.filter(
+      (a) => liveOn(w, a) && openIds.has(a.subject.id) && overdueAt(w, a),
+    );
+    const by = (prefix: string, rows: typeof ncs) => [
+      ...NcSeverity.options.map((s) =>
+        figure(figureKey(prefix, s), ids(rows.filter((n) => n.severity === s))),
+      ),
+      ...NcSource.options.map((s) =>
+        figure(figureKey(prefix, s), ids(rows.filter((n) => n.source === s))),
+      ),
+    ];
+    return [
+      figure('raised', ids(raised)),
+      figure('closed', ids(closed)),
+      ...by('raised', raised),
+      ...by('closed', closed),
+      {
+        key: 'verifiedNotEffective',
+        value: notEffective.length,
+        ids: [...new Set(notEffective.map((s) => s.entityId))],
+      },
+      figure('open', ids(open)),
+      figure('correctiveActionsOverdue', ids(overdue)),
+    ];
+  },
+
+  /**
+   * Incidents placed in the window by their NC's counting day (their `occurredAt` day is never later), cancelled ones
+   * left out, in total, by type and by outcome (as `incidentCounts` groups them), with the lost days.
+   */
+  INCIDENTS: (d, w) => {
+    const incidents = d.nonconformities.filter(
+      (n) =>
+        n.incident !== null &&
+        n.state !== 'CANCELLED' &&
+        notArchivedBy(w, n) &&
+        within(w, countingDay(n)),
+    );
+    const lostTime = incidents.filter((n) => n.incident!.lostDays !== null);
+    return [
+      figure('incidents', ids(incidents)),
+      ...IncidentType.options.map((t) =>
+        figure(figureKey('type', t), ids(incidents.filter((n) => n.incident!.type === t))),
+      ),
+      ...IncidentOutcome.options.map((o) =>
+        figure(figureKey('outcome', o), ids(incidents.filter((n) => n.incident!.outcome === o))),
+      ),
+      {
+        key: 'lostDays',
+        value: lostTime.reduce((sum, n) => sum + n.incident!.lostDays!, 0),
+        ids: ids(lostTime),
+      },
+    ];
+  },
+
+  /**
+   * Internal audits reported, placed by the later of `reportedOn` and their REPORT step, and external audits held,
+   * placed by the later of `endOn` and the step that set it, in the window; and the findings of those audits by type,
+   * each placed by the later of its audit's day and its own creation day, whether or not its audit counts in the window.
+   */
+  AUDIT_RESULTS: (d, w) => {
+    const day = new Map<string, string>();
+    const internal = d.internalAudits.filter((a) => liveOn(w, a) && REPORTED.includes(a.state));
+    for (const a of internal) day.set(a.id, later(a.reportedOn, a.reportStepOn)!);
+    const external = d.externalAudits.filter((e) => liveOn(w, e) && VISITED.includes(e.state));
+    for (const e of external) day.set(e.id, later(e.endOn, e.heldStepOn)!);
+    const findings = d.findings.filter(
+      (x) =>
+        liveOn(w, x) && day.has(x.auditId) && within(w, later(day.get(x.auditId)!, x.createdOn)),
+    );
+    return [
+      figure('internalAuditsReported', ids(internal.filter((a) => within(w, day.get(a.id)!)))),
+      figure('externalAuditsHeld', ids(external.filter((e) => within(w, day.get(e.id)!)))),
+      ...FindingType.options.map((t) =>
+        figure(figureKey('findings', t), ids(findings.filter((x) => x.type === t))),
+      ),
+    ];
+  },
+
+  /**
+   * The evaluation activity's instances on the system's units (due and done in the window, and the latest due by
+   * as-of), and the STATUTE-only score of the instances due in the window (a score has no ids), read as they are now,
+   * as the core score's as-of is.
+   */
+  COMPLIANCE_EVALUATION: (d, w) => {
+    const evaluations = d.evaluations.filter((i) => liveOn(w, i));
+    const latest = evaluations
+      .filter((i) => i.dueDate <= w.asOf)
+      .sort((a, b) => b.dueDate.localeCompare(a.dueDate))[0];
+    const statutory = d.statutoryItems.filter((i) => liveOn(w, i) && within(w, i.dueDate));
+    const result = score(
+      statutory.map((i) => ({ ...i, id: i.instanceId })),
+      w.asOf,
+      d.settings,
+    ).score;
+    return [
+      figure('evaluationsDue', ids(evaluations.filter((i) => within(w, i.dueDate)))),
+      figure(
+        'evaluationsDone',
+        ids(evaluations.filter((i) => i.workflowState === 'APPROVED' && within(w, i.completedOn))),
+      ),
+      figure('latestEvaluation', latest === undefined ? [] : [latest.id]),
+      figure(
+        'statutoryInstancesDue',
+        statutory.map((i) => i.instanceId),
+      ),
+      ...(result === null ? [] : [{ key: 'statutoryScore', value: result, ids: [] }]),
+    ];
+  },
+};
+
+/** `reviewInputFigures` (model §5.4) from one source's data and the window alone, typed as ISO-3b's engine is. */
+const figuresFrom: TypedReviewInputFigures = (source, data, since, asOf) => ({
+  source,
+  since,
+  asOf,
+  figures:
+    source === 'MANUAL'
+      ? []
+      : (COMPUTE[source as FigureSource] as (d: unknown, w: Window) => Figure[])(data, {
+          since,
+          asOf,
+        }),
+});
+
+// ----- the window and the caller -----
+
 /**
- * `reviewInputFigures` (model §5.4) for one input, from the ISO tables the actor may see (plan §3.3), between `since`
- * and the day the review was held, the window it reviewed (today for a review not held: PLANNED, or CANCELLED, which
- * is cancelled only while PLANNED); null for a MANUAL input, which is written by hand.
+ * Held reviews of the system before this one that covered one of `codes`: HELD or CLOSED, with `heldOn` on or before
+ * as-of. At RECORD_HELD the review is still PLANNED, so only reviews already held count, a same-day one included;
+ * `notYet` names held reviews to treat as not yet recorded (the fixture's, stored in the order they were recorded).
  */
-function inputFigures(
-  actor: Actor,
+function earlierReviews(
+  firm: FirmState,
+  review: Review,
+  codes: readonly Code[],
+  asOf: string,
+  notYet: ReadonlySet<string> = new Set(),
+): Review[] {
+  return liveIso(firm, 'managementReviews', review.clientId).filter(
+    (r) =>
+      r.id !== review.id &&
+      !notYet.has(r.id) &&
+      r.managementSystemId === review.managementSystemId &&
+      HELD.includes(r.state) &&
+      r.heldOn! <= asOf &&
+      r.standards.some((code) => codes.includes(code)),
+  );
+}
+
+/** The system's creation day in the client's time zone: no review held before it has figures (model §3.13 item 1). */
+const createdOnOf = (firm: FirmState, review: Review, system: System) =>
+  localDate(system.createdAt, timeZoneOf(firm, review.clientId));
+
+/**
+ * `since` for an input (model §5.4): per standard of the input, the later of the system's creation day in the client's
+ * time zone and the `heldOn` of the last earlier held review covering it; the earliest of those, so the figures leave
+ * out nothing a standard has not been reviewed on yet, and never after as-of.
+ */
+function sinceFor(g: GatherScope): string {
+  const createdOn = localDate(g.system.createdAt, g.timeZone);
+  const last = g.codes.map((code) =>
+    g.earlier
+      .filter((r) => r.standards.includes(code))
+      .reduce((latest, r) => (r.heldOn! > latest ? r.heldOn! : latest), createdOn),
+  );
+  const since = [...last].sort()[0]!;
+  return since < g.asOf ? since : g.asOf;
+}
+
+/** The review's standards that ask for an input: those whose definitions carry its key. */
+function inputCodes(firm: FirmState, review: Review, system: System, def: InputDef): Code[] {
+  const defs = defsOf(firm, system, review.standards, firm.isoCatalogue.reviewInputDefs);
+  return inCodeOrder(clauseRefs(firm, defs, def).map((r) => r.standard));
+}
+
+/**
+ * `reviewInputFigures` (model §5.4) for one non-MANUAL input, over the review's whole system, between `since` and
+ * `asOf`: today in the client's time zone for a PLANNED review, or the `heldOn` that RECORD_HELD stores them for.
+ */
+function computeFigures(
+  firm: FirmState,
   review: Review,
   system: System,
-  source: ReviewInputSource,
-  codes: readonly Code[],
-  today: string,
-): Figures | null {
-  if (source === 'MANUAL') return null;
-  const base = {
-    actor,
-    firm: actor.firm,
+  def: InputDef,
+  asOf: string,
+  notYet?: ReadonlySet<string>,
+): Figures {
+  const source = def.source as FigureSource;
+  const codes = inputCodes(firm, review, system, def);
+  const g: GatherScope = {
+    firm,
     review,
     system,
+    key: def.key,
     codes,
-    asOf: review.heldOn ?? today,
-    timeZone: timeZoneOf(actor.firm, review.clientId),
+    asOf,
+    timeZone: timeZoneOf(firm, review.clientId),
+    earlier: earlierReviews(firm, review, codes, asOf, notYet),
   };
-  const f: FigureScope = { ...base, since: sinceFor(base) };
-  return { source, since: f.since, asOf: f.asOf, figures: FIGURES[source](f) };
+  const data = (GATHER[source] as (g: GatherScope) => Data<FigureSource>)(g);
+  return figuresFrom(source, data as never, sinceFor(g) as LocalDate, asOf as LocalDate);
+}
+
+/**
+ * Stores each live non-MANUAL input's figures as of `heldOn` (model §3.13): at RECORD_HELD, after its guards and while
+ * the review is still PLANNED, at `at`. A review held before its system's creation day stores none, since the app held
+ * none of its records then. A row that already has figures keeps them. The row's version does not move: notes stay
+ * editable with the version read before. Returns the stored figures by input key, for the event.
+ */
+function storeFigures(
+  firm: FirmState,
+  review: Review,
+  heldOn: string,
+  at: string,
+  notYet?: ReadonlySet<string>,
+): { key: string; figures: Figures }[] {
+  const system = systemOf(firm, review);
+  if (heldOn < createdOnOf(firm, review, system)) return [];
+  const stored: { key: string; figures: Figures }[] = [];
+  for (const row of inputsOf(firm, review)) {
+    const def = inputDef(firm, row.inputDefId);
+    if (def.source === 'MANUAL' || (row.sourceFigures ?? null) !== null) continue;
+    const figures = computeFigures(firm, review, system, def, heldOn, notYet);
+    row.sourceFigures = figures;
+    row.figuresStoredAt = at;
+    row.figuresEngineVersion = MOCK_ENGINE_VERSION;
+    stored.push({ key: def.key, figures });
+  }
+  return stored;
+}
+
+/**
+ * The fixtures' held reviews have no stored figures: the mock stores them when it loads, as RECORD_HELD would have
+ * on their `heldOn`, at the time each was recorded held (its `updatedAt`). They are stored in that order, ties by id,
+ * and each counts as earlier only the reviews recorded before it, so two held on one day get the same figures on
+ * every load whatever their order in the file.
+ */
+export function storeFixtureFigures(firm: FirmState): void {
+  const held = firm.iso.managementReviews
+    .filter((r) => HELD.includes(r.state) && r.archivedAt === null)
+    .sort((a, b) => a.updatedAt.localeCompare(b.updatedAt) || (a.id < b.id ? -1 : 1));
+  const notYet = new Set(ids(held));
+  for (const review of held) {
+    notYet.delete(review.id);
+    storeFigures(firm, review, review.heldOn!, review.updatedAt, notYet);
+  }
+}
+
+/** Whether one reader may read the record `id` of `entityType` (null for a score, which names none). */
+type Readable = (entityType: EntityType | null, id: string) => boolean;
+
+/** Who may read each record a figure names (plan §3.3), for one reader: `isoVisibleIds` for one table at a time. */
+function readableIds(actor: Actor, clientId: string): Readable {
+  const firm = actor.firm;
+  const tables: Partial<Record<EntityType, Map<string, () => IsoReach>>> = {};
+  const add = <K extends IsoTable>(
+    entityType: IsoEntity,
+    table: K,
+    of: (row: IsoRow<K>) => IsoReach,
+  ) => {
+    const reach = new Map<string, () => IsoReach>();
+    for (const row of firm.iso[table] as IsoRow<K>[]) {
+      const r = row as { id: string; clientId: string };
+      if (r.clientId === clientId) reach.set(r.id, () => of(row));
+    }
+    tables[entityType] = reach;
+  };
+  add('management_system', 'managementSystems', (s) =>
+    reachOf(firm, { clientId: s.clientId, systemId: s.id }),
+  );
+  add('context_item', 'contextItems', (c) => systemReach(firm, c));
+  add('risk_item', 'riskItems', (i) => riskReach(firm, i));
+  add('objective', 'objectives', (o) => objectiveReach(firm, o));
+  add('objective_reading', 'readings', (r) =>
+    objectiveReach(firm, parentOf(firm, 'objectives', r.objectiveId)),
+  );
+  add('internal_audit', 'internalAudits', (a) => auditReach(firm, a));
+  add('external_audit', 'externalAudits', (e) => systemReach(firm, e));
+  add('audit_finding', 'findings', (x) => findingReach(firm, x));
+  add('nonconformity', 'nonconformities', (n) => ncReach(firm, n));
+  add('iso_action', 'actions', (a) => actionReach(firm, a));
+  // Instances by unit, as `visibleInstances` reads them, but archived ones too: a stored figure keeps the id of an
+  // instance archived since, as it does for an ISO record.
+  const memberships = membershipsFor(actor, clientId);
+  const allUnits = memberships.some((m) => m.unitIds === null);
+  const units = new Set(memberships.flatMap((m) => m.unitIds ?? []));
+  const instances = new Set(
+    ids(
+      firm.data.instances.filter(
+        (i) => i.clientId === clientId && (allUnits || units.has(i.unitId)),
+      ),
+    ),
+  );
+  // An id is readable only as a row of the client in its figure's table, so a wrong table reads as nothing.
+  return (entityType, id) => {
+    if (entityType === 'instance') return instances.has(id);
+    const of = entityType === null ? undefined : tables[entityType]?.get(id);
+    return of !== undefined && canSee(actor, of());
+  };
+}
+
+/**
+ * The figures as one reader gets them: every value as counted, each figure's ids cut to those they may read in the
+ * table `REVIEW_FIGURE_KEYS` names for it (none for a key it does not list). `cut` says whether any id was dropped.
+ */
+function forReader(figures: Figures, readable: Readable): { figures: Figures; cut: boolean } {
+  const keys: Record<string, ReviewFigureKeyInfo> =
+    figures.source === 'MANUAL' ? {} : REVIEW_FIGURE_KEYS[figures.source];
+  let cut = false;
+  const shown = figures.figures.map((fig) => {
+    const entityType = keys[fig.key]?.entityType ?? null;
+    const ids = fig.ids.filter((id) => readable(entityType, id));
+    cut ||= ids.length < fig.ids.length;
+    return { ...fig, ids };
+  });
+  return { figures: { ...figures, figures: shown }, cut };
+}
+
+/**
+ * An input's figures and notes by its review's state (model §3.13): computed as of the client's today while PLANNED,
+ * the stored copy once HELD or CLOSED (null for a row without one), none for a CANCELLED review or a MANUAL input.
+ * Incidents are the limit (item 4): an INCIDENTS row whose ids the reader may not all read is withheld, figures and
+ * notes, unless the reader chairs or attends the review. It reads the incidents the row counts, not the system's units,
+ * which can be narrowed after an incident was counted.
+ */
+function figuresOf(
+  actor: Actor,
+  review: Review,
+  row: Input,
+  def: InputDef,
+  ctx: { now: string; readable: Readable },
+): Pick<InputOut, 'sourceFigures' | 'figuresStoredAt' | 'figuresWithheld' | 'notes'> {
+  const none = {
+    sourceFigures: null,
+    figuresStoredAt: null,
+    figuresWithheld: false,
+    notes: row.notes,
+  };
+  if (def.source === 'MANUAL' || review.state === 'CANCELLED') return none;
+  let shown: { sourceFigures: Figures; figuresStoredAt: string | null };
+  if (review.state === 'PLANNED') {
+    const today = localDate(ctx.now, timeZoneOf(actor.firm, review.clientId));
+    shown = {
+      sourceFigures: computeFigures(actor.firm, review, systemOf(actor.firm, review), def, today),
+      figuresStoredAt: null,
+    };
+  } else {
+    const stored = row.sourceFigures ?? null;
+    if (stored === null) return none;
+    shown = { sourceFigures: stored, figuresStoredAt: row.figuresStoredAt ?? null };
+  }
+  const { figures, cut } = forReader(shown.sourceFigures, ctx.readable);
+  const takesPart =
+    review.chairId === actor.person.id || review.attendeeIds.includes(actor.person.id);
+  if (def.source === 'INCIDENTS' && cut && !takesPart) {
+    return { ...none, figuresWithheld: true, notes: null };
+  }
+  return { ...none, sourceFigures: figures, figuresStoredAt: shown.figuresStoredAt };
 }
 
 // ---------- views ----------
@@ -990,20 +1379,21 @@ function inputView(
   review: Review,
   system: System,
   input: Input,
-  today: string,
+  ctx: { now: string; readable: Readable },
 ): InputOut {
   const firm = actor.firm;
   const def = inputDef(firm, input.inputDefId);
   const defs = defsOf(firm, system, review.standards, firm.isoCatalogue.reviewInputDefs);
-  const refs = clauseRefs(firm, defs, def);
-  const codes = inCodeOrder(refs.map((r) => r.standard));
+  // The engine version stays on the row: the pack and the archive print it (model §9).
+  const row: Input = { ...input };
+  delete row.figuresEngineVersion;
   return {
-    ...input,
+    ...row,
     key: def.key,
     title: def.title,
     source: def.source,
-    clauseRefs: refs,
-    sourceFigures: inputFigures(actor, review, system, def.source, codes, today),
+    clauseRefs: clauseRefs(firm, defs, def),
+    ...figuresOf(actor, review, input, def, ctx),
   };
 }
 
@@ -1040,7 +1430,7 @@ function moveReview(
   review: Review,
   action: 'CANCEL' | 'RECORD_HELD' | 'CLOSE',
   change: Partial<Review>,
-  options: { reason?: string; delegated: boolean },
+  options: { reason?: string; delegated: boolean; after?: Record<string, unknown> },
 ): void {
   const keys = Object.keys(change) as (keyof Review)[];
   const before = Object.fromEntries(keys.map((k) => [k, review[k]]));
@@ -1052,7 +1442,7 @@ function moveReview(
     entityId: review.id,
     clientId: review.clientId,
     before,
-    after: { action, ...change },
+    after: { action, ...change, ...options.after },
     reason: options.reason ?? null,
     ...(options.delegated ? { delegated: true } : {}),
   });
@@ -1517,7 +1907,9 @@ export const reviewsHandlers: PartialHandlers<Ids> = {
     if (review.state !== 'PLANNED') {
       invalidTransition('management_review', review.state, 'RECORD_HELD');
     }
-    if (body.heldOn > ctx.clock.today()) invalid('heldOn', 'The review date is after today');
+    // The client's today, as for a PLANNED review's figures: the stored ones never count a day not yet begun there.
+    const today = localDate(ctx.clock.now(), timeZoneOf(firm, review.clientId));
+    if (body.heldOn > today) invalid('heldOn', 'The review date is after today');
     checkReviewPeople(actor, review.clientId, { attendeeIds: body.attendeeIds });
     const attendeeIds = body.attendeeIds ?? review.attendeeIds;
     if (attendeeIds.length === 0) invalid('attendeeIds', 'Name the people who attended');
@@ -1527,6 +1919,8 @@ export const reviewsHandlers: PartialHandlers<Ids> = {
     if (missing.length > 0) {
       invalid('inputs', `Add notes to every input first; missing: ${missing.join(', ')}`);
     }
+    // Model §3.13: the figures are stored once, here, counted up to heldOn over the whole system.
+    const stored = storeFigures(firm, review, body.heldOn, ctx.clock.now());
     moveReview(
       ctx,
       actor,
@@ -1538,7 +1932,20 @@ export const reviewsHandlers: PartialHandlers<Ids> = {
         ...(body.attendeeIds === undefined ? {} : { attendeeIds }),
         ...(body.minutes === undefined ? {} : { minutes: body.minutes }),
       },
-      { delegated: delegatedChairStep(actor, review) },
+      {
+        delegated: delegatedChairStep(actor, review),
+        // Model §8: the values of each stored input and the engine version, without ids (they stay on the rows).
+        after: {
+          figures: stored.map(({ key, figures }) => ({
+            key,
+            source: figures.source,
+            since: figures.since,
+            asOf: figures.asOf,
+            values: Object.fromEntries(figures.figures.map((fig) => [fig.key, fig.value])),
+          })),
+          engineVersion: MOCK_ENGINE_VERSION,
+        },
+      },
     );
     return reviewView(actor, review);
   },
@@ -1588,9 +1995,9 @@ export const reviewsHandlers: PartialHandlers<Ids> = {
     const review = requireReview(actor, ctx.params.clientId, ctx.params.id);
     ctx.authorize(isoScope(actor, reviewReach(firm, review)));
     const system = systemOf(firm, review);
-    const today = ctx.clock.today();
+    const view = { now: ctx.clock.now(), readable: readableIds(actor, review.clientId) };
     return {
-      items: inputsOf(firm, review).map((row) => inputView(actor, review, system, row, today)),
+      items: inputsOf(firm, review).map((row) => inputView(actor, review, system, row, view)),
     };
   },
 
@@ -1621,7 +2028,10 @@ export const reviewsHandlers: PartialHandlers<Ids> = {
         after: { input: key, notes },
       });
     }
-    return inputView(actor, review, systemOf(firm, review), row, ctx.clock.today());
+    return inputView(actor, review, systemOf(firm, review), row, {
+      now: ctx.clock.now(),
+      readable: readableIds(actor, review.clientId),
+    });
   },
 
   /** In key order, each with its clause references. Whoever reads the review reads them. */

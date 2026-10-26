@@ -34,7 +34,7 @@ import {
   touchIso,
 } from '../../iso/common.js';
 import { certificationCycle } from '../../iso/derive.js';
-import type { FirmState, IsoAuditEvent, IsoRow } from '../../store.js';
+import type { FirmState, AuditRecord, IsoRow } from '../../store.js';
 import { patchIsoUnrecorded, raised as raiseEvent } from './nonconformities.js';
 
 type Ids =
@@ -317,7 +317,7 @@ function editAudit(
   if (changed.length === 0) return;
   Object.assign(audit, patch);
   touchIso(ctx, audit);
-  const groups: [IsoAuditEvent['action'], string[]][] = [
+  const groups: [AuditRecord['action'], string[]][] = [
     ['DUE_DATE_CHANGE', changed.filter((k) => k === 'responseDueOn')],
     ['UPDATE', changed.filter((k) => k !== 'responseDueOn')],
   ];

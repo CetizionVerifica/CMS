@@ -39,9 +39,15 @@ const BUDGET = {
   portfolio: 3_000,
 } as const;
 
+/** FY 2022-23 as the register filters it: due dates in the client's April-to-March year (`fyRangeOf`). */
+const FY_FROM = '2022-04-01';
+const FY_TO = '2023-03-31';
+
 /**
  * Copies every unit of the client, with its assignments and instances, until the client has at least `target`
- * instances. As the database owner, in firm A's tenant context.
+ * instances due in FY 2022-23, the year every read below asks for. Counting the whole client instead under-grows
+ * the year once earlier journeys leave instances in other years (queue run 40385424693: 10,098 in all, 3,798 in the
+ * year). As the database owner, in firm A's tenant context.
  */
 async function growClient(clientId: string, target: number): Promise<number> {
   const db = new pg.Client({
@@ -55,13 +61,14 @@ async function growClient(clientId: string, target: number): Promise<number> {
       Number(
         (
           await db.query(
-            `SELECT count(*) AS n FROM compliance_instance WHERE client_id = $1 AND archived_at IS NULL`,
-            [clientId],
+            `SELECT count(*) AS n FROM compliance_instance
+             WHERE client_id = $1 AND archived_at IS NULL AND due_date BETWEEN $2 AND $3`,
+            [clientId, FY_FROM, FY_TO],
           )
         ).rows[0].n,
       );
     const start = await count();
-    expect(start, 'the import journey ran first').toBeGreaterThan(0);
+    expect(start, 'the import journey ran first, with instances in FY 2022-23').toBeGreaterThan(0);
     const units = (
       await db.query(`SELECT id FROM unit WHERE client_id = $1 AND archived_at IS NULL`, [clientId])
     ).rows as { id: string }[];
@@ -126,7 +133,7 @@ test('at 10,000 instances a client’s main reads stay within budget for 10 peop
   const seeding = performance.now();
   const total = await growClient(clients.kestrel, TARGET);
   console.log(
-    `load: grew the client to ${total} instances in ${Math.round(performance.now() - seeding)} ms`,
+    `load: grew the client to ${total} instances in FY 2022-23 in ${Math.round(performance.now() - seeding)} ms`,
   );
   expect(total).toBeGreaterThanOrEqual(TARGET);
 

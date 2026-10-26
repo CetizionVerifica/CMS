@@ -689,6 +689,73 @@ describe.skipIf(!url)('M6 on the Postgres store', () => {
         await store.transaction(ctx(), (tx) => tx.personReach(w.people.consultant)),
       ).toMatchObject({ firmStaff: true });
     });
+
+    it('filters by act kind, reads the kind behind a row, and finds a duplicate among laws only', async () => {
+      // The system job is the only writer of a STANDARD act (ISO-9's copy); its name may repeat a law's.
+      const standard = await system(w.firmA, async (tx) => {
+        const act = await r.acts.create(tx, {
+          name: 'Income Tax Act, 1961',
+          shortName: 'ISO',
+          jurisdiction: 'CENTRAL',
+          stateCode: null,
+          aliases: [],
+          kind: 'STANDARD',
+        });
+        const law = (await r.obligations.get(tx, w.obligation))!;
+        const server = new Set(['id', 'firmId', 'createdAt', 'updatedAt', 'archivedAt', 'version']);
+        const activity = await r.obligations.create(tx, {
+          ...(Object.fromEntries(Object.entries(law).filter(([k]) => !server.has(k))) as Parameters<
+            typeof r.obligations.create
+          >[1]),
+          externalRef: 'ISO-STORE-TEST',
+          actId: act.id,
+        });
+        return { act, activity };
+      });
+      await store.transaction(ctx(), async (tx) => {
+        const ids = async (kinds?: ('STATUTE' | 'STANDARD')[]) => {
+          const page = await tx.acts.list({
+            orderBy: 'name',
+            limit: 200,
+            ...(kinds ? { actKinds: kinds } : {}),
+          });
+          return page.items.map((a) => a.id);
+        };
+        expect(await ids(['STANDARD'])).toEqual([standard.act.id]);
+        expect(await ids(['STATUTE'])).not.toContain(standard.act.id);
+        expect(await ids()).toContain(standard.act.id);
+        const obligations = await tx.obligations.list({
+          orderBy: 'title',
+          limit: 200,
+          actKinds: ['STATUTE'],
+        });
+        expect(obligations.items.map((o) => o.id)).not.toContain(standard.activity.id);
+        const assignments = await tx.assignments.list({
+          orderBy: 'id',
+          limit: 200,
+          actKinds: ['STANDARD'],
+        });
+        expect(assignments.items).toEqual([]);
+        expect(await tx.actKindOf.obligation(standard.activity.id)).toBe('STANDARD');
+        expect(await tx.actKindOf.obligation(w.obligation)).toBe('STATUTE');
+        expect(await tx.actKindOf.assignment(w.assignment)).toBe('STATUTE');
+        // The law keeps its name; the clash is reported against it, never the standard.
+        await expect(
+          tx.acts.insert({
+            name: 'Income Tax Act, 1961',
+            shortName: null,
+            jurisdiction: 'CENTRAL',
+            stateCode: null,
+            aliases: [],
+          }),
+        ).rejects.toMatchObject({ field: 'name', existingId: w.act });
+      });
+      await expect(
+        store.transaction(ctx(), (tx) =>
+          tx.categories.list({ orderBy: 'name', limit: 10, actKinds: ['STATUTE'] }),
+        ),
+      ).rejects.toThrow('categories cannot be filtered by act kind');
+    });
   });
 
   describe('plan limits', () => {

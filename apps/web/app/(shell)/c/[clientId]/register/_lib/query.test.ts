@@ -224,3 +224,37 @@ describe('viewQuery and withView', () => {
     expect(withView(next, '', undefined).toString()).toBe('fy=2022-23&q=Q3');
   });
 });
+
+describe('the Source filter on the register', () => {
+  it('reaches the API only with the ISO add-on', () => {
+    expect(apiQueryFromParams(p('source=ISO'), undefined, true).get('source')).toBe('ISO');
+    expect(apiQueryFromParams(p('source=LAW&status=OVERDUE'), undefined, true).get('source')).toBe(
+      'LAW',
+    );
+    expect(apiQueryFromParams(p('source=ISO')).has('source')).toBe(false);
+    expect(apiQueryFromParams(p('source=ISO'), undefined, false).has('source')).toBe(false);
+    expect(apiQueryFromParams(p('source=BOTH'), undefined, true).has('source')).toBe(false);
+    const q = apiQueryFromParams(p('source=ISO&fy=2024-25'), { fy: '2024-25' }, true);
+    expect(RegisterQuery.safeParse(Object.fromEntries(q)).success).toBe(true);
+  });
+
+  it('shows in the FilterBar value only with the add-on, and round-trips through the URL', () => {
+    expect(filterValueFromParams(p('source=ISO'), true)).toEqual({ source: ['ISO'] });
+    expect(filterValueFromParams(p('source=ISO'))).toEqual({});
+    const next = withFilters('fy=2024-25', { source: ['LAW'], status: ['OVERDUE'] });
+    expect(Object.fromEntries(next)).toEqual({ fy: '2024-25', source: 'LAW', status: 'OVERDUE' });
+    expect(filterValueFromParams(next, true)).toEqual({ status: ['OVERDUE'], source: ['LAW'] });
+  });
+
+  it('is cleared with the other filters, and both ticked means both', () => {
+    expect(withFilters('source=ISO&status=OVERDUE', {}).toString()).toBe('');
+    expect(withFilters('source=ISO', { source: ['LAW', 'ISO'] }).has('source')).toBe(false);
+  });
+
+  it('is kept by a saved view and restored with it', () => {
+    expect(viewQuery(p('fy=2024-25&source=ISO&status=OVERDUE'))).toBe('status=OVERDUE&source=ISO');
+    const next = withView('fy=2024-25&source=LAW', 'source=ISO', 'v1');
+    expect(Object.fromEntries(next)).toEqual({ fy: '2024-25', source: 'ISO', view: 'v1' });
+    expect(withView(next, '', undefined).has('source')).toBe(false);
+  });
+});

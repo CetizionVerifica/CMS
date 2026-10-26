@@ -141,6 +141,7 @@ describe('POST /auth/login', () => {
     expect(Me.parse(me.json())).toEqual(res.json());
   });
 
+  // Four failed logins, each an scrypt check (N = 2^15): past 5 s on a loaded CI runner, like the lockout test below.
   it('answers every failure the same way', async () => {
     const person = await seed({ memberships: [{ role: 'OWNER' }] });
     await seed({
@@ -169,7 +170,7 @@ describe('POST /auth/login', () => {
     });
     expect(bad.statusCode).toBe(400);
     expect(errorCode(bad)).toBe('VALIDATION');
-  });
+  }, 30_000);
 
   // Twelve scrypt checks (N = 2^15): quick alone, but past 5 s on a loaded CI runner.
   it(`locks the account for ${LOCKOUT.minutes} minutes after ${LOCKOUT.attempts} failures`, async () => {

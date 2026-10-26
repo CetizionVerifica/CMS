@@ -6,6 +6,7 @@ import { serverApi } from '../../../../../lib/api/server';
 import { NoPermission, PageHeader } from '../../../../../lib/patterns';
 import { homeHref } from '../../../../../lib/shell/model';
 import { loadShell } from '../../../../../lib/shell/server';
+import { isoOn } from '../register/_lib/source';
 import { EvidenceVault } from './_components/EvidenceVault';
 import { loadLookups, loadVault, vaultQuery } from './_lib/vault-api';
 
@@ -41,7 +42,8 @@ export default async function EvidencePage({ params, searchParams }: Props) {
   // The client layout already checked the session and 404s an unknown client; this keeps the types honest.
   if (!client) notFound();
 
-  const query = vaultQuery(toSearch(await searchParams));
+  const iso = isoOn(model.features);
+  const query = vaultQuery(toSearch(await searchParams), iso);
   const api = await serverApi();
   let page;
   try {
@@ -70,6 +72,7 @@ export default async function EvidencePage({ params, searchParams }: Props) {
         page={page}
         lookups={lookups}
         timeZone={client.timeZone}
+        iso={iso}
       />
     </>
   );
