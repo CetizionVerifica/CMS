@@ -19,7 +19,7 @@ ISO add-on (M16): its records, engine interface, 119 routes (1.8.1), catalogue a
 | [CHANGELOG.md](CHANGELOG.md) | Contract versions | everyone |
 
 ## Status
-Version `1.8.3` (`CONTRACTS_VERSION` in `packages/contracts/src/version.ts`). The domain model in §1-8 of
+Version `1.8.4` (`CONTRACTS_VERSION` in `packages/contracts/src/version.ts`). The domain model in §1-8 of
 [domain-model.md](domain-model.md) is published as v1 so wave 1 (M3, M4, M8, M11) can build against it. Each consumer
 module owner still reviews its part (MODULES.md M0 acceptance); review findings ship as additive changes or, if breaking,
 with sign-off per "How to change a contract".
@@ -342,3 +342,36 @@ with sign-off per "How to change a contract".
     add-on is off, answers `403 FEATURE_NOT_ENABLED` on create, job read and download, after the role check (plan
     §4.5); the statutory kinds and the client archive stay open. `firm-b.iso.json` gains `auditEvents`: a sample of the
     trail, each event as the mock's route writes it, that names every ISO entity type (fixtures.md §8).
+54. Review figures place a backdated record by its step (contracts 1.8.4, ISO-1a3; docs/iso/model.md §3.11, §3.13,
+    §5.4, plan v2.5.1). A date the user enters places its record by the later of that date and the client-local day
+    of the latest step that set it, so a record settled or entered after a review was recorded, dated before that
+    review, counts in the next review instead of in neither. `ReviewFigureData` carries those days: `settledOn` on
+    every action (its latest COMPLETE or CANCEL, so one reopened and settled again counts by the later step),
+    `closeStepOn` on objectives, `reportStepOn` on internal audits and `heldStepOn` on external audits (its latest
+    RECORD_HELD or a later `UPDATE` moving `endOn`), each null before its step. A record whose trail has no such step
+    (seeded or loaded data) takes its creation day, never `updatedAt`, which any later write moves. Each climate
+    decision counts by its own day (CONTEXT's `climateDecisions`; every call that changes a climate field, a new
+    rationale alone included, plus the decision a system was seeded with): `climateDecided` from the first decision on
+    or before as-of, so a decision changed later still counts, `climateDecidedInPeriod` when any falls in the window,
+    `climateRelevant` as it is now. PREVIOUS_ACTIONS counts DONE and CANCELLED review actions by their settled day in
+    the window, and RISKS DONE treatment actions likewise (a cancelled one is in no RISKS figure), each OPEN on as-of
+    until that day; a nonconformity, and the incident on it, by its counting day (the
+    later of its creation day and `reportedOn`), so the mock now refuses an `occurredAt` after now or with a day after
+    `reportedOn`; a finding by the later of its audit's day and its own creation day; `correctiveActionsOverdue` counts
+    only the actions of nonconformities open on as-of. A review held before its system's creation day stores no
+    figures. The caller picks the records the engine counts: `reviewRiskKinds(key, standards)` gives a RISKS input's
+    kinds by its key, which RISKS's `kinds` carries (SIGNIFICANT_ASPECTS aspects; RISKS_AND_OPPORTUNITIES risks and
+    opportunities, and hazards with ISO 45001; RISK_ACTIONS risks and opportunities), and the engine emits a
+    `significant<Kind>` key only for those, so a 14001 review's two RISKS rows never count, or show a zero for, each
+    other's items; AUDIT_RESULTS takes only findings whose clauses' standards overlap the input's.
+    `REVIEW_FIGURE_KEYS` lists every figure key per source, with the entity type of its ids and whether its value
+    counts them, so the engine (ISO-3b), the caller (ISO-2h) and the screens (M17) agree on one list and M16 cuts ids
+    per reader by table. `ReviewInputView` gains `figuresWithheld`: incidents are the limit of the figures' exception
+    to unit scope, so an INCIDENTS row that has figures goes without `sourceFigures`, `figuresStoredAt` and `notes` to
+    a reader for whom cutting its ids drops any id and who is neither the chair nor an attendee. It reads the incidents
+    the row counts, not the system's units, which can be narrowed after an incident was counted (endpoints.md §10
+    Scope). It is a patch: the data fields and the view field are additions no module reads yet (ISO-2h, ISO-3b and
+    M17 build against them), and `IsoEngineApi` is unchanged until ISO-3b merges. The mock gathers each input's data
+    from the store and its audit trail and computes the figures from that data alone, as M3 and M4 will;
+    `firm-b.iso.json` gains the step events those days come from (176 events), and of the held review's stored
+    figures only the three RISKS rows change, by the kinds rule.

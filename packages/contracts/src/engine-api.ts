@@ -32,6 +32,7 @@ import type {
   ReviewInputKey,
   ReviewInputSource,
   RiskItem,
+  RiskKind,
 } from './schemas/iso.js';
 import type {
   AuditProgrammeCoverage,
@@ -167,26 +168,55 @@ export interface ReviewFigureEventDay {
   on: LocalDate;
 }
 
-/** An action as the figures read it: OPEN on as-of while its `doneOn` is later, unless it is CANCELLED. */
+/**
+ * An action as the figures read it. `settledOn` is the client-local day of its latest COMPLETE or CANCEL step (the
+ * latest when it was reopened and settled again, so COMPLETE, REOPEN, COMPLETE counts by the later COMPLETE), set for
+ * every DONE or CANCELLED action and null for an OPEN one. Its settled day is the later of `doneOn` and `settledOn` when
+ * DONE, and `settledOn` when CANCELLED; it counts as OPEN on as-of until that day (docs/iso/model.md §5.4).
+ */
 export type ReviewFigureAction = Pick<IsoAction, 'id' | 'subject' | 'state' | 'dueOn' | 'doneOn'> &
-  ReviewFigureDays;
+  ReviewFigureDays & { settledOn: LocalDate | null };
 
 /**
  * The records each review input source reads (docs/iso/model.md §5.4): those of the review's system that the source
- * reads, for the input's standards, archived ones included, with no unit scope. The engine reads each record as it is
- * now, except where one of its dates gives its state on as-of; the event-day lists give the window counts that have
- * no date field of their own. MANUAL reads nothing.
+ * reads, for the input's standards, archived ones included, with no unit scope. The caller picks them: the risk kinds
+ * the input's key reads (`reviewRiskKinds`), and the findings whose clauses' standards overlap the input's. The engine
+ * reads each record as it is now, except where one of its dates gives its state on as-of; the event-day lists give the
+ * window counts that have no date field of their own. A date a user enters is placed by the later of that date and the
+ * day of the step that set it (the `...StepOn` and `settledOn` days, each the latest such step), so a record entered
+ * after one review is recorded, but dated before it, counts in the next one; each climate decision is placed by its
+ * own event's day. MANUAL reads nothing.
  */
 export interface ReviewFigureData {
-  /** The review actions of every earlier held review that covers one of the input's standards. */
+  /**
+   * The review actions of every earlier held review that covers one of the input's standards: those open on as-of,
+   * and those DONE or CANCELLED with their settled day in the window (one settled before `since` was reported before).
+   */
   PREVIOUS_ACTIONS: { actions: ReviewFigureAction[] };
   CONTEXT: {
     contextItems: (Pick<ContextItem, 'id' | 'kind'> & ReviewFigureDays)[];
     /** The days of the context items' UPDATE events (changed). */
     contextChanges: ReviewFigureEventDay[];
+    /** `climateChangeRelevant` is read as it is now. */
     system: Pick<ManagementSystem, 'id' | 'climateChangeRelevant' | 'climateDecidedOn'>;
+    /**
+     * The days of the climate decisions: every management system UPDATE whose `after` names `climateChangeRelevant`,
+     * `climateChangeRationale` or `climateDecidedOn` (only the climate route writes them, and only the fields it
+     * changes, so a new rationale alone is one), each a decision on its own day (`climateDecidedOn` is never later).
+     * A system decided when it was seeded or loaded, with no decision in its trail or a first one that does not move
+     * `climateChangeRelevant` from null, also has that decision, on the later of the `climateDecidedOn` it was seeded
+     * with and its creation day (model §5.4). `climateDecided` counts from the first on or before as-of, since a
+     * decision never returns to undecided; `climateDecidedInPeriod` when one falls in the window.
+     */
+    climateDecisions: ReviewFigureEventDay[];
   };
   RISKS: {
+    /**
+     * The kinds the input's key reads (`reviewRiskKinds`), in `RiskKind` order: the figures have a `significant<Kind>`
+     * key for these kinds only, so a 14001 review's two RISKS rows never count, or show a zero for, each other's items.
+     */
+    kinds: RiskKind[];
+    /** Only the items of `kinds`. */
     riskItems: (Pick<RiskItem, 'id' | 'kind' | 'significant'> & ReviewFigureDays)[];
     /**
      * The days of the risk items' UPDATE events whose `after` names `likelihood`, `severity`, `residualLikelihood` or
@@ -196,18 +226,26 @@ export interface ReviewFigureData {
     treatmentActions: ReviewFigureAction[];
   };
   OBJECTIVES: {
+    /**
+     * `closeStepOn`: the day of its CLOSE step, null while open. A closed objective is placed by the later of that day
+     * and `closedOn`, and counts as open on as-of until then.
+     */
     objectives: (Pick<
       Objective,
       'id' | 'target' | 'baseline' | 'direction' | 'readingRule' | 'dueOn' | 'closedOn' | 'outcome'
     > &
       ReviewFigureDays & {
+        closeStepOn: LocalDate | null;
         readings: (Pick<ObjectiveReading, 'id' | 'periodStart' | 'periodEnd' | 'value'> &
           ReviewFigureDays)[];
       })[];
     calendar: Pick<EngineCalendar, 'fyStartMonth'>;
   };
   NONCONFORMITIES: {
-    /** An NC counts from the later of `createdOn` and `reportedOn`. */
+    /**
+     * An NC counts, and is raised, from its counting day: the later of `createdOn` and `reportedOn`. Its `closedOn` is
+     * the day of the step that closed it, so it needs no step day.
+     */
     nonconformities: (Pick<
       Nonconformity,
       'id' | 'state' | 'severity' | 'source' | 'reportedOn' | 'closedOn'
@@ -215,19 +253,34 @@ export interface ReviewFigureData {
       ReviewFigureDays)[];
     /** The days of the NCs' TRANSITION events whose `after.action` is `VERIFY_NOT_EFFECTIVE`. */
     notEffectiveSteps: ReviewFigureEventDay[];
+    /** Their actions; only those of an NC open on as-of count as overdue. */
     correctiveActions: ReviewFigureAction[];
   };
   INCIDENTS: {
-    /** The incident NCs, cancelled ones left out. */
+    /**
+     * The incident NCs, cancelled ones left out. Each is placed by its NC's counting day (the later of `createdOn` and
+     * `reportedOn`); its `occurredAt` day is never later (model §3.11).
+     */
     nonconformities: (Pick<Nonconformity, 'id' | 'state' | 'reportedOn' | 'incident'> &
       ReviewFigureDays)[];
-    /** The client's time zone: incidents count by `occurredAt`, as `incidentCounts` does. */
+    /** The client's time zone, for `occurredAt`, as `incidentCounts` takes it. */
     timeZone: string;
   };
   AUDIT_RESULTS: {
-    internalAudits: (Pick<InternalAudit, 'id' | 'state' | 'reportedOn'> & ReviewFigureDays)[];
-    externalAudits: (Pick<ExternalAudit, 'id' | 'state' | 'endOn'> & ReviewFigureDays)[];
-    /** `auditId`: the internal or external audit the finding belongs to. */
+    /** `reportStepOn`: the day of its REPORT step, null before it. Placed by the later of that and `reportedOn`. */
+    internalAudits: (Pick<InternalAudit, 'id' | 'state' | 'reportedOn'> &
+      ReviewFigureDays & { reportStepOn: LocalDate | null })[];
+    /**
+     * `heldStepOn`: the day of its RECORD_HELD step, or of a later UPDATE whose `after` names `endOn`; null before it
+     * is held. Placed by the later of that and `endOn`.
+     */
+    externalAudits: (Pick<ExternalAudit, 'id' | 'state' | 'endOn'> &
+      ReviewFigureDays & { heldStepOn: LocalDate | null })[];
+    /**
+     * The findings of the audits above whose clauses' standards overlap the input's (a finding with no clauses follows
+     * its audit). `auditId`: the internal or external audit it belongs to. Each is placed by the later of its audit's
+     * day and its own `createdOn`, whether or not its audit counts in the window.
+     */
     findings: ({ id: Id; auditId: Id; type: FindingType } & ReviewFigureDays)[];
   };
   /** The instances' workflow is read as it is now, as the core score's as-of is. */

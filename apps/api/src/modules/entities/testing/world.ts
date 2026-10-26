@@ -8,7 +8,7 @@ import {
   type Role,
 } from '@canopy/contracts';
 import type { FastifyInstance } from 'fastify';
-import { createTestAuth } from '../../../auth/testing.js';
+import { accountView, createTestAuth } from '../../../auth/testing.js';
 import { buildServer } from '../../../server.js';
 import { MemoryStore } from './memory-store.js';
 
@@ -48,6 +48,10 @@ export const ids = {
   assignmentB: uid(101),
   instance: uid(110),
   instanceDup: uid(111),
+  /** ISO rows, seeded only by `seedIsoLibrary`: a STANDARD act, an activity under it, and its assignment in client A. */
+  isoAct: uid(82),
+  isoObligation: uid(93),
+  isoAssignment: uid(102),
   /** UNCLAIMED, default owner of an assignment in client B. */
   unclaimed: uid(68),
   /** UNCLAIMED duplicate of the owner ("Omar  owner"), owner of an instance in client A only. */
@@ -417,6 +421,61 @@ export interface TestApp {
     url: string,
     body?: unknown,
   ): Promise<{ status: number; body: unknown; headers: Record<string, unknown> }>;
+  /** Sets a firm's effective add-ons, as the operator console would; every firm starts with none. */
+  setFeatures(firm: Id, features: string[]): void;
+}
+
+/**
+ * Adds a copied ISO catalogue's rows to firm A (ISO-9): a STANDARD act, one activity under it and its assignment on
+ * unit 1 of client A, owned by the owner. Not in `seedWorld`, so the other tests' lists are unchanged.
+ */
+export function seedIsoLibrary(store: MemoryStore): void {
+  store.seed('acts', {
+    ...base(ids.isoAct),
+    version: 1,
+    name: 'ISO 45001 occupational health and safety management',
+    shortName: 'ISO 45001',
+    jurisdiction: 'CENTRAL',
+    stateCode: null,
+    aliases: [],
+    kind: 'STANDARD',
+  });
+  store.seed('obligations', {
+    ...base(ids.isoObligation),
+    version: 1,
+    externalRef: 'ISO-WORKPLACE-INSPECTION',
+    domain: 'OTHER',
+    jurisdiction: 'CENTRAL',
+    stateCode: null,
+    actId: ids.isoAct,
+    categoryId: ids.category,
+    title: 'Workplace inspection',
+    description: 'Inspect the workplace and record what was found.',
+    applicabilityText: null,
+    criticality: 'MEDIUM',
+    timelineType: 'TIME_BASED',
+    recurrenceRule: { kind: 'MONTHLY', day: 'LAST', offsetMonths: 0 },
+    ruleStatus: 'CONFIRMED',
+    evidenceRequired: true,
+    forms: [],
+    logSheets: [],
+    clauseRefs: [{ standard: 'ISO_45001', clauseNumber: '9.1.1' }],
+    libraryVersion: 1,
+  });
+  store.seed('assignments', {
+    ...base(ids.isoAssignment),
+    version: 1,
+    clientId: ids.clientA,
+    unitId: ids.unit1,
+    obligationId: ids.isoObligation,
+    departmentId: ids.hr,
+    defaultOwnerId: ACTORS.owner.person,
+    defaultApproverId: ACTORS.approver.person,
+    applicability: 'APPLICABLE',
+    naReason: null,
+    activeFrom: '2026-04-01',
+    activeTo: null,
+  });
 }
 
 /** The firm's clients, which a firm admin sees. */
@@ -449,6 +508,13 @@ export function testApp(): TestApp {
     app,
     store,
     headers: (actor) => sessions[actor],
+    setFeatures(firm, features) {
+      const view = accountView(firm);
+      auth.store.accounts.set(firm, {
+        ...view,
+        entitlements: { ...view.entitlements, features },
+      });
+    },
     async call(actor, method, url, body) {
       const res = await app.inject({
         method: method as 'GET',

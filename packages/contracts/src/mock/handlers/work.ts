@@ -635,10 +635,7 @@ export const workHandlers: PartialHandlers<
         (q.from === undefined || e.at >= q.from) &&
         (q.to === undefined || e.at <= q.to),
     );
-    return paginate(
-      [...rows].sort((a, b) => (a.at > b.at ? -1 : a.at < b.at ? 1 : 0)),
-      q,
-    );
+    return paginate(newestFirst(rows), q);
   },
 
   instanceAudit(ctx) {
@@ -650,12 +647,17 @@ export const workHandlers: PartialHandlers<
     const rows = actor.firm.data.auditEvents.filter(
       (e) => e.entityId === instance.id || evidenceIds.has(e.entityId),
     );
-    return paginate(
-      [...rows].sort((a, b) => (a.at > b.at ? -1 : a.at < b.at ? 1 : 0)),
-      ctx.query,
-    );
+    return paginate(newestFirst(rows), ctx.query);
   },
 };
+
+/**
+ * A trail newest first: by `at`, and events of one instant in reverse order of writing, since the mock's clock does
+ * not move (`rows` keep the store's order, and the sort is stable).
+ */
+function newestFirst<T extends { at: string }>(rows: readonly T[]): T[] {
+  return [...rows].reverse().sort((a, b) => (a.at > b.at ? -1 : a.at < b.at ? 1 : 0));
+}
 
 function expiresAt(ctx: Ctx): string {
   return new Date(Date.parse(ctx.clock.now()) + SIGNED_URL_TTL_SECONDS * 1000)

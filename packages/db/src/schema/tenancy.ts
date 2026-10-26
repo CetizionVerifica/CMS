@@ -262,5 +262,12 @@ export const membership = pgTable(
       using: sql`firm_id = app_firm_id() and (app_can_see_client(client_id) or person_id = app_person_id())`,
       withCheck: sql`firm_id = app_firm_id() and app_can_see_client(client_id)`,
     }),
+    // canopy_person_holds_role (migration 0044) answers yes or no about any membership of the request's firm, so a
+    // client role can check a firm admin or consultant it cannot read (ISO-2i). Granted columns only.
+    pgPolicy('role_lookup', {
+      for: 'select',
+      to: 'canopy_lookup',
+      using: sql`firm_id = app_firm_id()`,
+    }),
   ],
 );

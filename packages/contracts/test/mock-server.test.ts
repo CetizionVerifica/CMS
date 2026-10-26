@@ -1140,6 +1140,14 @@ describe('mock server', () => {
     expect(audit.items.map((e) => e.action)).toEqual(
       expect.arrayContaining(['EVIDENCE_ADD', 'EVIDENCE_DOWNLOAD', 'EVIDENCE_REMOVE']),
     );
+    // The mock's clock does not move: events of one instant come newest first, in both trails.
+    const newestFirst = ['EVIDENCE_REMOVE', 'EVIDENCE_DOWNLOAD', 'EVIDENCE_ADD'];
+    expect(audit.items.slice(0, 3).map((e) => e.action)).toEqual(newestFirst);
+    const evidenceTrail = await ok<{ items: { action: string }[] }>(app, 'clientAudit', {
+      params: { clientId: NORTHWIND },
+      query: { entityId: evidence.id },
+    });
+    expect(evidenceTrail.items.map((e) => e.action)).toEqual(newestFirst);
     const clientAudit = await ok<{ items: { action: string }[] }>(app, 'clientAudit', {
       params: { clientId: NORTHWIND },
       query: { action: 'TRANSITION', from: '2024-11-15T00:00:00Z' },
