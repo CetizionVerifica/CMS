@@ -16,7 +16,11 @@ import {
   uuid,
   type AnyPgColumn,
 } from 'drizzle-orm/pg-core';
-import { MAX_EVIDENCE_BYTES, type RecurrenceRule } from '@canopy/contracts';
+import {
+  MAX_EVIDENCE_BYTES,
+  type RecurrenceRule,
+  type ReviewInputFigures,
+} from '@canopy/contracts';
 import {
   baseColumns,
   cataloguePolicies,
@@ -1177,7 +1181,11 @@ export const managementReviewPerson = pgTable(
   ],
 );
 
-/** One input row of a review: one per input definition. */
+/**
+ * One input row of a review: one per input definition among live rows. A held review's figures are a record (model
+ * §1.7, §3.13): `source_figures`, `figures_stored_at` and `figures_engine_version` are written together once, and a
+ * trigger (migration 0043) then refuses any change to them, to the definition, to the review and to `archived_at`.
+ */
 export const reviewInput = pgTable(
   'review_input',
   {
@@ -1185,10 +1193,27 @@ export const reviewInput = pgTable(
     managementReviewId: uuid('management_review_id').notNull(),
     inputDefId: uuid('input_def_id').notNull(),
     notes: text('notes'),
+    sourceFigures: jsonb('source_figures').$type<ReviewInputFigures>(),
+    figuresStoredAt: instant('figures_stored_at'),
+    figuresEngineVersion: text('figures_engine_version'),
   },
   (t) => [
     unique('review_input_scope_key').on(t.firmId, t.clientId, t.id),
-    unique('review_input_def_key').on(t.managementReviewId, t.inputDefId),
+    uniqueIndex('review_input_def_key')
+      .on(t.managementReviewId, t.inputDefId)
+      .where(sql`archived_at is null`),
+    check(
+      'review_input_figures_check',
+      sql`num_nulls(source_figures, figures_stored_at, figures_engine_version) in (0, 3)`,
+    ),
+    check(
+      'review_input_figures_object_check',
+      sql`source_figures is null or jsonb_typeof(source_figures) = 'object'`,
+    ),
+    check(
+      'review_input_engine_version_check',
+      sql`figures_engine_version is null or length(figures_engine_version) between 1 and 40`,
+    ),
     sameClientFk('review_input_review_fk', t, t.managementReviewId, managementReview),
     foreignKey({
       name: 'review_input_def_fk',
@@ -1201,7 +1226,7 @@ export const reviewInput = pgTable(
   ],
 );
 
-/** One output row of a review: one per output definition. */
+/** One output row of a review: one per output definition among live rows. */
 export const reviewOutput = pgTable(
   'review_output',
   {
@@ -1212,7 +1237,9 @@ export const reviewOutput = pgTable(
   },
   (t) => [
     unique('review_output_scope_key').on(t.firmId, t.clientId, t.id),
-    unique('review_output_def_key').on(t.managementReviewId, t.outputDefId),
+    uniqueIndex('review_output_def_key')
+      .on(t.managementReviewId, t.outputDefId)
+      .where(sql`archived_at is null`),
     sameClientFk('review_output_review_fk', t, t.managementReviewId, managementReview),
     foreignKey({
       name: 'review_output_def_fk',
