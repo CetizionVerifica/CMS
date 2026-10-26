@@ -56,8 +56,9 @@ jobs:
           fi
           # The newest CI run for the commit that has a module-audit job. A push and a ready_for_review can start two
           # runs at once, and the one concurrency cancels has no jobs, so the newest run alone is not enough (#109, #131).
+          # Runs created in the same second can list in either order, so sort by id, newest first (#269).
           RUN=""
-          for ID in $(gh run list --workflow ci.yml --event pull_request --commit "$SHA" --limit 20 --json databaseId --jq '.[].databaseId'); do
+          for ID in $(gh run list --workflow ci.yml --event pull_request --commit "$SHA" --limit 20 --json databaseId --jq 'sort_by(-.databaseId) | .[].databaseId'); do
             if gh run view "$ID" --json jobs --jq '.jobs[].name' | grep -qx module-audit; then RUN=$ID; break; fi
           done
           if [ -z "$RUN" ]; then echo "No CI run with a module-audit job for $SHA yet; it will read the verdict when it runs."; exit 0; fi
