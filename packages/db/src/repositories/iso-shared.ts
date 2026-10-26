@@ -44,6 +44,17 @@ export const pageShape = {
   count: z.boolean().optional(),
 };
 
+/**
+ * Records named by id (ISO-2i, ISO-1a4's `ids` query parameter): 1 to 200 ids, each once. AND'd with the list's other
+ * filters and the unit scope before keyset paging, so ids past the first page are read page by page like any filter;
+ * an id of another client or out of scope is left out, with no error.
+ */
+export const RecordIds = z
+  .array(Id)
+  .min(1)
+  .max(200)
+  .refine((ids) => new Set(ids).size === ids.length, { message: 'Each id once.' });
+
 /** `{a,b}` as a uuid[] parameter; the ids are checked by the filter schemas first. */
 export function uuids(ids: readonly string[]): SQL {
   return sql`${`{${ids.join(',')}}`}::uuid[]`;
