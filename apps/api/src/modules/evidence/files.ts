@@ -1,3 +1,4 @@
+import { Id } from '@canopy/contracts';
 import { ApiError } from '../../auth/index.js';
 
 /**
@@ -70,4 +71,16 @@ export function storageKey(input: {
   uploadId: string;
 }): string {
   return `evidence/${input.firmId}/${input.clientId}/${input.instanceId}/${input.uploadId}`;
+}
+
+/**
+ * An upload id is the uuid the upload ticket gave out. It becomes the last segment of a storage key, so anything else
+ * (such as `../..`) is a validation error before any key is built.
+ */
+export function requireUploadId(uploadId: string): void {
+  if (!Id.safeParse(uploadId).success) {
+    throw new ApiError('VALIDATION', {
+      issues: [{ path: ['uploadId'], message: 'This is not an upload id.' }],
+    });
+  }
 }
