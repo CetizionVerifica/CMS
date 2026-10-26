@@ -37,6 +37,8 @@ export type RegisterViewProps = {
   canManage: boolean;
   /** The client's IANA time zone. */
   timeZone: string;
+  /** The account has the ISO add-on, so the grid shows the Source filter. */
+  iso?: boolean;
 };
 
 /** How often, and how many times, the page asks whether an export is ready before giving up. */
@@ -63,6 +65,7 @@ export function RegisterView({
   canExport,
   canManage,
   timeZone,
+  iso = false,
 }: RegisterViewProps) {
   // Rows loaded with "Show more" belong to one query; a new query (the URL changed) starts again from its first page.
   const [loaded, setLoaded] = useState<Loaded>({ query, ...page });
@@ -210,6 +213,7 @@ export function RegisterView({
   return (
     <>
       <RegisterGrid
+        iso={iso}
         clientId={clientId}
         personId={personId}
         rows={loaded.rows}

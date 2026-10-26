@@ -187,3 +187,32 @@ describe('EvidenceVault', () => {
     expect(screen.getByText('No evidence yet')).toBeTruthy();
   });
 });
+
+describe('EvidenceVault’s Source filter (ISO add-on)', () => {
+  it('reads and writes the source with the other filters; one ticked is that source, both is both', () => {
+    const search = new URLSearchParams('q=challan&source=ISO');
+    expect(filterValue(search)).toEqual({ source: ['ISO'] });
+    expect(withFilters(search, { source: ['LAW'] }).toString()).toBe('source=LAW&q=challan');
+    expect(withFilters(search, { source: ['LAW', 'ISO'] }).toString()).toBe('q=challan');
+    expect(withFilters(search, {}).toString()).toBe('q=challan');
+  });
+
+  it('is shown only with the add-on', () => {
+    renderVault();
+    const filters = () => screen.getByRole('group', { name: 'Filters' });
+    expect(within(filters()).queryByRole('button', { name: /^Source/ })).toBeNull();
+  });
+
+  it('writes the ticked source into the URL', async () => {
+    renderVault({ iso: true, query: 'scanStatus=CLEAN' });
+    await userEvent.click(
+      within(screen.getByRole('group', { name: 'Filters' })).getByRole('button', {
+        name: 'Source',
+      }),
+    );
+    await userEvent.click(screen.getByRole('checkbox', { name: 'ISO' }));
+    expect(nav.replace).toHaveBeenLastCalledWith(`${PATH}?source=ISO&scanStatus=CLEAN`, {
+      scroll: false,
+    });
+  });
+});

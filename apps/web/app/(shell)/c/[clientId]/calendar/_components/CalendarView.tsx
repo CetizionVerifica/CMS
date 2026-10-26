@@ -2,7 +2,7 @@
 // The calendar's interactive part: a month of due dates as a grid or a list, moving between months through the URL's
 // period (`?fy=&m=`), and the chosen day's instances below the grid. Status words and colours come from the API's
 // derived status (engine output); this file only lays them out.
-import type { InstanceRow } from '@canopy/contracts';
+import type { ActivitySource, InstanceRow } from '@canopy/contracts';
 import { Button, EmptyState, formatDate, StatusPill } from '@canopy/ui';
 import { CalendarDays, ChevronLeft, ChevronRight } from 'lucide-react';
 import Link from 'next/link';
@@ -10,7 +10,9 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 
 import { withPeriod } from '../../../../../../lib/period';
+import { SourceToggle } from '../../register/_components/SourceToggle';
 import { statusValue } from '../../register/_lib/columns';
+import { withSource } from '../../register/_lib/source';
 import type { MonthDue } from '../_lib/calendar-api';
 import { addMonths, fyOf, monthLabel, monthWeeks, type Month } from '../_lib/month';
 
@@ -24,6 +26,10 @@ export type CalendarViewProps = {
   view: 'month' | 'list';
   /** The page's query string, kept when moving between months and views. */
   query: string;
+  /** The account has the ISO add-on: the Source filter is shown. */
+  iso?: boolean;
+  /** The Source filter from the URL; absent = both. */
+  source?: ActivitySource;
 };
 
 const WEEKDAYS: [string, string][] = [
@@ -99,6 +105,8 @@ export function CalendarView({
   fyStartMonth,
   view,
   query,
+  iso = false,
+  source,
 }: CalendarViewProps) {
   const router = useRouter();
   const pathname = usePathname();
@@ -146,18 +154,23 @@ export function CalendarView({
         <span className="text-meta text-muted">
           {total} {total === 1 ? 'instance' : 'instances'} due
         </span>
-        <div role="group" aria-label="View" className="ml-auto flex gap-1">
-          {(['month', 'list'] as const).map((v) => (
-            <Button
-              key={v}
-              size="sm"
-              variant={view === v ? 'primary' : 'ghost'}
-              aria-pressed={view === v}
-              onClick={() => toView(v)}
-            >
-              {v === 'month' ? 'Month' : 'List'}
-            </Button>
-          ))}
+        <div className="ml-auto flex flex-wrap gap-3">
+          {iso ? (
+            <SourceToggle value={source} onChange={(next) => go(withSource(query, next))} />
+          ) : null}
+          <div role="group" aria-label="View" className="flex gap-1">
+            {(['month', 'list'] as const).map((v) => (
+              <Button
+                key={v}
+                size="sm"
+                variant={view === v ? 'primary' : 'ghost'}
+                aria-pressed={view === v}
+                onClick={() => toView(v)}
+              >
+                {v === 'month' ? 'Month' : 'List'}
+              </Button>
+            ))}
+          </div>
         </div>
       </div>
 
