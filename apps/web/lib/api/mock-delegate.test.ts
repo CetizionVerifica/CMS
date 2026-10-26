@@ -90,6 +90,22 @@ describe('routes the shell mock does not answer go to M0’s mock server', () =>
     // And M0's answers come back under the shell's id, never firm B's.
     for (const risk of mine.items) expect(risk.ownerId).toBe(me);
     expect(JSON.stringify(mine)).not.toContain(theirs);
+
+    // An owner-only form names the signed-in person with the shell's id; M0 accepts it as the firm B person.
+    const { data: created } = await api(owner).call('createIsoRisk', {
+      params: { clientId: MOCK_CLIENTS.demoMetals },
+      body: {
+        managementSystemId: mine.items[0]!.managementSystemId,
+        kind: 'RISK',
+        activity: 'Night shift handover',
+        description: 'A missed handover note delays a statutory inspection.',
+        likelihood: 2,
+        severity: 3,
+        ownerId: me,
+      },
+    });
+    expect(created.ownerId).toBe(me);
+    expect((await list('me')).items.map((r) => r.id)).toContain(created.id);
   });
 
   it('keeps each person to their own client, and has no data for an unmapped client', async () => {

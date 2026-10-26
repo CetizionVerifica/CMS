@@ -81,8 +81,9 @@ const toOurs = CLIENT_MAP.flatMap(
 
 /**
  * Answers one request from M0's mock server, as `email` (a demo account, whose shell person id is `personId`) whose
- * account has `features`, translating ids both ways. Firm B has the ISO add-on, so without the header every demo user would get ISO data; with it, the
- * company admin's account (no add-ons) gets 403 FEATURE_NOT_ENABLED on `/iso` routes and no STANDARD instances.
+ * account has `features`, translating ids both ways. Firm B has the ISO add-on, so without the header every demo user
+ * would get ISO data; with it, the company admin's account (no add-ons) gets 403 FEATURE_NOT_ENABLED on `/iso` routes
+ * and no STANDARD instances.
  */
 export async function delegateToM0(
   email: string,
