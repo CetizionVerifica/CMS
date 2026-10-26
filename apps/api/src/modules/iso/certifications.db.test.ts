@@ -35,9 +35,10 @@ afterAll(async () => {
 
 const details = (reply: Reply) => (reply.body.error as { details?: unknown } | undefined)?.details;
 
+/** A record's audit events, oldest first; one request's events share `at`, so they are ordered by content. */
 const audit = (entityId: string) =>
   h.testDb.query<{ action: string; after: Record<string, unknown> | null; reason: string | null }>(
-    'SELECT action, after, reason FROM audit_event WHERE entity_id = $1 ORDER BY at, id',
+    'SELECT action, after, reason FROM audit_event WHERE entity_id = $1 ORDER BY at, action, after::text, reason',
     [entityId],
   );
 
