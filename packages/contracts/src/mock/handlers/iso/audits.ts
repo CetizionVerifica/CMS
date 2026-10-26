@@ -34,7 +34,7 @@ import {
   systemUnitIds,
   touchIso,
 } from '../../iso/common.js';
-import { uncoveredByAudits } from '../../iso/derive.js';
+import { clientDay, uncoveredByAudits } from '../../iso/derive.js';
 import type { FirmState, AuditRecord, IsoRow } from '../../store.js';
 import { patchIsoUnrecorded } from './nonconformities.js';
 
@@ -915,7 +915,7 @@ export const auditsHandlers: PartialHandlers<Ids> = {
         unitId: ncUnit,
         description: body.description,
         reportedById: actor.person.id,
-        reportedOn: today,
+        reportedOn: clientDay(firm, audit.clientId, ctx.clock.now()),
         containment: null,
         correction: null,
         disposition: null,

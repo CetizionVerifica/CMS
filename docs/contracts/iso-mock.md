@@ -176,9 +176,11 @@ owner's and a CA's (investigation fields); the reassign route is FA's, CO's and 
 severity and the incident outcome, with a reason). Severity and outcome change only while OPEN or ROOT_CAUSE_FOUND;
 `lostDays` moves with the outcome on reassign, and alone only on the PATCH while the outcome stays LOST_TIME. A
 finding's NC refuses a severity change, and an NC without incident fields refuses an outcome, `400` in any open
-state (CLOSED or CANCELLED answers `409 INVALID_TRANSITION` first). An incident's `occurredAt` may not be after now,
-nor its client-local day after the NC's `reportedOn` (`400 VALIDATION` on RAISE and on the PATCH, model §3.11); the
-mock checks it only when RAISE or the PATCH sets a new time, so a row loaded before 1.8.4 keeps its time until then.
+state (CLOSED or CANCELLED answers `409 INVALID_TRANSITION` first). An NC is reported on the client-local day it is
+raised, by hand or from a finding (since 1.8.5; before, the mock's one zone, Asia/Kolkata). An incident's `occurredAt`
+may not be after now, compared as instants, nor its client-local day after the NC's `reportedOn` (`400 VALIDATION` on
+RAISE and on the PATCH, model §3.11); the mock checks it only when RAISE or the PATCH sets a new time, so a row loaded
+before 1.8.4 keeps its time until then.
 VERIFY_EFFECTIVE re-checks the SUBMIT_NO_ACTION rule on an NC submitted with none (the later of SUBMIT and
 SUBMIT_NO_ACTION in its trail), to catch rows changed outside these routes. VERIFY_NOT_EFFECTIVE
 may come before `effectivenessDueOn`; VERIFY_EFFECTIVE waits for it. `effectivenessDueOn` can move but never be cleared

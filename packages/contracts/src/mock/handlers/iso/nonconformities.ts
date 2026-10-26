@@ -40,7 +40,7 @@ import {
   standardOf,
   touchIso,
 } from '../../iso/common.js';
-import { isoTiming, localDate } from '../../iso/derive.js';
+import { clientDay, isoTiming } from '../../iso/derive.js';
 import type { FirmState, AuditRecord, IsoRow } from '../../store.js';
 
 type Ids =
@@ -450,11 +450,10 @@ function checkIncident(
   when: { now: string; reportedOn: string },
 ): void {
   if (incident.occurredAt !== before?.occurredAt) {
-    if (incident.occurredAt > when.now) {
+    if (Date.parse(incident.occurredAt) > Date.parse(when.now)) {
       invalid('incident.occurredAt', 'The incident cannot have occurred after now');
     }
-    const timeZone = actor.firm.data.clients.find((c) => c.id === clientId)!.settings.timeZone;
-    if (localDate(incident.occurredAt, timeZone) > when.reportedOn) {
+    if (clientDay(actor.firm, clientId, incident.occurredAt) > when.reportedOn) {
       invalid('incident.occurredAt', 'The incident cannot have occurred after it was reported');
     }
   }
@@ -1112,6 +1111,8 @@ export const nonconformitiesHandlers: PartialHandlers<Ids> = {
       isoScope(actor, reachOf(firm, { clientId, unitId: body.unitId, systemId: system.id })),
     );
     const today = ctx.clock.today();
+    // The client's day, as the incident's time is checked in its zone (`today` is the mock's one zone).
+    const reportedOn = clientDay(firm, clientId, ctx.clock.now());
     if (body.unitId !== null) checkSystemUnits(firm, system, [body.unitId], 'unitId');
     checkStandards(firm, system, body.standards, body.clauseIds);
     checkPerson(actor, clientId, body.ownerId, 'ownerId', body.unitId, OWNER_ROLES);
@@ -1133,7 +1134,7 @@ export const nonconformitiesHandlers: PartialHandlers<Ids> = {
     if (body.incident !== null) {
       checkIncident(actor, clientId, body.unitId, body.incident, null, true, {
         now: ctx.clock.now(),
-        reportedOn: today,
+        reportedOn,
       });
     }
     const number =
@@ -1154,7 +1155,7 @@ export const nonconformitiesHandlers: PartialHandlers<Ids> = {
       unitId: body.unitId,
       description: body.description,
       reportedById: actor.person.id,
-      reportedOn: today,
+      reportedOn,
       containment: body.containment,
       correction: body.correction,
       disposition: null,

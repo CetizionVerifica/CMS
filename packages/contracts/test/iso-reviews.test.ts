@@ -9,10 +9,10 @@ import {
   ReviewOutputKey,
   reviewRiskKinds,
 } from '../src/schemas/iso.js';
-import type { IsoStandardCode } from '../src/enums.js';
+import type { EntityType, IsoStandardCode } from '../src/enums.js';
 import { ReviewInputView } from '../src/api/iso.js';
 import { fixtureId } from '../src/fixtures/index.js';
-import type { IsoRow } from '../src/mock/store.js';
+import type { IsoRow, IsoTables } from '../src/mock/store.js';
 import {
   type App,
   base,
@@ -3266,6 +3266,56 @@ describe('review input figures', () => {
       }
     }
     stored(environmental.id).archivedAt = NOW;
+  });
+
+  it('stores ids only of the table each key names; a client-wide reader gets them all, a unit-limited one some', async () => {
+    const tables: Partial<Record<EntityType, keyof IsoTables>> = {
+      management_system: 'managementSystems',
+      context_item: 'contextItems',
+      risk_item: 'riskItems',
+      objective: 'objectives',
+      objective_reading: 'readings',
+      internal_audit: 'internalAudits',
+      external_audit: 'externalAudits',
+      audit_finding: 'findings',
+      nonconformity: 'nonconformities',
+      iso_action: 'actions',
+    };
+    const inTable = (entityType: EntityType, id: string) =>
+      entityType === 'instance'
+        ? firm().data.instances.some((i) => i.id === id)
+        : (firm().iso[tables[entityType]!] as { id: string }[]).some((r) => r.id === id);
+    const review = await plan(system.id);
+    await noteAll(review.id);
+    await hold(review.id);
+    const whole = await inputs(review.id, PERSON.kabir);
+    const limited = await inputs(review.id, PERSON.rohan);
+    const named = new Set<string>();
+    let dropped = 0;
+    for (const row of firm().iso.reviewInputs.filter((r) => r.managementReviewId === review.id)) {
+      if (!row.sourceFigures) continue; // a MANUAL input, stored with none
+      const keys: Record<string, { entityType: EntityType | null }> =
+        REVIEW_FIGURE_KEYS[row.sourceFigures.source as keyof typeof REVIEW_FIGURE_KEYS];
+      const of = (views: InputView[]) => views.find((v) => v.id === row.id)!;
+      const cut = of(limited);
+      for (const fig of row.sourceFigures.figures) {
+        const { entityType } = keys[fig.key]!;
+        for (const id of fig.ids) {
+          expect(entityType !== null && inTable(entityType, id), `${fig.key} ${id}`).toBe(true);
+          named.add(entityType!);
+        }
+        expect(figureOf(of(whole), fig.key)).toEqual(fig);
+        if (cut.figuresWithheld) continue;
+        const seen = figureOf(cut, fig.key);
+        expect(seen.value, fig.key).toBe(fig.value);
+        expect(fig.ids, fig.key).toEqual(expect.arrayContaining(seen.ids));
+        dropped += fig.ids.length - seen.ids.length;
+      }
+    }
+    // Every table holds an id here, and the Pune owner misses some, so neither check is empty.
+    expect(sorted([...named])).toEqual(sorted([...Object.keys(tables), 'instance']));
+    expect(dropped).toBeGreaterThan(0);
+    stored(review.id).archivedAt = NOW;
   });
 });
 

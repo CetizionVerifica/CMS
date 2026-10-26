@@ -295,5 +295,8 @@ reader's unit scope, with an id the list does not hold for the reader (another c
 reader's units) left out and no error, in the list's own order and paging. With `ids` the document list drops its
 ACTIVE-only default. `/iso/certifications` takes no `ids`, and `ISO_EXPORT_FILTERS` leaves it out of the NC log and
 risk register exports, as it leaves out paging. The mock honours it, and its REQUEST_NA on a clause that allows no
-exclusion now answers `400 VALIDATION` naming `status` instead of `clauseId` (ADR M16-0004 decision 5). This is a
-patch: an optional query parameter and a mock error path.
+exclusion now answers `400 VALIDATION` naming `status` instead of `clauseId` (ADR M16-0004 decision 5). After the
+ISO-1a3 audit (#306), the mock reports a nonconformity, raised by hand or from a finding, on the client-local day
+rather than its one zone's, so an incident's day is checked against the client's own `reportedOn`, and compares an
+incident's `occurredAt` with now as instants; tests cover a PATCH moving the time after now and the table each review
+figure key names. This is a patch: an optional query parameter and mock rules.

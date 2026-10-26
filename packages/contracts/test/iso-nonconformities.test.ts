@@ -988,6 +988,51 @@ describe('updateIsoNonconformity', () => {
     // Only a new or moved time is checked: a stored one is left alone by other edits.
     ncRow(nc.id).reportedOn = '2024-11-09';
     await ncStep('updateIsoNonconformity', nc, { incident: { location: 'Dock 3' } });
+    // A time moved after now is refused as a new one is, compared as instants: half a second after now is later.
+    ncRow(nc.id).reportedOn = TODAY;
+    for (const occurredAt of ['2024-11-15T07:00:00Z', '2024-11-15T06:30:00.500Z']) {
+      const refused = await fails(
+        app,
+        'updateIsoNonconformity',
+        onNc(nc, { incident: { occurredAt } }),
+        'VALIDATION',
+        400,
+      );
+      expect(refused.error.details, occurredAt).toEqual({
+        issues: [
+          {
+            path: ['body', 'incident.occurredAt'],
+            message: 'The incident cannot have occurred after now',
+          },
+        ],
+      });
+    }
+    const early = await ncStep('updateIsoNonconformity', nc, {
+      incident: { occurredAt: '2024-11-15T06:29:59.500Z' },
+    });
+    expect(early.incident?.occurredAt).toBe('2024-11-15T06:29:59.500Z');
+  });
+
+  it("reports a nonconformity on the client's day, which its incident's time is checked against", async () => {
+    // Now is 06:30 UTC on 2024-11-15: 19:30 on 2024-11-14 for a client in Pago Pago (UTC-11).
+    const behind = await isoApp();
+    try {
+      firmB(behind).data.clients.find((c) => c.id === NORTHWIND)!.settings.timeZone =
+        'Pacific/Pago_Pago';
+      const incident = { ...INCIDENT, occurredAt: '2024-11-15T06:00:00Z' };
+      const nc = await ok<Nc>(
+        behind,
+        'raiseIsoNonconformity',
+        raiseCall(
+          { source: 'INCIDENT', standards: ['ISO_45001'], incident },
+          PERSON.meera,
+          seedSystem(behind),
+        ),
+      );
+      expect(nc.reportedOn).toBe('2024-11-14');
+    } finally {
+      await behind.close();
+    }
   });
 
   it('refuses the incident outcome, which the reassign route changes', async () => {
