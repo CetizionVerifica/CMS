@@ -1,7 +1,8 @@
-import { LocalDate } from '@canopy/contracts';
+import { LocalDate, type EntityType } from '@canopy/contracts';
 import {
   account,
   accountJobs,
+  actKindOf,
   acts,
   assignments,
   auditEvents,
@@ -12,6 +13,8 @@ import {
   firms,
   instances,
   invites,
+  isoFiles,
+  isoFileSubject,
   jobs,
   memberships,
   notificationSends,
@@ -29,6 +32,7 @@ import type {
   JobStore,
   NoticeInstance,
   PendingEvidence,
+  PendingIsoFile,
   PersonNotice,
 } from './ports.js';
 
@@ -39,9 +43,33 @@ import type {
 export function postgresJobStore(db: Database): JobStore {
   return {
     listFirmIds: () => db.listFirmIds(),
+    listFirmIdsWithFeature: (flag) => db.listFirmIdsWithFeature(flag),
     withFirm: (firmId, requestId, fn) =>
       db.withTenant(systemContext(firmId, requestId), (tx) => fn(firmTx(tx))),
   };
+}
+
+const STANDARD = { actKinds: ['STANDARD'] } as const;
+
+/** Failed scan attempts on one record's `UPDATE` audit rows, read page by page so a busy record cannot hide one. */
+async function countAttempts(
+  tx: TenantTx,
+  entity: { entityType: EntityType; entityId: string },
+  isAttempt: (after: Record<string, unknown>) => boolean,
+): Promise<number> {
+  let attempts = 0;
+  let after: string | undefined;
+  do {
+    const page = await auditEvents.query(tx, {
+      ...entity,
+      action: ['UPDATE'],
+      limit: 200,
+      ...(after && { after }),
+    });
+    attempts += page.items.filter((e) => e.after !== null && isAttempt(e.after)).length;
+    after = page.nextCursor ?? undefined;
+  } while (after);
+  return attempts;
 }
 
 function firmTx(tx: TenantTx): FirmTx {
@@ -78,6 +106,31 @@ function firmTx(tx: TenantTx): FirmTx {
           email: p.email,
           canReceive: p.status === 'ACTIVE' && live.has(p.id),
         }));
+    },
+    standardObligationIds: async () => {
+      const ids: string[] = [];
+      let cursor: string | null = null;
+      do {
+        const page = await obligations.list(
+          tx,
+          { limit: 200, cursor, includeArchived: true },
+          STANDARD,
+        );
+        ids.push(...page.items.map((o) => o.id));
+        cursor = page.nextCursor;
+      } while (cursor !== null);
+      return ids;
+    },
+    // An account that never had the add-on has no STANDARD act, so one cheap read answers for every instance.
+    standardInstanceIds: async (instanceIds) => {
+      if (instanceIds.length === 0) return [];
+      const anyStandard = await acts.list(tx, { limit: 1, includeArchived: true }, STANDARD);
+      if (anyStandard.items.length === 0) return [];
+      const found: string[] = [];
+      for (const id of instanceIds) {
+        if ((await actKindOf.instance(tx, id)) === 'STANDARD') found.push(id);
+      }
+      return found;
     },
     listClients: () => jobs.listClients(tx),
     listGenerationTargets: (clientId) => jobs.listGenerationTargets(tx, clientId),
@@ -156,25 +209,33 @@ function firmTx(tx: TenantTx): FirmTx {
       await evidence.setScanStatus(tx, evidenceId, scanStatus);
       return { instanceVersion: (await instances.require(tx, e.instanceId)).version };
     },
-    // The instance's whole history is read, page by page, so a busy instance cannot hide an attempt.
-    scanAttempts: async (evidenceId, instanceId) => {
-      let attempts = 0;
-      let after: string | undefined;
-      do {
-        const page = await auditEvents.query(tx, {
-          entityType: 'instance',
-          entityId: instanceId,
-          action: ['UPDATE'],
-          limit: 200,
-          ...(after && { after }),
-        });
-        attempts += page.items.filter(
-          (e) => e.after?.evidenceId === evidenceId && e.after?.scanStatus === 'PENDING',
-        ).length;
-        after = page.nextCursor ?? undefined;
-      } while (after);
-      return attempts;
+    scanAttempts: (evidenceId, instanceId) =>
+      countAttempts(
+        tx,
+        { entityType: 'instance', entityId: instanceId },
+        (a) => a.evidenceId === evidenceId && a.scanStatus === 'PENDING',
+      ),
+    listPendingIsoFiles: async (limit): Promise<PendingIsoFile[]> =>
+      (await isoFiles.pendingScan(tx, limit)).map((f) => ({
+        id: f.id,
+        clientId: f.clientId,
+        subject: isoFileSubject(f),
+        storageKey: f.storageKey,
+        sizeBytes: f.sizeBytes,
+      })),
+    // `setScanStatus` checks no state, so the file is read again first, as `recordScan` does for evidence.
+    recordIsoScan: async (fileId, scanStatus) => {
+      const f = await isoFiles.get(tx, fileId);
+      if (!f || f.archivedAt !== null || f.scanStatus !== 'PENDING') return false;
+      await isoFiles.setScanStatus(tx, fileId, scanStatus);
+      return true;
     },
+    isoScanAttempts: (fileId, subject) =>
+      countAttempts(
+        tx,
+        { entityType: subject.type, entityId: subject.id },
+        (a) => a.fileId === fileId && a.scanStatus === 'PENDING',
+      ),
     findInvite: async (inviteId): Promise<InviteNotice | null> => {
       const i = await invites.get(tx, inviteId);
       if (!i) return null;
@@ -204,7 +265,7 @@ function firmTx(tx: TenantTx): FirmTx {
     listDoneDigests: (sendDate) => notificationSends.listDoneDigests(tx, sendDate),
     recipients: (personIds, clientId) => jobs.recipients(tx, personIds, clientId),
     listConsultants: () => jobs.listConsultants(tx),
-    listScoreItems: (clientId, range) => jobs.listScoreItems(tx, clientId, range),
+    listScoreItems: (clientId, range, filter) => jobs.listScoreItems(tx, clientId, range, filter),
     claimSend: (key) => notificationSends.claim(tx, key),
     markSent: async (key, at, event) => {
       const id = await notificationSends.markSent(tx, key, at);

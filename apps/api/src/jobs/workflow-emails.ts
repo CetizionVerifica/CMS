@@ -12,6 +12,7 @@ import type {
   NoticeInstance,
   SendKey,
 } from './ports.js';
+import { offInstanceIds } from './iso-switch.js';
 import { instanceUrl } from './reminders.js';
 import { deliver } from './send.js';
 
@@ -68,6 +69,8 @@ async function sendWorkflowEmail(
     ) {
       return null;
     }
+    // Features are read now, not when the event was queued: a STANDARD instance gets no email once the add-on is off.
+    if ((await offInstanceIds(tx, [instance.id])).has(instance.id)) return null;
     const client = (await tx.listClients()).find((c) => c.id === instance.clientId);
     if (!client) return null;
     const actorId = actor.success ? actor.data.personId : spec.defaultActor(instance);
