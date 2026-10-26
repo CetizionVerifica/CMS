@@ -1545,6 +1545,134 @@ describe('management reviews', () => {
     ).toBe('23505');
   });
 
+  it('store figures once (migration 0043): all three together, an object, then fixed but for notes', async () => {
+    const figures = {
+      source: 'PREVIOUS_ACTIONS',
+      since: '2026-04-01',
+      asOf: '2027-03-15',
+      figures: [{ key: 'actionsOpen', value: 2, ids: [w.ownerId] }],
+    };
+    const { review, input, other } = await asAdmin(async (tx) => {
+      const made = await r.managementReviews.create(tx, newReview());
+      const [first, second] = await r.reviewInputs.addForReview(tx, made, [w.iso9001]);
+      return { review: made, input: first!, other: second! };
+    });
+    expect(input).toMatchObject({
+      sourceFigures: null,
+      figuresStoredAt: null,
+      figuresEngineVersion: null,
+    });
+    const run = (statement: string) => failure(asAdmin((tx) => tx.execute(sql.raw(statement))));
+    const set = (id: string, assignments: string) =>
+      run(`UPDATE review_input SET ${assignments} WHERE id = '${id}'`);
+    const json = `'${JSON.stringify(figures)}'::jsonb`;
+    // Not all three at once, or not an object.
+    expect(await set(input.id, `source_figures = ${json}`)).toBe('23514');
+    expect(await set(input.id, `figures_stored_at = now(), figures_engine_version = '1.1.0'`)).toBe(
+      '23514',
+    );
+    expect(
+      await set(
+        input.id,
+        `source_figures = '[]'::jsonb, figures_stored_at = now(), figures_engine_version = '1.1.0'`,
+      ),
+    ).toBe('23514');
+    expect(
+      await set(
+        input.id,
+        `source_figures = ${json}, figures_stored_at = now(), figures_engine_version = ''`,
+      ),
+    ).toBe('23514');
+    // The one allowed write.
+    expect(
+      await set(
+        input.id,
+        `source_figures = ${json}, figures_stored_at = now(), figures_engine_version = '1.1.0'`,
+      ),
+    ).toBe('resolved');
+    const stored = await asAdmin((tx) => r.reviewInputs.require(tx, input.id));
+    expect(stored).toMatchObject({ sourceFigures: figures, figuresEngineVersion: '1.1.0' });
+    expect(stored.figuresStoredAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+    // Then nothing of the record changes, whatever the column.
+    const otherReview = await asAdmin((tx) => r.managementReviews.create(tx, newReview()));
+    for (const change of [
+      `source_figures = '{"source": "CONTEXT", "since": "2026-04-01", "asOf": "2027-03-15", "figures": []}'::jsonb`,
+      `figures_stored_at = now() + interval '1 day'`,
+      `figures_engine_version = '1.2.0'`,
+      `source_figures = null, figures_stored_at = null, figures_engine_version = null`,
+      `input_def_id = '${other?.inputDefId ?? input.inputDefId}'::uuid, notes = 'moved'`,
+      `management_review_id = '${otherReview.id}'`,
+      `archived_at = now()`,
+    ]) {
+      expect(await set(input.id, change), change).toBe('23514');
+    }
+    expect(
+      await failure(
+        asAdmin((tx) =>
+          tx.execute(sql`UPDATE review_input SET archived_at = now() WHERE id = ${input.id}`),
+        ),
+      ),
+    ).toBe('23514');
+    // notes stays free, and the read returns the record unchanged.
+    const noted = await asAdmin((tx) =>
+      r.reviewInputs.update(tx, stored.id, stored.version, { notes: 'Read at the review' }),
+    );
+    expect(noted).toMatchObject({
+      notes: 'Read at the review',
+      sourceFigures: figures,
+      figuresStoredAt: stored.figuresStoredAt,
+      figuresEngineVersion: '1.1.0',
+    });
+    expect((await asAdmin((tx) => r.reviewInputs.forReview(tx, review.id)))[0]).toEqual(
+      expect.objectContaining({ id: input.id, sourceFigures: figures }),
+    );
+  });
+
+  it('keep one live input and output row per key, beside archived ones (migration 0043)', async () => {
+    await asAdmin(async (tx) => {
+      const review = await r.managementReviews.create(tx, newReview());
+      const inputs = await r.reviewInputs.addForReview(tx, review, [w.iso9001]);
+      const outputs = await r.reviewOutputs.addForReview(tx, review, [w.iso9001]);
+      expect(inputs).toHaveLength(2);
+      expect(outputs).toHaveLength(1);
+      // Run twice: nothing more.
+      expect(await r.reviewInputs.addForReview(tx, review, [w.iso9001])).toEqual([]);
+      expect(await r.reviewOutputs.addForReview(tx, review, [w.iso9001])).toEqual([]);
+      // A replan drops the standard (rows archived), then adds it back: new live rows beside the archived ones.
+      await tx.execute(
+        sql`UPDATE review_input SET archived_at = now() WHERE management_review_id = ${review.id}`,
+      );
+      await tx.execute(
+        sql`UPDATE review_output SET archived_at = now() WHERE management_review_id = ${review.id}`,
+      );
+      const againIn = await r.reviewInputs.addForReview(tx, review, [w.iso9001]);
+      const againOut = await r.reviewOutputs.addForReview(tx, review, [w.iso9001]);
+      expect(againIn.map((x) => x.inputDefId).sort()).toEqual(
+        inputs.map((x) => x.inputDefId).sort(),
+      );
+      expect(againOut.map((x) => x.outputDefId)).toEqual(outputs.map((x) => x.outputDefId));
+      expect(againIn.map((x) => x.id)).not.toContain(inputs[0]!.id);
+      expect(await r.reviewInputs.forReview(tx, review.id)).toEqual(againIn);
+      const { rows } = await tx.execute<{ live: number; archived: number }>(
+        sql`SELECT count(*) FILTER (WHERE archived_at IS NULL)::int AS live,
+                   count(*) FILTER (WHERE archived_at IS NOT NULL)::int AS archived
+            FROM review_input WHERE management_review_id = ${review.id}`,
+      );
+      expect(rows).toEqual([{ live: 2, archived: 2 }]);
+    });
+    // A second live row for one key is still refused.
+    expect(
+      await failure(
+        asAdmin(async (tx) => {
+          const review = await r.managementReviews.create(tx, newReview());
+          const [output] = await r.reviewOutputs.addForReview(tx, review, [w.iso9001]);
+          await tx.execute(sql`INSERT INTO review_output (client_id, management_review_id, output_def_id)
+            VALUES (${w.kestrel}, ${review.id}, ${output!.outputDefId})`);
+        }),
+      ),
+    ).toBe('23505');
+  });
+
   it('list by planned date and unit scope: the system units, or the chair or an attendee', async () => {
     const made = await asAdmin(async (tx) => ({
       riverbend: (await r.managementReviews.create(tx, newReview({ plannedOn: day('2027-06-01') })))
