@@ -8,6 +8,7 @@ import {
   countGroups,
   gateRows,
   isoPath,
+  MAX_LINK_IDS,
   readinessLinks,
   readinessText,
 } from './overview-model';
@@ -40,6 +41,31 @@ describe('countGroups', () => {
       `/c/${C}/iso/actions?managementSystemId=${SYS}&state=OPEN`,
     );
     for (const item of all) expect(item.href.startsWith(`/c/${C}/iso/`)).toBe(true);
+    expect(all.some((i) => i.note)).toBe(false);
+  });
+
+  it("opens the system's whole list, and says so, past the ids filter's limit", () => {
+    const many = Array.from({ length: MAX_LINK_IDS + 1 }, (_, i) => `r${i}`);
+    const groups = countGroups(C, {
+      ...view,
+      risks: { ...view.risks, reviewOverdue: { count: many.length, ids: many } },
+    });
+    const item = groups.find((g) => g.title === 'Risks')!.items[1]!;
+    expect(item.href).toBe(`/c/${C}/iso/risks?managementSystemId=${SYS}`);
+    expect(item.note).toMatch(/all of the system's records/);
+    const atLimit = countGroups(C, {
+      ...view,
+      risks: { ...view.risks, reviewOverdue: { count: 200, ids: many.slice(0, 200) } },
+    });
+    expect(atLimit.find((g) => g.title === 'Risks')!.items[1]!.href).toMatch(/\?ids=r0%2C/);
+    // Past the limit the documents list is asked for every status, not its ACTIVE-only default.
+    const docs = countGroups(C, {
+      ...view,
+      documents: { ...view.documents, reviewOverdue: { count: many.length, ids: many } },
+    });
+    expect(docs.find((g) => g.title === 'Documents')!.items[1]!.href).toBe(
+      `/c/${C}/iso/documents?managementSystemId=${SYS}&status=ACTIVE%2COBSOLETE`,
+    );
   });
 });
 

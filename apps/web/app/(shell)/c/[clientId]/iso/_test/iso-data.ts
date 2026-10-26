@@ -32,22 +32,45 @@ export async function isoData(api?: ApiClient) {
   const a = api ?? (await signedIn('consultant@demo.test'));
   const p = { params: { clientId: CLIENT } };
   const limit = { limit: '200' };
-  const [overview, systems, standards, clauses, units, people, docs, certs, audits, defs] =
-    await Promise.all([
-      a.call('getIsoOverview', p).then((r) => r.data),
-      a.call('listIsoSystems', { ...p, query: limit }).then((r) => r.data.items),
-      a.call('listIsoStandards', p).then((r) => r.data.items),
-      a.call('listIsoClauses', p).then((r) => r.data.items),
-      a.call('listUnits', { ...p, query: limit }).then((r) => r.data.items),
-      a.call('listClientPeople', { ...p, query: limit }).then((r) => r.data.items),
-      a
-        .call('listIsoDocuments', { ...p, query: { ...limit, status: 'ACTIVE,OBSOLETE' } })
-        .then((r) => r.data.items),
-      a.call('listIsoCertifications', { ...p, query: limit }).then((r) => r.data.items),
-      a.call('listIsoExternalAudits', { ...p, query: limit }).then((r) => r.data.items),
-      a.call('listIsoReviewDefs', p).then((r) => r.data),
-    ]);
+  const [
+    overview,
+    systems,
+    standards,
+    clauses,
+    units,
+    people,
+    docs,
+    certs,
+    audits,
+    defs,
+    risks,
+    objectives,
+    actions,
+  ] = await Promise.all([
+    a.call('getIsoOverview', p).then((r) => r.data),
+    a.call('listIsoSystems', { ...p, query: limit }).then((r) => r.data.items),
+    a.call('listIsoStandards', p).then((r) => r.data.items),
+    a.call('listIsoClauses', p).then((r) => r.data.items),
+    a.call('listUnits', { ...p, query: limit }).then((r) => r.data.items),
+    a.call('listClientPeople', { ...p, query: limit }).then((r) => r.data.items),
+    a
+      .call('listIsoDocuments', { ...p, query: { ...limit, status: 'ACTIVE,OBSOLETE' } })
+      .then((r) => r.data.items),
+    a.call('listIsoCertifications', { ...p, query: limit }).then((r) => r.data.items),
+    a.call('listIsoExternalAudits', { ...p, query: limit }).then((r) => r.data.items),
+    a.call('listIsoReviewDefs', p).then((r) => r.data),
+    a
+      .call('listIsoRisks', { ...p, query: { ...limit, includeArchived: 'true' } })
+      .then((r) => r.data.items),
+    a.call('listIsoObjectives', { ...p, query: limit }).then((r) => r.data.items),
+    a.call('listIsoActions', { ...p, query: limit }).then((r) => r.data.items),
+  ]);
   const system = systems[0]!;
+  // Every item's controls and every objective's readings, keyed by their item or objective.
+  const [controls, readings] = await Promise.all([
+    keyed(risks, (r) => riskControls(a, r.id)),
+    keyed(objectives, (o) => objectiveReadings(a, o.id)),
+  ]);
   const [checklist, contextItems] = await Promise.all([
     a
       .call('listIsoChecklist', { params: { clientId: CLIENT, id: system.id } })
@@ -73,7 +96,24 @@ export async function isoData(api?: ApiClient) {
     defs,
     checklist,
     contextItems,
+    risks,
+    controls,
+    objectives,
+    readings,
+    actions,
   };
 }
+
+async function keyed<T extends { id: string }, V>(
+  items: readonly T[],
+  read: (item: T) => Promise<V>,
+): Promise<Record<string, V>> {
+  return Object.fromEntries(await Promise.all(items.map(async (i) => [i.id, await read(i)])));
+}
+
+const riskControls = async (a: ApiClient, id: string) =>
+  (await a.call('listIsoRiskControls', { params: { clientId: CLIENT, id } })).data.items;
+const objectiveReadings = async (a: ApiClient, id: string) =>
+  (await a.call('listIsoReadings', { params: { clientId: CLIENT, id } })).data.items;
 
 export type IsoData = Awaited<ReturnType<typeof isoData>>;

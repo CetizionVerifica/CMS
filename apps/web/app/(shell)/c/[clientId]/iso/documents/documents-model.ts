@@ -1,5 +1,5 @@
 // The document list's URL state and rows (packages.md ISO-6a). The filters are the API's own query names; `ids` is the
-// exact list an overview number counts, which may hold obsolete documents too.
+// exact list an overview number counts, which goes to the API's own filter (ISO-1a4).
 import {
   DocumentStatus,
   DocumentType,
@@ -37,15 +37,18 @@ export function documentFilters(search: Search, systemIds: readonly string[]): D
   };
 }
 
-/** The API query. An `ids` list reads every status, since the overview may count an obsolete document. */
+/**
+ * The API query. With `ids` the API drops its ACTIVE-only default, so an obsolete document the overview counted is
+ * listed too.
+ */
 export function documentsQuery(f: DocumentFilters): Record<string, string> {
   const query: Record<string, string> = {};
   if (f.type.length) query.type = f.type.join(',');
-  if (f.ids.length) query.status = DocumentStatus.options.join(',');
-  else if (f.status.length) query.status = f.status.join(',');
+  if (f.status.length) query.status = f.status.join(',');
   if (f.ownerId) query.ownerId = f.ownerId;
   if (f.q) query.q = f.q;
   if (f.managementSystemId) query.managementSystemId = f.managementSystemId;
+  if (f.ids.length) query.ids = f.ids.join(',');
   return query;
 }
 
@@ -85,20 +88,17 @@ export type DocumentRow = {
 export function documentRows(
   docs: readonly DocumentView[],
   people: readonly PersonOption[],
-  ids: readonly string[],
 ): DocumentRow[] {
-  return docs
-    .filter((d) => ids.length === 0 || ids.includes(d.id))
-    .map((d) => ({
-      id: d.id,
-      code: d.code,
-      title: d.title,
-      type: word('DocumentType', d.type),
-      revision: d.currentRevision ?? 'None approved yet',
-      ownerName: nameOf(people, d.ownerId),
-      approverName: nameOf(people, d.approverId),
-      doc: d,
-    }));
+  return docs.map((d) => ({
+    id: d.id,
+    code: d.code,
+    title: d.title,
+    type: word('DocumentType', d.type),
+    revision: d.currentRevision ?? 'None approved yet',
+    ownerName: nameOf(people, d.ownerId),
+    approverName: nameOf(people, d.approverId),
+    doc: d,
+  }));
 }
 
 /** The clauses a record can name, of the given standards: "ISO 9001 7.5 Documented information". */

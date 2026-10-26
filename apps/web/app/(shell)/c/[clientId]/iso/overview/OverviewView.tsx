@@ -44,16 +44,24 @@ function Card({
 
 function Count({ item }: { item: CountLink }) {
   return (
-    <li className="flex items-baseline justify-between gap-3">
-      <span className="text-body text-muted">{item.label}</span>
-      <NextLink
-        href={item.href}
-        prefetch={false}
-        className="text-body font-semibold text-forest tabular-nums underline-offset-2 hover:underline"
-        aria-label={`${item.count} ${item.label.toLowerCase()}`}
-      >
-        {item.count}
-      </NextLink>
+    <li className="flex flex-col gap-0.5">
+      <span className="flex items-baseline justify-between gap-3">
+        <span className="text-body text-muted">{item.label}</span>
+        {item.count === 0 ? (
+          // Nothing to open: a link would land on the whole, unfiltered list.
+          <span className="text-body font-semibold text-ink tabular-nums">0</span>
+        ) : (
+          <NextLink
+            href={item.href}
+            prefetch={false}
+            className="text-body font-semibold text-forest tabular-nums underline-offset-2 hover:underline"
+            aria-label={`${item.count} ${item.label.toLowerCase()}${item.note ? `, ${item.note}` : ''}`}
+          >
+            {item.count}
+          </NextLink>
+        )}
+      </span>
+      {item.note ? <span className="text-meta text-muted">{item.note}</span> : null}
     </li>
   );
 }
@@ -293,7 +301,7 @@ export function MyActionsCard({ clientId }: { clientId: string }) {
         </p>
       </div>
       <NextLink
-        href={hrefWith(isoPath(clientId, 'actions'), { owner: 'me', state: 'OPEN' })}
+        href={hrefWith(isoPath(clientId, 'actions'), { ownerId: 'me', state: 'OPEN' })}
         prefetch={false}
         className="text-body font-semibold text-forest underline"
       >

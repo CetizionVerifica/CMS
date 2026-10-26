@@ -46,16 +46,16 @@ describe('document filters', () => {
     });
   });
 
-  it('reads every status for an overview list of ids', () => {
-    const f = documentFilters({ ids: 'a,b', status: 'ACTIVE' }, [SYS]);
-    expect(documentsQuery(f)).toEqual({ status: 'ACTIVE,OBSOLETE' });
+  it('sends an overview list of ids to the API and adds no status of its own', () => {
+    const f = documentFilters({ ids: 'a,b' }, [SYS]);
+    expect(documentsQuery(f)).toEqual({ ids: 'a,b' });
     expect(documentFilterDefs().map((d) => d.key)).toEqual(['type', 'status', 'ownerId']);
   });
 });
 
 describe('document rows', () => {
-  it('words each document and keeps only the ids asked for', () => {
-    const rows = documentRows(ISO.docs, ISO.people, []);
+  it('words each document the API listed, filtering none itself', () => {
+    const rows = documentRows(ISO.docs, ISO.people);
     expect(rows).toHaveLength(ISO.docs.length);
     const pr07 = rows.find((r) => r.code === 'NFG-PR-07')!;
     expect(pr07).toMatchObject({
@@ -63,8 +63,7 @@ describe('document rows', () => {
       ownerName: 'Rohan Joshi',
       approverName: 'Nisha Patil',
     });
-    expect(documentRows(ISO.docs, ISO.people, [pr07.id]).map((r) => r.code)).toEqual(['NFG-PR-07']);
-    const fresh = documentRows([{ ...ISO.docs[0]!, currentRevision: null }], ISO.people, []);
+    const fresh = documentRows([{ ...ISO.docs[0]!, currentRevision: null }], ISO.people);
     expect(fresh[0]!.revision).toBe('None approved yet');
   });
 

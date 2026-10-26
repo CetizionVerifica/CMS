@@ -2,6 +2,7 @@
 // results) with the ids behind it; this file only words them and builds the link to the list holding exactly those
 // records. Where the list has a filter that matches the number exactly the link uses it; otherwise it names the ids.
 import {
+  DocumentStatus,
   RiskKind,
   type CertificationGate,
   type ClimateGap,
@@ -14,10 +15,40 @@ import {
 import { hrefWith } from '../_lib/people';
 import { word } from '../_lib/words';
 
-export type CountLink = { label: string; count: number; href: string };
+export type CountLink = {
+  label: string;
+  count: number;
+  href: string;
+  /** Said beside the number when its link cannot name exactly the records it counts. */
+  note?: string;
+};
 export type CountGroup = { title: string; items: CountLink[] };
 
 const ids = (c: IdCount) => c.ids.join(',');
+
+/** The most ids a list's `ids` filter takes (contracts, ISO-1a4). */
+export const MAX_LINK_IDS = 200;
+
+/**
+ * A count's link to the list holding exactly its records, by their ids. Past the `ids` filter's limit it opens the
+ * system's whole list instead, and says so.
+ */
+function idsLink(
+  href: (query: Record<string, string | undefined>) => string,
+  systemId: string,
+  c: IdCount,
+  whole: Record<string, string> = {},
+): Pick<CountLink, 'href' | 'note'> {
+  if (c.ids.length <= MAX_LINK_IDS) return { href: href({ ids: ids(c) }) };
+  return {
+    href: href({ managementSystemId: systemId, ...whole }),
+    note: "Too many to list on their own: the link shows all of the system's records.",
+  };
+}
+
+// The documents list shows only ACTIVE documents unless it is given a status or ids, so the whole-system link names
+// every status.
+const everyStatus = { status: DocumentStatus.options.join(',') };
 
 /** The client's ISO pages. */
 export function isoPath(clientId: string, page: string): string {
@@ -54,7 +85,7 @@ export function countGroups(clientId: string, s: IsoSystemOverview): CountGroup[
         {
           label: 'Effectiveness check overdue',
           count: s.nonconformities.effectivenessOverdue.count,
-          href: at('nonconformities', { ids: ids(s.nonconformities.effectivenessOverdue) }),
+          ...idsLink((q) => at('nonconformities', q), sys, s.nonconformities.effectivenessOverdue),
         },
       ],
     },
@@ -79,12 +110,12 @@ export function countGroups(clientId: string, s: IsoSystemOverview): CountGroup[
         {
           label: 'Revision in review',
           count: s.documents.inReview.count,
-          href: at('documents', { ids: ids(s.documents.inReview) }),
+          ...idsLink((q) => at('documents', q), sys, s.documents.inReview, everyStatus),
         },
         {
           label: 'Review overdue',
           count: s.documents.reviewOverdue.count,
-          href: at('documents', { ids: ids(s.documents.reviewOverdue) }),
+          ...idsLink((q) => at('documents', q), sys, s.documents.reviewOverdue, everyStatus),
         },
       ],
     },
@@ -99,7 +130,7 @@ export function countGroups(clientId: string, s: IsoSystemOverview): CountGroup[
         {
           label: 'Review overdue',
           count: s.risks.reviewOverdue.count,
-          href: at('risks', { ids: ids(s.risks.reviewOverdue) }),
+          ...idsLink((q) => at('risks', q), sys, s.risks.reviewOverdue),
         },
       ],
     },
@@ -114,7 +145,7 @@ export function countGroups(clientId: string, s: IsoSystemOverview): CountGroup[
         {
           label: 'Off track',
           count: s.objectives.offTrack.count,
-          href: at('objectives', { ids: ids(s.objectives.offTrack) }),
+          ...idsLink((q) => at('objectives', q), sys, s.objectives.offTrack),
         },
       ],
     },
