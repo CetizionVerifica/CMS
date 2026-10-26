@@ -65,3 +65,5 @@ ISO functions live in `src/iso-score.ts`, `src/iso-status.ts` (100% coverage by 
 `src/iso-review.ts`, exported as `isoEngine` (`satisfies IsoEngineApi`). The state machines of `docs/iso/model.md` §4
 are data (`ISO_TRANSITIONS`); `isoTransition` reads only the facts the caller passes, and a missing fact never
 satisfies a guard. Timing uses the instance rule: overdue the day after, due soon within `dueSoonDays`.
+`reviewInputFigures` takes the contract's `ReviewFigureData` and reads records as they are now except by the days model
+§5.4 names (ADR rule 18); it never rebuilds history, since held reviews store their figures.
