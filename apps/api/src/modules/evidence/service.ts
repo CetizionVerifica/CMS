@@ -27,7 +27,7 @@ import { emit, emitAs } from '../instances/events.js';
 import { rolesIn } from '../instances/scope.js';
 import type { Actor } from '../instances/service.js';
 import { ACTIVE_STATES } from '../instances/workflow.js';
-import { displayName, requireAllowedType, storageKey } from './files.js';
+import { displayName, requireAllowedType, requireUploadId, storageKey } from './files.js';
 import { SIGNED_URL_SECONDS, type EvidenceStorage } from './storage.js';
 
 /**
@@ -162,6 +162,7 @@ export function createEvidenceService(options: EvidenceServiceOptions) {
         const instance = await loadInstance(tx, ctx, instanceId);
         actor.authorize('evidence.write', instanceResource(instance));
         requireActive(instance.workflowState);
+        requireUploadId(body.uploadId);
         const key = storageKey({
           firmId: ctx.firmId,
           clientId: instance.clientId,

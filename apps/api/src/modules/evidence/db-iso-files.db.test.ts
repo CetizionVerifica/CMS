@@ -250,6 +250,33 @@ describe('uploadUrl', () => {
     expect(await auditIds()).toEqual(before);
   });
 
+  it("names the subject record's firm in the key, never the caller's (#301 audit)", async () => {
+    const subject = subjects.document_revision;
+    const ticket = await inTenant((tx) =>
+      service.uploadUrl(tx, { ...caller(), firmId: other.firmId }, subject, {
+        fileName: 'a.pdf',
+        mimeType: 'application/pdf',
+        sizeBytes: 10,
+      }),
+    );
+    const key = isoStorageKey({
+      firmId: f.firmId,
+      clientId: f.clientId,
+      subject,
+      uploadId: ticket.uploadId,
+    });
+    expect(ticket.url).toContain(encodeURIComponent(key));
+    files.put(key, { mimeType: 'application/pdf', sizeBytes: 10 });
+    const file = await inTenant((tx) =>
+      service.confirm(tx, { ...caller(), firmId: other.firmId }, subject, {
+        uploadId: ticket.uploadId,
+        fileName: 'a.pdf',
+        sha256: SHA,
+      }),
+    );
+    expect((await asSystem(f, (tx) => isoFiles.require(tx, file.id))).storageKey).toBe(key);
+  });
+
   it('refuses a type, size or name the evidence rules refuse, and a subject it cannot see', async () => {
     const subject = subjects.certification;
     const ask = (file: { fileName: string; mimeType: string; sizeBytes: number }, on = subject) =>
@@ -329,6 +356,9 @@ describe('confirm', () => {
         ),
       );
     expect(await confirm('01920000-0000-7000-8000-0000000000aa')).toBe('VALIDATION');
+    // An upload id ends the storage key, so a path is refused before any key is built (#301 audit).
+    expect(await confirm('../..')).toBe('VALIDATION');
+    expect(await confirm(`../../${subjects.certification.id}/x`)).toBe('VALIDATION');
     const png = await upload(subject, { mimeType: 'image/png', sizeBytes: 10 });
     expect(await confirm(png.uploadId)).toBe('VALIDATION');
     const empty = await upload(subject, { mimeType: 'application/pdf', sizeBytes: 0 });

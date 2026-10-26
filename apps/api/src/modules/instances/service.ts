@@ -3,6 +3,7 @@ import {
   InstanceDetail,
   InstanceRow,
   type Action,
+  type ActivitySource,
   type ComplianceInstance,
   type InstanceAction,
   type LocalDate,
@@ -32,6 +33,7 @@ import {
 import { fyRangeOf } from '@canopy/engine';
 import { ApiError, can } from '../../auth/index.js';
 import { loadInstance, toApiError } from './access.js';
+import { listKinds } from './iso-switch.js';
 import { allowedActions, INSTANCE_ACTION_POLICY, instanceResource } from './allowed-actions.js';
 import { recordFor, replay, type KeyedRequest } from './idempotency.js';
 import { countMatching, mergedPage, type ReadRegister, type RegisterSource } from './paging.js';
@@ -179,6 +181,7 @@ export function createInstanceService(options: InstanceServiceOptions) {
     clientId: string,
     query: RegisterQuery,
     cal: ClientCalendar,
+    kinds: Pick<RegisterFilter, 'actKinds'>,
   ): RegisterSource[] {
     const me = (ref: string | undefined) => (ref === 'me' ? ctx.personId : ref);
     const scope = unitScope(ctx, clientId);
@@ -203,6 +206,7 @@ export function createInstanceService(options: InstanceServiceOptions) {
       ...(query.completedTo === undefined ? {} : { completedTo: query.completedTo }),
       ...(query.hasEvidence === undefined ? {} : { hasEvidence: query.hasEvidence }),
       ...(query.q === undefined ? {} : { q: query.q }),
+      ...kinds,
     };
     const categories = query.categoryId ?? [undefined];
     return [...new Set(categories)].map((categoryId) => ({
@@ -335,7 +339,8 @@ export function createInstanceService(options: InstanceServiceOptions) {
         const cal = await calendar(tx, clientId);
         const asOf = readAsOf(actor.ctx, clientId, cal, query.asOf);
         const keepItem = keepRow(query);
-        const sources = registerSources(actor.ctx, clientId, query, cal);
+        const kinds = await listKinds(actor.ctx, query.source);
+        const sources = registerSources(actor.ctx, clientId, query, cal, kinds);
         const read: ReadRegister = (s, p) => readSource(tx, s, p);
         const keep = (row: RegisterRow) => {
           const item = withStatus(row, asOf, cal);
@@ -570,6 +575,7 @@ export function createInstanceService(options: InstanceServiceOptions) {
         cursor?: string | undefined;
         count?: boolean | undefined;
         asOf?: LocalDate | undefined;
+        source?: ActivitySource | undefined;
       },
     ) {
       const { ctx } = actor;
@@ -581,6 +587,7 @@ export function createInstanceService(options: InstanceServiceOptions) {
       if (clientIds.length === 0) throw new ApiError('FORBIDDEN', { action: 'instance.read' });
       // Only FIRM_ADMIN, CONSULTANT and VIEWER choose asOf, and none of them has a queue.
       if (query.asOf !== undefined) throw new ApiError('FORBIDDEN', { action: 'instance.read' });
+      const kinds = await listKinds(ctx, query.source);
       return inTenant(ctx, async (tx) => {
         const calendars = new Map<string, { cal: ClientCalendar; asOf: LocalDate }>();
         const sources: RegisterSource[] = [];
@@ -597,8 +604,14 @@ export function createInstanceService(options: InstanceServiceOptions) {
                 ? {
                     workflowState: ['SUBMITTED'],
                     ...(admin ? {} : { approverId: ctx.personId, ...units }),
+                    ...kinds,
                   }
-                : { workflowState: ['OPEN', 'SENT_BACK'], ownerId: ctx.personId, ...units },
+                : {
+                    workflowState: ['OPEN', 'SENT_BACK'],
+                    ownerId: ctx.personId,
+                    ...units,
+                    ...kinds,
+                  },
           });
         }
         const read: ReadRegister = (s, p) => readSource(tx, s, p);

@@ -14,6 +14,7 @@ import type { InstanceService } from './service.js';
 import {
   addEvidence,
   addInstance,
+  addIsoAssignment,
   createTestDb,
   seedFixture,
   type Cast,
@@ -33,6 +34,7 @@ const NOW = new Date('2023-01-20T06:00:00Z');
 let testDb: TestDb;
 let app: FastifyInstance;
 let f: Fixture;
+let isoAssignment: string;
 const auth = createTestAuth();
 const files = createMemoryStorage();
 const headers = {} as Record<keyof Cast, Record<string, string>>;
@@ -40,6 +42,7 @@ const headers = {} as Record<keyof Cast, Record<string, string>>;
 beforeAll(async () => {
   testDb = await createTestDb();
   f = await seedFixture(testDb.db, await testDb.createFirm('Gate firm'), 'G');
+  isoAssignment = await addIsoAssignment(testDb.db, f);
   for (const key of Object.keys(f.people) as (keyof Cast)[]) {
     headers[key] = auth.signIn({
       firmId: f.firmId,
@@ -64,9 +67,10 @@ afterAll(async () => {
 });
 
 let seq = 0;
-function fresh(state: 'OPEN' | 'SUBMITTED' | 'APPROVED'): Promise<ComplianceInstance> {
+function fresh(state: 'OPEN' | 'SUBMITTED' | 'APPROVED', iso = false): Promise<ComplianceInstance> {
   seq += 1;
   return addInstance(testDb.db, f, {
+    ...(iso ? { assignmentId: isoAssignment } : {}),
     periodStart: `${1990 + seq}-01-01`,
     dueDate: '2023-02-15',
     state,
@@ -413,6 +417,51 @@ const GATE: Record<string, GateCase> = {
   },
 };
 
+/**
+ * ISO-11a: with the ISO add-on off (the test account has no features), each route that names one STANDARD instance,
+ * or evidence on one, refuses it with 403 `FEATURE_NOT_ENABLED` and writes nothing; bulk approve refuses it per item.
+ * The lists leave STANDARD instances out instead (iso-switch.db.test.ts), and the client trail is not gated (plan
+ * §4.4). Every GATE row is in exactly one of the two sets.
+ */
+const ISO_OFF_REFUSED = new Set([
+  'GET /instances/:id',
+  'PATCH /instances/:id',
+  'POST /instances/:id/submit',
+  'POST /instances/:id/request-na',
+  'POST /instances/:id/approve',
+  'POST /instances/:id/send-back',
+  'POST /instances/:id/reopen',
+  'POST /clients/:clientId/instances/bulk-approve',
+  'GET /instances/:id/comments',
+  'POST /instances/:id/comments',
+  'POST /instances/:id/evidence/upload-url',
+  'POST /instances/:id/evidence',
+  'GET /instances/:id/evidence',
+  'GET /evidence/:id/download-url',
+  'POST /evidence/:id/remove',
+  'GET /instances/:id/audit',
+]);
+const ISO_OFF_LISTED = new Set([
+  'GET /clients/:clientId/instances',
+  'GET /me/approvals',
+  'GET /me/tasks',
+  'GET /clients/:clientId/evidence',
+  'GET /clients/:clientId/audit',
+]);
+
+/** The request a GATE row makes, on a STANDARD instance; a confirm names an upload id, as nothing can be uploaded. */
+async function isoRequest(route: string, i: ComplianceInstance): Promise<Request> {
+  if (route === 'POST /instances/:id/evidence') {
+    return {
+      who: 'owner',
+      method: 'POST',
+      url: at(i, 'evidence'),
+      payload: confirmBody('01920000-0000-7000-8000-0000000000aa'),
+    };
+  }
+  return GATE[route]!.change(i);
+}
+
 async function send(r: Request) {
   const res = await app.inject({
     method: r.method,
@@ -470,6 +519,37 @@ describe('every M7 route writes exactly its AuditEvents and outbox events', () =
     const refusal = await gate.refused(untouched);
     const refused = await writtenBy(() => send(refusal));
     expect(refused.status).toBe(refusal.status);
+    expect(refused.audit).toEqual([]);
+    expect(refused.outbox).toEqual([]);
+  });
+});
+
+describe('with the ISO add-on off, a STANDARD instance is refused and nothing is written (ISO-11a)', () => {
+  it('sorts every route into refused or listed', () => {
+    expect([...ISO_OFF_REFUSED, ...ISO_OFF_LISTED].sort()).toEqual(Object.keys(GATE).sort());
+  });
+
+  it.each([...ISO_OFF_REFUSED])('%s', async (route) => {
+    const iso = await fresh(GATE[route]!.from, true);
+    const refused = await writtenBy(async () => {
+      const res = await send(await isoRequest(route, iso));
+      if (route === 'POST /clients/:clientId/instances/bulk-approve') {
+        expect(res.status).toBe(200);
+        expect(res.body.results).toEqual([
+          {
+            id: iso.id,
+            ok: false,
+            error: { code: 'FEATURE_NOT_ENABLED', message: expect.any(String) },
+          },
+        ]);
+      } else {
+        expect(res.status).toBe(403);
+        expect(res.body).toMatchObject({
+          error: { code: 'FEATURE_NOT_ENABLED', details: { feature: 'isoManagement' } },
+        });
+      }
+      return res;
+    });
     expect(refused.audit).toEqual([]);
     expect(refused.outbox).toEqual([]);
   });

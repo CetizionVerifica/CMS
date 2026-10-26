@@ -28,7 +28,7 @@ import {
 } from '@canopy/db';
 import { ApiError } from '../../auth/index.js';
 import { toApiError } from '../instances/access.js';
-import { displayName, requireAllowedType } from './files.js';
+import { displayName, requireAllowedType, requireUploadId } from './files.js';
 import { SIGNED_URL_SECONDS, type EvidenceStorage } from './storage.js';
 
 /**
@@ -49,10 +49,13 @@ export interface IsoFilesOptions {
   readonly clock?: () => Date;
 }
 
-/** Each subject type's reader, for the subject's client (RLS hides other tenants, so they read as missing). */
+/** Each subject type's reader, for the subject's firm and client (RLS hides other tenants, so they read as missing). */
 const SUBJECT_READERS: Record<
   IsoFileSubjectType,
-  (tx: TenantTx, id: string) => Promise<{ clientId: string; archivedAt: string | null } | null>
+  (
+    tx: TenantTx,
+    id: string,
+  ) => Promise<{ firmId: string; clientId: string; archivedAt: string | null } | null>
 > = {
   clause_assessment: clauseAssessments.get,
   document_revision: documentRevisions.get,
@@ -83,11 +86,17 @@ export function createIsoFiles(options: IsoFilesOptions) {
   const clock = options.clock ?? (() => new Date());
   const expiresAt = () => new Date(clock().getTime() + SIGNED_URL_SECONDS * 1000).toISOString();
 
-  /** The live subject's client; NOT_FOUND when it is missing, removed or in another tenant. */
-  async function subjectClient(tx: TenantTx, subject: IsoFileSubject): Promise<string> {
+  /**
+   * The live subject's firm and client, which the storage key names (from the record, never the caller); NOT_FOUND
+   * when it is missing, removed or in another tenant.
+   */
+  async function subjectOwner(
+    tx: TenantTx,
+    subject: IsoFileSubject,
+  ): Promise<{ firmId: string; clientId: string }> {
     const record = await SUBJECT_READERS[subject.type](tx, subject.id);
     if (record === null || record.archivedAt !== null) throw new ApiError('NOT_FOUND');
-    return record.clientId;
+    return { firmId: record.firmId, clientId: record.clientId };
   }
 
   /** A live file; NOT_FOUND when it is missing, removed or in another tenant. */
@@ -130,7 +139,7 @@ export function createIsoFiles(options: IsoFilesOptions) {
       subject: IsoFileSubject,
       file: { fileName: string; mimeType: string; sizeBytes: number },
     ): Promise<UploadTicket> {
-      const clientId = await subjectClient(tx, subject).catch(toApiError);
+      const owner = await subjectOwner(tx, subject).catch(toApiError);
       requireAllowedType(displayName(file.fileName), file.mimeType);
       if (
         !Number.isInteger(file.sizeBytes) ||
@@ -142,7 +151,7 @@ export function createIsoFiles(options: IsoFilesOptions) {
         });
       }
       const uploadId = uuidv7();
-      const key = isoStorageKey({ firmId: caller.firmId, clientId, subject, uploadId });
+      const key = isoStorageKey({ ...owner, subject, uploadId });
       const put = await storage.presignPut(key, {
         mimeType: file.mimeType,
         sizeBytes: file.sizeBytes,
@@ -158,13 +167,9 @@ export function createIsoFiles(options: IsoFilesOptions) {
       upload: { uploadId: string; fileName: string; sha256: string },
     ): Promise<IsoFileView> {
       try {
-        const clientId = await subjectClient(tx, subject);
-        const key = isoStorageKey({
-          firmId: caller.firmId,
-          clientId,
-          subject,
-          uploadId: upload.uploadId,
-        });
+        requireUploadId(upload.uploadId);
+        const { firmId, clientId } = await subjectOwner(tx, subject);
+        const key = isoStorageKey({ firmId, clientId, subject, uploadId: upload.uploadId });
         const stored = await storage.head(key);
         if (stored === null) {
           throw new ApiError('VALIDATION', {
