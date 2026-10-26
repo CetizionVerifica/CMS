@@ -1,6 +1,7 @@
 'use client';
-// The portfolio grid: one row per client, the row opens the client's overview and the overdue count opens the
-// register filtered to those rows. Overdue comes right after the name, so a phone shows it without scrolling sideways.
+// The portfolio grid: one row per client, the row opens the client's overview and the overdue and due-this-week
+// counts open the register filtered to those rows. Overdue comes right after the name, so a phone shows it without
+// scrolling sideways.
 // Client Component because DataTable sorts and handles the keyboard in the browser.
 import {
   DataTable,
@@ -60,6 +61,21 @@ const columns: DataTableProps<PortfolioItem>['columns'] = [
     header: 'Due this week',
     accessorFn: (row) => row.dueThisWeek as never,
     meta: { type: 'number' },
+    cell: ({ row }) => {
+      const { dueThisWeek, dueThisWeekHref, clientName } = row.original;
+      if (dueThisWeek === 0 || !dueThisWeekHref) {
+        return <span className="tabular">{formatNumber(dueThisWeek)}</span>;
+      }
+      return (
+        <NextLink
+          href={dueThisWeekHref}
+          className="tabular underline-offset-2 hover:underline focus-visible:underline"
+          aria-label={`${formatNumber(dueThisWeek)} due this week at ${clientName}, view in register`}
+        >
+          {formatNumber(dueThisWeek)}
+        </NextLink>
+      );
+    },
   },
   {
     id: 'score',

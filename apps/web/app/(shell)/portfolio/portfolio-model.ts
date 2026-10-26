@@ -1,8 +1,9 @@
 // What the portfolio page shows for each client. Display only: the score, counts and dates come from GET /portfolio
 // (engine output via M10); this file orders rows, words the summary and builds links (apps/web/CLAUDE.md).
-import type { PortfolioRow } from '@canopy/contracts';
+import type { ActivitySource, DueThisWeekFilter, PortfolioRow } from '@canopy/contracts';
 
 import { clientHref } from '../../../lib/routes';
+import { lawSource } from '../c/[clientId]/overview/overview-model';
 
 export type PortfolioItem = {
   clientId: string;
@@ -17,20 +18,51 @@ export type PortfolioItem = {
   overviewHref: string;
   /** The register filtered to the overdue rows behind `overdue`. */
   overdueHref: string;
+  /** The register filtered to the rows behind `dueThisWeek`, when the API says which they are. */
+  dueThisWeekHref?: string;
 };
 
 const DEFAULT_TIME_ZONE = 'Asia/Kolkata';
 
-/** The register filtered to one derived status, in the filter language of api-conventions.md §3. */
-export function registerHref(clientId: string, status: string): string {
-  return `${clientHref(clientId, 'register')}?${new URLSearchParams({ status }).toString()}`;
+/**
+ * The register filtered to one derived status, in the filter language of api-conventions.md §3, with the `source`
+ * the count was made from (`lawSource`: `LAW` while the account has the ISO add-on).
+ */
+export function registerHref(clientId: string, status: string, source?: ActivitySource): string {
+  const params = new URLSearchParams({ status });
+  if (source) params.set('source', source);
+  return `${clientHref(clientId, 'register')}?${params.toString()}`;
 }
 
-/** Rows for the table: most overdue first, then lowest score, then name, so the client needing attention leads. */
+/**
+ * The register filtered to the API's `dueThisWeekFilter`: its dates, its workflow states and its `source`. A filter
+ * without a source still gets `LAW` while the account has the ISO add-on, so the list matches the count either way.
+ */
+export function dueThisWeekHref(
+  clientId: string,
+  filter: DueThisWeekFilter,
+  source?: ActivitySource,
+): string {
+  const params = new URLSearchParams({
+    workflowState: filter.workflowState.join(','),
+    dueFrom: filter.dueFrom,
+    dueTo: filter.dueTo,
+  });
+  const law = filter.source ?? source;
+  if (law) params.set('source', law);
+  return `${clientHref(clientId, 'register')}?${params.toString()}`;
+}
+
+/**
+ * Rows for the table: most overdue first, then lowest score, then name, so the client needing attention leads.
+ * `features` are the account's add-ons (`ShellModel.features`), which decide the links' `source`.
+ */
 export function portfolioItems(
   rows: readonly PortfolioRow[],
   timeZones: Readonly<Record<string, string>>,
+  features: readonly string[] = [],
 ): PortfolioItem[] {
+  const source = lawSource(features);
   return rows
     .map((row) => ({
       clientId: row.clientId,
@@ -41,7 +73,10 @@ export function portfolioItems(
       lastActivityAt: row.lastActivityAt,
       timeZone: timeZones[row.clientId] ?? DEFAULT_TIME_ZONE,
       overviewHref: clientHref(row.clientId),
-      overdueHref: registerHref(row.clientId, 'OVERDUE'),
+      overdueHref: registerHref(row.clientId, 'OVERDUE', source),
+      ...(row.dueThisWeekFilter
+        ? { dueThisWeekHref: dueThisWeekHref(row.clientId, row.dueThisWeekFilter, source) }
+        : {}),
     }))
     .sort(
       (a, b) =>
