@@ -1,6 +1,7 @@
 # M16-0002: ISO add-on plan v2
 
-Status: accepted, 2026-10-25. Amends [M16-0001](M16-0001-iso-management-systems.md). Plan: `docs/iso/plan.md` (v2),
+Status: accepted, 2026-10-25; amended by [M16-0003](M16-0003-stored-review-figures.md). Amends
+[M16-0001](M16-0001-iso-management-systems.md). Plan: `docs/iso/plan.md` (v2),
 with `model.md`, `catalogue.md` and `packages.md` beside it.
 
 ## Context
