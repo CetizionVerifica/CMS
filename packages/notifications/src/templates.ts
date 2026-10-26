@@ -1,4 +1,4 @@
-import type { Criticality, LocalDate, Role } from '@canopy/contracts';
+import type { Criticality, IsoNotificationKind, LocalDate, Role } from '@canopy/contracts';
 import { EMAIL_COLORS as c, PRODUCT_NAME } from './brand.js';
 import { days, escapeHtml, formatDate, safeUrl } from './format.js';
 import { detailsTable, renderLayout } from './layout.js';
@@ -163,7 +163,26 @@ export interface MfaEnrolledEmail {
   via: 'SETTINGS' | 'INVITE';
 }
 
+/**
+ * A scheduled ISO reminder (docs/iso/model.md §7). `title` names the record only: an action's text, a document's code
+ * and title, a certificate's standard and body, a nonconformity's number. Never an incident's description or a person
+ * named in it.
+ */
+export interface IsoReminderEmail {
+  kind: IsoNotificationKind;
+  recipientName: string;
+  clientName: string;
+  title: string;
+  /** The date the reminder counts from: the due, review, start, expiry, audit, response or check date. */
+  anchorDate: LocalDate;
+  /** Days relative to `anchorDate`, from the engine: -7 = in 7 days, 0 = today, 7 = 7 days ago. */
+  offsetDays: number;
+  /** Link to the record in the ISO screens. */
+  url: string;
+}
+
 export type EmailMessage =
+  | IsoReminderEmail
   | OwnerReminderEmail
   | ApproverEscalationEmail
   | ConsultantDigestEmail
@@ -491,6 +510,124 @@ function renderConsultantDigest(m: ConsultantDigestEmail): RenderedEmail {
   };
 }
 
+/** "in 7 days", "tomorrow", "today", "7 days ago". */
+function when(offsetDays: number): string {
+  if (offsetDays < -1) return `in ${days(-offsetDays)}`;
+  if (offsetDays === -1) return 'tomorrow';
+  if (offsetDays === 0) return 'today';
+  return `${days(offsetDays)} ago`;
+}
+
+interface IsoCopy {
+  /** The heading and subject line. */
+  status: (offsetDays: number) => string;
+  intro: (clientName: string, offsetDays: number) => string;
+  /** Labels of the record and date rows. */
+  record: string;
+  date: string;
+  cta: string;
+}
+
+const ISO_COPY: Record<IsoNotificationKind, IsoCopy> = {
+  ISO_ACTION_DUE: {
+    status: dueLabel,
+    intro: (client) => `This ISO action for ${client} is assigned to you and is not done yet.`,
+    record: 'Action',
+    date: 'Due date',
+    cta: 'Open action',
+  },
+  ISO_ACTION_OVERDUE: {
+    status: (o) => `Action overdue ${days(o)}`,
+    intro: (client) =>
+      `This ISO action for ${client} is past its due date and not done yet. Please follow up with its owner.`,
+    record: 'Action',
+    date: 'Due date',
+    cta: 'Open action',
+  },
+  ISO_REVIEW_DUE: {
+    status: (o) => `Review ${dueLabel(o).toLowerCase()}`,
+    intro: (client) => `This record for ${client} is due for its periodic review.`,
+    record: 'Record',
+    date: 'Review date',
+    cta: 'Open record',
+  },
+  ISO_AUDIT_STARTING: {
+    status: (o) => `Audit starts ${when(o)}`,
+    intro: (client) => `You are named on this internal audit for ${client}.`,
+    record: 'Audit',
+    date: 'Planned start',
+    cta: 'Open audit',
+  },
+  ISO_CERTIFICATE_EXPIRING: {
+    status: (o) => `Certificate expires ${when(o)}`,
+    intro: (client) =>
+      `This ISO certificate of ${client} is due to expire. Plan the recertification audit with the certification body.`,
+    record: 'Certificate',
+    date: 'Expiry date',
+    cta: 'Open certification',
+  },
+  ISO_SURVEILLANCE_DUE: {
+    status: (o) => `Certification audit due ${when(o)}`,
+    intro: (client) =>
+      `A surveillance or recertification audit of this certificate of ${client} is due and not recorded yet.`,
+    record: 'Certificate',
+    date: 'Audit due by',
+    cta: 'Open certification',
+  },
+  ISO_EXTERNAL_RESPONSE_DUE: {
+    status: (o) => `Response ${dueLabel(o).toLowerCase()}`,
+    intro: (client) =>
+      `The certification body expects the corrective action response for this audit of ${client}.`,
+    record: 'Audit',
+    date: 'Response due',
+    cta: 'Open certification',
+  },
+  ISO_MANAGEMENT_REVIEW_DUE: {
+    status: (o) =>
+      o > 0 ? `Management review overdue ${days(o)}` : `Management review ${when(o)}`,
+    intro: (client, o) =>
+      o > 0
+        ? `A management review of this management system of ${client} is overdue. Please plan one.`
+        : `This management review of ${client} is planned and not held yet.`,
+    record: 'Review',
+    date: 'Due date',
+    cta: 'Open management reviews',
+  },
+  ISO_EFFECTIVENESS_DUE: {
+    status: (o) => `Effectiveness check ${dueLabel(o).toLowerCase()}`,
+    intro: (client) =>
+      `The actions on this nonconformity of ${client} are due for their effectiveness check.`,
+    record: 'Nonconformity',
+    date: 'Check date',
+    cta: 'Open nonconformity',
+  },
+};
+
+function renderIsoReminder(m: IsoReminderEmail): RenderedEmail {
+  const copy = ISO_COPY[m.kind];
+  const status = copy.status(m.offsetDays);
+  const intro = copy.intro(m.clientName, m.offsetDays);
+  const overdue = m.offsetDays > 0;
+  const rows: [string, string, ('crit' | 'warn')?][] = [
+    [copy.record, m.title],
+    ['Client', m.clientName],
+    [copy.date, formatDate(m.anchorDate), overdue ? 'crit' : 'warn'],
+  ];
+  const greeting = `Hello ${m.recipientName},`;
+  const footer = `You get this reminder because you are named on this record, or are a client admin, in ${PRODUCT_NAME}.`;
+  return {
+    subject: `${status}: ${m.title}`,
+    html: renderLayout({
+      preheader: `${status}. ${m.clientName}.`,
+      heading: status,
+      blocks: [paragraph(greeting), paragraph(intro), detailsTable(rows)],
+      cta: { label: copy.cta, url: m.url },
+      footer,
+    }),
+    text: textEmail([greeting, intro, textRows(rows), `${copy.cta}: ${safeUrl(m.url)}`, footer]),
+  };
+}
+
 /** Renders any notification email. Pure: same input, same output. */
 export function renderEmail(message: EmailMessage): RenderedEmail {
   switch (message.kind) {
@@ -514,5 +651,15 @@ export function renderEmail(message: EmailMessage): RenderedEmail {
       return renderRenewalDue(message);
     case 'MFA_ENROLLED':
       return renderMfaEnrolled(message);
+    case 'ISO_ACTION_DUE':
+    case 'ISO_ACTION_OVERDUE':
+    case 'ISO_REVIEW_DUE':
+    case 'ISO_AUDIT_STARTING':
+    case 'ISO_CERTIFICATE_EXPIRING':
+    case 'ISO_SURVEILLANCE_DUE':
+    case 'ISO_EXTERNAL_RESPONSE_DUE':
+    case 'ISO_MANAGEMENT_REVIEW_DUE':
+    case 'ISO_EFFECTIVENESS_DUE':
+      return renderIsoReminder(message);
   }
 }

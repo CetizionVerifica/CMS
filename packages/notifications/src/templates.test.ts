@@ -1,4 +1,8 @@
-import type { LocalDate } from '@canopy/contracts';
+import {
+  ISO_NOTIFICATION_KINDS,
+  type IsoNotificationKind,
+  type LocalDate,
+} from '@canopy/contracts';
 import { describe, expect, it } from 'vitest';
 import { escapeHtml, formatDate } from './format.js';
 import {
@@ -419,8 +423,67 @@ describe('invitation', () => {
   });
 });
 
+const iso = (
+  kind: IsoNotificationKind,
+  offsetDays: number,
+  title = 'Calibrate the furnace gauges',
+) =>
+  renderEmail({
+    kind,
+    recipientName: 'Asha Rao',
+    clientName: 'Kestrel Metals Group',
+    title,
+    anchorDate: '2026-10-19' as LocalDate,
+    offsetDays,
+    url: 'https://app.planetpulse.example/c/abc/iso/actions?ids=def',
+  });
+
+describe('ISO reminders', () => {
+  it.each<[IsoNotificationKind, number, string]>([
+    ['ISO_ACTION_DUE', -7, 'Due in 7 days'],
+    ['ISO_ACTION_DUE', 0, 'Due today'],
+    ['ISO_ACTION_OVERDUE', 7, 'Action overdue 7 days'],
+    ['ISO_REVIEW_DUE', -14, 'Review due in 14 days'],
+    ['ISO_REVIEW_DUE', 0, 'Review due today'],
+    ['ISO_AUDIT_STARTING', -7, 'Audit starts in 7 days'],
+    ['ISO_AUDIT_STARTING', -1, 'Audit starts tomorrow'],
+    ['ISO_CERTIFICATE_EXPIRING', -90, 'Certificate expires in 90 days'],
+    ['ISO_SURVEILLANCE_DUE', -60, 'Certification audit due in 60 days'],
+    ['ISO_EXTERNAL_RESPONSE_DUE', 0, 'Response due today'],
+    ['ISO_MANAGEMENT_REVIEW_DUE', -14, 'Management review in 14 days'],
+    ['ISO_MANAGEMENT_REVIEW_DUE', 31, 'Management review overdue 31 days'],
+    ['ISO_EFFECTIVENESS_DUE', 0, 'Effectiveness check due today'],
+  ])('%s at %i reads "%s"', (kind, offsetDays, status) => {
+    const email = iso(kind, offsetDays);
+    expect(email.subject).toBe(`${status}: Calibrate the furnace gauges`);
+    expect(email.html).toContain(`>${status}</td>`);
+    expect(email.text).toContain('Hello Asha Rao,');
+    expect(email.text).toContain(`19 Oct 2026`);
+    expect(email.text).toContain('Kestrel Metals Group');
+    expect(email.text).toContain('https://app.planetpulse.example/c/abc/iso/actions?ids=def');
+  });
+
+  it('renders every ISO kind', () => {
+    for (const kind of ISO_NOTIFICATION_KINDS) {
+      expect(iso(kind, 0).text).toContain('named on this record, or are a client admin');
+    }
+  });
+
+  it('marks a date in the past as overdue', () => {
+    expect(iso('ISO_ACTION_OVERDUE', 7).html).toContain('#A8391F');
+    expect(iso('ISO_ACTION_DUE', -7).html).not.toContain('#A8391F');
+  });
+
+  it('escapes the record title', () => {
+    const email = iso('ISO_REVIEW_DUE', 0, '<script>alert(1)</script>');
+    expect(email.html).not.toContain('<script>');
+    expect(email.html).toContain('&lt;script&gt;');
+  });
+});
+
 describe('every email', () => {
   const all = [
+    ...ISO_NOTIFICATION_KINDS.map((kind) => iso(kind, -7)),
     owner(-3),
     owner(0, true),
     approver(1, true),

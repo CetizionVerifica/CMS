@@ -1,5 +1,5 @@
 // Background jobs (MODULES.md M9): instance generation, reminders and escalations, the consultant digest, the
-// evidence virus scan, the nightly account job (trial end, usage snapshot) and the trial-ending email.
+// evidence virus scan, the nightly account job (trial end, usage snapshot), the trial-ending email and ISO reminders.
 export { ACCOUNT_DAILY, runAccountDaily, servedFirmIds } from './accounts.js';
 export { clamAvConfigFromEnv, clamAvScanner, type ClamAvConfig } from './clamav-scanner.js';
 export { clientDay, currentAndNextFy, reminderWindow, sendTimeReached } from './client-day.js';
@@ -14,6 +14,7 @@ export {
   skipReason,
 } from './generate-instances.js';
 export { ISO_CATALOGUE_SWEEP, runIsoCatalogueSweep } from './iso-catalogue.js';
+export { ISO_REMINDERS, isoReminderInputs, runIsoReminders } from './iso-reminders.js';
 export { RELAY_BATCH, RELAY_OUTBOX, runRelayOutbox } from './outbox-relay.js';
 export type * from './ports.js';
 export { ScanInterruptedError, ScanServiceError, ScanTimeoutError } from './ports.js';

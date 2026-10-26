@@ -13,8 +13,17 @@ import type {
   RuleStatus,
   ScoreInput,
   Applicability,
+  ExternalAuditState,
+  ExternalAuditType,
+  InternalAuditState,
+  IsoEntityType,
   IsoFileSubject,
+  IsoNotificationKind,
+  IsoStandardCode,
   KnownFeature,
+  ManagementReviewState,
+  ManagementSystemStatus,
+  NcState,
   PersonStatus,
   Role,
 } from '@canopy/contracts';
@@ -181,6 +190,109 @@ export interface SendKey {
 }
 
 /**
+ * Send-log key of a scheduled ISO reminder (`ISO_NOTIFICATION_DEDUPE_KEY`, docs/iso/model.md §7): unique per ISO
+ * subject, kind, send date and recipient, never with an instance or an event, so two records due the same day for the
+ * same person are two sends.
+ */
+export interface IsoSendKey {
+  clientId: Id;
+  instanceId: null;
+  recipientId: Id;
+  kind: IsoNotificationKind;
+  sendDate: LocalDate;
+  isoSubjectType: IsoEntityType;
+  isoSubjectId: Id;
+  eventId?: undefined;
+}
+
+/** Any send-log key the jobs claim. */
+export type AnySendKey = SendKey | IsoSendKey;
+
+/**
+ * What the ISO reminder run reads for one client (docs/iso/model.md §7): its non-archived ISO records in the narrow
+ * shapes the reminders need, with names only. No incident details and no file contents.
+ */
+export interface IsoReminderData {
+  /** People with an unexpired, unarchived CLIENT_ADMIN membership for the client. */
+  clientAdminIds: Id[];
+  /** Open actions; `approverId` is the subject's approver (a nonconformity's), null for a subject without one. */
+  actions: {
+    id: Id;
+    text: string;
+    dueOn: LocalDate;
+    ownerId: Id;
+    approverId: Id | null;
+  }[];
+  /** ACTIVE controlled documents with a review date. */
+  documents: {
+    id: Id;
+    code: string;
+    title: string;
+    reviewDueOn: LocalDate;
+    ownerId: Id;
+    approverId: Id;
+  }[];
+  /** Risk items with a review date. */
+  risks: { id: Id; activity: string; reviewDueOn: LocalDate; ownerId: Id }[];
+  internalAudits: {
+    id: Id;
+    title: string;
+    state: InternalAuditState;
+    plannedStart: LocalDate;
+    leadAuditorId: Id;
+    auditorIds: Id[];
+    auditeeIds: Id[];
+  }[];
+  /** Management systems, with their standards' codes and the client-local day each was created. */
+  systems: {
+    id: Id;
+    name: string;
+    status: ManagementSystemStatus;
+    createdOn: LocalDate;
+    reviewIntervalMonths: number;
+    standards: IsoStandardCode[];
+  }[];
+  certifications: {
+    id: Id;
+    managementSystemId: Id;
+    standardId: Id;
+    standard: IsoStandardCode;
+    body: string;
+    issuedOn: LocalDate | null;
+    expiresOn: LocalDate | null;
+  }[];
+  /** `openNcOwnerIds`: owners of the open nonconformities its findings raised. */
+  externalAudits: {
+    id: Id;
+    managementSystemId: Id;
+    standardIds: Id[];
+    type: ExternalAuditType;
+    state: ExternalAuditState;
+    body: string;
+    endOn: LocalDate;
+    responseDueOn: LocalDate | null;
+    openNcOwnerIds: Id[];
+  }[];
+  reviews: {
+    id: Id;
+    managementSystemId: Id;
+    standards: IsoStandardCode[];
+    plannedOn: LocalDate;
+    heldOn: LocalDate | null;
+    state: ManagementReviewState;
+    chairId: Id;
+  }[];
+  /** Nonconformities with an effectiveness check date. */
+  nonconformities: {
+    id: Id;
+    number: number;
+    state: NcState;
+    effectivenessDueOn: LocalDate;
+    approverId: Id;
+  }[];
+}
+
+/**
  * NEW: this call created the row. PENDING: a row exists with no outcome (an earlier run crashed or the mail
  * transport failed before it was recorded), so send again. DONE: sent or failed for good; skip.
  */
@@ -318,6 +430,10 @@ export interface FirmTx {
   isoScanAttempts(fileId: Id, subject: IsoFileSubject): Promise<number>;
   /** Scheduled send-log rows of one client for one send date that are DONE (sent or failed). */
   listDoneSends(clientId: Id, sendDate: LocalDate): Promise<SendKey[]>;
+  /** Scheduled ISO reminder rows of one client for one send date that are DONE (sent or failed). */
+  listDoneIsoSends(clientId: Id, sendDate: LocalDate): Promise<IsoSendKey[]>;
+  /** One client's ISO records as the ISO reminders read them; `now` (job clock) decides which admin memberships live. */
+  isoReminderData(clientId: Id, now: string): Promise<IsoReminderData>;
   /** Recipients whose CONSULTANT_DIGEST for this send date is DONE (sent or failed), across all clients. */
   listDoneDigests(sendDate: LocalDate): Promise<Id[]>;
   recipients(personIds: Id[], clientId: Id): Promise<Recipient[]>;
@@ -331,14 +447,14 @@ export interface FirmTx {
     range: { from: LocalDate; to: LocalDate },
     filter?: { actKinds?: readonly ActKind[] },
   ): Promise<ScoreInput[]>;
-  claimSend(key: SendKey): Promise<ClaimResult>;
+  claimSend(key: AnySendKey): Promise<ClaimResult>;
   /**
    * Records the send and writes the `notification.sent` event in the same transaction. The store sets the event's
    * aggregate to the send-log row (`{ type: 'notification_send', id: <row id> }`, version 1): a row is sent at most
    * once, so each aggregate has exactly one event.
    */
-  markSent(key: SendKey, at: string, event: NotificationSentEvent): Promise<void>;
-  markFailed(key: SendKey, failureCode: SendFailureCode): Promise<void>;
+  markSent(key: AnySendKey, at: string, event: NotificationSentEvent): Promise<void>;
+  markFailed(key: AnySendKey, failureCode: SendFailureCode): Promise<void>;
   /**
    * Locks up to `limit` unpublished outbox events of the firm, oldest first, skipping rows another relay holds.
    * Mark them published in the same transaction.
