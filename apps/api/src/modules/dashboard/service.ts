@@ -1,19 +1,29 @@
 import type {
   Action,
+  ActivitySource,
   Breakdown,
   BreakdownBy,
   CalendarDay,
   ClientOverview,
   Criticality,
+  DueThisWeekFilter,
   InstanceRow,
   LocalDate,
   PortfolioRow,
   RequestContext,
 } from '@canopy/contracts';
-import { computeBreakdown, computeScore, daysBetween, summarizeKpis } from '@canopy/engine';
-import { ApiError, can } from '../../auth/index.js';
-import type { ClientInfo, ReportsStore } from './ports.js';
 import {
+  addDays,
+  compareDates,
+  computeBreakdown,
+  computeScore,
+  daysBetween,
+  summarizeKpis,
+} from '@canopy/engine';
+import { ApiError, can } from '../../auth/index.js';
+import type { ClientInfo, ReportsStore, RowFilter } from './ports.js';
+import {
+  isoOn,
   loadRows,
   periodFilter,
   requireClientInfo,
@@ -21,6 +31,8 @@ import {
   resolvePeriod,
   scopedUnits,
   scoreInput,
+  sourceKinds,
+  STATUTORY,
   type LoadedRows,
   type Period,
 } from './scope.js';
@@ -59,16 +71,20 @@ export interface ClientRows extends LoadedRows {
   period: Period;
 }
 
-/** The client's rows in the requested period and units, as the actor may see them for `action`. */
+/**
+ * The client's rows in the requested period and units, as the actor may see them for `action`, of the act kinds in
+ * `kinds`: STATUTE only unless a list of `source` says otherwise (docs/iso/plan.md §4.6).
+ */
 export async function clientRows(
   deps: DashboardDeps,
   ctx: RequestContext,
   clientId: string,
   query: DashboardQueryInput,
   action: Action,
+  kinds: Pick<RowFilter, 'actKinds'> = STATUTORY,
 ): Promise<ClientRows> {
   const client = await requireClientInfo(deps.store, ctx, clientId);
-  return rowsFor(deps, ctx, client, query, action);
+  return rowsFor(deps, ctx, client, query, action, kinds);
 }
 
 async function rowsFor(
@@ -77,6 +93,7 @@ async function rowsFor(
   client: ClientInfo,
   query: DashboardQueryInput,
   action: Action,
+  kinds: Pick<RowFilter, 'actKinds'>,
 ): Promise<ClientRows> {
   const asOf = resolveAsOf(ctx, client, query.asOf, deps.clock(), action);
   const period = resolvePeriod(query, asOf, client.settings.fyStartMonth);
@@ -85,7 +102,7 @@ async function rowsFor(
     deps.store,
     ctx,
     client,
-    { ...periodFilter(period), ...(unitIds === undefined ? {} : { unitIds }) },
+    { ...periodFilter(period), ...(unitIds === undefined ? {} : { unitIds }), ...kinds },
     asOf,
     action,
   );
@@ -94,6 +111,31 @@ async function rowsFor(
 
 function score({ rows, asOf, settings }: LoadedRows) {
   return computeScore(rows.map(scoreInput), asOf, settings);
+}
+
+/**
+ * The register filter that lists a portfolio row's `dueThisWeek` items: OPEN and SENT_BACK work due from `asOf`
+ * through `dueSoonDays` later (the engine's DUE_SOON), within the period, and with the ISO add-on on `source=LAW`, so
+ * the linked register lists exactly the statutory items counted (docs/iso/plan.md §4.6). None when the register cannot
+ * say it: a `unitId` filter (the link has no units) or a period that leaves no due-soon day.
+ */
+export function dueThisWeekFilter(
+  loaded: ClientRows,
+  query: DashboardQueryInput,
+  iso: boolean,
+): DueThisWeekFilter | undefined {
+  if (query.unitId !== undefined) return undefined;
+  const { asOf, period, settings } = loaded;
+  const soonest = addDays(asOf, settings.dueSoonDays);
+  const dueFrom = period.from !== null && compareDates(period.from, asOf) > 0 ? period.from : asOf;
+  const dueTo = period.to !== null && compareDates(period.to, soonest) < 0 ? period.to : soonest;
+  if (compareDates(dueFrom, dueTo) > 0) return undefined;
+  return {
+    dueFrom,
+    dueTo,
+    workflowState: ['OPEN', 'SENT_BACK'],
+    ...(iso ? { source: 'LAW' as const } : {}),
+  };
 }
 
 /** One row per client the consultant sees, in client name order. */
@@ -110,15 +152,18 @@ export async function portfolio(
     ctx,
     clients.map((c) => c.id),
   );
+  const iso = await isoOn(ctx);
   const items: PortfolioRow[] = [];
   for (const client of clients) {
-    const loaded = await rowsFor(deps, ctx, client, query, 'dashboard.portfolio');
+    const loaded = await rowsFor(deps, ctx, client, query, 'dashboard.portfolio', STATUTORY);
     const result = score(loaded);
+    const filter = dueThisWeekFilter(loaded, query, iso);
     items.push({
       clientId: client.id,
       clientName: client.name,
       result,
       dueThisWeek: summarizeKpis(result).dueSoon.count,
+      ...(filter === undefined ? {} : { dueThisWeekFilter: filter }),
       lastActivityAt: activity.get(client.id) ?? null,
     });
   }
@@ -176,19 +221,30 @@ export async function breakdown(
   return breakdownOf(query.by, await clientRows(deps, ctx, clientId, query, action));
 }
 
-/** Instances by due date between `from` and `to` (inclusive); only dates with items are listed. */
+/**
+ * Instances by due date between `from` and `to` (inclusive); only dates with items are listed. The calendar is a
+ * list, not a statutory number: with the ISO add-on on it takes `source` (both kinds when absent); while it is off it
+ * leaves ISO activities out whatever `source` says (docs/iso/plan.md §4.4-4.6).
+ */
 export async function calendar(
   deps: DashboardDeps,
   ctx: RequestContext,
   clientId: string,
-  query: { asOf?: LocalDate; from: LocalDate; to: LocalDate; unitId?: string[] },
+  query: {
+    asOf?: LocalDate;
+    from: LocalDate;
+    to: LocalDate;
+    unitId?: string[];
+    source?: ActivitySource;
+  },
 ): Promise<{ items: CalendarDay[] }> {
   if (daysBetween(query.from, query.to) + 1 > MAX_CALENDAR_DAYS) {
     throw new ApiError('VALIDATION', {
       issues: [{ path: ['to'], message: `A calendar covers at most ${MAX_CALENDAR_DAYS} days` }],
     });
   }
-  const loaded = await clientRows(deps, ctx, clientId, query, 'instance.read');
+  const kinds = sourceKinds(await isoOn(ctx), query.source);
+  const loaded = await clientRows(deps, ctx, clientId, query, 'instance.read', kinds);
   const days = new Map<LocalDate, InstanceRow[]>();
   for (const row of loaded.rows) {
     const items = days.get(row.dueDate) ?? [];

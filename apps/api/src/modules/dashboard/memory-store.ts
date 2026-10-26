@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import {
+  type ActKind,
   DEFAULT_FIRM_SETTINGS,
   ExportJob,
   type FirmSettings,
@@ -23,6 +24,8 @@ export interface MemoryRow extends RegisterRow, ExportDetail {
   firmId: string;
   categoryId: string;
   domain: ObligationDomain;
+  /** The kind of the instance's act; absent is a STATUTE. */
+  actKind?: ActKind;
   /** All comments, oldest first; `lastComment` and `firstComment` must agree with it. */
   comments: string[];
 }
@@ -48,6 +51,8 @@ interface StoredJob extends ExportJob {
  */
 export class MemoryReportsStore implements ReportsStore {
   readonly firms = new Map<string, FirmSettings>();
+  /** Effective features by firm; a firm missing here has none. */
+  readonly features = new Map<string, readonly string[]>();
   readonly clientsById = new Map<string, ClientInfo & { firmId: string; archived?: boolean }>();
   readonly units = new Map<string, UnitInfo & { firmId: string; clientId: string }>();
   readonly rows: MemoryRow[] = [];
@@ -67,6 +72,10 @@ export class MemoryReportsStore implements ReportsStore {
 
   async firmSettings(ctx: RequestContext): Promise<FirmSettings> {
     return this.firms.get(ctx.firmId) ?? DEFAULT_FIRM_SETTINGS;
+  }
+
+  async accountFeatures(ctx: RequestContext): Promise<readonly string[]> {
+    return this.features.get(ctx.firmId) ?? [];
   }
 
   async clients(ctx: RequestContext, clientIds: readonly string[]): Promise<ClientInfo[]> {
@@ -214,6 +223,7 @@ const STORE_ONLY = [
   'firmId',
   'categoryId',
   'domain',
+  'actKind',
   'comments',
   'description',
   'applicabilityText',
@@ -242,6 +252,7 @@ function matches(r: MemoryRow, f: RowFilter): boolean {
     among(f.workflowState, r.workflowState) &&
     (f.timelineType === undefined || r.timelineType === f.timelineType) &&
     among(f.domain, r.domain) &&
+    among(f.actKinds, r.actKind ?? 'STATUTE') &&
     (f.dueFrom === undefined || r.dueDate >= f.dueFrom) &&
     (f.dueTo === undefined || r.dueDate <= f.dueTo) &&
     (f.completedFrom === undefined ||
