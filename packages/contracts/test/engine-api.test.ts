@@ -11,6 +11,7 @@ import type {
   ReviewFigureEventDay,
   ReviewInputFigures,
   ReviewInputSource,
+  TypedReviewInputFigures,
 } from '../src/index.js';
 
 const SINCE = LocalDate.parse('2024-04-10');
@@ -23,16 +24,11 @@ describe('IsoEngineApi.reviewInputFigures', () => {
   });
 
   it("takes the data of the source it is called for, and no other source's", () => {
-    const incidents = (engine: IsoEngineApi): ReviewInputFigures =>
-      engine.reviewInputFigures(
-        'INCIDENTS',
-        { nonconformities: [], timeZone: 'Asia/Kolkata' },
-        SINCE,
-        AS_OF,
-      );
-    const manual = (engine: IsoEngineApi) => engine.reviewInputFigures('MANUAL', {}, SINCE, AS_OF);
-    const wrong = (engine: IsoEngineApi) =>
-      engine.reviewInputFigures(
+    const incidents = (figures: TypedReviewInputFigures): ReviewInputFigures =>
+      figures('INCIDENTS', { nonconformities: [], timeZone: 'Asia/Kolkata' }, SINCE, AS_OF);
+    const manual = (figures: TypedReviewInputFigures) => figures('MANUAL', {}, SINCE, AS_OF);
+    const wrong = (figures: TypedReviewInputFigures) =>
+      figures(
         'RISKS',
         // @ts-expect-error RISKS reads risk items, rating changes and treatment actions, not incidents
         { nonconformities: [], timeZone: 'Asia/Kolkata' },
@@ -42,6 +38,12 @@ describe('IsoEngineApi.reviewInputFigures', () => {
     expectTypeOf(incidents).returns.toEqualTypeOf<ReviewInputFigures>();
     expectTypeOf(manual).returns.toEqualTypeOf<ReviewInputFigures>();
     expectTypeOf(wrong).returns.toEqualTypeOf<ReviewInputFigures>();
+  });
+
+  it('lets an engine typed per source satisfy IsoEngineApi before the signature narrows', () => {
+    const engine = (figures: TypedReviewInputFigures) =>
+      ({ reviewInputFigures: figures }) satisfies Pick<IsoEngineApi, 'reviewInputFigures'>;
+    expectTypeOf(engine).returns.toExtend<Pick<IsoEngineApi, 'reviewInputFigures'>>();
   });
 
   it('reads every record with its creation and archive days, and no held flag or general change list', () => {

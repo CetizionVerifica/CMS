@@ -2435,7 +2435,10 @@ describe('review input figures', () => {
     // Archived after heldOn, before the review is recorded held: live on heldOn, so it counts, and keeps its id.
     const archivedLater = copy({ archivedAt: '2024-11-02T06:30:00Z' });
     // Made after heldOn with an earlier due date, as a backfill would: not there on heldOn.
-    const madeLater = copy({ createdAt: '2024-11-01T06:30:00Z', updatedAt: '2024-11-01T06:30:00Z' });
+    const madeLater = copy({
+      createdAt: '2024-11-01T06:30:00Z',
+      updatedAt: '2024-11-01T06:30:00Z',
+    });
     // Archived by heldOn: gone on heldOn.
     const archivedBefore = copy({ archivedAt: '2024-10-20T06:30:00Z' });
     const review = await plan(fresh.id, { plannedOn: '2024-10-28' });

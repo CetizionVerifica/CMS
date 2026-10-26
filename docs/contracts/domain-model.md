@@ -794,7 +794,7 @@ certificationCycle(certification, externalAudits, asOf): CertificationCycle  // 
 managementReviewDue(system & { standards }, reviews, asOf, s: { dueSoonDays }): ManagementReviewDue
 reviewDue(reviewDueOn, asOf, s: { dueSoonDays }): IsoDueStatus
 planIsoNotifications(items: IsoNotificationInput[], schedule: IsoReminderSchedule, asOf): PlannedIsoNotification[]
-reviewInputFigures(source: S, data: ReviewFigureData[S], since, asOf): ReviewInputFigures   // model §5.4
+reviewInputFigures(source, data, since, asOf): ReviewInputFigures   // model §5.4; data: ReviewFigureData[source]
 ```
 
 `ReviewFigureData` holds, per input source, the records of the review's system the source reads, archived ones
@@ -802,8 +802,10 @@ included, with no unit scope. Every row carries `createdOn` and `archivedOn` (`R
 days); actions (`ReviewFigureAction`) also `subject` and `doneOn`, nonconformities `reportedOn`. CONTEXT carries
 `contextChanges`, RISKS `ratingChanges` and NONCONFORMITIES `notEffectiveSteps`: the `{ entityId, on }` days
 (`ReviewFigureEventDay`) of the audited events model §5.4 names, in the window. COMPLIANCE_EVALUATION reads the
-instances' workflow as it is now. M16 calls it live for a PLANNED review and once at RECORD_HELD with `asOf = heldOn`; a HELD or
-CLOSED review's figures are never computed again.
+instances' workflow as it is now. M16 calls it live for a PLANNED review and once at RECORD_HELD with
+`asOf = heldOn`; a HELD or CLOSED review's figures are never computed again. `TypedReviewInputFigures` is the
+signature over `ReviewFigureData`; `IsoEngineApi` keeps an untyped `data` until M4 adopts it (ISO-3b, README
+decision 52).
 
 Results (`src/schemas/iso-results.ts`): `IdCount { count, ids }` (every number carries the ids it counts), `IsoTiming`
 (`ON_TIME`, `DUE_SOON`, `OVERDUE`, `CLOSED`), `IsoDueStatus { timing, overdueDays }`, `NonconformityStatus` (adds

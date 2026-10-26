@@ -317,8 +317,12 @@ with sign-off per "How to change a contract".
     HELD or CLOSED review and figures computed as of the client-local today for a PLANNED one; `figuresStoredAt` is
     set exactly when it is the stored copy, and the engine version stays off the view (the pack and the archive read
     it from the row, model §9). Every reader sees each value and only the ids of the records they may read (plan
-    §3.3). `IsoEngineApi.reviewInputFigures` takes `ReviewFigureData[source]`, typed per source: client-local
-    creation and archive days on every row, and the event days of the window counts that have no date field of
-    their own, so the engine applies §5.4's date rules without rebuilding records from the audit trail. The 1.8.1
-    mock's as-of rebuild is gone. `ReviewFigure` and `ReviewInputFigures` move to `src/schemas/iso.ts`, beside the
+    §3.3). `reviewInputFigures` reads `ReviewFigureData[source]`, typed per source: client-local creation and
+    archive days on every row, and the event days of the window counts that have no date field of their own, so the
+    engine applies §5.4's date rules without rebuilding records from the audit trail. The 1.8.1 mock's as-of rebuild
+    is gone. `IsoEngineApi.reviewInputFigures` keeps 1.8.1's untyped `data` for now: ISO-3's engine (merged) takes
+    its own shapes and checks itself with `satisfies IsoEngineApi`, so narrowing the signature here would break its
+    build, and M0 cannot change packages/engine. M4 takes `TypedReviewInputFigures` in ISO-3b (a function typed that
+    way satisfies the 1.8.2 signature, test/engine-api.test.ts), and M0 narrows `IsoEngineApi` to it in the next
+    contracts PR after that merges. `ReviewFigure` and `ReviewInputFigures` move to `src/schemas/iso.ts`, beside the
     record that stores them; the package exports the same names.

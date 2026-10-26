@@ -245,6 +245,17 @@ export interface ReviewFigureData {
 }
 
 /**
+ * `IsoEngineApi.reviewInputFigures` typed per source: the data of the source it is called for, and no other's. M4
+ * implements this shape (ISO-3b), which satisfies the 1.8.2 signature, and M0 then narrows `IsoEngineApi` to it.
+ */
+export type TypedReviewInputFigures = <S extends ReviewInputSource>(
+  source: S,
+  data: ReviewFigureData[S],
+  since: LocalDate,
+  asOf: LocalDate,
+) => ReviewInputFigures;
+
+/**
  * The ISO engine functions (docs/iso/model.md §5), beside `EngineApi` so adding them never breaks the engine's
  * `satisfies EngineApi`. M4 exports them as one object that `satisfies IsoEngineApi`. Pure, with explicit dates.
  */
@@ -350,10 +361,14 @@ export interface IsoEngineApi {
    * system's `createdOn` and the `heldOn` of the last other HELD or CLOSED review of the system covering it on or
    * before `asOf`, the earliest across the input's standards, and never after `asOf`. A HELD or CLOSED review's
    * figures are the stored copy (`ReviewInput.sourceFigures`), never computed again.
+   *
+   * `data` is `ReviewFigureData[source]`. The signature keeps 1.8.1's untyped `data` until M4 takes that shape
+   * (ISO-3b), so ISO-3's engine still satisfies it; M0 then narrows it to `TypedReviewInputFigures` (README
+   * decision 52).
    */
-  reviewInputFigures<S extends ReviewInputSource>(
-    source: S,
-    data: ReviewFigureData[S],
+  reviewInputFigures(
+    source: ReviewInputSource,
+    data: Readonly<Record<string, unknown>>,
     since: LocalDate,
     asOf: LocalDate,
   ): ReviewInputFigures;
