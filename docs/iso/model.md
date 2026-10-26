@@ -298,7 +298,8 @@ investigatorIds[], workerParticipation (bool: a non-managerial worker took part 
 Rules (45001 10.2):
 - An INCIDENT or NEAR_MISS NC always has a `unitId`, so unit scope applies to it. The one exception is the values of a
   management review's figures, which count the whole system's incidents, outcomes and lost days included, with no names
-  (§3.13 item 4, plan §3.3).
+  (§3.13 item 4, plan §3.3). Even there, the INCIDENTS figures go only to a reader who sees every unit of the system or
+  who chairs or attends the review (§3.13 item 4).
 - `type` is NEAR_MISS exactly when the NC's `source` is NEAR_MISS, and then `outcome` is NONE and `lostDays` null.
   `lostDays` is required when `outcome` is LOST_TIME and null otherwise (`400 VALIDATION`). `outcome` changes only
   as §3.10 says (the reassign route, while OPEN or ROOT_CAUSE_FOUND); the owner may still update `lostDays` on the
@@ -377,13 +378,21 @@ that comes back, gets a new row. The unique keys of `review_input` and `review_o
    reads the review, so the chair, the attendees and every reader see the same values. Those values include other units'
    records: NCs, incidents with their outcomes and lost days, audit results and the statutory score. They are counts and
    sums with no names, and plan §3.3 accepts them as its one exception. On the way out, each figure's ids are cut to the
-   records the reader may read (plan §3.3); its value never changes.
+   records the reader may read (plan §3.3); its value never changes. **Incidents are the limit of that exception.** In a
+   system with few units or few incidents, an outcome and its lost days can point to a person at another unit, which
+   §3.11 keeps out of every other read. So the INCIDENTS row's figures go only to a reader who sees every unit of the
+   system (a client-wide role, or an approver or owner whose units cover the system's units; a system with no units
+   covers every unit of the client) or who is the review's chair or one of its attendees. Any other reader gets that row
+   with `figuresWithheld: true` and no `sourceFigures` or `figuresStoredAt` (from ISO-1a3); the screen and the pack say
+   the figures are withheld, and the row's notes still show. The stored copy is the same for everyone.
 5. **By state.** PLANNED: computed on each read, as of today (§5.4), and nothing stored. HELD and CLOSED: the stored
    copy, never computed; a row without one (item 1) returns null, and the screen and the pack say why. CANCELLED (only
    ever from PLANNED): null. A `MANUAL` row: null in every state.
 6. **After HELD** no route changes `heldOn`, the standards or which input rows the review has (only their notes, until
    CLOSED), so a stored `asOf` is always the review's `heldOn`. CLOSE stores and changes nothing. A step that retakes
-   wrongly stored figures is Later (plan §2).
+   wrongly stored figures is Later (plan §2). Until it exists, a figure found wrong is corrected in words, never in the
+   copy: in the row's notes while the review is HELD, and in the notes of the system's next review once it is CLOSED, so
+   the record and its correction are both kept.
 
 ## 4. State machines
 
@@ -609,25 +618,31 @@ taken by the generic `TypedReviewInputFigures`) but keeps `IsoEngineApi`'s wide 
 which declares its own per-source types, still builds; ISO-3b types the engine function with the contract's, and ISO-1c
 narrows `IsoEngineApi` once ISO-3b has merged. `data` holds the records of the review's system that the source reads, as
 each source below says, archived ones included, with no unit scope (§3.13). Every timestamp arrives as a client-local
-day (the engine's `localDateIn`); INCIDENTS also gets the client's time zone for `occurredAt`, as `incidentCounts` does.
-M3 gathers `data` and `since` (ISO-2h's `reviewFigures.gather`), so M16 and M10 pass the same.
+day: ISO-2h's `gather` takes the day function from its caller (the engine's `localDateIn` with the client's time zone),
+since `packages/db` does not import the engine; INCIDENTS also gets the client's time zone for `occurredAt`, as
+`incidentCounts` does. M3 gathers `data` and `since` (ISO-2h's `reviewFigures.gather`), so M16 and M10 pass the same.
 
 The engine reads each record as it is now, except where a date gives its state on `asOf`:
 - A record counts from its creation day (`createdOn` on or before `asOf`). A nonconformity counts from the later of
   `createdOn` and `reportedOn`.
 - A record archived after `asOf` counts as live. One archived on or before `asOf` counts in no figure but
   `contextItemsRemoved`, and there only when it was archived in the window.
-- An NC or objective with `closedOn` after `asOf` counts as open. REOPEN clears an NC's `closedOn`, so a reopened NC
-  counts as open and its earlier close is not counted (read as it is now).
+- An NC with `closedOn` after `asOf` counts as open, and so does an objective whose close is placed after `asOf`
+  (below). REOPEN clears an NC's `closedOn`, so a reopened NC counts as open and its earlier close is not counted (read
+  as it is now).
 - A date a user enters, which may be in the past, places its record by the later of that date and the client-local day
   of the step that set it, which the caller reads from the audit trail: an internal audit by `reportedOn` and its REPORT
-  step, an external audit by `endOn` and its RECORD_HELD step, a DONE action by `doneOn` and its COMPLETE step. A
+  step, an external audit by `endOn` and its RECORD_HELD step, a DONE action by `doneOn` and its COMPLETE step, a closed
+  objective by `closedOn` and its close, and the climate decision by `climateDecidedOn` and the event that set it. A
   CANCELLED action is placed by its CANCEL step. That day is the action's settled day, and the action counts as OPEN on
-  `asOf` until then. So a record entered after one review is recorded, but dated before it, counts in the next one. An
-  incident counts by the later of its `occurredAt` day and its NC's counting day (above). ISO-1a3 adds the step days to
-  `data`; until then the entered date alone places the record, and an action counts as OPEN while its `doneOn` is after
-  `asOf`, unless it is CANCELLED.
-- The climate decision counts once `climateDecidedOn` is on or before `asOf`.
+  `asOf` until then; a closed objective likewise counts as open until its day. When a step was taken more than once (an
+  action REOPENed and settled again, a climate decision changed), the latest counts. So a record entered after one
+  review is recorded, but dated before it, counts in the next one. Two kinds of record are placed through another: an
+  incident by the later of its `occurredAt` day and its NC's counting day (above), and an audit finding by the later of
+  its audit's day and its own creation day. ISO-1a3 adds the step days and finding days to `data`, and ISO-3b applies
+  these rules; until then the entered date alone places a record (an incident by its `occurredAt` day, a finding with
+  its audit), and an action counts as OPEN while its `doneOn` is after `asOf`, unless it is CANCELLED.
+- The climate decision counts once its day (above) is on or before `asOf`.
 - `readingsRecorded` counts the readings created in the window. On-track (`objectiveProgress`) uses only readings
   created on or before `asOf` whose period ends on or before `asOf`.
 - Window counts with no date field of their own take the days of the audited events in the window that the caller
@@ -649,6 +664,9 @@ finding type and instance workflow. That is why a held review's figures are stor
 - The figures are not split by standard. When the input's standards were last reviewed on different days, a record of
   the standard reviewed more recently can count both in that review and in this one. The stored window says which days
   the figures cover; a window per standard is Later (plan §2).
+- Both ends of a window are included, and `since` is the day the earlier review's own window ended. So a record placed
+  on that `heldOn` that already existed when the earlier review was recorded counts in both; the stored ids show it.
+  Leaving out what the earlier review already counted on that day is Later (plan §2).
 - PREVIOUS_ACTIONS reads the review actions of every such earlier review that covers one of the input's standards: those
   OPEN on `asOf` and those of them overdue, whichever review raised them, and those DONE or CANCELLED with their settled
   day in the window. An action settled before `since` was reported to an earlier review and is not counted again
@@ -658,17 +676,24 @@ finding type and instance workflow. That is why a held review's figures are stor
 - PREVIOUS_ACTIONS: as above.
 - CONTEXT: the system's context items, whatever the input's standards: added, changed and removed, and the climate
   decision.
-- RISKS: the system's risk items of the kinds the input's standards use (RISK and OPPORTUNITY always, ASPECT with ISO
-  14001, HAZARD with ISO 45001; ISO-1a3) and their treatment actions: items added or re-rated, significant items by
-  kind, treatment actions done and open.
+- RISKS: the system's risk items of the kinds the input's key reads (`SIGNIFICANT_ASPECTS`: ASPECT;
+  `RISKS_AND_OPPORTUNITIES` and `RISK_ACTIONS`: RISK and OPPORTUNITY, and HAZARD when ISO 45001 is among the input's
+  standards; ISO-1a3) and their treatment actions: items added or re-rated, significant items by kind, treatment actions
+  done and open. So a 14001 review's two RISKS rows never count the same item.
 - OBJECTIVES: the system's objectives whose standards overlap the input's, with `objectiveProgress` for each.
 - NONCONFORMITIES: the system's NCs whose standards overlap the input's, raised and closed by source and severity,
-  VERIFY_NOT_EFFECTIVE counts, and the overdue corrective actions of NCs open on `asOf` (ISO-1a3).
-- INCIDENTS: `incidentCounts` over the same NCs, cancelled ones left out.
+  VERIFY_NOT_EFFECTIVE counts, and the overdue corrective actions of NCs open on `asOf` (ISO-1a3 in the mock, ISO-3b in
+  the engine).
+- INCIDENTS: the same NCs, cancelled ones left out, each incident placed by the later of its `occurredAt` day and its
+  NC's counting day (above), then grouped by type, outcome and lost days as `incidentCounts` groups them (ISO-1a3,
+  ISO-3b; 1.8.2 places an incident by its `occurredAt` day alone). Who sees them: §3.13 item 4.
 - AUDIT_RESULTS: internal audits REPORTED or CLOSED, placed by `reportedOn` (above), whose clauses' standards overlap
   the input's (an audit that lists no clauses counts with the system's standards); external audits HELD, RESPONDED or
-  CLOSED, placed by `endOn` (above), whose `standardIds` overlap; and those audits' findings by type, each only when its
-  clauses' standards overlap the input's (a finding with no clauses follows its audit; ISO-1a3).
+  CLOSED, placed by `endOn` (above), whose `standardIds` overlap; and the findings of every audit that meets those state
+  and standards rules, by type, each placed by the later of its audit's day and its own creation day (above), whether or
+  not its audit counts in this window, and each only when its clauses' standards overlap the input's (a finding with no
+  clauses follows its audit; ISO-1a3). So a finding entered after a review that counted its audit counts in the next
+  review.
 - COMPLIANCE_EVALUATION: the latest `COMPLIANCE-EVALUATION` activity instance, and the STATUTE-only `computeScore`
   over the STATUTE instances on the system's units for the window.
 - MANUAL: none.
@@ -810,16 +835,19 @@ The UPDATE that clears a risk item's residual rating when a treatment action com
   actions. A HELD or CLOSED review's figures are the stored copy, headed "Figures for <since> to <asOf>, recorded
   <figuresStoredAt in the client's time zone> (engine <figuresEngineVersion>)"; a PLANNED review's are computed when the
   pack is made, headed "Draft: figures for <since> to <today>"; a HELD or CLOSED review without stored figures (§3.13
-  item 1) is headed "No figures: held before the system was set up in the app"; a CANCELLED review has none. Values
-  print as stored, and record references print only for ids the requester may read (ISO-2h's `isoVisibleIds`, with the
-  requester's unit scope when the job runs).
+  item 1) is headed "No figures: held before the system was set up in the app"; a CANCELLED review has none; an
+  INCIDENTS row the requester may not see (§3.13 item 4) is headed "Figures withheld: they include incidents at units
+  outside your access", with its notes. Values print as stored, and record references print only for ids the requester
+  may read (ISO-2h's `isoVisibleIds`, with the requester's unit scope and person when the job runs).
 - Exports never print an injured person's details (§3.11). Unit scope applies to every export (plan §3.3), with the
   review figures' exception there.
 - The client archive (`CLIENT_ARCHIVE_ZIP`, which is the account export, one client at a time) always includes ISO data,
   with the add-on on or off: an `iso/` folder with the NC log and risk register workbooks and a register of the other
-  ISO records (each management review with each input's notes and, when HELD or CLOSED, its stored figures: key, value
-  and ids; the archive computes none), and clean ISO files under `iso/<subjectType>/<subjectId>/<file name>`, listed in
-  `index.csv`; withheld (not clean) files are counted in the README as for evidence (ADR M10-0002 decisions 5-6).
+  ISO records (each management review with each input's notes and, when HELD or CLOSED, its stored figures: the window
+  (`since`, `asOf`), `figuresStoredAt`, `figuresEngineVersion`, and each figure's key, value and ids, in full, since
+  only an account admin makes the archive; the archive computes none), and clean ISO files under
+  `iso/<subjectType>/<subjectId>/<file name>`, listed in `index.csv`; withheld (not clean) files are counted in the
+  README as for evidence (ADR M10-0002 decisions 5-6).
 
 ## 10. Routes (M16 unless noted; ISO-1 writes the exact list in `docs/contracts/endpoints.md`)
 
@@ -832,7 +860,8 @@ owner, state; `complete|cancel|reopen`), `audit-programmes`, `internal-audits` (
 `start|report|close|cancel`), `external-audits` (and findings, `held|response|close|cancel`), `certifications`,
 `nonconformities` (and the §4.1 actions and `/{id}/reassign`), `management-reviews` (and `/{id}/replan`, inputs, each
 input row returned with its `sourceFigures` (stored for HELD and CLOSED, computed by `reviewInputFigures` (§5.4)
-for PLANNED, null for CANCELLED and `MANUAL` rows) and `figuresStoredAt` (§3.13), outputs, `held|close|cancel`), `files`
+for PLANNED, null for CANCELLED and `MANUAL` rows), `figuresStoredAt` and `figuresWithheld` (§3.13), outputs,
+`held|close|cancel`), `files`
 (§6), `overview` (the ISO overview KPIs, every number with the ids behind it; M16's, ISO-8c). The ISO exports go
 through M10's `/clients/{clientId}/exports`.
 
