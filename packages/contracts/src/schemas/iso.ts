@@ -1229,13 +1229,55 @@ export const ManagementReview = z
   });
 export type ManagementReview = z.infer<typeof ManagementReview>;
 
-/** One input row of a review: one per input key of its standards (a key shared by several appears once). */
-export const ReviewInput = z.strictObject({
-  ...isoShape,
-  managementReviewId: Id,
-  inputDefId: Id,
-  notes: LongText.max(8000).nullable(),
+/** One figure of a review input: a camelCase key, its value and the ids behind it (empty for a score). */
+export const ReviewFigure = z.strictObject({
+  key: z.string().regex(/^[a-z][a-zA-Z0-9]*$/, 'Expected a camelCase key'),
+  value: z.number().finite(),
+  ids: z.array(Id),
 });
+export type ReviewFigure = z.infer<typeof ReviewFigure>;
+
+/**
+ * `reviewInputFigures` (model §5.4): one input source's figures between `since` and `asOf`, both days included
+ * (`since` never after `asOf`), over the review's whole system; none for MANUAL. A PLANNED review's are computed as of
+ * today; a held review's are the copy its input row stored at RECORD_HELD, counted up to its `heldOn` (§3.13).
+ */
+export const ReviewInputFigures = z
+  .strictObject({
+    source: ReviewInputSource,
+    since: LocalDate,
+    asOf: LocalDate,
+    figures: z.array(ReviewFigure),
+  })
+  .refine((f) => f.since <= f.asOf, { message: 'since is after asOf', path: ['since'] });
+export type ReviewInputFigures = z.infer<typeof ReviewInputFigures>;
+
+/**
+ * One input row of a review: one per input key of its standards (a key shared by several appears once). A held
+ * review's figures are a record, not a cache (model §1.7, §3.13): at RECORD_HELD each live row whose source is not
+ * MANUAL stores `sourceFigures` (the whole system, no unit scope), `figuresStoredAt` (the step's time) and
+ * `figuresEngineVersion` (`ENGINE_VERSION`), all three at once, and they never change after. A row stored before
+ * 1.8.2 has none of them, so they parse as null when absent.
+ */
+export const ReviewInput = z
+  .strictObject({
+    ...isoShape,
+    managementReviewId: Id,
+    inputDefId: Id,
+    notes: LongText.max(8000).nullable(),
+    sourceFigures: ReviewInputFigures.nullable().default(null),
+    figuresStoredAt: Instant.nullable().default(null),
+    figuresEngineVersion: Text.max(40).nullable().default(null),
+  })
+  .refine(
+    (r) =>
+      (r.sourceFigures === null) === (r.figuresStoredAt === null) &&
+      (r.sourceFigures === null) === (r.figuresEngineVersion === null),
+    {
+      path: ['sourceFigures'],
+      message: 'sourceFigures, figuresStoredAt and figuresEngineVersion are stored together',
+    },
+  );
 export type ReviewInput = z.infer<typeof ReviewInput>;
 
 /** One output row of a review: one per output key of its standards. */

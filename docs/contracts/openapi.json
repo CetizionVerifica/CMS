@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Canopy API",
-    "version": "1.8.1",
+    "version": "1.8.2",
     "description": "Generated from @canopy/contracts; do not edit. Conventions: docs/contracts/api-conventions.md. Role permissions per operation are in x-canopy-roles (all, own, limited); a missing role is 403. An operation with x-canopy-feature needs that add-on: 403 FEATURE_NOT_ENABLED without it, and 409 FEATURE_NOT_READY while the account is still being set up for it."
   },
   "servers": [
@@ -20777,7 +20777,7 @@
     "/clients/{clientId}/iso/management-reviews/{id}/held": {
       "post": {
         "operationId": "recordIsoManagementReviewHeld",
-        "summary": "RECORD_HELD: date, attendees and notes on every input.",
+        "summary": "RECORD_HELD: date, attendees and notes on every input; stores each input's figures as of heldOn.",
         "tags": ["M16"],
         "parameters": [
           {
@@ -20817,7 +20817,7 @@
         },
         "responses": {
           "200": {
-            "description": "RECORD_HELD: date, attendees and notes on every input.",
+            "description": "RECORD_HELD: date, attendees and notes on every input; stores each input's figures as of heldOn.",
             "headers": {
               "X-Request-Id": {
                 "$ref": "#/components/headers/RequestId"
@@ -21079,7 +21079,7 @@
           "VIEWER": "all"
         },
         "x-canopy-idempotent": false,
-        "x-canopy-notes": "AP/OW limited to their units (plan §3.3).",
+        "x-canopy-notes": "Stored at RECORD_HELD for a HELD or CLOSED review, computed for a PLANNED one. Values cover the whole system; ids list only the records the caller may read (plan §3.3).",
         "x-canopy-feature": "isoManagement"
       }
     },
@@ -35958,6 +35958,73 @@
               }
             ]
           },
+          "sourceFigures": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "source": {
+                    "type": "string",
+                    "enum": [
+                      "PREVIOUS_ACTIONS",
+                      "CONTEXT",
+                      "RISKS",
+                      "OBJECTIVES",
+                      "NONCONFORMITIES",
+                      "INCIDENTS",
+                      "AUDIT_RESULTS",
+                      "COMPLIANCE_EVALUATION",
+                      "MANUAL"
+                    ]
+                  },
+                  "since": {
+                    "$ref": "#/components/schemas/LocalDate"
+                  },
+                  "asOf": {
+                    "$ref": "#/components/schemas/LocalDate"
+                  },
+                  "figures": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "key": {
+                          "type": "string",
+                          "pattern": "^[a-z][a-zA-Z0-9]*$"
+                        },
+                        "value": {
+                          "type": "number"
+                        },
+                        "ids": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/Id"
+                          }
+                        }
+                      },
+                      "required": ["key", "value", "ids"],
+                      "additionalProperties": false
+                    }
+                  }
+                },
+                "required": ["source", "since", "asOf", "figures"],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "figuresStoredAt": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Instant"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "key": {
             "type": "string",
             "enum": [
@@ -36030,63 +36097,6 @@
               "required": ["standard", "clauseNumber", "item"],
               "additionalProperties": false
             }
-          },
-          "sourceFigures": {
-            "anyOf": [
-              {
-                "type": "object",
-                "properties": {
-                  "source": {
-                    "type": "string",
-                    "enum": [
-                      "PREVIOUS_ACTIONS",
-                      "CONTEXT",
-                      "RISKS",
-                      "OBJECTIVES",
-                      "NONCONFORMITIES",
-                      "INCIDENTS",
-                      "AUDIT_RESULTS",
-                      "COMPLIANCE_EVALUATION",
-                      "MANUAL"
-                    ]
-                  },
-                  "since": {
-                    "$ref": "#/components/schemas/LocalDate"
-                  },
-                  "asOf": {
-                    "$ref": "#/components/schemas/LocalDate"
-                  },
-                  "figures": {
-                    "type": "array",
-                    "items": {
-                      "type": "object",
-                      "properties": {
-                        "key": {
-                          "type": "string",
-                          "pattern": "^[a-z][a-zA-Z0-9]*$"
-                        },
-                        "value": {
-                          "type": "number"
-                        },
-                        "ids": {
-                          "type": "array",
-                          "items": {
-                            "$ref": "#/components/schemas/Id"
-                          }
-                        }
-                      },
-                      "required": ["key", "value", "ids"],
-                      "additionalProperties": false
-                    }
-                  }
-                },
-                "required": ["source", "since", "asOf", "figures"],
-                "additionalProperties": false
-              },
-              {
-                "type": "null"
-              }
-            ]
           }
         },
         "required": [
@@ -36100,11 +36110,12 @@
           "managementReviewId",
           "inputDefId",
           "notes",
+          "sourceFigures",
+          "figuresStoredAt",
           "key",
           "title",
           "source",
-          "clauseRefs",
-          "sourceFigures"
+          "clauseRefs"
         ],
         "additionalProperties": false
       },

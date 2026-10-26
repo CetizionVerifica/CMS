@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { can, type Membership, type RequestContext, type Resource } from '../src/index.js';
+import {
+  can,
+  ENDPOINTS,
+  type Membership,
+  type RequestContext,
+  type Resource,
+} from '../src/index.js';
 import { ID, membership } from './samples.js';
 
 const OTHER_CLIENT = '0192f0c8-1a2b-7c3d-8e4f-0000000000f1';
@@ -164,5 +170,36 @@ describe('stub can() on the ISO actions', () => {
       }),
     ).toBe(false);
     expect(can(ctx([scoped], asApprover), 'isoReview.write', named)).toBe(true);
+  });
+});
+
+describe('the role matrix the stub can() reads', () => {
+  // The stub gives an action to every role of any route that checks it, so an action whose routes list different roles
+  // grants too much on the narrower route (README decision 51 o). These four predate the ISO add-on and M5's policy
+  // settles them when it replaces the stub; no other action may join them.
+  const MIXED_BEFORE_ISO = ['audit.read', 'instance.read', 'library.read', 'person.read'];
+
+  it('gives each action the same roles on every route that checks it', () => {
+    const rolesOf = new Map<string, Set<string>>();
+    for (const ep of Object.values(ENDPOINTS)) {
+      for (const action of ep.actions) {
+        const roles = JSON.stringify(Object.keys(ep.roles).sort());
+        rolesOf.set(action, (rolesOf.get(action) ?? new Set()).add(roles));
+      }
+    }
+    const mixed = [...rolesOf].filter(([, sets]) => sets.size > 1).map(([action]) => action);
+    expect(mixed.sort()).toEqual(MIXED_BEFORE_ISO);
+  });
+
+  it('gives each ISO action the same access, role by role, on every route that checks it', () => {
+    const accessOf = new Map<string, Set<string>>();
+    for (const ep of Object.values(ENDPOINTS).filter((e) => e.feature === 'isoManagement')) {
+      for (const action of ep.actions) {
+        const access = JSON.stringify(Object.entries(ep.roles).sort());
+        accessOf.set(action, (accessOf.get(action) ?? new Set()).add(access));
+      }
+    }
+    expect(accessOf.size).toBeGreaterThan(0);
+    for (const [action, sets] of accessOf) expect(sets.size, action).toBe(1);
   });
 });

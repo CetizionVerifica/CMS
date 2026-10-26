@@ -1127,7 +1127,8 @@ export const ISO_ENDPOINTS = {
   recordIsoManagementReviewHeld: isoEndpoint({
     method: 'POST',
     path: `${ROOT}/management-reviews/{id}/held`,
-    summary: 'RECORD_HELD: date, attendees and notes on every input.',
+    summary:
+      "RECORD_HELD: date, attendees and notes on every input; stores each input's figures as of heldOn.",
     action: 'isoReview.write',
     roles: 'FA CO CA AP:own OW:own',
     notes: 'AP/OW only as its chair.',
@@ -1152,7 +1153,8 @@ export const ISO_ENDPOINTS = {
     summary: "A review's inputs, each with the figures its source gives (reviewInputFigures).",
     action: 'isoReview.read',
     roles: READERS,
-    notes: LIST_NOTE,
+    notes:
+      'Stored at RECORD_HELD for a HELD or CLOSED review, computed for a PLANNED one. Values cover the whole system; ids list only the records the caller may read (plan §3.3).',
     response: list(iso.ReviewInputView),
   }),
   updateIsoReviewInput: isoEndpoint({

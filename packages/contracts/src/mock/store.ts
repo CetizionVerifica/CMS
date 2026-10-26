@@ -167,6 +167,8 @@ export class MockStore {
   /** One-time support-session tokens from `POST /__mock/support-sessions/{grantId}`, each valid until `expiresAt`. */
   supportTokens = new Map<string, { firmId: string; grantId: string; expiresAt: string }>();
   private sequence = 0;
+  /** What runs on every firm after the fixtures load: `onReset`. */
+  private readonly loaders: ((firm: FirmState) => void)[] = [];
 
   constructor(
     private readonly sets: readonly ('firm-a.sample' | 'firm-b.synthetic')[] = [
@@ -197,6 +199,7 @@ export class MockStore {
         pendingIsoUploads: new Map(),
       };
       if (name === 'firm-b.synthetic') loadIsoData(firm);
+      for (const load of this.loaders) load(firm);
       return firm;
     });
     this.sessions.clear();
@@ -205,6 +208,16 @@ export class MockStore {
     this.outbox = [];
     this.supportTokens.clear();
     this.sequence = 0;
+  }
+
+  /**
+   * Runs `load` on every firm now and after each reset: what the mock server derives from the fixtures (the stored
+   * figures of their held management reviews). Adding the same function again does nothing.
+   */
+  onReset(load: (firm: FirmState) => void): void {
+    if (this.loaders.includes(load)) return;
+    this.loaders.push(load);
+    for (const firm of this.firms) load(firm);
   }
 
   /** A new id. Random v4 is enough for a mock; servers use v7. */

@@ -19,7 +19,7 @@ ISO add-on (M16): its records, engine interface, 119 routes (1.8.1), catalogue a
 | [CHANGELOG.md](CHANGELOG.md) | Contract versions | everyone |
 
 ## Status
-Version `1.8.0` (`CONTRACTS_VERSION` in `packages/contracts/src/version.ts`). The domain model in §1-8 of
+Version `1.8.2` (`CONTRACTS_VERSION` in `packages/contracts/src/version.ts`). The domain model in §1-8 of
 [domain-model.md](domain-model.md) is published as v1 so wave 1 (M3, M4, M8, M11) can build against it. Each consumer
 module owner still reviews its part (MODULES.md M0 acceptance); review findings ship as additive changes or, if breaking,
 with sign-off per "How to change a contract".
@@ -291,7 +291,8 @@ with sign-off per "How to change a contract".
     objective owner and due date; internal audit dates and lead; external audit response date; action owner and due
     date; review date and chair (replan). The rule is checked at the edge, on the body: a body that names one of those
     fields needs a reason even when the value is unchanged, so a client sends only the fields it changes (PATCH
-    semantics). Other edits are `UPDATE` with no reason, except a severity or incident-outcome change on the reassign
+    semantics). M13's and M17's edit forms therefore send only the fields the person changed, and ask for a reason
+    only when one of those is in `reasonWith`. Other edits are `UPDATE` with no reason, except a severity or incident-outcome change on the reassign
     route, which carries the reason that route always needs. A date a step sets (RECORD_HELD's
     visit dates, a risk's review date when a treatment action puts a control in place) needs none; its event names
     the step or the action.
@@ -308,3 +309,20 @@ with sign-off per "How to change a contract".
     client's time zone, from the engine's date helper) and `{ fyStartMonth }`, not `createdAt`: root rule 4 forbids
     the engine turning a timestamp into a date without a zone, and reading periods follow the client's financial year,
     as `generateInstances` does.
+52. Stored management review figures (contracts 1.8.2, ISO-1a2; docs/iso/model.md §1.7, §3.13, §5.4). A held
+    review's figures are a record, not a cache: RECORD_HELD stores each non-MANUAL input's figures once, counted up to
+    `heldOn` over the review's whole system, in `ReviewInput.sourceFigures`, with `figuresStoredAt` and
+    `figuresEngineVersion`. The three are set together or not at all, and default to null when absent so a stored row
+    from before 1.8.2 still parses (M3 adds the columns in ISO-2g). `ReviewInputView` answers the stored copy for a
+    HELD or CLOSED review and figures computed as of the client-local today for a PLANNED one; `figuresStoredAt` is
+    set exactly when it is the stored copy, and the engine version stays off the view (the pack and the archive read
+    it from the row, model §9). Every reader sees each value and only the ids of the records they may read (plan
+    §3.3). `reviewInputFigures` reads `ReviewFigureData[source]`, typed per source: client-local creation and
+    archive days on every row, and the event days of the window counts that have no date field of their own, so the
+    engine applies §5.4's date rules without rebuilding records from the audit trail. The 1.8.1 mock's as-of rebuild
+    is gone. `IsoEngineApi.reviewInputFigures` keeps 1.8.1's untyped `data` for now: ISO-3's engine (merged) takes
+    its own shapes and checks itself with `satisfies IsoEngineApi`, so narrowing the signature here would break its
+    build, and M0 cannot change packages/engine. M4 takes `TypedReviewInputFigures` in ISO-3b (a function typed that
+    way satisfies the 1.8.2 signature, test/engine-api.test.ts), and M0 narrows `IsoEngineApi` to it in the next
+    contracts PR after that merges. `ReviewFigure` and `ReviewInputFigures` move to `src/schemas/iso.ts`, beside the
+    record that stores them; the package exports the same names.

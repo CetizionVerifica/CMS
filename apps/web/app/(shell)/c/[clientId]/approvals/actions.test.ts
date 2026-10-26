@@ -38,6 +38,18 @@ describe('loadMoreApprovals', () => {
     await expect(loadMoreApprovals('../x', 'mine', 'abc')).rejects.toThrow();
     await expect(loadMoreApprovals(CLIENT, 'everyone' as never, 'abc')).rejects.toThrow();
     await expect(loadMoreApprovals(CLIENT, 'mine', '')).rejects.toThrow();
+    await expect(loadMoreApprovals(CLIENT, 'mine', 'abc', 'BOTH' as never)).rejects.toThrow();
+  });
+
+  it('keeps the Source filter on the next page', async () => {
+    const consultant = await signIn('consultant@demo.test', true);
+    const { data } = await consultant.call('listInstances', {
+      params: { clientId: CLIENT },
+      query: { workflowState: 'SUBMITTED', source: 'LAW', sort: 'dueDate', limit: '1' },
+    });
+    expect(data.nextCursor).not.toBeNull();
+    const more = await loadMoreApprovals(CLIENT, 'client', data.nextCursor!, 'LAW');
+    for (const row of more.rows) expect(row.workflowState).toBe('SUBMITTED');
   });
 
   it('loads the next page as the signed-in person', async () => {

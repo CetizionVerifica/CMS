@@ -1,6 +1,6 @@
 // The approvals inbox's calls to the API and its rows. Plain functions of an API client, so the Server Actions stay
 // thin and the tests can run these against the in-process mock.
-import { MAX_PAGE_LIMIT, type InstanceRow } from '@canopy/contracts';
+import { MAX_PAGE_LIMIT, type ActivitySource, type InstanceRow } from '@canopy/contracts';
 import type { TaskItem } from '@canopy/ui';
 
 import type { ApiClient } from '../../../../../../lib/api/client';
@@ -13,18 +13,23 @@ export type ApprovalsPage = { rows: InstanceRow[]; nextCursor: string | null; to
  */
 export type QueueScope = 'mine' | 'client';
 
-/** One page of what waits for approval in a client, oldest due date first. The first page also asks for the count. */
+/**
+ * One page of what waits for approval in a client, oldest due date first. The first page also asks for the count.
+ * `source` narrows it to the statutory work or the ISO activities (the page passes one only with the ISO add-on).
+ */
 export async function loadQueue(
   api: Pick<ApiClient, 'call'>,
   clientId: string,
   scope: QueueScope,
   cursor?: string,
+  source?: ActivitySource,
 ): Promise<ApprovalsPage> {
   const { data } = await api.call('listInstances', {
     params: { clientId },
     query: {
       workflowState: 'SUBMITTED',
       ...(scope === 'mine' ? { approverId: 'me' } : {}),
+      ...(source ? { source } : {}),
       sort: 'dueDate',
       limit: String(MAX_PAGE_LIMIT),
       ...(cursor ? { cursor } : { count: 'true' }),
@@ -37,10 +42,14 @@ export async function loadQueue(
   };
 }
 
-/** The drawer's path for an instance in the inbox, so a row's link opens it over this page. */
-export function approvalsHref(clientId: string, instanceId?: string): string {
+/**
+ * The drawer's path for an instance in the inbox, so a row's link opens it over this page, keeping the page's query
+ * (its Source filter).
+ */
+export function approvalsHref(clientId: string, instanceId?: string, query = ''): string {
   const base = `/c/${encodeURIComponent(clientId)}/approvals`;
-  return instanceId ? `${base}/${encodeURIComponent(instanceId)}` : base;
+  const path = instanceId ? `${base}/${encodeURIComponent(instanceId)}` : base;
+  return query ? `${path}?${query}` : path;
 }
 
 /** What a row asks for, in words: a done item to approve, or a request to mark it not applicable. */
@@ -49,7 +58,7 @@ export function askOf(row: Pick<InstanceRow, 'pendingKind'>): string {
 }
 
 /** A row as the TaskList shows it: the Act, the unit and who sent it, so an approver can tell rows apart. */
-export function taskItem(clientId: string, row: InstanceRow): TaskItem {
+export function taskItem(clientId: string, row: InstanceRow, query = ''): TaskItem {
   return {
     id: row.id,
     title: row.title,
@@ -57,7 +66,7 @@ export function taskItem(clientId: string, row: InstanceRow): TaskItem {
     dueDate: row.dueDate,
     status: row.status,
     ...(row.overdueDays === null ? {} : { days: row.overdueDays }),
-    href: approvalsHref(clientId, row.id),
+    href: approvalsHref(clientId, row.id, query),
   };
 }
 
