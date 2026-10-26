@@ -2,17 +2,23 @@ import { Act, Category, Obligation } from '@canopy/contracts';
 import { and, arrayContains, eq, isNull, or } from 'drizzle-orm';
 import type { TenantTx } from '../database.js';
 import * as s from '../schema/index.js';
-import { entity, type PageRequest } from './crud.js';
+import { actIdOfKind, actKindIs, type ActKindFilter } from './act-kind.js';
+import { entity, type PageRequest, type Query } from './crud.js';
 
-/** Library: Acts, categories, obligations, firm-wide (domain-model.md §4). */
+/**
+ * Library: Acts, categories, obligations, firm-wide (domain-model.md §4). The act and obligation lists take an
+ * `actKinds` filter (docs/iso/plan.md §4.6); categories have no kind.
+ */
 
 const actEntity = entity<Act>({ table: s.act, schema: Act });
 export const acts = {
   get: actEntity.get,
   require: actEntity.require,
-  query: actEntity.query,
+  query: (tx: TenantTx, q?: Query<Act>, filter: ActKindFilter = {}) =>
+    actEntity.query(tx, q, actKindIs(filter.actKinds)),
   findAll: actEntity.findAll,
-  list: (tx: TenantTx, page?: PageRequest) => actEntity.list(tx, undefined, page),
+  list: (tx: TenantTx, page?: PageRequest, filter: ActKindFilter = {}) =>
+    actEntity.list(tx, actKindIs(filter.actKinds), page),
   /** By exact name or a stored alias. */
   async findByNameOrAlias(tx: TenantTx, name: string): Promise<Act | null> {
     const rows = await actEntity.all(
@@ -58,9 +64,11 @@ const obligationEntity = entity<Obligation>({ table: s.obligation, schema: Oblig
 export const obligations = {
   get: obligationEntity.get,
   require: obligationEntity.require,
-  query: obligationEntity.query,
+  query: (tx: TenantTx, q?: Query<Obligation>, filter: ActKindFilter = {}) =>
+    obligationEntity.query(tx, q, actIdOfKind(s.obligation.actId, filter.actKinds)),
   findAll: obligationEntity.findAll,
-  list: (tx: TenantTx, page?: PageRequest) => obligationEntity.list(tx, undefined, page),
+  list: (tx: TenantTx, page?: PageRequest, filter: ActKindFilter = {}) =>
+    obligationEntity.list(tx, actIdOfKind(s.obligation.actId, filter.actKinds), page),
   /** Non-archived obligations with this source ID (data, not a key: there may be several). */
   findByExternalRef: (tx: TenantTx, externalRef: string): Promise<Obligation[]> =>
     obligationEntity.all(

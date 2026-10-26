@@ -1,4 +1,4 @@
-import { DEFAULT_FIRM_SETTINGS, FirmSettings, Id, Name } from '@canopy/contracts';
+import { DEFAULT_FIRM_SETTINGS, FeatureFlag, FirmSettings, Id, Name } from '@canopy/contracts';
 import { eq, sql, type SQL } from 'drizzle-orm';
 import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { migrate as runMigrations } from 'drizzle-orm/node-postgres/migrator';
@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import pg from 'pg';
 import { z } from 'zod';
 import { lookups, type AuthLookups } from './auth-lookups.js';
+import { validate } from './errors.js';
 import * as schema from './schema/index.js';
 import { tenantSettings, type TenantContext } from './tenant-context.js';
 
@@ -89,6 +90,12 @@ export interface Database extends AuthLookups {
    * and nothing else (ADR 0003).
    */
   listFirmIds(): Promise<string[]>;
+  /**
+   * Ids of the TRIAL and ACTIVE accounts whose effective features (plan, plus the override's added flags, less its
+   * removed ones) include `flag`, so a job for one add-on reads only the accounts that have it. Ids and nothing else,
+   * as `listFirmIds` (migration 0042).
+   */
+  listFirmIdsWithFeature(flag: string): Promise<string[]>;
   close(): Promise<void>;
 }
 
@@ -202,6 +209,11 @@ export function createDatabase(options: DatabaseOptions): Database {
     },
     async listFirmIds() {
       const { rows } = await asApp(sql`SELECT canopy_list_firm_ids() AS id`);
+      return rows.map((r) => r.id as string);
+    },
+    async listFirmIdsWithFeature(flag) {
+      const valid = validate(FeatureFlag, flag);
+      const { rows } = await asApp(sql`SELECT canopy_list_firm_ids_with_feature(${valid}) AS id`);
       return rows.map((r) => r.id as string);
     },
     ...lookups(asApp),

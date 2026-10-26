@@ -238,9 +238,10 @@ export function entity<T, TNew = NewEntity<T>, TPatch = Partial<TNew>>(config: E
     },
 
     /** A page by `Query`: where, search, archive filter, sort field then id, keyset cursor, total. */
-    async query(tx: TenantTx, q: Query<T> = {}): Promise<QueryResult<T>> {
+    /** `filter` adds a condition `where` cannot say, such as a join (an obligation's act kind). */
+    async query(tx: TenantTx, q: Query<T> = {}, filter?: SQL): Promise<QueryResult<T>> {
       const limit = pageLimit(q.limit);
-      const filters: (SQL | undefined)[] = [whereSql(q.where ?? {})];
+      const filters: (SQL | undefined)[] = [whereSql(q.where ?? {}), filter];
       if (!q.includeArchived && c.archivedAt) filters.push(isNull(c.archivedAt));
       const text = q.search?.text.trim();
       if (q.search && text) {
