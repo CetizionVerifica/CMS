@@ -440,5 +440,6 @@ export const mockFetch: typeof fetch = async (input, init) => {
     method,
     url,
     typeof init?.body === 'string' ? init.body : undefined,
+    me.person.id,
   );
 };
