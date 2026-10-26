@@ -10997,7 +10997,7 @@
     "/clients/{clientId}/iso/documents": {
       "get": {
         "operationId": "listIsoDocuments",
-        "summary": "Controlled documents; ACTIVE only unless `status` says otherwise.",
+        "summary": "Controlled documents; ACTIVE only unless `status` or `ids` is given.",
         "tags": ["M16"],
         "parameters": [
           {
@@ -11130,7 +11130,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Controlled documents; ACTIVE only unless `status` says otherwise.",
+            "description": "Controlled documents; ACTIVE only unless `status` or `ids` is given.",
             "headers": {
               "X-Request-Id": {
                 "$ref": "#/components/headers/RequestId"
@@ -15007,6 +15007,16 @@
               "type": "string",
               "format": "date",
               "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+            }
+          },
+          {
+            "name": "ids",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "description": "Comma list of 1 to 200 distinct record ids, with the other filters and the reader’s units; an id the list does not hold for the reader is left out.",
+              "type": "string",
+              "minLength": 1
             }
           }
         ],

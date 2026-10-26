@@ -1,5 +1,5 @@
-// ISO-1a4: the limits of `?ids=` on the four ISO lists that take it. What each list returns for it is tested beside
-// the list's other filters (iso-nonconformities, iso-risks and iso-documents).
+// ISO-1a4: the limits of `?ids=` on the five ISO lists that take it. What each list returns for it is tested beside
+// the list's other filters (iso-nonconformities, iso-risks, iso-documents and iso-audits).
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { type App, fails, type Id, isoApp, ok, seedId } from './iso-harness.js';
 
@@ -17,6 +17,7 @@ const LISTS: Id[] = [
   'listIsoRisks',
   'listIsoObjectives',
   'listIsoDocuments',
+  'listIsoInternalAudits',
 ];
 const fresh = (n: number) => Array.from({ length: n }, () => seedId());
 

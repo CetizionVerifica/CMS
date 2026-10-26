@@ -125,8 +125,8 @@ const isoListShape = {
 };
 
 /**
- * `?ids=` on the nonconformity, risk, objective and document lists (1.8.5, ISO-1a4): 1 to 200 distinct record ids,
- * comma-separated, so the overview's links (M17) open exactly the records a count lists. It is AND'd with the request's
+ * `?ids=` on the nonconformity, risk, objective, document and internal audit lists (1.8.5, ISO-1a4): 1 to 200
+ * distinct record ids, comma-separated, so the overview's links (M17) open exactly the records a count lists. It is AND'd with the request's
  * other filters and the reader's unit scope (plan §3.3): an id that is not the client's, is archived (risks: unless
  * `includeArchived=true`) or that the reader may not read is left out, with no error. Order and paging are as without
  * it, so 200 ids fit one page at `limit=200`. It names records, not a field, a departure from api-conventions §3
@@ -730,6 +730,7 @@ export const InternalAuditQuery = z
     /** On `plannedStart`. */
     from: LocalDate.optional(),
     to: LocalDate.optional(),
+    ids: IdsFilter.optional(),
   })
   .superRefine(checkRange);
 

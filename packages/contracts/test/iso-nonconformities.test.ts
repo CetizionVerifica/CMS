@@ -1019,17 +1019,18 @@ describe('updateIsoNonconformity', () => {
     try {
       firmB(behind).data.clients.find((c) => c.id === NORTHWIND)!.settings.timeZone =
         'Pacific/Pago_Pago';
+      const system = seedSystem(behind);
       const incident = { ...INCIDENT, occurredAt: '2024-11-15T06:00:00Z' };
-      const nc = await ok<Nc>(
-        behind,
-        'raiseIsoNonconformity',
+      const body = (dueOn: string) =>
         raiseCall(
-          { source: 'INCIDENT', standards: ['ISO_45001'], incident },
+          { source: 'INCIDENT', standards: ['ISO_45001'], incident, dueOn },
           PERSON.meera,
-          seedSystem(behind),
-        ),
-      );
-      expect(nc.reportedOn).toBe('2024-11-14');
+          system,
+        );
+      // Due on the client's today, though Kolkata is a day ahead; not the day before.
+      const nc = await ok<Nc>(behind, 'raiseIsoNonconformity', body('2024-11-14'));
+      expect(nc).toMatchObject({ reportedOn: '2024-11-14', dueOn: '2024-11-14' });
+      await fails(behind, 'raiseIsoNonconformity', body('2024-11-13'), 'VALIDATION', 400);
     } finally {
       await behind.close();
     }

@@ -377,13 +377,14 @@ with sign-off per "How to change a contract".
     figures only the three RISKS rows change, by the kinds rule.
 55. The ISO lists take `ids` (contracts 1.8.5, ISO-1a4; endpoints.md §10 **Lists by id**). ISO-6a's overview (M17)
     links each count to the list holding exactly its records; where no list filter matches a count (effectiveness
-    checks overdue, documents in review or overdue for review, risk reviews overdue, objectives off track) the link
-    names the ids the count lists. So `GET /clients/{clientId}/iso/nonconformities`, `/iso/risks`, `/iso/objectives`
-    and `/iso/documents` take `ids`: 1 to 200 distinct ids, comma-separated, AND'd with the other filters and the
+    checks overdue, documents in review or overdue for review, risk reviews overdue, objectives off track, the audit
+    programme's counts, certificates expiring or overdue for a cycle) the link names the ids the count lists. So
+    `GET /clients/{clientId}/iso/nonconformities`, `/iso/risks`, `/iso/objectives`, `/iso/documents` and
+    `/iso/internal-audits` take `ids`: 1 to 200 distinct ids, comma-separated, AND'd with the other filters and the
     reader's unit scope, an id the list does not hold for the reader left out with no error, order and paging as
     without it. The name departs from api-conventions.md §3, where a filter is named after a field, because it names
     records and matches ISO-6a's links. The document list drops its ACTIVE-only default when
-    `ids` is given, so a link lists every document it names; archived rows stay out on all four (risks unless
+    `ids` is given, so a link lists every document it names; archived rows stay out on all five (risks unless
     `includeArchived=true`). The certificate list takes no `ids`: its page reads every certificate of the client, which
     are few (one per standard of each system), and filters them itself. `ISO_EXPORT_FILTERS` leaves `ids` out, as it
     leaves out paging, so the NC log and risk register exports keep their filters. Also in 1.8.5: the mock's REQUEST_NA

@@ -499,6 +499,7 @@ export const auditsHandlers: PartialHandlers<Ids> = {
       .filter((a) => {
         const reach = auditReach(actor.firm, a);
         return (
+          (q.ids === undefined || q.ids.includes(a.id)) &&
           (q.managementSystemId === undefined ||
             q.managementSystemId.includes(programmeOf(actor.firm, a).managementSystemId)) &&
           (q.programmeId === undefined || q.programmeId.includes(a.programmeId)) &&
@@ -892,7 +893,8 @@ export const auditsHandlers: PartialHandlers<Ids> = {
     const unitId = body.unitId ?? item?.unitId ?? null;
     checkSystemClauses(firm, system, clauseIds, 'clauseIds');
     checkAuditUnit(reach, unitId, 'unitId');
-    const today = ctx.clock.today();
+    // The client's day: the NC is reported on it and is due no earlier.
+    const today = clientDay(firm, audit.clientId, ctx.clock.now());
     let nc: Nonconformity | null = null;
     if (body.nonconformity !== undefined) {
       const raise = body.nonconformity;
@@ -915,7 +917,7 @@ export const auditsHandlers: PartialHandlers<Ids> = {
         unitId: ncUnit,
         description: body.description,
         reportedById: actor.person.id,
-        reportedOn: clientDay(firm, audit.clientId, ctx.clock.now()),
+        reportedOn: today,
         containment: null,
         correction: null,
         disposition: null,

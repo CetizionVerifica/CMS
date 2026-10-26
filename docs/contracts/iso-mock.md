@@ -24,7 +24,8 @@ README decisions 42-51. M4 owns every formula marked "stand-in".
   so `GET /clients/{clientId}/audit` lists and filters them, with the add-on on or off (plan §4.4). The fixture's
   sample trail (fixtures.md §8) loads with them. The mock's clock does not move, so both trails list the events of
   one instant newest first, in reverse order of writing (1.8.4).
-- **Lists by id.** The nonconformity, risk, objective and document lists take `ids` as endpoints.md §10 says (1.8.5):
+- **Lists by id.** The nonconformity, risk, objective, document and internal audit lists take `ids` as endpoints.md
+  §10 says (1.8.5):
   the mock applies it with the list's other filters and the reader's units, and the document list keeps its
   ACTIVE-only default only when neither `status` nor `ids` is given.
 - **ISO exports.** The mock writes no file: an ISO export kind is checked (its filters against `ISO_EXPORT_FILTERS`, by

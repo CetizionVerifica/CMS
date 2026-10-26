@@ -376,7 +376,8 @@ function raiseNc(
   raise: { ownerId: string; approverId: string; dueOn: string },
 ): Nonconformity {
   const firm = actor.firm;
-  const today = ctx.clock.today();
+  // The client's day: the NC is reported on it and is due no earlier.
+  const today = clientDay(firm, audit.clientId, ctx.clock.now());
   const unitId = finding.unitId ?? (reach.unitIds.length === 1 ? reach.unitIds[0]! : null);
   checkNcPerson(actor, audit.clientId, raise.ownerId, 'ownerId', unitId);
   checkNcPerson(actor, audit.clientId, raise.approverId, 'approverId', unitId);
@@ -396,7 +397,7 @@ function raiseNc(
     unitId,
     description: finding.description,
     reportedById: actor.person.id,
-    reportedOn: clientDay(firm, audit.clientId, ctx.clock.now()),
+    reportedOn: today,
     containment: null,
     correction: null,
     disposition: null,

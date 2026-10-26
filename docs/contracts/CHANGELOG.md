@@ -288,15 +288,15 @@ and instance audit trails newest first within one instant. `firm-b.iso.json` gai
 held review's stored figures only its three RISKS rows change, by the kinds rule.
 
 ## 1.8.5 · 2026-10-26
-ISO-1a4: the nonconformity, risk, objective and document lists take `ids` (README decision 55, endpoints.md §10
-**Lists by id**), so ISO-6a's overview links open exactly the records a count lists: 1 to 200 distinct record ids,
-comma-separated (`400 VALIDATION` when empty, over 200, repeated or not ids), AND'd with the other filters and the
-reader's unit scope, with an id the list does not hold for the reader (another client's, archived, or outside the
-reader's units) left out and no error, in the list's own order and paging. With `ids` the document list drops its
-ACTIVE-only default. `/iso/certifications` takes no `ids`, and `ISO_EXPORT_FILTERS` leaves it out of the NC log and
-risk register exports, as it leaves out paging. The mock honours it, and its REQUEST_NA on a clause that allows no
-exclusion now answers `400 VALIDATION` naming `status` instead of `clauseId` (ADR M16-0004 decision 5). After the
-ISO-1a3 audit (#306), the mock reports a nonconformity, raised by hand or from a finding, on the client-local day
-rather than its one zone's, so an incident's day is checked against the client's own `reportedOn`, and compares an
-incident's `occurredAt` with now as instants; tests cover a PATCH moving the time after now and the table each review
-figure key names. This is a patch: an optional query parameter and mock rules.
+ISO-1a4: the nonconformity, risk, objective, document and internal audit lists take `ids` (README decision 55,
+endpoints.md §10 **Lists by id**), so ISO-6a's overview links open exactly the records a count lists: 1 to 200
+distinct record ids, comma-separated (`400 VALIDATION` when empty, over 200, repeated or not ids), AND'd with the
+other filters and the reader's unit scope, with an id the list does not hold for the reader (another client's,
+archived, or outside the reader's units) left out and no error, in the list's own order and paging. With `ids` the
+document list drops its ACTIVE-only default. `/iso/certifications` takes no `ids`, and `ISO_EXPORT_FILTERS` leaves it
+out of the NC log and risk register exports, as it leaves out paging. The mock honours it, and its REQUEST_NA on a
+clause that allows no exclusion now answers `400 VALIDATION` naming `status` instead of `clauseId` (ADR M16-0004
+decision 5). After the ISO-1a3 audit (#306), the mock reports a nonconformity, raised by hand or from a finding, on
+the client-local day rather than its one zone's, so an incident's day is checked against the client's own
+`reportedOn`, and compares an incident's `occurredAt` with now as instants; tests cover a PATCH moving the time after
+now and the table each review figure key names. This is a patch: an optional query parameter and mock rules.

@@ -1110,9 +1110,8 @@ export const nonconformitiesHandlers: PartialHandlers<Ids> = {
     ctx.authorize(
       isoScope(actor, reachOf(firm, { clientId, unitId: body.unitId, systemId: system.id })),
     );
-    const today = ctx.clock.today();
-    // The client's day, as the incident's time is checked in its zone (`today` is the mock's one zone).
-    const reportedOn = clientDay(firm, clientId, ctx.clock.now());
+    // The client's day: the NC is reported on it, is due no earlier, and its incident happened no later.
+    const today = clientDay(firm, clientId, ctx.clock.now());
     if (body.unitId !== null) checkSystemUnits(firm, system, [body.unitId], 'unitId');
     checkStandards(firm, system, body.standards, body.clauseIds);
     checkPerson(actor, clientId, body.ownerId, 'ownerId', body.unitId, OWNER_ROLES);
@@ -1134,7 +1133,7 @@ export const nonconformitiesHandlers: PartialHandlers<Ids> = {
     if (body.incident !== null) {
       checkIncident(actor, clientId, body.unitId, body.incident, null, true, {
         now: ctx.clock.now(),
-        reportedOn,
+        reportedOn: today,
       });
     }
     const number =
@@ -1155,7 +1154,7 @@ export const nonconformitiesHandlers: PartialHandlers<Ids> = {
       unitId: body.unitId,
       description: body.description,
       reportedById: actor.person.id,
-      reportedOn,
+      reportedOn: today,
       containment: body.containment,
       correction: body.correction,
       disposition: null,

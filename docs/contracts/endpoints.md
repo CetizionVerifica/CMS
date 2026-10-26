@@ -236,9 +236,9 @@ client-wide reader, are never withheld. The current approved revision of a syste
 readable by every member of the client. The catalogue routes read the account's own copy, which is firm-wide and the
 same for every client: clause numbers, titles and summaries in our own words, never a standard's text.
 
-**Lists by id.** The nonconformity, risk, objective and document lists take `ids` (1.8.5): 1 to 200 distinct record
-ids, comma-separated, else `400 VALIDATION`, so the overview's links (M17) open exactly the records a count lists. It
-is AND'd with the request's other filters and the reader's unit scope: an id that is not the client's, is archived (a
+**Lists by id.** The nonconformity, risk, objective, document and internal audit lists take `ids` (1.8.5): 1 to 200
+distinct record ids, comma-separated, else `400 VALIDATION`, so the overview's links (M17) open exactly the records a
+count lists. It is AND'd with the request's other filters and the reader's unit scope: an id that is not the client's, is archived (a
 risk unless `includeArchived=true`) or that the reader may not read is left out, with no error. Order and paging are
 as without it, so 200 ids fit one page at `limit=200`. With `ids` the document list drops its ACTIVE-only default, so
 an OBSOLETE document it names is listed. The certificate list takes no `ids` (its page reads every certificate of the
@@ -350,7 +350,7 @@ on the URL.
 | GET | `/clients/{clientId}/iso/audit-programmes` (managementSystemId, fy) | `isoAudit.read` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | by FY, with coverage; AP/OW limited to their units (plan §3.3) |
 | POST | `/clients/{clientId}/iso/audit-programmes` | `isoSystem.write` | ✓ | ✓ | ✓ | | | | `201`; one per system and FY (`409 DUPLICATE`) |
 | PATCH | `/clients/{clientId}/iso/audit-programmes/{id}` | `isoSystem.write` | ✓ | ✓ | ✓ | | | | notes |
-| GET | `/clients/{clientId}/iso/internal-audits` (managementSystemId, q, programmeId, state, unitId, leadAuditorId, from, to) | `isoAudit.read` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | by planned start; AP/OW limited to their units (plan §3.3) |
+| GET | `/clients/{clientId}/iso/internal-audits` (managementSystemId, q, programmeId, state, unitId, leadAuditorId, from, to, ids) | `isoAudit.read` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | by planned start; AP/OW limited to their units (plan §3.3) |
 | POST | `/clients/{clientId}/iso/internal-audits` | `isoAudit.plan` | ✓ | ✓ | ✓ | | | | `201`, PLANNED; an auditor who is also an auditee needs an independence note |
 | GET | `/clients/{clientId}/iso/internal-audits/{id}` | `isoAudit.read` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | with the actions on offer |
 | PATCH | `/clients/{clientId}/iso/internal-audits/{id}` | `isoAudit.plan` | ✓ | ✓ | ✓ | | | | while PLANNED or IN_PROGRESS; moving its dates or changing the lead auditor needs a reason |
