@@ -16,7 +16,6 @@ import {
   loadFixtureSet,
   loadIsoFixtureSet,
 } from '../fixtures/index.js';
-import type { IsoEntityType } from '../enums.js';
 import type { IsoFileSubject } from '../schemas/iso.js';
 import type { ImportBatch, ImportIssue, ImportRow, MappingTemplate } from '../schemas/import.js';
 import type { ExportJob } from '../schemas/scores.js';
@@ -33,12 +32,10 @@ export type IsoTables = { [K in keyof typeof IsoTablesShape]: z.input<(typeof Is
 export type IsoRow<K extends keyof IsoTables> = IsoTables[K] extends (infer T)[] ? T : never;
 
 /**
- * An ISO audit event: an `AuditEvent` whose entity is an ISO record. Kept apart from `data.auditEvents` while the ISO
- * entity types are staged outside `EntityType` (docs/iso/plan.md §5.1); ISO-1b moves them into the client audit trail.
+ * An audit event of the firm's trail (`data.auditEvents`). Since contracts 1.8.3 (ISO-1b) the ISO records' events are
+ * here too, with an ISO entity type, so the client audit trail lists them (docs/iso/plan.md §4.4).
  */
-export type IsoAuditEvent = Omit<Row<'auditEvents'>, 'entityType'> & {
-  entityType: z.input<typeof IsoEntityType>;
-};
+export type AuditRecord = Row<'auditEvents'>;
 
 /** An ISO file upload ticket from `POST /iso/files/upload-url`, until it is confirmed. */
 export interface PendingIsoUpload {
@@ -117,7 +114,6 @@ export interface FirmState {
   isoCatalogue: IsoCatalogue;
   /** The ISO records of the firm's clients. */
   iso: IsoTables;
-  isoAuditEvents: IsoAuditEvent[];
   /** ISO file upload tickets, keyed by upload id. */
   pendingIsoUploads: Map<string, PendingIsoUpload>;
 }
@@ -195,7 +191,6 @@ export class MockStore {
         isoCatalogueCopiedAt: null,
         isoCatalogue: { standards: [], clauses: [], reviewInputDefs: [], reviewOutputDefs: [] },
         iso: emptyIsoTables(),
-        isoAuditEvents: [],
         pendingIsoUploads: new Map(),
       };
       if (name === 'firm-b.synthetic') loadIsoData(firm);
@@ -366,6 +361,7 @@ function loadIsoData(firm: FirmState): void {
   firm.data.assignments.push(...set.assignments);
   firm.data.instances.push(...set.instances);
   firm.data.evidence.push(...set.evidence);
+  firm.data.auditEvents.push(...set.auditEvents);
   for (const key of Object.keys(firm.iso) as (keyof IsoTables)[]) {
     (firm.iso[key] as unknown[]) = set[key] as unknown[];
   }

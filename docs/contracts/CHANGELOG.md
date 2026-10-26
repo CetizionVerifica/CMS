@@ -253,3 +253,17 @@ on another record is a new request. A test pins the role matrix the stub `can()`
 access on every route that checks it, and only the four older actions whose routes differ (`audit.read`,
 `instance.read`, `library.read`, `person.read`) may over-grant in the stub, which M5's policy settles. Decision 51 p
 says M13's and M17's edit forms send only the fields the person changed.
+
+## 1.8.3 · 2026-10-26
+ISO-1b: the staged ISO values join their contract enums (README decision 53). `ISO_ENTITY_TYPES` are the last values of
+`EntityType`, `ISO_NOTIFICATION_KINDS` of `NotificationKind` and `ISO_EXPORT_KINDS` of `ExportKind`, in their own
+order, so the Postgres enums keep theirs; the staged constants and their `Iso*` enums stay as subsets. M3 already
+stores every value (ISO-2b), M13 labels the entity types (ISO-12a) and M10 refuses at create a kind it does not build
+yet (ISO-11e), so this is a patch. `ExportCreateBody` now takes the ISO kinds, checking their filters against
+`ISO_EXPORT_FILTERS` as 1.8.0 set up; no schema shape changes. `IsoFixtureSet` gains `auditEvents` and
+`firm-b.iso.json` a sample of Northwind's ISO audit trail (158 events: the system's set-up with its 137 checklist rows,
+one record of each other kind created, and one form's first revision from draft to approval), each event as the mock's
+route writes it, leaving out every step the mock's rules or the held review's figures read. The mock moves ISO events
+into firm B's `auditEvents`, so the client audit trail lists and filters them, with the add-on on or off; it creates the
+ISO export kinds (`.xlsx` or `.pdf`) and, while the add-on is off, answers `403 FEATURE_NOT_ENABLED` on their create,
+job read and download, after the role check.

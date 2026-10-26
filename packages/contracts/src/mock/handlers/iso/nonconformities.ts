@@ -41,7 +41,7 @@ import {
   touchIso,
 } from '../../iso/common.js';
 import { isoTiming } from '../../iso/derive.js';
-import type { FirmState, IsoAuditEvent, IsoRow } from '../../store.js';
+import type { FirmState, AuditRecord, IsoRow } from '../../store.js';
 
 type Ids =
   | 'listIsoNonconformities'
@@ -171,7 +171,7 @@ const isIncident = (nc: { source: string }) => INCIDENT_SOURCE_LIST.includes(nc.
 // ---------- nonconformities: history (model §4 preamble, §4.1) ----------
 
 /** The §4.1 step an audit event of a nonconformity records: RAISE is its CREATE, the others TRANSITIONs. */
-function stepOf(event: IsoAuditEvent): string | undefined {
+function stepOf(event: AuditRecord): string | undefined {
   if (event.action === 'CREATE') return 'RAISE';
   if (event.action !== 'TRANSITION') return undefined;
   const step = event.after?.action;
@@ -184,7 +184,7 @@ function lastStep(
   nc: Nc,
   steps: readonly string[],
 ): { index: number; at: string } | null {
-  const events = firm.isoAuditEvents;
+  const events = firm.data.auditEvents;
   for (let index = events.length - 1; index >= 0; index -= 1) {
     const event = events[index]!;
     if (event.entityType !== 'nonconformity' || event.entityId !== nc.id) continue;
@@ -199,7 +199,7 @@ function lastStep(
  */
 function makersOf(firm: FirmState, nc: Nc): string[] {
   const start = lastStep(firm, nc, CHECKER_RESETS)?.index ?? -1;
-  return firm.isoAuditEvents
+  return firm.data.auditEvents
     .slice(start + 1)
     .filter(
       (e) =>
@@ -216,7 +216,7 @@ function makersOf(firm: FirmState, nc: Nc): string[] {
  * pin every instant), else by its `createdAt`.
  */
 function createdSince(firm: FirmState, action: Action, step: { index: number; at: string }) {
-  const index = firm.isoAuditEvents.findIndex(
+  const index = firm.data.auditEvents.findIndex(
     (e) => e.entityType === 'iso_action' && e.entityId === action.id && e.action === 'CREATE',
   );
   return index >= 0 ? index > step.index : action.createdAt > step.at;
@@ -257,7 +257,7 @@ function noActionRefusals(firm: FirmState, nc: Nc): Issue[] {
 function submittedWithoutAction(firm: FirmState, nc: Nc): boolean {
   if (nc.state !== 'AWAITING_VERIFICATION' || nc.noActionReason === null) return false;
   const submit = lastStep(firm, nc, ['SUBMIT', 'SUBMIT_NO_ACTION']);
-  return submit === null || stepOf(firm.isoAuditEvents[submit.index]!) === 'SUBMIT_NO_ACTION';
+  return submit === null || stepOf(firm.data.auditEvents[submit.index]!) === 'SUBMIT_NO_ACTION';
 }
 
 /**
@@ -608,7 +608,7 @@ function backToChange(
 }
 
 /** Audit groups of a nonconformity edit: people are a reassignment, dates a due-date change (model §8). */
-const EDIT_GROUPS: [IsoAuditEvent['action'], (key: string) => boolean][] = [
+const EDIT_GROUPS: [AuditRecord['action'], (key: string) => boolean][] = [
   ['REASSIGN', (k) => k === 'ownerId' || k === 'approverId'],
   ['DUE_DATE_CHANGE', (k) => k === 'dueOn' || k === 'effectivenessDueOn'],
   ['UPDATE', (k) => !['ownerId', 'approverId', 'dueOn', 'effectivenessDueOn'].includes(k)],

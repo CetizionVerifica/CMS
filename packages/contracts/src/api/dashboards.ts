@@ -77,8 +77,8 @@ function exportFilterQuery(kind: string): z.ZodType {
 
 /**
  * `POST /clients/{clientId}/exports`. `filters` is a query string without the leading "?", so an export matches the
- * view it was started from: the register's (api-conventions.md §3), or for the ISO kinds (staged, `ISO_EXPORT_KINDS`)
- * the ISO list's in `ISO_EXPORT_FILTERS`.
+ * view it was started from: the register's (api-conventions.md §3), or for the ISO kinds (`ISO_EXPORT_KINDS`, part of
+ * `ExportKind` since 1.8.3) the ISO list's in `ISO_EXPORT_FILTERS`.
  */
 export const ExportCreateBody = z
   .strictObject({

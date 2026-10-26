@@ -35,7 +35,7 @@ import {
   objectiveProgress,
   riskRating,
 } from '../../iso/derive.js';
-import type { FirmState, IsoAuditEvent, IsoRow } from '../../store.js';
+import type { FirmState, AuditRecord, IsoRow } from '../../store.js';
 
 type Ids =
   | 'listIsoRisks'
@@ -292,7 +292,7 @@ function applyEdit<T extends { id: string; clientId: string; version: number; up
   if (changed.length === 0) return;
   Object.assign(row, defined);
   touchIso(ctx, row);
-  const groups: [IsoAuditEvent['action'], string[]][] = [
+  const groups: [AuditRecord['action'], string[]][] = [
     ['REASSIGN', changed.filter((k) => k === 'ownerId')],
     ['DUE_DATE_CHANGE', changed.filter((k) => k === dueField)],
     ['UPDATE', changed.filter((k) => k !== 'ownerId' && k !== dueField)],

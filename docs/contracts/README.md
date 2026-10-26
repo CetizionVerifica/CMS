@@ -19,7 +19,7 @@ ISO add-on (M16): its records, engine interface, 119 routes (1.8.1), catalogue a
 | [CHANGELOG.md](CHANGELOG.md) | Contract versions | everyone |
 
 ## Status
-Version `1.8.2` (`CONTRACTS_VERSION` in `packages/contracts/src/version.ts`). The domain model in §1-8 of
+Version `1.8.3` (`CONTRACTS_VERSION` in `packages/contracts/src/version.ts`). The domain model in §1-8 of
 [domain-model.md](domain-model.md) is published as v1 so wave 1 (M3, M4, M8, M11) can build against it. Each consumer
 module owner still reviews its part (MODULES.md M0 acceptance); review findings ship as additive changes or, if breaking,
 with sign-off per "How to change a contract".
@@ -213,8 +213,8 @@ with sign-off per "How to change a contract".
     already recorded (a reset does). The copy writes the catalogue tables, reuses a live STANDARD act or a live
     category of the same name, adds the obligations, records itself once and, when a route runs it, writes a SYSTEM
     `CREATE` audit event per act, category and obligation it adds; the fixture load writes none. ISO audit events
-    are kept apart from the register's while their entity types are staged (decision 42), so the client audit trail
-    does not list them before ISO-1b; a delegated step has `delegated: true` in `after`. ISO statuses and figures come
+    were kept apart from the register's while their entity types were staged (decision 42); since 1.8.3 they are in
+    the client audit trail (decision 53). A delegated step has `delegated: true` in `after`. ISO statuses and figures come
     from the mock's test double (`src/mock/iso/derive.ts`), as decision 35 says for instances; one rule each for
     objective progress, certification cycles and programme coverage serves every screen that shows them. As in
     decision 37, a confirmed ISO file is PENDING and is CLEAN on the next read of its subject's files or of a download
@@ -274,9 +274,9 @@ with sign-off per "How to change a contract".
     document (issued and approved by its issuer, not a person in the client: null) from an internal revision (always
     the approver). That rule is the provider's: RECORD_EDITION leaves it null and APPROVE always sets it, as the mock
     does; M3 may check it across the two tables.
-    (n) `ExportCreateBody.kind` stays `ExportKind` rather than taking `IsoExportKind` too, so it refuses the ISO kinds
-    until ISO-1b joins them. Its filter check already goes through `exportFilterQuery(kind)`, which
-    picks `ISO_EXPORT_FILTERS[kind]` for an ISO kind, so ISO-1b changes no schema there.
+    (n) `ExportCreateBody.kind` stays `ExportKind` rather than taking `IsoExportKind` too, so it refused the ISO kinds
+    until ISO-1b joined them (1.8.3, decision 53). Its filter check goes through `exportFilterQuery(kind)`, which
+    picks `ISO_EXPORT_FILTERS[kind]` for an ISO kind, so ISO-1b changed no schema there.
     (o) 1.8.1 (ISO-1a): every route has one action. The stub `can()` grants an action to every role of any route that
     lists it, and the generic gate checks `actions[0]`, so the two-action routes of 1.8.0 leaked rights: an NC owner
     got `isoNc.reassign`, FA and CO `isoNc.work`, a chair `isoReview.plan`. The NC PATCH is now `isoNc.work` only
@@ -326,3 +326,19 @@ with sign-off per "How to change a contract".
     way satisfies the 1.8.2 signature, test/engine-api.test.ts), and M0 narrows `IsoEngineApi` to it in the next
     contracts PR after that merges. `ReviewFigure` and `ReviewInputFigures` move to `src/schemas/iso.ts`, beside the
     record that stores them; the package exports the same names.
+53. The ISO values join the contract enums (contracts 1.8.3, ISO-1b; plan §5.1 step 4). `ISO_ENTITY_TYPES`,
+    `ISO_NOTIFICATION_KINDS` and `ISO_EXPORT_KINDS` are now the last values of `EntityType`, `NotificationKind` and
+    `ExportKind`, in their own order, so the Postgres enums M3 builds as `new Set([...X.options, ...staged])` keep
+    their order; the constants and `IsoEntityType`, `IsoNotificationKind` and `IsoExportKind` stay as the subsets.
+    Each step before it has merged: M3 stores the values (ISO-2b), the audit trail page has words for the entity types
+    (ISO-12a) and M10's export builder refuses at create a kind it does not build yet (ISO-11e). From here an ISO route
+    may write an `AuditEvent` with an ISO entity type and a `can()` resource may name one, and `ExportCreateBody`
+    takes the ISO kinds with the ISO list filters of decision 51 n. It is a patch, as 1.5.1 and 1.5.2 were when
+    `account` and `CLIENT_ARCHIVE_ZIP` joined: every value was already stored and every reader already handled it. A
+    reader that switches over one of the three enums with no default now sees the new values (TypeScript names any
+    switch that misses one). The mock follows: an ISO record's events are in firm B's `auditEvents`, so
+    `GET /clients/{clientId}/audit` lists them, filters them by an ISO `entityType` and keeps them while the add-on is
+    off (plan §4.4); an ISO export kind is created with its list's filters, writes its `EXPORT` event and, while the
+    add-on is off, answers `403 FEATURE_NOT_ENABLED` on create, job read and download, after the role check (plan
+    §4.5); the statutory kinds and the client archive stay open. `firm-b.iso.json` gains `auditEvents`: a sample of the
+    trail, each event as the mock's route writes it, that names every ISO entity type (fixtures.md §8).

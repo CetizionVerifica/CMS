@@ -12,7 +12,7 @@ import {
   type Scope,
   visibleClientIds,
 } from '../core.js';
-import type { FirmState, IsoAuditEvent, IsoRow, IsoTables } from '../store.js';
+import type { FirmState, AuditRecord, IsoRow, IsoTables } from '../store.js';
 
 export type IsoEntity = z.input<typeof IsoEntityType>;
 export type IsoTable = keyof IsoTables;
@@ -311,7 +311,7 @@ export function isoAudit(
   ctx: IsoCtx,
   actor: Actor,
   event: {
-    action: IsoAuditEvent['action'];
+    action: AuditRecord['action'];
     entityType: IsoEntity;
     entityId: string;
     clientId: string;
@@ -321,7 +321,7 @@ export function isoAudit(
     delegated?: boolean;
   },
 ): void {
-  actor.firm.isoAuditEvents.push({
+  actor.firm.data.auditEvents.push({
     id: ctx.store.newId(),
     firmId: actor.firm.data.firm.id,
     clientId: event.clientId,
@@ -372,7 +372,7 @@ export function patchIso<
   version: number,
   patch: Partial<T>,
   entityType: IsoEntity,
-  options: { action?: IsoAuditEvent['action']; reason?: string | null; delegated?: boolean } = {},
+  options: { action?: AuditRecord['action']; reason?: string | null; delegated?: boolean } = {},
 ): T {
   checkIsoVersion(row, version);
   const defined = Object.fromEntries(
