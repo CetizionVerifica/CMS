@@ -286,3 +286,14 @@ change adds a type, a field or a constant that no module reads yet, or is a mock
 data and computes the figures from it alone, stores the fixtures' held reviews in a stable order, and lists the client
 and instance audit trails newest first within one instant. `firm-b.iso.json` gains 18 step events (176 in all); of the
 held review's stored figures only its three RISKS rows change, by the kinds rule.
+
+## 1.8.5 · 2026-10-26
+ISO-1a4: the nonconformity, risk, objective and document lists take `ids` (README decision 55, endpoints.md §10
+**Lists by id**), so ISO-6a's overview links open exactly the records a count lists: 1 to 200 distinct record ids,
+comma-separated (`400 VALIDATION` when empty, over 200, repeated or not ids), AND'd with the other filters and the
+reader's unit scope, with an id the list does not hold for the reader (another client's, archived, or outside the
+reader's units) left out and no error, in the list's own order and paging. With `ids` the document list drops its
+ACTIVE-only default. `/iso/certifications` takes no `ids`, and `ISO_EXPORT_FILTERS` leaves it out of the NC log and
+risk register exports, as it leaves out paging. The mock honours it, and its REQUEST_NA on a clause that allows no
+exclusion now answers `400 VALIDATION` naming `status` instead of `clauseId` (ADR M16-0004 decision 5). This is a
+patch: an optional query parameter and a mock error path.

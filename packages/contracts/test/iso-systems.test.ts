@@ -1096,7 +1096,7 @@ describe('clause N/A (model §4.6)', () => {
     ]);
   });
 
-  it('allows N/A only where the clause allows exclusion', async () => {
+  it('allows N/A only where the clause allows exclusion, naming the status (ADR M16-0004 decision 5)', async () => {
     const system = seedSystem(app);
     for (const [code, number] of [
       ['ISO_9001', '4.1'],
@@ -1105,13 +1105,21 @@ describe('clause N/A (model §4.6)', () => {
       ['ISO_45001', '8.1.4.2'],
     ] as const) {
       const row = rowOf(system.id, code, number);
-      await fails(
+      const error = await fails(
         app,
         'requestIsoClauseNa',
         { params: rowParams(row), body: naBody(1) },
         'VALIDATION',
         400,
       );
+      expect(error.error.details).toEqual({
+        issues: [
+          {
+            path: ['body', 'status'],
+            message: `Clause ${number} cannot be determined not applicable`,
+          },
+        ],
+      });
       expect(isoEvents(app, row.id)).toEqual([]);
     }
     const row = rowOf(system.id, 'ISO_9001', '8.5.5');

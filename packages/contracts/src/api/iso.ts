@@ -90,6 +90,7 @@ import {
   asOfQueryShape,
   checkHasChanges,
   csv,
+  MAX_PAGE_LIMIT,
   pageQueryShape,
   PersonRef,
   QueryBoolean,
@@ -122,6 +123,24 @@ const isoListShape = {
   managementSystemId: csv(Id).optional(),
   q: SearchText.optional(),
 };
+
+/**
+ * `?ids=` on the nonconformity, risk, objective and document lists (1.8.5, ISO-1a4): 1 to 200 distinct record ids,
+ * comma-separated, so the overview's links (M17) open exactly the records a count lists. It is AND'd with the request's
+ * other filters and the reader's unit scope (plan §3.3): an id that is not the client's, is archived (risks: unless
+ * `includeArchived=true`) or that the reader may not read is left out, with no error. Order and paging are as without
+ * it, so 200 ids fit one page at `limit=200`. It names records, not a field, a departure from api-conventions §3
+ * (README decision 55). The exports' filters leave it out (`ISO_EXPORT_FILTERS`).
+ */
+const IdsFilter = z
+  .string()
+  .min(1)
+  .transform((value) => value.split(','))
+  .pipe(ids(MAX_PAGE_LIMIT).min(1))
+  .meta({
+    description:
+      'Comma list of 1 to 200 distinct record ids, with the other filters and the reader’s units; an id the list does not hold for the reader is left out.',
+  });
 
 /** `?from=&to=` on a date field: each range runs forwards. */
 function checkRange(q: { from?: string; to?: string }, ctx: z.core.$RefinementCtx): void {
@@ -310,11 +329,15 @@ export const ClauseNaWithdrawBody = ReasonBody;
 export const DocumentQuery = z.strictObject({
   ...isoListShape,
   type: csv(DocumentType).optional(),
-  /** Default: ACTIVE only (obsolete documents stay out of default lists). */
+  /**
+   * Default: ACTIVE only unless `status` or `ids` is given (obsolete documents stay out of default lists, but a
+   * document `ids` names is listed in either status).
+   */
   status: csv(DocumentStatus).optional(),
   ownerId: PersonRef.optional(),
   approverId: PersonRef.optional(),
   clauseId: csv(Id).optional(),
+  ids: IdsFilter.optional(),
 });
 
 function checkDocumentTypeFields(
@@ -429,6 +452,7 @@ export const RiskQuery = z.strictObject({
   climateRelated: QueryBoolean.optional(),
   ownerId: PersonRef.optional(),
   includeArchived: QueryBoolean.optional(),
+  ids: IdsFilter.optional(),
 });
 
 interface RiskKindFields {
@@ -581,6 +605,7 @@ export const ObjectiveQuery = z.strictObject({
   ownerId: PersonRef.optional(),
   /** true: without `closedOn`; false: closed. */
   open: QueryBoolean.optional(),
+  ids: IdsFilter.optional(),
 });
 
 /**
@@ -1034,6 +1059,7 @@ export const NcQuery = z.strictObject({
   /** true: only INCIDENT and NEAR_MISS. */
   incident: QueryBoolean.optional(),
   overdue: QueryBoolean.optional(),
+  ids: IdsFilter.optional(),
 });
 
 /** Incident fields as sent: the same rules as stored (model §3.11). No injured person's details: those go in files. */
@@ -1543,10 +1569,10 @@ export type IsoOverview = z.infer<typeof IsoOverview>;
 
 // ---------- exports ----------
 
-/** The NC log and risk register take their list's filters; the PDFs name one record. */
+/** The NC log and risk register take their list's filters, without paging or `ids`; the PDFs name one record. */
 export const ISO_EXPORT_FILTERS = {
-  ISO_NC_LOG_XLSX: NcQuery.omit({ limit: true, cursor: true, count: true }),
-  ISO_RISK_REGISTER_XLSX: RiskQuery.omit({ limit: true, cursor: true, count: true }),
+  ISO_NC_LOG_XLSX: NcQuery.omit({ limit: true, cursor: true, count: true, ids: true }),
+  ISO_RISK_REGISTER_XLSX: RiskQuery.omit({ limit: true, cursor: true, count: true, ids: true }),
   ISO_AUDIT_REPORT_PDF: z.strictObject({ internalAuditId: Id }),
   ISO_REVIEW_PACK_PDF: z.strictObject({ managementReviewId: Id }),
 } as const satisfies Record<IsoExportKind, z.ZodType>;

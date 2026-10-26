@@ -1069,6 +1069,7 @@ export const nonconformitiesHandlers: PartialHandlers<Ids> = {
     const rows = liveIso(firm, 'nonconformities', clientId)
       .filter(
         (n) =>
+          inList(q.ids, n.id) &&
           inList(q.managementSystemId, n.managementSystemId) &&
           (q.unitId === undefined || (n.unitId !== null && q.unitId.includes(n.unitId))) &&
           inList(q.state, n.state) &&

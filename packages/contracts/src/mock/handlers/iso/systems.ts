@@ -1183,7 +1183,7 @@ export const systemsHandlers: PartialHandlers<Ids> = {
         delegated: row.ownerId !== actor.person.id,
         check: () => {
           if (!clause.exclusionAllowed) {
-            invalid('clauseId', `Clause ${clause.number} cannot be determined not applicable`);
+            invalid('status', `Clause ${clause.number} cannot be determined not applicable`);
           }
         },
       },

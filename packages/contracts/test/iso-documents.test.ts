@@ -449,6 +449,28 @@ describe('listIsoDocuments', () => {
     expect(both.items).toHaveLength(3);
   });
 
+  it('narrows to the ids given, in list order, in either status, within the other filters and the reader’s units (ISO-1a4)', async () => {
+    const [policy, procedure, external, obsolete] = docs as [Doc, Doc, Doc, Doc];
+    const other = await createDoc(harbour, { ownerId: PERSON.joseph, approverId: PERSON.priya });
+    const hidden = await createDoc(blr);
+    const named = async (rows: Doc[], query = {}, as: string = PERSON.meera) =>
+      (
+        await ok<{ items: Doc[] }>(app, 'listIsoDocuments', {
+          as,
+          query: { ids: rows.map((d) => d.id).join(','), ...query },
+        })
+      ).items.map((d) => d.code);
+    // The ACTIVE-only default goes with `ids`, so the OBSOLETE document it names is listed.
+    expect(await named([obsolete, policy, procedure])).toEqual(['L-01', 'L-03', 'L-04']);
+    expect(await named([obsolete, policy], { status: 'ACTIVE' })).toEqual(['L-03']);
+    expect(await named([obsolete, policy, procedure], { type: 'PROCEDURE,MANUAL' })).toEqual([
+      'L-01',
+      'L-04',
+    ]);
+    expect(await named([other, external])).toEqual(['L-02']);
+    expect(await named([hidden, procedure], {}, PERSON.rohan)).toEqual(['L-01']);
+  });
+
   it('pages with a cursor and a count', async () => {
     const first = await list({ limit: '2', count: 'true' });
     expect(first.items.map((d) => d.code)).toEqual(['L-01', 'L-02']);

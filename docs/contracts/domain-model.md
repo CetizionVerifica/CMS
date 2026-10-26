@@ -702,7 +702,7 @@ the last values of its enum, in this order, and stays exported as the subset:
 Before 1.8.3 no route wrote an `AuditEvent` with an ISO entity type and no `can()` resource named one, and the mock
 kept its ISO audit events apart; now they are in the client audit trail. `ExportCreateBody` takes the ISO kinds (its
 `kind` is `ExportKind`) and checks their `filters` against `ISO_EXPORT_FILTERS` (the NC and risk list queries without
-paging, `{ internalAuditId }` for the audit report, `{ managementReviewId }` for the review pack) instead of
+paging or `ids`, `{ internalAuditId }` for the audit report, `{ managementReviewId }` for the review pack) instead of
 `RegisterFilterQuery`.
 
 ### Machines

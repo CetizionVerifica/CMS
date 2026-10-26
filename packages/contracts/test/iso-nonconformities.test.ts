@@ -19,6 +19,7 @@ import {
   isoApp,
   isoEvents,
   NORTHWIND,
+  NOW,
   ok,
   PERSON,
   PUNE,
@@ -642,6 +643,25 @@ describe('listIsoNonconformities and getIsoNonconformity', () => {
     expect(await listed({ q: 'pallet' })).toEqual([blr.id]);
     expect(await listed({ q: String(pune.number) })).toContain(pune.id);
     expect(await listed({ state: 'CLOSED' })).toEqual([]);
+  });
+
+  it('narrows to the ids given, in list order, within the other filters and the reader’s units (ISO-1a4)', async () => {
+    const other = seedNc({ clientId: HARBOUR, managementSystemId: harbourSys.id });
+    const archived = seedNc({ managementSystemId: listSys.id, archivedAt: NOW });
+    const named = async (rows: { id: string }[], query = {}, as: string = PERSON.meera) =>
+      ids((await listNcs({ ids: ids(rows).join(','), ...query }, as)).items);
+    expect(await named([overdue, pune, unitless])).toEqual([unitless.id, pune.id, overdue.id]);
+    expect(await named([overdue, pune, blr], { overdue: 'true' })).toEqual([overdue.id]);
+    expect(await named([overdue, pune, blr], { unitId: BENGALURU })).toEqual([blr.id]);
+    expect(await named([other, archived, pune])).toEqual([pune.id]);
+    expect(await named([blr, pune, unitless], {}, PERSON.rohan)).toEqual([unitless.id, pune.id]);
+    const page = await listNcs({
+      ids: ids([overdue, blr, pune]).join(','),
+      limit: '2',
+      count: 'true',
+    });
+    expect(ids(page.items)).toEqual([blr.id, pune.id]);
+    expect(page.total).toBe(3);
   });
 
   it('shows the timing of an overdue nonconformity', async () => {
