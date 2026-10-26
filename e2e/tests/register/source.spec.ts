@@ -5,7 +5,9 @@ import { checkPage, DEMO_METALS, signIn } from '../shell/helpers.js';
 // The Source filter (Law, ISO) on the register, approvals, calendar and evidence vault (docs/iso/packages.md ISO-11c).
 // In the demo every account has the ISO add-on except the company admin's (company@demo.test). Demo Metals' ISO
 // activities (M0's firm B fixture) all fall due in FY 2024-25, two of them in November 2024. These journeys only read,
-// so they run beside the register journeys; they compare numbers that those journeys don't change.
+// so they run beside the register journeys; they compare numbers that those journeys don't change. The approvals
+// inbox's filter needs an ISO item waiting, which only a decision makes, so its journey runs in order with the other
+// approvals journeys in register.spec.ts.
 const C = `/c/${DEMO_METALS}`;
 const FY = 'fy=2024-25';
 const NOVEMBER = `${C}/calendar?${FY}&m=2024-11`;
@@ -55,33 +57,6 @@ test.describe('Source filter with the ISO add-on at 1280px', () => {
     await page.goto(`${C}/register?${FY}&source=LAW`);
     await expect(page.getByRole('button', { name: 'Source filter: Law. Change' })).toBeVisible();
     expect((await matching(page, 'instance')) + iso).toBe(all);
-    await checkPage(page);
-  });
-
-  test('the approvals inbox narrows its queue and keeps the filter on the drawer', async ({
-    page,
-  }) => {
-    await signIn(page, 'approver@demo.test', `${C}/approvals`);
-    const source = page.getByRole('group', { name: 'Source' });
-    await expect(source.getByRole('button', { name: 'Law and ISO' })).toHaveAttribute(
-      'aria-pressed',
-      'true',
-    );
-    await source.getByRole('button', { name: 'ISO', exact: true }).click();
-    await expect(page).toHaveURL(`${C}/approvals?source=ISO`);
-    await expect(source.getByRole('button', { name: 'ISO', exact: true })).toHaveAttribute(
-      'aria-pressed',
-      'true',
-    );
-    // Every row left is an ISO activity; its link opens the drawer with the filter still in the URL.
-    const items = page.getByRole('list', { name: 'Waiting for approval' }).getByRole('listitem');
-    for (const text of await items.allInnerTexts()) expect(text).toMatch(ISO_ACT);
-    if ((await items.count()) > 0) {
-      await items.first().getByRole('link').first().click();
-      await expect(page).toHaveURL(/\/approvals\/[0-9a-f-]{36}\?source=ISO$/);
-      await page.getByRole('button', { name: 'Back to approvals' }).click();
-      await expect(page).toHaveURL(`${C}/approvals?source=ISO`);
-    }
     await checkPage(page);
   });
 
@@ -175,6 +150,33 @@ test.describe('Source filter at 375px on a phone', () => {
     userAgent: devices['iPhone 13'].userAgent,
     hasTouch: true,
     isMobile: true,
+  });
+
+  test('the register and the vault filter from the Filters sheet', async ({ page }) => {
+    await signIn(page, 'consultant@demo.test', `${C}/register?${FY}`);
+    const all = await matching(page, 'instance');
+    await page.getByRole('button', { name: 'Filters' }).click();
+    const sheet = page.getByRole('dialog', { name: 'Filters' });
+    await sheet.getByRole('button', { name: 'Source' }).click();
+    await sheet.getByRole('checkbox', { name: 'ISO' }).click();
+    await expect(page).toHaveURL(new RegExp(`\\?${FY}&source=ISO$`));
+    await sheet.getByRole('button', { name: /^Show / }).click();
+    await expect(sheet).toBeHidden();
+    await expect(page.getByRole('button', { name: 'Filters (1)' })).toBeVisible();
+    await expect.poll(() => matching(page, 'instance')).toBeLessThan(all);
+    await checkPage(page);
+
+    await page.goto(`${C}/evidence`);
+    const files = await matching(page, 'file');
+    await page.getByRole('button', { name: 'Filters' }).click();
+    await sheet.getByRole('button', { name: 'Source' }).click();
+    await sheet.getByRole('checkbox', { name: 'ISO' }).click();
+    await expect(page).toHaveURL(`${C}/evidence?source=ISO`);
+    await sheet.getByRole('button', { name: /^Show / }).click();
+    await expect(sheet).toBeHidden();
+    await expect.poll(() => matching(page, 'file')).toBeLessThan(files);
+    expect(await matching(page, 'file')).toBeGreaterThan(0);
+    await checkPage(page);
   });
 
   test('the calendar and approvals fit the screen with the filter', async ({ page }) => {
