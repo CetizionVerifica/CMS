@@ -40,7 +40,7 @@ import {
   standardOf,
   touchIso,
 } from '../../iso/common.js';
-import { isoTiming, localDate } from '../../iso/derive.js';
+import { clientDay, isoTiming } from '../../iso/derive.js';
 import type { FirmState, AuditRecord, IsoRow } from '../../store.js';
 
 type Ids =
@@ -450,11 +450,10 @@ function checkIncident(
   when: { now: string; reportedOn: string },
 ): void {
   if (incident.occurredAt !== before?.occurredAt) {
-    if (incident.occurredAt > when.now) {
+    if (Date.parse(incident.occurredAt) > Date.parse(when.now)) {
       invalid('incident.occurredAt', 'The incident cannot have occurred after now');
     }
-    const timeZone = actor.firm.data.clients.find((c) => c.id === clientId)!.settings.timeZone;
-    if (localDate(incident.occurredAt, timeZone) > when.reportedOn) {
+    if (clientDay(actor.firm, clientId, incident.occurredAt) > when.reportedOn) {
       invalid('incident.occurredAt', 'The incident cannot have occurred after it was reported');
     }
   }
@@ -1069,6 +1068,7 @@ export const nonconformitiesHandlers: PartialHandlers<Ids> = {
     const rows = liveIso(firm, 'nonconformities', clientId)
       .filter(
         (n) =>
+          inList(q.ids, n.id) &&
           inList(q.managementSystemId, n.managementSystemId) &&
           (q.unitId === undefined || (n.unitId !== null && q.unitId.includes(n.unitId))) &&
           inList(q.state, n.state) &&
@@ -1110,7 +1110,8 @@ export const nonconformitiesHandlers: PartialHandlers<Ids> = {
     ctx.authorize(
       isoScope(actor, reachOf(firm, { clientId, unitId: body.unitId, systemId: system.id })),
     );
-    const today = ctx.clock.today();
+    // The client's day: the NC is reported on it, is due no earlier, and its incident happened no later.
+    const today = clientDay(firm, clientId, ctx.clock.now());
     if (body.unitId !== null) checkSystemUnits(firm, system, [body.unitId], 'unitId');
     checkStandards(firm, system, body.standards, body.clauseIds);
     checkPerson(actor, clientId, body.ownerId, 'ownerId', body.unitId, OWNER_ROLES);

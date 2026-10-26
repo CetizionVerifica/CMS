@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Canopy API",
-    "version": "1.8.4",
+    "version": "1.8.5",
     "description": "Generated from @canopy/contracts; do not edit. Conventions: docs/contracts/api-conventions.md. Role permissions per operation are in x-canopy-roles (all, own, limited); a missing role is 403. An operation with x-canopy-feature needs that add-on: 403 FEATURE_NOT_ENABLED without it, and 409 FEATURE_NOT_READY while the account is still being set up for it."
   },
   "servers": [
@@ -10997,7 +10997,7 @@
     "/clients/{clientId}/iso/documents": {
       "get": {
         "operationId": "listIsoDocuments",
-        "summary": "Controlled documents; ACTIVE only unless `status` says otherwise.",
+        "summary": "Controlled documents; ACTIVE only unless `status` or `ids` is given.",
         "tags": ["M16"],
         "parameters": [
           {
@@ -11116,11 +11116,21 @@
               "type": "string",
               "minLength": 1
             }
+          },
+          {
+            "name": "ids",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "description": "Comma list of 1 to 200 distinct record ids, with the other filters and the reader’s units; an id the list does not hold for the reader is left out.",
+              "type": "string",
+              "minLength": 1
+            }
           }
         ],
         "responses": {
           "200": {
-            "description": "Controlled documents; ACTIVE only unless `status` says otherwise.",
+            "description": "Controlled documents; ACTIVE only unless `status` or `ids` is given.",
             "headers": {
               "X-Request-Id": {
                 "$ref": "#/components/headers/RequestId"
@@ -12571,6 +12581,16 @@
               "type": "string",
               "enum": ["true", "false"]
             }
+          },
+          {
+            "name": "ids",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "description": "Comma list of 1 to 200 distinct record ids, with the other filters and the reader’s units; an id the list does not hold for the reader is left out.",
+              "type": "string",
+              "minLength": 1
+            }
           }
         ],
         "responses": {
@@ -13757,6 +13777,16 @@
             "schema": {
               "type": "string",
               "enum": ["true", "false"]
+            }
+          },
+          {
+            "name": "ids",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "description": "Comma list of 1 to 200 distinct record ids, with the other filters and the reader’s units; an id the list does not hold for the reader is left out.",
+              "type": "string",
+              "minLength": 1
             }
           }
         ],
@@ -14977,6 +15007,16 @@
               "type": "string",
               "format": "date",
               "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+            }
+          },
+          {
+            "name": "ids",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "description": "Comma list of 1 to 200 distinct record ids, with the other filters and the reader’s units; an id the list does not hold for the reader is left out.",
+              "type": "string",
+              "minLength": 1
             }
           }
         ],
@@ -18026,6 +18066,16 @@
             "schema": {
               "type": "string",
               "enum": ["true", "false"]
+            }
+          },
+          {
+            "name": "ids",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "description": "Comma list of 1 to 200 distinct record ids, with the other filters and the reader’s units; an id the list does not hold for the reader is left out.",
+              "type": "string",
+              "minLength": 1
             }
           }
         ],

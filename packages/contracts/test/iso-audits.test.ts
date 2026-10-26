@@ -22,6 +22,7 @@ import {
   isoApp,
   isoEvents,
   NORTHWIND,
+  NOW,
   ok,
   PERSON,
   PUNE,
@@ -1178,6 +1179,37 @@ describe('internal audit findings', () => {
     expect((await refuse({ type: 'MAJOR_NC' })).status).toBe(400);
   });
 
+  it("reports a finding's nonconformity on the client's day, which it is due no earlier than", async () => {
+    // Now is 06:30 UTC on TODAY: 19:30 the day before for a client in Pago Pago (UTC-11).
+    const client = firmB(app).data.clients.find((c) => c.id === NORTHWIND)!;
+    const zone = client.settings.timeZone;
+    client.settings.timeZone = 'Pacific/Pago_Pago';
+    try {
+      const a = await start(await createAudit());
+      const yesterday = addDays(TODAY, -1);
+      const raise = (dueOn: string) => ({
+        type: 'MINOR_NC',
+        clauseIds: [C('7.2')],
+        nonconformity: { ...NC_BODY, dueOn },
+      });
+      const minor = await addFinding(a, raise(yesterday));
+      expect(ncOf(minor)).toMatchObject({ reportedOn: yesterday, dueOn: yesterday });
+      await fails(
+        app,
+        'createIsoInternalFinding',
+        {
+          as: PERSON.sameer,
+          params: at(a),
+          body: { description: 'Late', ...raise(addDays(TODAY, -2)) },
+        },
+        'VALIDATION',
+        400,
+      );
+    } finally {
+      client.settings.timeZone = zone;
+    }
+  });
+
   it('raises a nonconformity from a MAJOR_NC or MINOR_NC finding in the same step', async () => {
     const a = await start(await createAudit());
     const major = await addFinding(a, {
@@ -1731,6 +1763,49 @@ describe('listing internal audits', () => {
     });
     expect(views.items.map((a) => a.allowedActions)).toEqual([[], ['START'], []]);
     expect(views.items.every((a) => a.managementSystemId === system.id)).toBe(true);
+  });
+
+  it('narrows to the ids given, in list order, within the other filters and the reader’s units (ISO-1a4)', async () => {
+    const system = seedSystem(app, { standards: ['ISO_9001'], unitIds: [PUNE, BENGALURU] });
+    const prog = await createProgramme(system);
+    const days = (n: number) => ({
+      plannedStart: addDays(TODAY, n),
+      plannedEnd: addDays(TODAY, n),
+    });
+    const later = await createAudit(prog, { title: 'Later audit', ...days(30) });
+    const sooner = await createAudit(prog, { title: 'Sooner audit', ...days(3) });
+    const blr = await createAudit(prog, {
+      title: 'Bengaluru audit',
+      unitIds: [BENGALURU],
+      leadAuditorId: PERSON.divya,
+      auditorIds: [],
+      auditeeIds: [],
+    });
+    const gone = await createAudit(prog, { title: 'Archived audit' });
+    firmB(app).iso.internalAudits.find((a) => a.id === gone.id)!.archivedAt = NOW;
+    const harbour = await createProgramme(
+      seedSystem(app, { clientId: HARBOUR, standards: ['ISO_9001'] }),
+    );
+    const other = await createAudit(harbour, {
+      unitIds: [],
+      leadAuditorId: PERSON.joseph,
+      auditorIds: [],
+      auditeeIds: [],
+      reportedToIds: [PERSON.priya],
+    });
+    const named = async (rows: { id: string }[], query = {}, as: string = PERSON.meera) =>
+      ids(
+        (
+          await ok<{ items: Audit[] }>(app, 'listIsoInternalAudits', {
+            as,
+            query: { ids: ids(rows).join(','), ...query },
+          })
+        ).items,
+      );
+    expect(await named([later, blr, sooner])).toEqual([sooner.id, blr.id, later.id]);
+    expect(await named([later, blr, sooner], { unitId: BENGALURU })).toEqual([blr.id]);
+    expect(await named([other, gone, sooner])).toEqual([sooner.id]);
+    expect(await named([blr, sooner], {}, PERSON.nisha)).toEqual([sooner.id]);
   });
 });
 
