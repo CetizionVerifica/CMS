@@ -1,4 +1,11 @@
-import type { ComplianceInstance, Id, Membership, Person, RequestContext } from '@canopy/contracts';
+import type {
+  ActKind,
+  ComplianceInstance,
+  Id,
+  Membership,
+  Person,
+  RequestContext,
+} from '@canopy/contracts';
 import { uuidv7 } from '@canopy/db';
 import { checkListFields } from '../list-fields.js';
 import {
@@ -341,6 +348,18 @@ export class MemoryStore implements Store {
     };
   }
 
+  /** The kind of the act behind an act, obligation or assignment row, as ISO-2f's subselects read it. */
+  private actKind(table: TableName, row: Row | undefined): ActKind | null {
+    if (!row) return null;
+    if (table === 'assignments') {
+      return this.actKind('obligations', this.data.tables.obligations.get(row.obligationId as Id));
+    }
+    if (table === 'obligations') {
+      return this.actKind('acts', this.data.tables.acts.get(row.actId as Id));
+    }
+    return (row.kind as ActKind | undefined) ?? 'STATUTE';
+  }
+
   private repo<T extends { id: Id }>(table: TableName, scope: Scope): Repo<T> {
     const rows = () => this.data.tables[table];
     const visible = () => [...rows().values()].filter((r) => this.canRead(table, r, scope));
@@ -365,6 +384,11 @@ export class MemoryStore implements Store {
         const filtered = visible()
           .filter((r) => query.includeArchived === true || r.archivedAt === null)
           .filter((r) => matches(r, (query.where ?? {}) as Where<Row>))
+          .filter((r) => {
+            if (query.actKinds === undefined) return true;
+            const kind = this.actKind(table, r);
+            return kind !== null && query.actKinds.includes(kind);
+          })
           .filter(
             (r) =>
               text === undefined ||
@@ -485,6 +509,20 @@ export class MemoryStore implements Store {
                 approverId: i.approverId === from ? to : i.approverId,
               }),
             ),
+      },
+      actKindOf: {
+        obligation: async (id) => {
+          const row = this.data.tables.obligations.get(id);
+          return row && this.canRead('obligations', row, scope)
+            ? this.actKind('obligations', row)
+            : null;
+        },
+        assignment: async (id) => {
+          const row = this.data.tables.assignments.get(id);
+          return row && this.canRead('assignments', row, scope)
+            ? this.actKind('assignments', row)
+            : null;
+        },
       },
       clientPersonIds: async (clientId) => {
         if (!this.visibleClient(scope, clientId)) return [];

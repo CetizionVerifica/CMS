@@ -1,5 +1,6 @@
 import type {
   Act,
+  ActKind,
   Assignment,
   AuditAction,
   Category,
@@ -46,6 +47,11 @@ export interface ListQuery<T> {
   /** 1 to `LIST_MAX`. */
   limit: number;
   count?: boolean;
+  /**
+   * Acts, obligations and assignments only: keep rows whose act is of these kinds (docs/iso/plan.md §4.4, ISO-2f's
+   * filter). Absent reads both kinds.
+   */
+  actKinds?: readonly ActKind[];
 }
 
 /** The most rows one `Repo.list` call returns: M3's `MAX_LIMIT`, which is also the contract's page maximum. */
@@ -140,6 +146,14 @@ export interface Tx {
   obligations: Repo<Obligation>;
   assignments: Repo<Assignment>;
   instances: InstanceWrites;
+  /**
+   * The kind of the act behind an obligation or assignment, archived or not; null when the context cannot see the
+   * row. For the ISO add-on's off switch (plan §4.4).
+   */
+  actKindOf: {
+    obligation(id: Id): Promise<ActKind | null>;
+    assignment(id: Id): Promise<ActKind | null>;
+  };
   /** People with an active membership, assignment or instance in the client. */
   clientPersonIds(clientId: Id): Promise<Id[]>;
   /** People with an active FIRM_ADMIN or CONSULTANT membership. */
