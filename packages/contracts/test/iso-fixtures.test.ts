@@ -676,7 +676,7 @@ describe('files and dates', () => {
   });
 });
 
-describe('the audit trail sample (ISO-1b)', () => {
+describe('the audit trail sample (ISO-1b, ISO-1a3)', () => {
   const TABLE = {
     management_system: 'managementSystems',
     certification: 'certifications',
@@ -751,13 +751,65 @@ describe('the audit trail sample (ISO-1b)', () => {
     expect(steps[2]!.actorId).not.toBe(steps[1]!.actorId);
   });
 
-  it('leaves out every step the mock’s rules and the review figures read', () => {
-    // Context and risk UPDATEs, NC steps after RAISE, audit REPORTs, RECORD_HELD and action COMPLETE or CANCEL.
+  it('has the step that set each entered date or settled each record, on the day its row says (ISO-1a3)', () => {
+    const day = (instantAt: string) => instantAt.slice(0, 10);
+    const steps = (type: IsoEntityType, id: string) =>
+      iso.auditEvents.filter(
+        (e) => e.entityType === type && e.entityId === id && e.action !== 'CREATE',
+      );
+    const only = (type: IsoEntityType, id: string, action: string) => {
+      const found = steps(type, id);
+      expect(
+        found.map((e) => e.after?.action),
+        `${type} ${id}`,
+      ).toEqual([action]);
+      return found[0]!;
+    };
+    for (const audit of iso.internalAudits.filter((a) => a.reportedOn !== null)) {
+      const report = only('internal_audit', audit.id, 'REPORT');
+      expect(day(report.at)).toBe(audit.reportedOn);
+      expect(report.actorId).toBe(audit.leadAuditorId);
+    }
+    for (const audit of iso.externalAudits) {
+      const held = ['HELD', 'RESPONDED', 'CLOSED'].includes(audit.state);
+      if (!held) expect(steps('external_audit', audit.id)).toEqual([]);
+      else expect(day(only('external_audit', audit.id, 'RECORD_HELD').at)).toBe(audit.endOn);
+    }
+    for (const objective of iso.objectives) {
+      if (objective.closedOn === null) expect(steps('objective', objective.id)).toEqual([]);
+      else expect(day(only('objective', objective.id, 'CLOSE').at)).toBe(objective.closedOn);
+    }
+    expect(iso.actions.filter((a) => a.state === 'DONE').length).toBeGreaterThan(0);
+    expect(iso.actions.filter((a) => a.state === 'CANCELLED').length).toBeGreaterThan(0);
+    for (const action of iso.actions) {
+      if (action.state === 'OPEN') {
+        expect(steps('iso_action', action.id)).toEqual([]);
+        continue;
+      }
+      const settled = only(
+        'iso_action',
+        action.id,
+        action.state === 'DONE' ? 'COMPLETE' : 'CANCEL',
+      );
+      expect(settled.at).toBe(action.updatedAt);
+      if (action.state === 'DONE') expect(day(settled.at)).toBe(action.doneOn);
+      else expect(settled.reason).toBe(action.cancelReason);
+    }
+    const climate = iso.auditEvents.filter(
+      (e) => e.entityType === 'management_system' && e.action === 'UPDATE',
+    );
+    expect(climate).toHaveLength(1);
+    expect(day(climate[0]!.at)).toBe(system.climateDecidedOn);
+    expect(climate[0]!.after).toEqual({
+      climateChangeRelevant: system.climateChangeRelevant,
+      climateDecidedOn: system.climateDecidedOn,
+    });
+  });
+
+  it('leaves out the window events the held review’s figures count', () => {
+    // Context and risk UPDATEs and an NC's steps after RAISE: the review figures' event-day lists.
     for (const e of iso.auditEvents) {
-      if (['context_item', 'risk_item'].includes(e.entityType)) expect(e.action).toBe('CREATE');
-      if (
-        ['nonconformity', 'internal_audit', 'external_audit', 'iso_action'].includes(e.entityType)
-      ) {
+      if (['context_item', 'risk_item', 'nonconformity'].includes(e.entityType)) {
         expect(e.action, e.entityType).toBe('CREATE');
       }
     }

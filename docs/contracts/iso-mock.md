@@ -22,7 +22,8 @@ README decisions 42-51. M4 owns every formula marked "stand-in".
   nonconformity's or a finding's description or an incident's location shows `[not recorded]` on both sides.
 - **The client audit trail.** Since 1.8.3 the ISO events are in firm B's `auditEvents` with the client's other events,
   so `GET /clients/{clientId}/audit` lists and filters them, with the add-on on or off (plan §4.4). The fixture's
-  sample trail (fixtures.md §8) loads with them.
+  sample trail (fixtures.md §8) loads with them. The mock's clock does not move, so both trails list the events of
+  one instant newest first, in reverse order of writing (1.8.4).
 - **ISO exports.** The mock writes no file: an ISO export kind is checked (its filters against `ISO_EXPORT_FILTERS`, by
   the body schema), kept as a `DONE` job named `iso-...-<today>.xlsx` or `.pdf` and audited as `EXPORT`. While the
   add-on is off, its create, job read and download URL answer `403 FEATURE_NOT_ENABLED` after the role check; the
@@ -62,28 +63,41 @@ README decisions 42-51. M4 owns every formula marked "stand-in".
   non-MANUAL input's figures once, counted up to `heldOn`, with `figuresStoredAt` (when it was recorded held) and the
   engine version `mock-1`, and a HELD or CLOSED review then always answers that copy, whatever changes later. A
   PLANNED review's figures are computed on each read, as of today in the client's time zone, with `figuresStoredAt`
-  null, and RECORD_HELD refuses a `heldOn` after that day; a CANCELLED review and a MANUAL input have none. Storing them does not move the input's version, so notes stay
-  editable with the version read before. The RECORD_HELD event carries each stored input's key, source, window and
-  values, with no ids, and the engine version. The fixture JSON holds no figures: the mock stores those of the
-  fixtures' held reviews when it loads, as of their `heldOn`, at their `updatedAt`. Figures count the review's whole
-  system with no unit scope (plan §3.3): every reader sees each value, and the ids only of the records they may read,
-  so a value can be larger than its list of ids. A record archived since, a compliance instance included, keeps its
-  id in the stored copy for whoever may read it, but the id no longer opens, so M17 shows it without a link.
+  null, and RECORD_HELD refuses a `heldOn` after that day; a CANCELLED review and a MANUAL input have none. Storing
+  them does not move the input's version, so notes stay editable with the version read before. The RECORD_HELD event
+  carries each stored input's key, source, window and values, with no ids, and the engine version. The fixture JSON
+  holds no figures: the mock stores those of the fixtures' held reviews when it loads, as of their `heldOn`, at their
+  `updatedAt`, in that order (ties by id), each counting as earlier only the reviews stored before it, so two held on
+  one day get the same figures on every load. The mock works as M3 and M4 will (ISO-1a3): it gathers each input's
+  `ReviewFigureData` from the store and its audit trail, as ISO-2h's gather will, then computes the figures from that
+  data and the window alone, typed as `TypedReviewInputFigures`, as ISO-3b's engine will.
   - **Window.** `since` is worked out per standard of the input: the later of the system's creation day and the
     `heldOn` of the last other HELD or CLOSED review of the system that covers the standard with `heldOn` on or
-    before as-of. The input's `since` is the earliest of these, and never after as-of (a review held before its
-    system was set up in the app reviews just its own day). At RECORD_HELD the review is still PLANNED, so only
-    reviews already held count: one recorded earlier with the same `heldOn` counts as earlier, and a review recorded
-    with a `heldOn` before another held review's takes its `since` only from reviews held on or before its own
-    `heldOn`, leaving the other's stored figures as they are.
+    before as-of. The input's `since` is the earliest of these, and never after as-of. At RECORD_HELD the review is
+    still PLANNED, so only reviews already held count: one recorded earlier with the same `heldOn` counts as earlier,
+    and a review recorded with a `heldOn` before another held review's takes its `since` only from reviews held on or
+    before its own `heldOn`, leaving the other's stored figures as they are. A review held before its system's
+    creation day stores no figures (the app held none of its records then): its rows keep null figures and its
+    RECORD_HELD event carries `figures: []`. One held on that day stores the figures of that one day.
   - **Dates.** Each record is read as it is now, except where its dates place it on as-of, by client-local days. A
-    record counts from its creation day; a nonconformity, incidents included, from the later of that and its
-    `reportedOn` (which may be backdated). A record archived after as-of counts as live; one archived on or before
-    as-of counts only in `contextItemsRemoved`, which lists the items archived in the window. A nonconformity or
-    objective with `closedOn` after as-of counts as open, and an action with `doneOn` after as-of as OPEN unless it
-    is CANCELLED. The climate decision counts once `climateDecidedOn` is on or before as-of. `readingsRecorded`
-    counts the readings created in the window, whatever their period; on-track reads the readings created by as-of
-    for periods ended by then.
+    record counts from its creation day. A date the user enters places its record by the later of that date and the
+    day of the step that set it, the latest such step, so a record settled or entered after a review was recorded,
+    dated before it, counts in the next review instead of in neither: an action's settled day is the later of
+    `doneOn` and its COMPLETE step when DONE, and its CANCEL step when CANCELLED, and it is OPEN on as-of until then;
+    an objective's CLOSE step with `closedOn` (open on as-of until then); an internal audit's REPORT step with
+    `reportedOn`; an external audit's RECORD_HELD step, or a later `UPDATE` naming `endOn`, with `endOn`; and the
+    management system `UPDATE` naming `climateChangeRelevant` or `climateDecidedOn`, with `climateDecidedOn`. A row
+    seeded or loaded without its trail takes its `updatedAt` as the step's time. A nonconformity, incidents included,
+    is raised and counts from its counting day, the later of its creation day and its `reportedOn` (which may be
+    backdated); an incident is placed by the later of its `occurredAt` day and that counting day; a finding by the
+    later of its audit's day and its own creation day, whether or not its audit counts in the window. DONE and
+    CANCELLED actions (PREVIOUS_ACTIONS, treatment actions) count only when their settled day is in the window, so an
+    action settled before `since` is not counted again. A record reopened since is read as it is now: REOPEN clears an
+    action's `doneOn` and a nonconformity's `closedOn`, so live figures for any as-of read either as open. A record
+    archived after as-of counts as live; one archived on or before as-of counts only in `contextItemsRemoved`, which
+    lists the items archived in the window. `correctiveActionsOverdue` counts only the actions of nonconformities open
+    on as-of. `readingsRecorded` counts the readings created in the window, whatever their period; on-track reads the
+    readings created by as-of for periods ended by then.
   - **Events.** Counts with no date field of their own take the client-local days of audited events in the window: a
     context item's `UPDATE` (changed; an item added in the window counts only as added), a risk item's `UPDATE` whose
     `after` names `likelihood`, `severity`, `residualLikelihood` or `residualSeverity` (re-rated; the clearing of a
@@ -92,10 +106,20 @@ README decisions 42-51. M4 owns every formula marked "stand-in".
     counts the steps and lists the nonconformities). Everything else is read as it is now: whether a record is
     cancelled, significance, severity, incident outcome, finding type, audit state and, for COMPLIANCE_EVALUATION,
     the instances' workflow, as the core score's as-of does.
-  - **Records.** Each source reads the records of the review's system whose standards overlap the input's; an
-    internal audit's standards are those of its clauses (its system's when it lists none), and findings follow their
-    audit. INCIDENTS uses the overview's rule, so cancelled NCs are left out of both. PREVIOUS_ACTIONS reads the
-    review actions of every earlier held review in the window above that covers one of the input's standards.
+  - **Records.** Each source reads the records of the review's system whose standards overlap the input's. A RISKS
+    input reads the kinds of its key (`reviewRiskKinds`): SIGNIFICANT_ASPECTS aspects only, RISKS_AND_OPPORTUNITIES
+    and RISK_ACTIONS risks and opportunities, and hazards too when ISO 45001 is among the input's standards. An
+    internal audit's standards are those of its clauses (its system's when it lists none), and a finding's those of
+    its clauses (its audit's when it lists none), so a 9001-only input counts no finding on a 14001 clause.
+    INCIDENTS uses the overview's rule, so cancelled NCs are left out of both. PREVIOUS_ACTIONS reads the review
+    actions of every earlier held review in the window above that covers one of the input's standards.
+  - **Readers.** Figures count the review's whole system with no unit scope (plan §3.3): every reader sees each
+    value, and the ids only of the records they may read in the table `REVIEW_FIGURE_KEYS` names for the key (none
+    for the score), so a value can be larger than its list of ids. A record archived since, a compliance instance
+    included, keeps its id in the stored copy for whoever may read it, but the id no longer opens, so M17 shows it
+    without a link. Incidents are the limit (model §3.13 item 4): an INCIDENTS row that has figures answers
+    `figuresWithheld: true`, with no `sourceFigures` or `figuresStoredAt`, to an approver or owner whose units do not
+    cover every unit of the system and who is neither the chair nor an attendee.
 
 ## Area by area
 

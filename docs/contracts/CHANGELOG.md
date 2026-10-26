@@ -267,3 +267,18 @@ route writes it, leaving out every step the mock's rules or the held review's fi
 into firm B's `auditEvents`, so the client audit trail lists and filters them, with the add-on on or off; it creates the
 ISO export kinds (`.xlsx` or `.pdf`) and, while the add-on is off, answers `403 FEATURE_NOT_ENABLED` on their create,
 job read and download, after the role check.
+
+## 1.8.4 · 2026-10-26
+ISO-1a3: management review figures place a backdated record by the step that set its date (README decision 54, plan
+v2.5.1). `ReviewFigureData` gains the step days (`settledOn` on actions, `climateStepOn`, `closeStepOn`,
+`reportStepOn`, `heldStepOn`) and its docs say how each source places and picks its records: DONE and CANCELLED
+actions by their settled day in the window, a nonconformity raised by its counting day, an incident by the later of
+its `occurredAt` day and that day, a finding by the later of its audit's day and its creation day, overdue corrective
+actions only of NCs open on as-of, RISKS kinds by input key (`reviewRiskKinds`) and findings by their clauses'
+standards. New `REVIEW_FIGURE_KEYS` lists every figure key per source with its entity type and whether its value counts
+its ids. `ReviewInputView.figuresWithheld` withholds the INCIDENTS row from an approver or owner who sees part of the
+system and is not at the review. A review held before its system was set up stores no figures. `IsoEngineApi` is
+unchanged. This is a patch: every change adds a type, a field or a constant that no module reads yet. The mock
+gathers each input's data and computes the figures from it alone, stores the fixtures' held reviews in a stable order,
+and lists the client and instance audit trails newest first within one instant. `firm-b.iso.json` gains 18 step events
+(176 in all); the held review's stored figures are unchanged.

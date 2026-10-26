@@ -226,8 +226,12 @@ internal audit or certificate means its management system's units, an empty list
 the client); when it has no unit of its own and its management system's units qualify; or when it names them (owner,
 approver, lead auditor, auditor, auditee, reported-to, chair, attendee or investigator). A child record (finding,
 action, revision, reading, checklist row or item, control, input, output, file) takes its parent's units. Outside them a
-single read or write is `404`, and lists and overview counts leave the record out. The current approved revision of a
-system document, and its file, stays readable by every member of the client. The catalogue routes read the account's
+single read or write is `404`, and lists and overview counts leave the record out. Management review figures are the
+one exception (model §3.13): an input's values count the review's whole system, and each figure lists only the ids its
+reader may read (so a value can be larger than its list), except that incidents are the limit: an INCIDENTS row that
+has figures answers `figuresWithheld: true`, with no `sourceFigures` or `figuresStoredAt`, to an approver or owner whose
+units do not cover every unit of the system and who is neither the review's chair nor an attendee. The current
+approved revision of a system document, and its file, stays readable by every member of the client. The catalogue routes read the account's
 own copy, which is firm-wide and the same for every client: clause numbers, titles and summaries in our own words,
 never a standard's text.
 
@@ -408,7 +412,7 @@ on the URL.
 | POST | `/clients/{clientId}/iso/management-reviews/{id}/cancel` `{ version, reason }` | `isoReview.plan` | ✓ | ✓ | ✓ | | | | CANCEL a PLANNED review |
 | POST | `/clients/{clientId}/iso/management-reviews/{id}/held` `{ version, heldOn, attendeeIds?, minutes? }` | `isoReview.write` | ✓ | ✓ | ✓ | own | own | | RECORD_HELD: notes on every input; stores each input's figures as of `heldOn`; AP/OW only as its chair |
 | POST | `/clients/{clientId}/iso/management-reviews/{id}/close` | `isoReview.write` | ✓ | ✓ | ✓ | own | own | | CLOSE: a decision on every output, every review action DONE or CANCELLED |
-| GET | `/clients/{clientId}/iso/management-reviews/{id}/inputs` | `isoReview.read` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | each with its source's figures: stored at RECORD_HELD for a HELD or CLOSED review, computed for a PLANNED one; values cover the whole system, ids only the records the reader may read (plan §3.3) |
+| GET | `/clients/{clientId}/iso/management-reviews/{id}/inputs` | `isoReview.read` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | each with its source's figures: stored at RECORD_HELD for a HELD or CLOSED review (none for one held before its system was set up), computed for a PLANNED one; values cover the whole system, ids only the records the reader may read; `figuresWithheld` on the INCIDENTS row for an AP/OW who sees part of the system and is not at the review (Scope above) |
 | PATCH | `/clients/{clientId}/iso/management-reviews/{id}/inputs/{inputId}` | `isoReview.write` | ✓ | ✓ | ✓ | own | own | | notes on one input |
 | GET | `/clients/{clientId}/iso/management-reviews/{id}/outputs` | `isoReview.read` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | AP/OW limited to their units (plan §3.3) |
 | PATCH | `/clients/{clientId}/iso/management-reviews/{id}/outputs/{outputId}` | `isoReview.write` | ✓ | ✓ | ✓ | own | own | | the decision on one output |

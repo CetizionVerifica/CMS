@@ -1411,9 +1411,15 @@ export type ReviewClauseRef = z.infer<typeof ReviewClauseRef>;
 /**
  * One input row with its key, title, clause references and, where its source is not MANUAL, the source's figures since
  * the last held review (M4 `reviewInputFigures`, model §3.13): computed as of today while the review is PLANNED, the
- * copy stored at RECORD_HELD once it is HELD or CLOSED, and null for a CANCELLED review. `figuresStoredAt` is set
- * exactly when `sourceFigures` is that stored copy. The values cover the whole system; each figure's ids are only the
- * records the reader may read (plan §3.3), so a reader limited to some units can see fewer ids than the value counts.
+ * copy stored at RECORD_HELD once it is HELD or CLOSED (null when the row stored none, as for a review held before its
+ * system was set up in the app), and null for a CANCELLED review. `figuresStoredAt` is set exactly when
+ * `sourceFigures` is that stored copy. The values cover the whole system; each figure's ids are only the records the
+ * reader may read (plan §3.3), so a reader limited to some units can see fewer ids than the value counts.
+ *
+ * Incidents are the limit (model §3.13 item 4): `figuresWithheld` is true on an INCIDENTS row that has figures when
+ * its reader is an approver or owner whose units do not cover every unit of the system (a system with no units covers
+ * every unit of the client) and who is neither the review's chair nor an attendee. That reader gets no `sourceFigures`
+ * and no `figuresStoredAt`, and the screen and the pack say the figures are withheld; the notes still show.
  */
 export const ReviewInputView = z
   .strictObject(ReviewInput.shape)
@@ -1425,6 +1431,7 @@ export const ReviewInputView = z
     clauseRefs: z.array(ReviewClauseRef).min(1),
     sourceFigures: ReviewInputFigures.nullable(),
     figuresStoredAt: Instant.nullable(),
+    figuresWithheld: z.boolean(),
   })
   .refine((v) => v.figuresStoredAt === null || v.sourceFigures !== null, {
     path: ['figuresStoredAt'],
@@ -1433,6 +1440,10 @@ export const ReviewInputView = z
   .refine((v) => v.source !== 'MANUAL' || v.sourceFigures === null, {
     path: ['sourceFigures'],
     message: 'A MANUAL input has no figures',
+  })
+  .refine((v) => !v.figuresWithheld || (v.source === 'INCIDENTS' && v.sourceFigures === null), {
+    path: ['figuresWithheld'],
+    message: 'Only an INCIDENTS row is withheld, and then without figures',
   });
 export type ReviewInputView = z.infer<typeof ReviewInputView>;
 

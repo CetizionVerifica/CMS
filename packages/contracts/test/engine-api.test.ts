@@ -75,6 +75,18 @@ describe('IsoEngineApi.reviewInputFigures', () => {
     expectTypeOf<Extract<AllKeys, 'held' | 'changes'>>().toBeNever();
   });
 
+  it('takes the day of the step that set each date the user enters (ISO-1a3)', () => {
+    type Data = ReviewFigureData;
+    expectTypeOf<ReviewFigureAction['settledOn']>().toEqualTypeOf<LocalDate | null>();
+    expectTypeOf<Data['CONTEXT']['system']['climateStepOn']>().toEqualTypeOf<LocalDate | null>();
+    type Objective = Data['OBJECTIVES']['objectives'][number];
+    expectTypeOf<Objective['closeStepOn']>().toEqualTypeOf<LocalDate | null>();
+    type Internal = Data['AUDIT_RESULTS']['internalAudits'][number];
+    expectTypeOf<Internal['reportStepOn']>().toEqualTypeOf<LocalDate | null>();
+    type External = Data['AUDIT_RESULTS']['externalAudits'][number];
+    expectTypeOf<External['heldStepOn']>().toEqualTypeOf<LocalDate | null>();
+  });
+
   it('takes the event days of the window counts that have no date field of their own', () => {
     expectTypeOf<ReviewFigureEventDay>().toEqualTypeOf<{ entityId: Id; on: LocalDate }>();
     expectTypeOf<ReviewFigureData['CONTEXT']['contextChanges']>().toEqualTypeOf<

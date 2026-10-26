@@ -2138,9 +2138,11 @@ export function buildFirmBIso(): Fixture {
 
   // ISO records' events joined the client audit trail in contracts 1.8.3 (ISO-1b). The sample names every ISO entity
   // type: the system's set-up with its checklist rows, one record of each other kind created, and one form's first
-  // revision from draft to approval. It leaves out every step the mock's rules or the held review's figures read (a
-  // context or risk UPDATE, an NC's later steps, an audit's REPORT, an external audit's RECORD_HELD, an action's
-  // COMPLETE or CANCEL), so they read the records as they did before (docs/contracts/fixtures.md §8).
+  // revision from draft to approval. Since 1.8.4 (ISO-1a3) it also has the step that set each entered date or settled
+  // each record, which the review figures place records by: the climate decision, every internal audit's REPORT, every
+  // held external audit's RECORD_HELD, every closed objective's CLOSE and every settled action's COMPLETE or CANCEL,
+  // each on the day its row says. It leaves out the window events (a context or risk UPDATE, an NC's later steps), so
+  // the held review's figures read the records as before (docs/contracts/fixtures.md §8).
   type Event = Row<'auditEvents'>;
   const auditEvents: Rows<'auditEvents'> = [];
   let request = 0;
@@ -2154,6 +2156,7 @@ export function buildFirmBIso(): Fixture {
     entity: { type: Event['entityType']; id: string },
     after: Record<string, unknown>,
     before: Record<string, unknown> | null = null,
+    reason: string | null = null,
   ) => {
     auditEvents.push({
       id: k(`audit:${auditEvents.length + 1}`),
@@ -2168,7 +2171,7 @@ export function buildFirmBIso(): Fixture {
       entityId: entity.id,
       before,
       after,
-      reason: null,
+      reason,
     });
   };
   const BASE = new Set(['id', 'firmId', 'clientId', 'createdAt', 'updatedAt', 'archivedAt']);
@@ -2386,6 +2389,97 @@ export function buildFirmBIso(): Fixture {
     unitId: recordsQuestion.unitId,
     question: recordsQuestion.question,
   });
+
+  // The steps that set an entered date or settle a record, each in a request of its own on the day its row says, as
+  // the mock's route writes it (ISO-1a3). Only the step's own event: a sample, not the whole request.
+  const step = (
+    when: string,
+    actorId: string,
+    entity: { type: Event['entityType']; id: string },
+    after: Record<string, unknown>,
+    before: Record<string, unknown>,
+    reason: string | null = null,
+  ) => trail(newRequest(), when, actorId, 'TRANSITION', entity, after, before, reason);
+  // The climate decision (a field edit: the route audits it as an UPDATE of the system).
+  trail(
+    newRequest(),
+    at(system.climateDecidedOn!),
+    KABIR,
+    'UPDATE',
+    { type: 'management_system', id: systemId },
+    {
+      climateChangeRelevant: system.climateChangeRelevant,
+      climateDecidedOn: system.climateDecidedOn,
+    },
+    { climateChangeRelevant: null, climateDecidedOn: null },
+  );
+  for (const audit of internalAudits.filter((a) => a.reportedOn !== null)) {
+    step(
+      at(audit.reportedOn!),
+      audit.leadAuditorId,
+      { type: 'internal_audit', id: audit.id! },
+      { action: 'REPORT', state: 'REPORTED', summary: audit.summary, reportedOn: audit.reportedOn },
+      { state: 'IN_PROGRESS', summary: null, reportedOn: null },
+    );
+  }
+  for (const audit of externalAudits.filter((e) =>
+    ['HELD', 'RESPONDED', 'CLOSED'].includes(e.state),
+  )) {
+    step(
+      at(audit.endOn),
+      KABIR,
+      { type: 'external_audit', id: audit.id! },
+      {
+        action: 'RECORD_HELD',
+        state: 'HELD',
+        ...(audit.recommendation === null ? {} : { recommendation: audit.recommendation }),
+        ...(audit.responseDueOn === null ? {} : { responseDueOn: audit.responseDueOn }),
+      },
+      {
+        state: 'PLANNED',
+        ...(audit.recommendation === null ? {} : { recommendation: null }),
+        ...(audit.responseDueOn === null ? {} : { responseDueOn: null }),
+      },
+    );
+  }
+  for (const objective of objectives.filter((o) => o.closedOn !== null)) {
+    step(
+      objective.updatedAt!,
+      objective.ownerId,
+      { type: 'objective', id: objective.id! },
+      { action: 'CLOSE', closedOn: objective.closedOn, outcome: objective.outcome },
+      { closedOn: null, outcome: null },
+    );
+  }
+  for (const action of actions.filter((a) => a.state !== 'OPEN')) {
+    const entity = { type: 'iso_action' as const, id: action.id! };
+    if (action.state === 'DONE') {
+      const note = action.effectivenessNote ?? null;
+      step(
+        action.updatedAt!,
+        action.ownerId,
+        entity,
+        {
+          action: 'COMPLETE',
+          state: 'DONE',
+          doneOn: action.doneOn,
+          ...(note === null ? {} : { effectivenessNote: note }),
+        },
+        { state: 'OPEN', doneOn: null, ...(note === null ? {} : { effectivenessNote: null }) },
+      );
+    } else {
+      step(
+        action.updatedAt!,
+        KABIR,
+        entity,
+        { action: 'CANCEL', state: 'CANCELLED', cancelReason: action.cancelReason },
+        { state: 'OPEN', cancelReason: null },
+        action.cancelReason!,
+      );
+    }
+  }
+  // Oldest first, as the trail lists them; events of one instant keep the order they were written in.
+  auditEvents.sort((a, b) => a.at.localeCompare(b.at));
 
   return {
     source: 'synthetic: Northwind Foods Group ISO 9001, 14001 and 45001 (fictional)',

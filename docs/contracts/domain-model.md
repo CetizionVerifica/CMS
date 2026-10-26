@@ -743,7 +743,7 @@ Each view is its record plus what the screen needs; the derived parts come from 
 | `NonconformityView` | `status: NonconformityStatus`, `findingId`, `allowedActions` (`NcAction` without `RAISE`) |
 | `IsoActionView` | `status: IsoDueStatus`, `allowedActions: IsoActionAction[]` |
 | `ManagementReviewView` | `allowedActions` (`ManagementReviewAction` without `PLAN`) |
-| `ReviewInputView` | `key`, `title`, `source`, `clauseRefs: { standard, clauseNumber, item }[]`; `sourceFigures: ReviewInputFigures \| null` is the stored copy for a HELD or CLOSED review, computed as of the client's today for a PLANNED one, null for a CANCELLED review or a MANUAL input, with the values system-wide and the ids cut to those the reader may read; `figuresStoredAt` is set exactly when it is the stored copy; no `figuresEngineVersion` |
+| `ReviewInputView` | `key`, `title`, `source`, `clauseRefs: { standard, clauseNumber, item }[]`; `sourceFigures: ReviewInputFigures \| null` is the stored copy for a HELD or CLOSED review, computed as of the client's today for a PLANNED one, null for a CANCELLED review or a MANUAL input, with the values system-wide and the ids cut to those the reader may read; `figuresStoredAt` is set exactly when it is the stored copy; `figuresWithheld` is true only on an INCIDENTS row withheld from an AP/OW who sees part of the system and is not at the review, with both null (1.8.4); no `figuresEngineVersion` |
 | `ReviewOutputView` | `key`, `title`, `clauseRefs` |
 | `IsoReviewDefs` | `{ inputs: IsoReviewInputDef[]; outputs: IsoReviewOutputDef[] }` |
 | `IsoOverview` | `{ asOf; systems: IsoSystemOverview[] }`: per system, clause and certification readiness, climate gaps, NC, action, document, risk, objective, audit programme, management review, certificate and incident figures, each with the ids behind it |
@@ -800,13 +800,27 @@ reviewInputFigures(source, data, since, asOf): ReviewInputFigures   // model §5
 
 `ReviewFigureData` holds, per input source, the records of the review's system the source reads, archived ones
 included, with no unit scope. Every row carries `createdOn` and `archivedOn` (`ReviewFigureDays`, client-local
-days); actions (`ReviewFigureAction`) also `subject` and `doneOn`, nonconformities `reportedOn`. CONTEXT carries
-`contextChanges`, RISKS `ratingChanges` and NONCONFORMITIES `notEffectiveSteps`: the `{ entityId, on }` days
-(`ReviewFigureEventDay`) of the audited events model §5.4 names, in the window. COMPLIANCE_EVALUATION reads the
-instances' workflow as it is now. M16 calls it live for a PLANNED review and once at RECORD_HELD with
-`asOf = heldOn`; a HELD or CLOSED review's figures are never computed again. `TypedReviewInputFigures` is the
-signature over `ReviewFigureData`; `IsoEngineApi` keeps an untyped `data` until M4 adopts it (ISO-3b, README
-decision 52).
+days); actions (`ReviewFigureAction`) also `subject`, `doneOn` and `settledOn`, nonconformities `reportedOn`. Since
+1.8.4 (ISO-1a3) a date the user enters comes with the client-local day of the latest step that set it, so the engine
+places the record by the later of the two: `settledOn` (an action's COMPLETE or CANCEL), `climateStepOn` (the system
+`UPDATE` naming `climateChangeRelevant` or `climateDecidedOn`), `closeStepOn` (an objective's CLOSE), `reportStepOn`
+(an internal audit's REPORT) and `heldStepOn` (an external audit's RECORD_HELD, or a later `UPDATE` naming `endOn`),
+each null before its step. CONTEXT carries `contextChanges`, RISKS `ratingChanges` and NONCONFORMITIES
+`notEffectiveSteps`: the `{ entityId, on }` days (`ReviewFigureEventDay`) of the audited events model §5.4 names, in
+the window. The caller picks the records: RISKS only the kinds `reviewRiskKinds(key, standards)` gives for the input
+(`SIGNIFICANT_ASPECTS` aspects; `RISKS_AND_OPPORTUNITIES` and `RISK_ACTIONS` risks and opportunities, hazards too with
+ISO 45001), AUDIT_RESULTS only the findings whose clauses' standards (their audit's when they list none) overlap the
+input's. COMPLIANCE_EVALUATION reads the instances' workflow as it is now. M16 calls it live for a PLANNED review and
+once at RECORD_HELD with `asOf = heldOn`, except for a review held before its system's creation day, which stores no
+figures; a HELD or CLOSED review's figures are never computed again. `TypedReviewInputFigures` is the signature over
+`ReviewFigureData`; `IsoEngineApi` keeps an untyped `data` until M4 adopts it (ISO-3b, README decision 52).
+
+`REVIEW_FIGURE_KEYS` (`src/schemas/iso.ts`) lists every figure key per source, with the entity type its ids are rows
+of (`entityType`, null for `statutoryScore`, which names none) and whether its value is the number of its ids
+(`countsIds`: false for `verifiedNotEffective`, `lostDays` and `statutoryScore`). The engine emits only these keys,
+and M16 cuts each figure's ids to those the reader may read in that table. `ReviewInputView.figuresWithheld` is true
+only on an INCIDENTS row withheld from its reader (endpoints.md §10 Scope), which then has no `sourceFigures` or
+`figuresStoredAt`.
 
 Results (`src/schemas/iso-results.ts`): `IdCount { count, ids }` (every number carries the ids it counts), `IsoTiming`
 (`ON_TIME`, `DUE_SOON`, `OVERDUE`, `CLOSED`), `IsoDueStatus { timing, overdueDays }`, `NonconformityStatus` (adds

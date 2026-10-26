@@ -106,7 +106,7 @@ export function readinessScore(
 }
 
 /** Whether `value` meets the objective's target in its direction (MAINTAIN: equal to it). */
-function meets(objective: Objective, value: number): boolean {
+function meets(objective: Pick<Objective, 'direction' | 'target'>, value: number): boolean {
   if (objective.direction === 'INCREASE') return value >= objective.target;
   if (objective.direction === 'DECREASE') return value <= objective.target;
   return Math.abs(value - objective.target) <= 1e-9 * Math.max(1, Math.abs(objective.target));
@@ -133,12 +133,21 @@ export function objectiveOnTrack(
   asOf: string,
   timeZone: string,
 ): boolean | null {
+  return objectiveOnTrackFrom(localDate(objective.createdAt, timeZone), objective, readings, asOf);
+}
+
+/** `objectiveOnTrack` with the objective's creation day already in the client's time zone, as the figures read it. */
+export function objectiveOnTrackFrom(
+  createdOn: string,
+  objective: Pick<Objective, 'baseline' | 'target' | 'direction' | 'dueOn'>,
+  readings: readonly ReadingValue[],
+  asOf: string,
+): boolean | null {
   const latest = latestOf(readings.filter((r) => r.periodEnd <= asOf));
   if (latest === undefined) return null;
   const { baseline, target } = objective;
   if (baseline === null || objective.direction === 'MAINTAIN')
     return meets(objective, latest.value);
-  const createdOn = localDate(objective.createdAt, timeZone);
   const span = daysFrom(createdOn, objective.dueOn);
   const share =
     span <= 0 ? 1 : Math.min(1, Math.max(0, daysFrom(createdOn, latest.periodEnd) / span));

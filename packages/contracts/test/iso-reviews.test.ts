@@ -1,9 +1,16 @@
 // Mock handlers for ISO management reviews with inputs and outputs (docs/iso/model.md §3.13, §4.5, §5.4) and ISO files
 // (model §6): role matrix and unit scope (plan §3.2-3.3), every arrow and guard, locks, versions, audit events.
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { ISO_FILE_SUBJECT_COLUMNS, ReviewInputKey, ReviewOutputKey } from '../src/schemas/iso.js';
+import {
+  ISO_FILE_SUBJECT_COLUMNS,
+  REVIEW_FIGURE_KEYS,
+  ReviewInputFigures,
+  ReviewInputKey,
+  ReviewOutputKey,
+  reviewRiskKinds,
+} from '../src/schemas/iso.js';
+import { ReviewInputView } from '../src/api/iso.js';
 import { fixtureId } from '../src/fixtures/index.js';
-import { ReviewInputFigures } from '../src/schemas/iso.js';
 import type { IsoRow } from '../src/mock/store.js';
 import {
   type App,
@@ -64,6 +71,7 @@ interface InputView {
   clauseRefs: { standard: string; clauseNumber: string; item: string | null }[];
   sourceFigures: { source: string; since: string; asOf: string; figures: Figure[] } | null;
   figuresStoredAt: string | null;
+  figuresWithheld: boolean;
 }
 interface OutputView {
   id: string;
@@ -1842,6 +1850,7 @@ describe('review input figures', () => {
       source: 'INTERNAL_AUDIT',
       severity: 'MAJOR',
       standards: ['ISO_14001'],
+      createdAt: at('2024-05-01'),
       reportedOn: '2024-05-01',
       ...closedNc('2024-09-01'),
     }).id;
@@ -1894,8 +1903,18 @@ describe('review input figures', () => {
       nonconformityId: ids.nc1,
     }).id;
     ids.findingObservation = seedFinding({ internalAuditId: ids.auditReported }).id;
-    const old = seedAudit(programme.id, reported('2024-05-01'));
-    seedFinding({ internalAuditId: old.id, type: 'OFI' });
+    // Reported before the 2024-06-30 review: a row with no trail takes its updatedAt as the REPORT step's time.
+    const old = seedAudit(programme.id, {
+      ...reported('2024-05-01'),
+      createdAt: at('2024-04-20'),
+      updatedAt: at('2024-05-01'),
+    });
+    seedFinding({
+      internalAuditId: old.id,
+      type: 'OFI',
+      createdAt: at('2024-04-30'),
+      updatedAt: at('2024-04-30'),
+    });
     ids.external = seedExternal(system.id, { state: 'HELD' }).id;
     ids.findingOfi = seedFinding({ externalAuditId: ids.external, type: 'OFI' }).id;
     seedExternal(system.id);
@@ -2454,20 +2473,31 @@ describe('review input figures', () => {
     stored(review.id).archivedAt = NOW;
   });
 
-  it('gives a review held before its system was set up a window of its own day', async () => {
+  it('stores no figures for a review held before its system was set up in the app', async () => {
+    // The Northwind system was set up on 2024-04-10: the app held none of its records on 2024-03-15 (ISO-1a3).
     const ims = fixtureId('firm-b:iso:system:ims');
     const review = await plan(ims, { plannedOn: '2024-03-15' });
     await noteAll(review.id);
     await hold(review.id, PERSON.kabir, { heldOn: '2024-03-15' });
     for (const input of await inputs(review.id)) {
-      if (input.sourceFigures === null) continue;
-      expect(input.sourceFigures, input.key).toMatchObject({
-        since: '2024-03-15',
-        asOf: '2024-03-15',
+      expect(input, input.key).toMatchObject({
+        sourceFigures: null,
+        figuresStoredAt: null,
+        figuresWithheld: false,
       });
     }
-    expect(figureOf(byKey(await inputs(review.id), 'NONCONFORMITIES'), 'open').value).toBe(0);
-    stored(review.id).archivedAt = NOW;
+    const rows = firm().iso.reviewInputs.filter((r) => r.managementReviewId === review.id);
+    for (const row of rows) expect(row.figuresEngineVersion ?? null).toBeNull();
+    expect(lastEvent(review.id).after).toMatchObject({ action: 'RECORD_HELD', figures: [] });
+    // Held on the day the system was set up, a review stores the figures of that one day.
+    const sameDay = await plan(ims, { plannedOn: '2024-04-10' });
+    await noteAll(sameDay.id);
+    await hold(sameDay.id, PERSON.kabir, { heldOn: '2024-04-10' });
+    expect(byKey(await inputs(sameDay.id), 'NONCONFORMITIES').sourceFigures).toMatchObject({
+      since: '2024-04-10',
+      asOf: '2024-04-10',
+    });
+    for (const id of [review.id, sameDay.id]) stored(id).archivedAt = NOW;
     // The contract refuses a window that runs backwards.
     const backwards = { source: 'CONTEXT', since: '2024-04-10', asOf: '2024-03-15', figures: [] };
     expect(ReviewInputFigures.safeParse(backwards).success).toBe(false);
@@ -2562,6 +2592,363 @@ describe('review input figures', () => {
     // On track reads only the periods ended by as-of: the objective has none yet.
     expectFigure(input, 'withoutReading', [ids.noReading!, objective.id]);
     for (const row of [objective, running]) row.archivedAt = NOW;
+  });
+
+  /** An incident of `occurredAt`, as the incident fields of a nonconformity. */
+  const incidentOf = (occurredAt: string) => ({
+    occurredAt,
+    location: 'Loading dock',
+    type: 'INJURY' as const,
+    outcome: 'FIRST_AID' as const,
+    personCategory: 'EMPLOYEE' as const,
+    lostDays: null,
+    reportable: false,
+    statutoryInstanceId: null,
+    investigatorIds: [],
+    workerParticipation: true,
+  });
+
+  it('places a record by the step that set its backdated date, so the next review counts it (ISO-1a3)', async () => {
+    // Model §5.4: a date the user enters places its record by the later of that date and its step's day. Each record
+    // below is settled or entered after the 2024-10-01 review was recorded, dated before that review: the next counts it.
+    const fresh = freshSystem();
+    const dated = (created: string, updated = created) => ({
+      createdAt: `${created}T06:30:00Z`,
+      updatedAt: `${updated}T06:30:00Z`,
+    });
+    const first = seedReview(fresh.id, { ...dated('2024-06-30'), state: 'HELD' });
+    const onFirst = { type: 'MANAGEMENT_REVIEW' as const, id: first.id };
+    const doneBefore = seedAction(onFirst, {
+      ...dated('2024-07-01', '2024-09-15'),
+      state: 'DONE',
+      doneOn: '2024-09-15',
+    });
+    const cancelledBefore = seedAction(onFirst, {
+      ...dated('2024-07-01', '2024-09-10'),
+      state: 'CANCELLED',
+      cancelReason: 'Overtaken',
+    });
+    const doneLater = seedAction(onFirst, { ...dated('2024-07-01'), dueOn: '2024-09-30' });
+    const visited = seedExternal(fresh.id, {
+      ...dated('2024-09-01', '2024-09-10'),
+      state: 'HELD',
+      startOn: '2024-09-08',
+      endOn: '2024-09-10',
+    });
+    const heldLater = seedExternal(fresh.id, {
+      ...dated('2024-09-01'),
+      startOn: '2024-09-18',
+      endOn: '2024-09-20',
+    });
+    seedFile({ type: 'external_audit', id: heldLater.id });
+    // Placed by its RECORD_HELD step's own day, not by the row's last change (its response, recorded today).
+    const responded = seedExternal(fresh.id, {
+      ...dated('2024-09-01'),
+      updatedAt: NOW,
+      state: 'RESPONDED',
+      startOn: '2024-09-11',
+      endOn: '2024-09-12',
+    });
+    seedEvent({
+      at: '2024-09-12T06:30:00Z',
+      action: 'TRANSITION',
+      entityType: 'external_audit',
+      entityId: responded.id,
+      before: { state: 'PLANNED' },
+      after: { action: 'RECORD_HELD', state: 'HELD', startOn: '2024-09-11', endOn: '2024-09-12' },
+    });
+    const achieved = seedObjective(fresh.id, dated('2024-07-01'));
+    const notAchieved = seedObjective(fresh.id, dated('2024-07-01'));
+    const programme = seedProgramme(fresh.id);
+    const reportedLater = seedAudit(programme.id, {
+      ...dated('2024-09-01'),
+      plannedStart: '2024-09-16',
+      plannedEnd: '2024-09-17',
+      state: 'IN_PROGRESS',
+    });
+
+    const second = await plan(fresh.id, { plannedOn: '2024-10-01' });
+    await noteAll(second.id);
+    await hold(second.id, PERSON.kabir, { heldOn: '2024-10-01' });
+    const recorded = await inputs(second.id);
+    const actionsThen = byKey(recorded, 'PREVIOUS_ACTIONS');
+    expectFigure(actionsThen, 'actionsDone', [doneBefore.id]);
+    expectFigure(actionsThen, 'actionsCancelled', [cancelledBefore.id]);
+    expectFigure(actionsThen, 'actionsOverdue', [doneLater.id]);
+    expectFigure(byKey(recorded, 'AUDIT_RESULTS'), 'externalAuditsHeld', [
+      visited.id,
+      responded.id,
+    ]);
+    expectFigure(byKey(recorded, 'AUDIT_RESULTS'), 'internalAuditsReported', []);
+    expectFigure(byKey(recorded, 'OBJECTIVES'), 'objectivesOpen', [achieved.id, notAchieved.id]);
+    expectFigure(byKey(recorded, 'CONTEXT_CHANGES'), 'climateDecided', []);
+    expectFigure(byKey(recorded, 'INCIDENTS'), 'incidents', []);
+
+    // Today, 2024-11-15: each step below dates its record before 2024-10-01.
+    await ok(app, 'completeIsoAction', {
+      as: PERSON.kabir,
+      params: { id: doneLater.id },
+      body: { version: 1, doneOn: '2024-09-20' },
+    });
+    await ok(app, 'recordIsoExternalAuditHeld', {
+      as: PERSON.kabir,
+      params: { id: heldLater.id },
+      body: { version: 1, startOn: '2024-09-18', endOn: '2024-09-20' },
+    });
+    await ok(app, 'reportIsoInternalAudit', {
+      as: PERSON.kabir,
+      params: { id: reportedLater.id },
+      body: {
+        version: 1,
+        summary: 'No findings',
+        reportedOn: '2024-09-20',
+        reportedToIds: [PERSON.kabir],
+      },
+    });
+    for (const [objective, outcome] of [
+      [achieved, 'ACHIEVED'],
+      [notAchieved, 'NOT_ACHIEVED'],
+    ] as const) {
+      await ok(app, 'closeIsoObjective', {
+        as: PERSON.kabir,
+        params: { id: objective.id },
+        body: { version: 1, closedOn: '2024-09-28', outcome },
+      });
+    }
+    await ok(app, 'setIsoClimateDecision', {
+      as: PERSON.kabir,
+      params: { id: fresh.id },
+      body: {
+        version: fresh.version,
+        climateChangeRelevant: true,
+        climateChangeRationale: 'Floods close the road to the site',
+        climateDecidedOn: '2024-09-25',
+      },
+    });
+    // Entered today: a finding of an audit the 2024-10-01 review counted, and an incident of 2024-09-25.
+    const lateFinding = seedFinding({ externalAuditId: visited.id, type: 'MINOR_NC' });
+    const incident = seedNc(fresh.id, {
+      source: 'INCIDENT',
+      standards: ['ISO_45001'],
+      reportedOn: '2024-09-25',
+      incident: incidentOf('2024-09-25T04:00:00Z'),
+    });
+
+    const next = await plan(fresh.id);
+    const all = await inputs(next.id);
+    expect(byKey(all, 'NONCONFORMITIES').sourceFigures).toMatchObject({
+      since: '2024-10-01',
+      asOf: TODAY,
+    });
+    const actions = byKey(all, 'PREVIOUS_ACTIONS');
+    expectFigure(actions, 'actionsDone', [doneLater.id]);
+    // Settled before since: counted by the review before, not again.
+    expectFigure(actions, 'actionsCancelled', []);
+    expectFigure(actions, 'actionsOpen', []);
+    expectFigure(actions, 'actionsOverdue', []);
+    const audits = byKey(all, 'AUDIT_RESULTS');
+    expectFigure(audits, 'externalAuditsHeld', [heldLater.id]);
+    expectFigure(audits, 'internalAuditsReported', [reportedLater.id]);
+    expectFigure(audits, 'findingsMinorNc', [lateFinding.id]);
+    const objectives = byKey(all, 'OBJECTIVES');
+    expectFigure(objectives, 'objectivesOpen', []);
+    expectFigure(objectives, 'achieved', [achieved.id]);
+    expectFigure(objectives, 'notAchieved', [notAchieved.id]);
+    const context = byKey(all, 'CONTEXT_CHANGES');
+    expectFigure(context, 'climateDecided', [fresh.id]);
+    expectFigure(context, 'climateDecidedInPeriod', [fresh.id]);
+    expectFigure(byKey(all, 'INCIDENTS'), 'incidents', [incident.id]);
+    // Raised by its counting day, the later of its creation day and its backdated reportedOn.
+    expectFigure(byKey(all, 'NONCONFORMITIES'), 'raisedIncident', [incident.id]);
+    // The figures the 2024-10-01 review stored stay as they were.
+    expect(await inputs(second.id)).toEqual(recorded);
+  });
+
+  it('counts the overdue corrective actions only of nonconformities open on as-of', async () => {
+    const fresh = freshSystem();
+    const closed = seedNc(fresh.id, { ...early, ...closedNc('2024-10-20') });
+    const open = seedNc(fresh.id, early);
+    const due = { ...early, dueOn: '2024-10-05' };
+    const onClosed = seedAction({ type: 'NONCONFORMITY', id: closed.id }, due);
+    const onOpen = seedAction({ type: 'NONCONFORMITY', id: open.id }, due);
+    const review = await plan(fresh.id);
+    const ncs = byKey(await inputs(review.id), 'NONCONFORMITIES');
+    expectFigure(ncs, 'open', [open.id]);
+    expectFigure(ncs, 'correctiveActionsOverdue', [onOpen.id]);
+    // Held before the nonconformity closed, a review counts both.
+    const before = await plan(fresh.id, { plannedOn: '2024-10-15' });
+    await noteAll(before.id);
+    await hold(before.id, PERSON.kabir, { heldOn: '2024-10-15' });
+    const then = byKey(await inputs(before.id), 'NONCONFORMITIES');
+    expectFigure(then, 'open', [closed.id, open.id]);
+    expectFigure(then, 'correctiveActionsOverdue', [onClosed.id, onOpen.id]);
+  });
+
+  it('counts in a RISKS input only the kinds its key reads, and audit findings by their clauses’ standards', async () => {
+    const fresh = freshSystem();
+    const risk = seedRisk(fresh.id, early);
+    const opportunity = seedRisk(fresh.id, { ...early, kind: 'OPPORTUNITY' });
+    const aspect = seedRisk(fresh.id, {
+      ...early,
+      kind: 'ASPECT',
+      impact: 'Air pollution',
+      lifeCycleStages: ['PRODUCTION'],
+      controlType: 'CONTROL',
+      condition: 'NORMAL',
+    });
+    const hazard = seedRisk(fresh.id, {
+      ...early,
+      kind: 'HAZARD',
+      impact: 'Burns',
+      routine: true,
+      personsExposed: ['WORKER'],
+      condition: 'NORMAL',
+    });
+    const programme = seedProgramme(fresh.id);
+    const audit = seedAudit(programme.id, { ...early, ...reported('2024-10-01') });
+    const finding = (clauseIds: string[]) =>
+      seedFinding({ ...early, internalAuditId: audit.id, type: 'OFI', clauseIds });
+    const quality = finding([clause('ISO_9001', '8.1')]);
+    const environment = finding([clause('ISO_14001', '8.1')]);
+    const both = finding([clause('ISO_9001', '8.1'), clause('ISO_14001', '8.1')]);
+    const none = finding([]);
+    const of = async (standards: string[], key: string) =>
+      byKey(await inputs((await plan(fresh.id, { standards })).id), key);
+    const added = async (standards: string[], key: string, expected: string[]) => {
+      const input = await of(standards, key);
+      expectFigure(input, 'itemsAdded', expected);
+      return input;
+    };
+
+    // A 9001-only review: RISK_ACTIONS reads risks and opportunities, and its audits no 14001-only finding.
+    const quality9001 = await added(['ISO_9001'], 'RISK_ACTIONS', [risk.id, opportunity.id]);
+    expectFigure(quality9001, 'significantAspect', []);
+    expectFigure(quality9001, 'significantHazard', []);
+    expectFigure(await of(['ISO_9001'], 'AUDIT_RESULTS'), 'findingsOfi', [
+      quality.id,
+      both.id,
+      none.id,
+    ]);
+    // A 14001 review: SIGNIFICANT_ASPECTS reads aspects only, RISKS_AND_OPPORTUNITIES no aspect, so neither counts
+    // an item the other does.
+    const aspects = await added(['ISO_14001'], 'SIGNIFICANT_ASPECTS', [aspect.id]);
+    expectFigure(aspects, 'significantRisk', []);
+    expectFigure(aspects, 'significantAspect', [aspect.id]);
+    await added(['ISO_14001'], 'RISKS_AND_OPPORTUNITIES', [risk.id, opportunity.id]);
+    expectFigure(await of(['ISO_14001'], 'AUDIT_RESULTS'), 'findingsOfi', [
+      environment.id,
+      both.id,
+      none.id,
+    ]);
+    // With 45001 among the input's standards, hazards too.
+    await added([...ALL], 'RISKS_AND_OPPORTUNITIES', [risk.id, opportunity.id, hazard.id]);
+    await added(['ISO_45001'], 'RISKS_AND_OPPORTUNITIES', [risk.id, opportunity.id, hazard.id]);
+    expect(reviewRiskKinds('RISK_ACTIONS', ['ISO_9001', 'ISO_45001'])).toEqual([
+      'RISK',
+      'OPPORTUNITY',
+      'HAZARD',
+    ]);
+  });
+
+  it('withholds the incident figures from an approver or owner who sees part of the system and is not at the review', async () => {
+    const review = await plan(system.id, { chairId: PERSON.nisha, attendeeIds: [FARHAN] });
+    const incidentsFor = async (as: string) => byKey(await inputs(review.id, as), 'INCIDENTS');
+    const withheld = { sourceFigures: null, figuresStoredAt: null, figuresWithheld: true };
+    // Owners of one of the two units, not on the review.
+    for (const as of [PERSON.rohan, ISHAAN]) {
+      expect(await incidentsFor(as), as).toMatchObject(withheld);
+      // Only the INCIDENTS row: the nonconformities still show, with the ids they may read.
+      const ncs = byKey(await inputs(review.id, as), 'NONCONFORMITIES');
+      expect(ncs.figuresWithheld, as).toBe(false);
+      expect(figureOf(ncs, 'raisedIncident').value, as).toBeGreaterThan(0);
+    }
+    // The chair and an attendee of Pune see them, the Bengaluru incident's id cut; a client admin and an approver of
+    // every unit see them whole.
+    for (const as of [PERSON.nisha, FARHAN]) {
+      const input = await incidentsFor(as);
+      expect(input.figuresWithheld, as).toBe(false);
+      expect(figureOf(input, 'incidents'), as).toEqual({ key: 'incidents', value: 1, ids: [] });
+    }
+    for (const as of [PERSON.kabir, PERSON.divya]) {
+      expectFigure(await incidentsFor(as), 'incidents', [ids.incident!]);
+    }
+    // Held, the stored copy is withheld the same way.
+    await noteAll(review.id);
+    await hold(review.id);
+    expect(await incidentsFor(PERSON.rohan)).toMatchObject(withheld);
+    expect(await incidentsFor(PERSON.nisha)).toMatchObject({
+      figuresStoredAt: NOW,
+      figuresWithheld: false,
+    });
+    // The contract allows a withheld row only on INCIDENTS, and then without figures.
+    const row = await incidentsFor(PERSON.rohan);
+    expect(ReviewInputView.safeParse(row).success).toBe(true);
+    const shown = await incidentsFor(PERSON.kabir);
+    expect(ReviewInputView.safeParse({ ...shown, figuresWithheld: true }).success).toBe(false);
+    const ncs = byKey(await inputs(review.id, PERSON.rohan), 'NONCONFORMITIES');
+    const ncsWithheld = { ...ncs, ...withheld };
+    expect(ReviewInputView.safeParse(ncsWithheld).success).toBe(false);
+    stored(review.id).archivedAt = NOW;
+    // An owner whose units cover every unit of a system sees them.
+    const bengaluru = seedSystem(app, { unitIds: [BENGALURU] });
+    const own = await plan(bengaluru.id, { chairId: PERSON.kabir, attendeeIds: [] });
+    expect(byKey(await inputs(own.id, ISHAAN), 'INCIDENTS')).toMatchObject({
+      figuresWithheld: false,
+      sourceFigures: { source: 'INCIDENTS' },
+    });
+  });
+
+  it('emits only the keys REVIEW_FIGURE_KEYS lists, each counting its ids where it says so', async () => {
+    for (const input of await inputs(current.id)) {
+      if (input.sourceFigures === null) continue;
+      const keys: Record<string, { countsIds: boolean }> =
+        REVIEW_FIGURE_KEYS[input.sourceFigures.source as keyof typeof REVIEW_FIGURE_KEYS];
+      const emitted = input.sourceFigures.figures.map((f) => f.key);
+      // Every key it lists, the score aside when nothing is due.
+      expect(sorted(emitted), input.key).toEqual(
+        sorted(Object.keys(keys).filter((k) => k !== 'statutoryScore' || emitted.includes(k))),
+      );
+      for (const fig of input.sourceFigures.figures) {
+        if (keys[fig.key]!.countsIds) expect(fig.value, fig.key).toBe(fig.ids.length);
+      }
+    }
+  });
+});
+
+describe('review figure keys and risk kinds', () => {
+  it('names the table of every figure key, and which values are not a count of ids', () => {
+    const notCounts: string[] = [];
+    const noTable: string[] = [];
+    for (const keys of Object.values(REVIEW_FIGURE_KEYS)) {
+      for (const [key, info] of Object.entries(keys)) {
+        if (!info.countsIds) notCounts.push(key);
+        if (info.entityType === null) noTable.push(key);
+      }
+    }
+    expect(sorted(notCounts)).toEqual(['lostDays', 'statutoryScore', 'verifiedNotEffective']);
+    expect(noTable).toEqual(['statutoryScore']);
+    expect(Object.keys(REVIEW_FIGURE_KEYS)).not.toContain('MANUAL');
+    expect(REVIEW_FIGURE_KEYS.NONCONFORMITIES.correctiveActionsOverdue.entityType).toBe(
+      'iso_action',
+    );
+    expect(REVIEW_FIGURE_KEYS.COMPLIANCE_EVALUATION.statutoryInstancesDue.entityType).toBe(
+      'instance',
+    );
+  });
+
+  it('reads aspects for SIGNIFICANT_ASPECTS, risks and opportunities (and hazards with 45001) for the others', () => {
+    expect(reviewRiskKinds('SIGNIFICANT_ASPECTS', [...ALL])).toEqual(['ASPECT']);
+    expect(reviewRiskKinds('RISKS_AND_OPPORTUNITIES', ['ISO_14001'])).toEqual([
+      'RISK',
+      'OPPORTUNITY',
+    ]);
+    expect(reviewRiskKinds('RISKS_AND_OPPORTUNITIES', ['ISO_14001', 'ISO_45001'])).toEqual([
+      'RISK',
+      'OPPORTUNITY',
+      'HAZARD',
+    ]);
+    expect(reviewRiskKinds('RISK_ACTIONS', ['ISO_9001'])).toEqual(['RISK', 'OPPORTUNITY']);
+    expect(reviewRiskKinds('NONCONFORMITIES', [...ALL])).toEqual([]);
   });
 });
 

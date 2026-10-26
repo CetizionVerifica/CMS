@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { IsoEntityType, IsoStandardCode, ScanStatus } from '../enums.js';
+import { type EntityType, IsoEntityType, IsoStandardCode, ScanStatus } from '../enums.js';
 import {
   baseShape,
   ClauseNumber,
@@ -1251,6 +1251,151 @@ export const ReviewInputFigures = z
   })
   .refine((f) => f.since <= f.asOf, { message: 'since is after asOf', path: ['since'] });
 export type ReviewInputFigures = z.infer<typeof ReviewInputFigures>;
+
+/**
+ * What one figure key of `reviewInputFigures` means for its readers: `entityType`, the audit-trail entity type its ids
+ * name (an ISO type is also its table's name; `instance` is a compliance instance), null for a score with no ids; and
+ * `countsIds`, whether its value is the number of its ids. It is not for `lostDays` (a sum of days),
+ * `verifiedNotEffective` (a number of steps, with each NC once) or a score, so a screen that says "N (M you can open)"
+ * reads M from the ids only when `countsIds` is true.
+ */
+export interface ReviewFigureKeyInfo {
+  entityType: EntityType | null;
+  countsIds: boolean;
+}
+
+/** A figure whose value is the number of its ids, all of `entityType`. */
+const counts = <T extends EntityType>(entityType: T) => ({ entityType, countsIds: true }) as const;
+
+/**
+ * Every figure key `reviewInputFigures` emits, by source (model §5.4), with what it means (`ReviewFigureKeyInfo`). The
+ * engine emits each key of its source on every call, except `statutoryScore` when nothing is due in the window, and
+ * every key it emits is listed here. A stored figure keeps its key for good (9001 7.5.3), so keys are only ever added:
+ * a key whose meaning changes gets a new name. M17 and M10 word every key listed; M3's `isoVisibleIds` (ISO-2h) takes
+ * each figure's entity type from here.
+ */
+export const REVIEW_FIGURE_KEYS = {
+  PREVIOUS_ACTIONS: {
+    actionsOpen: counts('iso_action'),
+    actionsOverdue: counts('iso_action'),
+    actionsDone: counts('iso_action'),
+    actionsCancelled: counts('iso_action'),
+  },
+  CONTEXT: {
+    issuesAdded: counts('context_item'),
+    issuesChanged: counts('context_item'),
+    interestedPartiesAdded: counts('context_item'),
+    interestedPartiesChanged: counts('context_item'),
+    contextItemsRemoved: counts('context_item'),
+    climateDecided: counts('management_system'),
+    climateRelevant: counts('management_system'),
+    climateDecidedInPeriod: counts('management_system'),
+  },
+  RISKS: {
+    itemsAdded: counts('risk_item'),
+    itemsRerated: counts('risk_item'),
+    significantRisk: counts('risk_item'),
+    significantOpportunity: counts('risk_item'),
+    significantAspect: counts('risk_item'),
+    significantHazard: counts('risk_item'),
+    treatmentActionsDone: counts('iso_action'),
+    treatmentActionsOpen: counts('iso_action'),
+  },
+  OBJECTIVES: {
+    objectivesOpen: counts('objective'),
+    onTrack: counts('objective'),
+    offTrack: counts('objective'),
+    withoutReading: counts('objective'),
+    achieved: counts('objective'),
+    notAchieved: counts('objective'),
+    readingsRecorded: counts('objective_reading'),
+  },
+  NONCONFORMITIES: {
+    raised: counts('nonconformity'),
+    closed: counts('nonconformity'),
+    raisedMajor: counts('nonconformity'),
+    raisedMinor: counts('nonconformity'),
+    raisedInternalAudit: counts('nonconformity'),
+    raisedExternalAudit: counts('nonconformity'),
+    raisedIncident: counts('nonconformity'),
+    raisedNearMiss: counts('nonconformity'),
+    raisedComplaint: counts('nonconformity'),
+    raisedProcess: counts('nonconformity'),
+    raisedLegal: counts('nonconformity'),
+    raisedOther: counts('nonconformity'),
+    closedMajor: counts('nonconformity'),
+    closedMinor: counts('nonconformity'),
+    closedInternalAudit: counts('nonconformity'),
+    closedExternalAudit: counts('nonconformity'),
+    closedIncident: counts('nonconformity'),
+    closedNearMiss: counts('nonconformity'),
+    closedComplaint: counts('nonconformity'),
+    closedProcess: counts('nonconformity'),
+    closedLegal: counts('nonconformity'),
+    closedOther: counts('nonconformity'),
+    verifiedNotEffective: { entityType: 'nonconformity', countsIds: false },
+    open: counts('nonconformity'),
+    correctiveActionsOverdue: counts('iso_action'),
+  },
+  INCIDENTS: {
+    incidents: counts('nonconformity'),
+    typeInjury: counts('nonconformity'),
+    typeIllHealth: counts('nonconformity'),
+    typeDangerousOccurrence: counts('nonconformity'),
+    typeEnvironmentalRelease: counts('nonconformity'),
+    typeFire: counts('nonconformity'),
+    typePropertyDamage: counts('nonconformity'),
+    typeNearMiss: counts('nonconformity'),
+    outcomeNone: counts('nonconformity'),
+    outcomeFirstAid: counts('nonconformity'),
+    outcomeMedicalTreatment: counts('nonconformity'),
+    outcomeRestrictedWork: counts('nonconformity'),
+    outcomeLostTime: counts('nonconformity'),
+    outcomeFatality: counts('nonconformity'),
+    lostDays: { entityType: 'nonconformity', countsIds: false },
+  },
+  AUDIT_RESULTS: {
+    internalAuditsReported: counts('internal_audit'),
+    externalAuditsHeld: counts('external_audit'),
+    findingsMajorNc: counts('audit_finding'),
+    findingsMinorNc: counts('audit_finding'),
+    findingsObservation: counts('audit_finding'),
+    findingsOfi: counts('audit_finding'),
+    findingsGoodPractice: counts('audit_finding'),
+  },
+  COMPLIANCE_EVALUATION: {
+    evaluationsDue: counts('instance'),
+    evaluationsDone: counts('instance'),
+    latestEvaluation: counts('instance'),
+    statutoryInstancesDue: counts('instance'),
+    statutoryScore: { entityType: null, countsIds: false },
+  },
+} as const satisfies Record<
+  Exclude<ReviewInputSource, 'MANUAL'>,
+  Record<string, ReviewFigureKeyInfo>
+>;
+
+/** A figure key of one source, as `REVIEW_FIGURE_KEYS` lists it. */
+export type ReviewFigureKey<
+  S extends keyof typeof REVIEW_FIGURE_KEYS = keyof typeof REVIEW_FIGURE_KEYS,
+> = S extends keyof typeof REVIEW_FIGURE_KEYS ? keyof (typeof REVIEW_FIGURE_KEYS)[S] : never;
+
+/**
+ * The risk kinds a RISKS input reads (model §5.4, catalogue §5): `SIGNIFICANT_ASPECTS` aspects only;
+ * `RISKS_AND_OPPORTUNITIES` and `RISK_ACTIONS` risks and opportunities, and hazards when ISO 45001 is among the input's
+ * standards (the review's standards that ask for it). So a 14001 review's two RISKS rows never count the same item.
+ * Any other key reads no risk items. In `RiskKind` order; the caller gathers only these kinds (M3, ISO-2h).
+ */
+export function reviewRiskKinds(
+  key: ReviewInputKey,
+  standards: readonly IsoStandardCode[],
+): RiskKind[] {
+  if (key === 'SIGNIFICANT_ASPECTS') return ['ASPECT'];
+  if (key !== 'RISKS_AND_OPPORTUNITIES' && key !== 'RISK_ACTIONS') return [];
+  return standards.includes('ISO_45001')
+    ? ['RISK', 'OPPORTUNITY', 'HAZARD']
+    : ['RISK', 'OPPORTUNITY'];
+}
 
 /**
  * One input row of a review: one per input key of its standards (a key shared by several appears once). A held
