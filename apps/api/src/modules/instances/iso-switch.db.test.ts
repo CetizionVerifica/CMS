@@ -30,6 +30,7 @@ const ROLES = ['firmAdmin', 'consultant', 'clientAdmin', 'approver', 'owner', 'v
 let testDb: TestDb;
 let app: FastifyInstance;
 let f: Fixture;
+let isoAssignment: string;
 const auth = createTestAuth();
 const headers = {} as Record<keyof Cast, Record<string, string>>;
 const law = {} as { open: ComplianceInstance; submitted: ComplianceInstance; file: Evidence };
@@ -54,7 +55,7 @@ beforeAll(async () => {
       principal: { firmClientIds: [f.clientId] },
     }).headers;
   }
-  const isoAssignment = await addIsoAssignment(testDb.db, f);
+  isoAssignment = await addIsoAssignment(testDb.db, f);
   const add = (periodStart: string, state: 'OPEN' | 'SUBMITTED', assignmentId?: string) =>
     addInstance(testDb.db, f, {
       ...(assignmentId === undefined ? {} : { assignmentId }),
@@ -88,11 +89,12 @@ async function call(
   method: 'GET' | 'POST' | 'PATCH',
   url: string,
   payload?: object,
+  key?: string,
 ) {
   const res = await app.inject({
     method,
     url: `/api/v1${url}`,
-    headers: headers[who],
+    headers: key === undefined ? headers[who] : { ...headers[who], 'idempotency-key': key },
     ...(payload === undefined ? {} : { payload }),
   });
   return { status: res.statusCode, body: res.json() as Record<string, unknown> };
@@ -267,5 +269,72 @@ describe('with the ISO add-on on', () => {
 
     setIso(true);
     expect(await call('owner', 'GET', `/instances/${iso.open.id}`)).toEqual(before);
+  });
+});
+
+describe('an Idempotency-Key replay after the switch goes off (#312 audit)', () => {
+  let seq = 0;
+  const submitted = (assignmentId?: string) => {
+    seq += 1;
+    return addInstance(testDb.db, f, {
+      ...(assignmentId === undefined ? {} : { assignmentId }),
+      periodStart: `${1950 + seq}-01-01`,
+      dueDate: '2023-02-15',
+      state: 'SUBMITTED',
+    });
+  };
+
+  it('refuses a replayed transition on a STANDARD instance', async () => {
+    const i = await submitted(isoAssignment);
+    setIso(true);
+    const approve = () =>
+      call(
+        'approver',
+        'POST',
+        `/instances/${i.id}/approve`,
+        { version: i.version },
+        '01920000-0000-7000-8000-00000000e001',
+      );
+    const first = await approve();
+    expect(first.status).toBe(200);
+    expect(await approve()).toEqual(first);
+    setIso(false);
+    expect(await approve()).toMatchObject({ status: 403, body: { error: OFF } });
+    setIso(true);
+    expect(await approve()).toEqual(first);
+  });
+
+  it('refuses each STANDARD item of a replayed bulk approve, and keeps the law item', async () => {
+    const isoItem = await submitted(isoAssignment);
+    const lawItem = await submitted();
+    setIso(true);
+    const bulk = () =>
+      call(
+        'approver',
+        'POST',
+        `/clients/${f.clientId}/instances/bulk-approve`,
+        {
+          items: [
+            { id: isoItem.id, version: isoItem.version },
+            { id: lawItem.id, version: lawItem.version },
+          ],
+        },
+        '01920000-0000-7000-8000-00000000e002',
+      );
+    const first = await bulk();
+    expect(first.status).toBe(200);
+    const [isoResult, lawResult] = first.body.results as { ok: boolean }[];
+    expect([isoResult!.ok, lawResult!.ok]).toEqual([true, true]);
+    setIso(false);
+    const replayed = await bulk();
+    expect(replayed.status).toBe(200);
+    expect(replayed.body.results).toEqual([
+      {
+        id: isoItem.id,
+        ok: false,
+        error: { code: 'FEATURE_NOT_ENABLED', message: expect.any(String) },
+      },
+      lawResult,
+    ]);
   });
 });
