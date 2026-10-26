@@ -3,9 +3,16 @@
 // writes the account override; the limits, the other flags and the note stay as they are.
 import { KNOWN_FEATURES, type Account, type Plan } from '@canopy/contracts';
 import { Switch, Textarea, toast } from '@canopy/ui';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
-import { featureSource, overrideFrom, withFeature } from '../../account-actions';
+import {
+  featureSource,
+  isoSetup,
+  overrideFrom,
+  withFeature,
+  type IsoSetup,
+} from '../../account-actions';
+import { formatInstant } from '../../format';
 import { useSession } from '../../session';
 import { FormDrawer } from '../../ui/FormDrawer';
 import { Card, Pill } from '../../ui/parts';
@@ -33,6 +40,7 @@ export function AddOns({
   const [change, setChange] = useState<{ code: string; label: string; on: boolean } | null>(null);
   const [reason, setReason] = useState('');
   const [fields, setFields] = useState<Record<string, string>>({});
+  const setup = useIsoSetup(account);
 
   return (
     <Card id="add-ons" title="Add-ons">
@@ -51,6 +59,9 @@ export function AddOns({
                 </p>
                 <p className="mt-1 text-body text-muted">{feature.description}</p>
                 <p className="mt-1 text-meta text-muted">{SOURCE[source]}</p>
+                {feature.code === 'isoManagement' && on && setup ? (
+                  <IsoSetupLine setup={setup} />
+                ) : null}
               </div>
               <Switch
                 label={`${feature.label} for ${account.name}`}
@@ -80,7 +91,7 @@ export function AddOns({
         onFieldErrors={setFields}
         onSubmit={async () => {
           if (!change || !plan) return;
-          const parts = withFeature(current, plan, change.code, change.on);
+          const parts = withFeature(current, change.code, change.on);
           const note = await overrideNote(api, account.id);
           onChanged(
             await api.call('setAccountOverride', {
@@ -109,4 +120,59 @@ export function AddOns({
       </FormDrawer>
     </Card>
   );
+}
+
+/**
+ * The ISO catalogue copy for an account with the add-on on (plan §4.3). Null until known. Reads the account's operator
+ * audit (its latest 100 entries) for the switch-on and the move into TRIAL or ACTIVE only when the copy is missing.
+ */
+function useIsoSetup(account: Account): IsoSetup | null {
+  const { api } = useSession();
+  const on = account.entitlements.features.includes('isoManagement');
+  const copiedAt = account.isoCatalogueCopiedAt ?? null;
+  const [setup, setSetup] = useState<IsoSetup | null>(null);
+  useEffect(() => {
+    if (!on) return setSetup(null);
+    if (copiedAt) return setSetup({ state: 'copied', at: copiedAt });
+    let live = true;
+    void api
+      .call('listOperatorAudit', { query: { accountId: account.id, limit: '100' } })
+      .then(({ items }) => {
+        if (live) setSetup(isoSetup({ ...account, isoCatalogueCopiedAt: null }, items, Date.now()));
+      })
+      .catch(() => {
+        if (live) setSetup(null);
+      });
+    return () => {
+      live = false;
+    };
+  }, [api, account, on, copiedAt]);
+  return setup;
+}
+
+function IsoSetupLine({ setup }: { setup: IsoSetup }) {
+  switch (setup.state) {
+    case 'copied':
+      return (
+        <p className="mt-1 text-meta text-muted">
+          <Pill tone="ok">ISO set up</Pill> {formatInstant(setup.at)}
+        </p>
+      );
+    case 'late':
+      return (
+        <p className="mt-1 text-meta text-ink" role="status">
+          <Pill tone="crit">ISO set-up has not finished</Pill> Waiting since{' '}
+          {formatInstant(setup.since)}. The copy runs every 10 minutes; check the jobs if this
+          stays.
+        </p>
+      );
+    case 'waiting':
+      return <p className="mt-1 text-meta text-muted">ISO set-up is in progress.</p>;
+    case 'notYet':
+      return (
+        <p className="mt-1 text-meta text-muted">
+          ISO set-up starts when the account is in trial or active.
+        </p>
+      );
+  }
 }
