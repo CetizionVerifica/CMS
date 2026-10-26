@@ -38,6 +38,14 @@ describe('vaultQuery', () => {
     expect(q('uploadedFrom=2024-11-30&uploadedTo=2024-11-01')).toBe('uploadedFrom=2024-11-30');
     expect(q('q=')).toBe('');
   });
+
+  it('keeps the Source filter only with the ISO add-on', () => {
+    const iso = (s: string) => vaultQuery(new URLSearchParams(s), true);
+    expect(iso('source=ISO&scanStatus=CLEAN')).toBe('source=ISO&scanStatus=CLEAN');
+    expect(iso('source=LAW')).toBe('source=LAW');
+    expect(iso('source=both')).toBe('');
+    expect(q('source=ISO&scanStatus=CLEAN')).toBe('scanStatus=CLEAN');
+  });
 });
 
 describe('loadVault', () => {
@@ -89,6 +97,18 @@ describe('loadVault', () => {
       params: { clientId: CLIENT },
       query: { q: 'challan', limit: String(MAX_PAGE_LIMIT), cursor: 'next' },
     });
+  });
+});
+
+describe('loadVault with a source', () => {
+  it('splits the files between the statutory work and the ISO activities', async () => {
+    const consultant = await as('consultant@demo.test', true);
+    const all = (await loadVault(consultant, CLIENT, '')).total!;
+    const law = (await loadVault(consultant, CLIENT, 'source=LAW')).total!;
+    const iso = (await loadVault(consultant, CLIENT, 'source=ISO')).total!;
+    expect(iso).toBeGreaterThan(0);
+    expect(law).toBeGreaterThan(0);
+    expect(law + iso).toBe(all);
   });
 });
 

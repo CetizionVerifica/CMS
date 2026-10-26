@@ -9,10 +9,10 @@ import type { ApprovalsPage } from '../_lib/approvals-api';
 
 const PATH = `/c/${CLIENT_ID}/approvals`;
 
-const nav = vi.hoisted(() => ({ path: '', refresh: vi.fn() }));
+const nav = vi.hoisted(() => ({ path: '', refresh: vi.fn(), replace: vi.fn() }));
 vi.mock('next/navigation', () => ({
   usePathname: () => nav.path,
-  useRouter: () => ({ replace: vi.fn(), push: vi.fn(), refresh: nav.refresh }),
+  useRouter: () => ({ replace: nav.replace, push: vi.fn(), refresh: nav.refresh }),
 }));
 const actions = vi.hoisted(() => ({ loadMoreApprovals: vi.fn() }));
 vi.mock('../actions', () => actions);
@@ -105,6 +105,7 @@ let push: ReturnType<typeof vi.spyOn>;
 beforeEach(() => {
   nav.path = PATH;
   nav.refresh.mockReset();
+  nav.replace.mockReset();
   actions.loadMoreApprovals.mockReset();
   drawerActions.runInstanceAction.mockReset();
   changed.state = 'APPROVED';
@@ -119,6 +120,10 @@ describe('waitingLine', () => {
       '2 items waiting for your approval here, 5 across all your clients.',
     );
     expect(waitingLine(1200, 0, 'client')).toBe('1,200 items waiting for approval here.');
+  });
+
+  it('leaves out the count across clients under a Source filter, which it would not match', () => {
+    expect(waitingLine(2, 5, 'mine', true)).toBe('2 items waiting for your approval here.');
   });
 });
 
@@ -243,7 +248,7 @@ describe('ApprovalsView', () => {
     });
     renderView({ page: page(rows3(), 'c1'), scope: 'client' });
     await userEvent.click(screen.getByRole('button', { name: 'Show more' }));
-    expect(actions.loadMoreApprovals).toHaveBeenCalledWith(CLIENT_ID, 'client', 'c1');
+    expect(actions.loadMoreApprovals).toHaveBeenCalledWith(CLIENT_ID, 'client', 'c1', undefined);
     expect(await screen.findByRole('link', { name: /^Obligation 3,/ })).toBeTruthy();
     expect(screen.getAllByRole('link', { name: /^Obligation 2,/ })).toHaveLength(1);
 
@@ -319,5 +324,55 @@ describe('ApprovalsView', () => {
       expect(screen.getByRole('heading', { name: /^3 items/ })).toBeTruthy();
       expect(nav.refresh).toHaveBeenCalledOnce();
     });
+  });
+});
+
+describe('ApprovalsView’s Source filter (ISO add-on)', () => {
+  it('is absent without the add-on', () => {
+    renderView();
+    expect(screen.queryByRole('group', { name: 'Source' })).toBeNull();
+    expect(link(0).getAttribute('href')).toBe(`${PATH}/${waiting(0).id}`);
+  });
+
+  it('shows the three choices with the current one pressed, and moves to another through the URL', async () => {
+    renderView({ iso: true });
+    const group = screen.getByRole('group', { name: 'Source' });
+    const buttons = within(group).getAllByRole('button');
+    expect(buttons.map((b) => [b.textContent, b.getAttribute('aria-pressed')])).toEqual([
+      ['Law and ISO', 'true'],
+      ['Law', 'false'],
+      ['ISO', 'false'],
+    ]);
+    await userEvent.click(within(group).getByRole('button', { name: 'ISO' }));
+    expect(nav.replace).toHaveBeenCalledWith(`${PATH}?source=ISO`, { scroll: false });
+  });
+
+  it('keeps the filter on each row’s drawer path and on the way back, and loads more with it', async () => {
+    actions.loadMoreApprovals.mockResolvedValueOnce({ rows: [], nextCursor: null });
+    renderView({ iso: true, source: 'LAW', page: page(rows3(), 'c1'), waitingEverywhere: 9 });
+    expect(
+      within(screen.getByRole('group', { name: 'Source' }))
+        .getByRole('button', { name: 'Law' })
+        .getAttribute('aria-pressed'),
+    ).toBe('true');
+    expect(
+      screen.getByRole('heading', { name: '3 items waiting for your approval here.' }),
+    ).toBeTruthy();
+    expect(link(0).getAttribute('href')).toBe(`${PATH}/${waiting(0).id}?source=LAW`);
+    await userEvent.click(screen.getByRole('button', { name: 'Show more' }));
+    expect(actions.loadMoreApprovals).toHaveBeenCalledWith(CLIENT_ID, 'mine', 'c1', 'LAW');
+    await userEvent.click(
+      within(screen.getByRole('group', { name: 'Source' })).getByRole('button', {
+        name: 'Law and ISO',
+      }),
+    );
+    expect(nav.replace).toHaveBeenCalledWith(PATH, { scroll: false });
+  });
+
+  it('closes the drawer back to the filtered inbox', async () => {
+    nav.path = `${PATH}/${waiting(1).id}`;
+    renderView({ iso: true, source: 'ISO' });
+    await userEvent.click(screen.getByRole('button', { name: 'Close drawer' }));
+    expect(push).toHaveBeenLastCalledWith(null, '', `${PATH}?source=ISO`);
   });
 });

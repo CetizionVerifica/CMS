@@ -18,6 +18,7 @@ import {
   type Period,
   type PeriodApiQuery,
 } from '../../../../../../lib/period';
+import { SOURCE_PARAM, sourceFromParams, sourceOfTicks, withSource } from './source';
 
 type Params = { get(name: string): string | null; getAll?(name: string): string[] };
 type SortingState = { id: string; desc: boolean }[];
@@ -56,8 +57,11 @@ export const SORT_PARAM = 'sort';
 export const VIEW_PARAM = 'view';
 export const DEFAULT_SORT = 'dueDate';
 
+/** The Source filter's FilterBar key, the same as its URL and API key (./source.ts). */
+export const SOURCE_FILTER = SOURCE_PARAM;
+
 /** Keys a saved view holds: everything that shapes the rows, but not the period or the view id itself. */
-const VIEW_KEYS = [...PASS_THROUGH, SEARCH_PARAM, SORT_PARAM] as const;
+const VIEW_KEYS = [...PASS_THROUGH, SOURCE_PARAM, SEARCH_PARAM, SORT_PARAM] as const;
 
 type FilterKey = (typeof PASS_THROUGH)[number];
 
@@ -99,13 +103,20 @@ export function registerPeriod(
 /**
  * The API query for the register: validated filters, search, sort and the selected period. An explicit due-date
  * filter wins over the period, because the contract takes one or the other (checkPeriod) and the person chose it.
+ * `iso` is whether the account has the ISO add-on: only then does the URL's `source` reach the API.
  */
-export function apiQueryFromParams(params: Params, period?: PeriodApiQuery): URLSearchParams {
+export function apiQueryFromParams(
+  params: Params,
+  period?: PeriodApiQuery,
+  iso = false,
+): URLSearchParams {
   const query = new URLSearchParams();
   for (const key of PASS_THROUGH) {
     const value = validValue(key, params.get(key));
     if (value !== undefined) query.set(key, value);
   }
+  const source = sourceFromParams(params, iso);
+  if (source) query.set(SOURCE_PARAM, source);
   if (period && !query.has('dueFrom') && !query.has('dueTo')) {
     if ('fy' in period) {
       if (registerFilterShape.fy.safeParse(period.fy).success) query.set('fy', period.fy);
@@ -140,13 +151,15 @@ export function apiQueryFromParams(params: Params, period?: PeriodApiQuery): URL
   return query;
 }
 
-/** FilterBar value from the URL. */
-export function filterValueFromParams(params: Params): Record<string, FilterValue> {
+/** FilterBar value from the URL; the Source filter only with the ISO add-on (`iso`). */
+export function filterValueFromParams(params: Params, iso = false): Record<string, FilterValue> {
   const value: Record<string, FilterValue> = {};
   for (const key of MULTI_FILTERS) {
     const raw = validValue(key, params.get(key));
     if (raw) value[key] = raw.split(',');
   }
+  const source = sourceFromParams(params, iso);
+  if (source) value[SOURCE_FILTER] = [source];
   const from = validValue('dueFrom', params.get('dueFrom'));
   const to = validValue('dueTo', params.get('dueTo'));
   if (from || to) value[DUE_FILTER] = { ...(from ? { from } : {}), ...(to ? { to } : {}) };
@@ -160,7 +173,8 @@ export function withFilters(
   search: string | URLSearchParams,
   value: Record<string, FilterValue>,
 ): URLSearchParams {
-  const next = new URLSearchParams(search);
+  const source = value[SOURCE_FILTER];
+  const next = withSource(search, sourceOfTicks(Array.isArray(source) ? source : undefined));
   for (const key of MULTI_FILTERS) {
     const v = value[key];
     if (Array.isArray(v) && v.length > 0) next.set(key, v.join(','));

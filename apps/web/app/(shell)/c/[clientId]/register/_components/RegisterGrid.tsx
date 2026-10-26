@@ -23,6 +23,7 @@ import {
   CRITICALITY_OPTIONS,
   DUE_FILTER,
   SEARCH_PARAM,
+  SOURCE_FILTER,
   STATUS_OPTIONS,
   filterValueFromParams,
   sortingFromParams,
@@ -31,6 +32,7 @@ import {
   withSorting,
 } from '../_lib/query';
 import { storageKey } from '../_lib/saved-views';
+import { SOURCE_OPTIONS } from '../_lib/source';
 import { useSavedViews } from './useSavedViews';
 
 const renderLink: LinkRenderer = ({ href, children, ...rest }) => (
@@ -85,6 +87,8 @@ export type RegisterGridProps = {
   more?: { loading: boolean; onLoad: () => void };
   /** Opens a row's drawer in place (its href is `/register/<id>?<this view>`); without it, the link navigates. */
   onOpenRow?: (href: string) => void;
+  /** The account has the ISO add-on: the Source filter (Law, ISO) is shown. */
+  iso?: boolean;
 };
 
 const COUNT_NOUN = { one: 'instance', other: 'instances' };
@@ -102,6 +106,7 @@ export function RegisterGrid({
   onExport,
   more,
   onOpenRow,
+  iso = false,
 }: RegisterGridProps) {
   const router = useRouter();
   const pathname = usePathname();
@@ -142,8 +147,19 @@ export function RegisterGrid({
       { key: DUE_FILTER, label: 'Due date', kind: 'dateRange' },
       { key: 'unitId', label: 'Unit', kind: 'multi', options: facets.units },
       { key: 'categoryId', label: 'Category', kind: 'multi', options: facets.categories },
+      ...(iso
+        ? [
+            {
+              key: SOURCE_FILTER,
+              label: 'Source',
+              kind: 'multi',
+              order: 'given',
+              options: [...SOURCE_OPTIONS],
+            } satisfies FilterDef,
+          ]
+        : []),
     ],
-    [facets],
+    [facets, iso],
   );
 
   const [layout, setLayout] = useState<GridLayout>(DEFAULT_LAYOUT);
@@ -159,20 +175,27 @@ export function RegisterGrid({
   const count = totalCount ?? rows.length;
   const qs = search.toString();
   const filtered =
-    Object.keys(filterValueFromParams(search)).length > 0 || search.has(SEARCH_PARAM);
+    Object.keys(filterValueFromParams(search, iso)).length > 0 || search.has(SEARCH_PARAM);
 
   return (
     <div className="flex flex-col gap-3">
       <FilterBar
         filters={filters}
-        value={filterValueFromParams(search)}
+        value={filterValueFromParams(search, iso)}
         onChange={(value) => navigate(withFilters(search, value))}
         search={{
           value: search.get(SEARCH_PARAM) ?? '',
           onChange: (text) => navigate(withSearch(search, text)),
           placeholder: 'Search ID, title or Act',
         }}
-        primaryKeys={['status', 'criticality', 'departmentId', 'actId', DUE_FILTER]}
+        primaryKeys={[
+          'status',
+          'criticality',
+          'departmentId',
+          'actId',
+          DUE_FILTER,
+          ...(iso ? [SOURCE_FILTER] : []),
+        ]}
         resultText={
           loading ? undefined : `${count} ${count === 1 ? COUNT_NOUN.one : COUNT_NOUN.other} match`
         }

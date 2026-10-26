@@ -4,6 +4,7 @@ import { EvidenceVaultQuery, MAX_PAGE_LIMIT, type EvidenceView } from '@canopy/c
 import type { FilterOption } from '@canopy/ui';
 
 import type { ApiClient, CallRequest } from '../../../../../../lib/api/client';
+import { SOURCE_PARAM, sourceFromParams } from '../../register/_lib/source';
 
 export type VaultPage = { rows: EvidenceView[]; nextCursor: string | null; total?: number };
 
@@ -14,10 +15,13 @@ export const VAULT_KEYS = ['q', 'scanStatus', 'unitId', 'uploadedFrom', 'uploade
 
 /**
  * The API query for a page URL: the vault's filters only, each kept when the contract accepts it, so a hand-edited or
- * stale link shows the vault with the filters that still make sense rather than an error.
+ * stale link shows the vault with the filters that still make sense rather than an error. The Source filter is kept
+ * only when the account has the ISO add-on (`iso`).
  */
-export function vaultQuery(search: URLSearchParams): string {
+export function vaultQuery(search: URLSearchParams, iso = false): string {
   const kept = new URLSearchParams();
+  const source = sourceFromParams(search, iso);
+  if (source) kept.set(SOURCE_PARAM, source);
   for (const key of VAULT_KEYS) {
     const value = search.get(key);
     if (value === null || value === '') continue;
