@@ -17,6 +17,7 @@ import type {
   NewInstance,
 } from './ports.js';
 import { servedFirmIds } from './accounts.js';
+import { isoServed } from './iso-switch.js';
 
 export const GENERATE_INSTANCES = 'generate-instances';
 
@@ -81,7 +82,14 @@ async function generateForClient(
     client.settings.fyStartMonth,
   );
   const targets = (await tx.listGenerationTargets(client.id)).filter(only);
-  const live = targets.filter((t) => {
+  // Without the ISO add-on (or before its catalogue is copied), STANDARD obligations get no instances.
+  const off = (await isoServed(tx)) ? new Set<Id>() : new Set(await tx.standardObligationIds());
+  const kept = targets.filter((t) => {
+    if (!off.has(t.obligationId)) return true;
+    report.skippedIsoOff = (report.skippedIsoOff ?? 0) + 1;
+    return false;
+  });
+  const live = kept.filter((t) => {
     const reason = skipReason(t);
     if (reason) report[`skipped${reason}`] = (report[`skipped${reason}`] ?? 0) + 1;
     return reason === null;

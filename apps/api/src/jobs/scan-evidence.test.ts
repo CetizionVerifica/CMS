@@ -14,7 +14,14 @@ import {
   SCAN_EVIDENCE,
   SCAN_RUN_MS,
 } from './scan-evidence.js';
-import { assignment, evidenceFile, harness, instance, person } from './testing/builders.js';
+import {
+  assignment,
+  evidenceFile,
+  harness,
+  instance,
+  isoFile,
+  person,
+} from './testing/builders.js';
 import { memoryClient, memoryFirm, type MemoryFirm } from './testing/memory-store.js';
 
 type Storage = 'ok' | 'down' | 'refused' | 'cut' | 'stall' | 'broken';
@@ -376,5 +383,142 @@ describe('runScanEvidence', () => {
     await expect(runScanEvidence(harness([seed]).deps, 'r')).rejects.toThrow(
       'needs a virus scanner and evidence storage',
     );
+  });
+});
+
+describe('runScanEvidence on ISO files', () => {
+  /** A firm with the add-on as given and PENDING ISO files with these contents, oldest first. */
+  function isoSetup(contents: string[], features: string[] = []) {
+    const firm = {
+      ...memoryFirm(),
+      features,
+      isoCatalogueCopiedAt: features.length > 0 ? '2026-10-20T00:00:00.000Z' : null,
+    };
+    const client = memoryClient('Osprey Textiles Group');
+    firm.clients.push(client);
+    const files = new Map<string, string>();
+    contents.forEach((text, n) => {
+      const f = isoFile(client, {
+        createdAt: new Date(Date.UTC(2026, 9, 12, 1, 0, n)).toISOString(),
+        sizeBytes: Buffer.byteLength(text),
+      });
+      firm.isoFiles.push(f);
+      files.set(f.storageKey, text);
+    });
+    return { firm, files };
+  }
+  const isoStatuses = (f: MemoryFirm) => f.isoFiles.map((x) => x.scanStatus);
+
+  it.each([
+    ['off', []],
+    ['on', ['isoManagement']],
+  ])(
+    'scans PENDING ISO files to CLEAN or INFECTED with the add-on %s, audited on the subject with no event',
+    async (_label, features) => {
+      const { firm: seed, files } = isoSetup(['%PDF fine', 'EICAR'], features);
+      const [clean, infected] = seed.isoFiles as [
+        MemoryFirm['isoFiles'][number],
+        MemoryFirm['isoFiles'][number],
+      ];
+      const { h, firm } = withScanning([seed], files);
+      expect(await runScanEvidence(h.deps, 'r')).toMatchObject({ clean: 1, infected: 1 });
+      expect(isoStatuses(firm())).toEqual(['CLEAN', 'INFECTED']);
+      expect(firm().audits).toEqual([
+        expect.objectContaining({
+          action: 'UPDATE',
+          actorKind: 'SYSTEM',
+          clientId: clean.clientId,
+          entityType: 'risk_item',
+          entityId: clean.subject.id,
+          before: { fileId: clean.id, scanStatus: 'PENDING' },
+          after: { fileId: clean.id, scanStatus: 'CLEAN' },
+        }),
+        expect.objectContaining({
+          entityType: 'risk_item',
+          entityId: infected.subject.id,
+          after: {
+            fileId: infected.id,
+            scanStatus: 'INFECTED',
+            signature: 'Eicar-Test-Signature',
+          },
+        }),
+      ]);
+      expect(firm().events).toEqual([]);
+      // Never the storage key in the trail.
+      expect(JSON.stringify(firm().audits)).not.toContain(clean.storageKey);
+    },
+  );
+
+  it('scans evidence before ISO files in the same run', async () => {
+    const { firm: seed, files } = setup(['%PDF evidence']);
+    const client = seed.clients[0]!;
+    const f = isoFile(client, { sizeBytes: Buffer.byteLength('%PDF iso') });
+    seed.isoFiles.push(f);
+    files.set(f.storageKey, '%PDF iso');
+    const { h, scanner, firm } = withScanning([seed], files);
+    expect(await runScanEvidence(h.deps, 'r')).toMatchObject({ firms: 1, clean: 2 });
+    expect(scanner.scanned).toEqual(['%PDF evidence', '%PDF iso']);
+    expect(firm().events.map((e) => e.type)).toEqual(['evidence.scanned']);
+  });
+
+  it('keeps the status of a file archived before its result is recorded', async () => {
+    const { firm: seed, files } = isoSetup(['%PDF removed']);
+    const { h, firm, stored } = withScanning([seed], files);
+    const scanner = h.deps.scanner!;
+    h.deps.scanner = {
+      async scan(content, signal) {
+        stored[0]!.isoFiles[0]!.archived = true;
+        return scanner.scan(content, signal);
+      },
+    };
+    expect(await runScanEvidence(h.deps, 'r')).toMatchObject({ clean: 0 });
+    expect(firm().isoFiles[0]).toMatchObject({ scanStatus: 'PENDING', archived: true });
+    expect(firm().audits).toEqual([]);
+  });
+
+  it('skips archived and already scanned ISO files', async () => {
+    const { firm: seed, files } = isoSetup(['%PDF a', '%PDF b', '%PDF c']);
+    seed.isoFiles[0]!.archived = true;
+    seed.isoFiles[1]!.scanStatus = 'CLEAN';
+    const { h, scanner, firm } = withScanning([seed], files);
+    expect(await runScanEvidence(h.deps, 'r')).toMatchObject({ clean: 1 });
+    expect(scanner.scanned).toEqual(['%PDF c']);
+    expect(isoStatuses(firm())).toEqual(['PENDING', 'CLEAN', 'CLEAN']);
+  });
+
+  it('counts failed attempts on the subject and marks the file FAILED after the last', async () => {
+    const { firm: seed, files } = isoSetup(['%PDF garbled']);
+    const { h, firm } = withScanning([seed], files);
+    for (let run = 1; run < SCAN_ATTEMPTS; run++) {
+      expect(await runScanEvidence(h.deps, `r${run}`)).toMatchObject({ retry: 1 });
+    }
+    const subject = firm().isoFiles[0]!.subject;
+    expect(
+      firm().audits.map((a) => [
+        a.entityType,
+        a.entityId,
+        a.after?.scanAttempt,
+        a.after?.scanError,
+      ]),
+    ).toEqual([
+      [subject.type, subject.id, 1, 'UNREADABLE'],
+      [subject.type, subject.id, 2, 'UNREADABLE'],
+    ]);
+    expect(await runScanEvidence(h.deps, 'last')).toMatchObject({ failed: 1, retry: 0 });
+    expect(isoStatuses(firm())).toEqual(['FAILED']);
+    expect(firm().audits.at(-1)!.after).toEqual({
+      fileId: firm().isoFiles[0]!.id,
+      scanStatus: 'FAILED',
+      attempts: SCAN_ATTEMPTS,
+    });
+    expect(firm().events).toEqual([]);
+  });
+
+  it('never asks the ISO queue for more than 200 files, however many failed in the run', async () => {
+    // The memory store throws above 200, as M3's pendingScan does.
+    const { firm: seed, files } = isoSetup(Array.from({ length: 210 }, () => '%PDF garbled'));
+    const { h, scanner } = withScanning([seed], files);
+    expect(await runScanEvidence(h.deps, 'r')).toMatchObject({ retry: 200 });
+    expect(scanner.scanned).toHaveLength(200);
   });
 });

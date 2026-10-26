@@ -15,6 +15,9 @@ import { servedFirmIds } from './accounts.js';
 
 export const CONSULTANT_DIGEST = 'consultant-digest';
 
+/** The digest's score and counts are statutory numbers: STATUTE acts only, with the ISO add-on on or off (plan §4.6). */
+const STATUTE_ONLY = { actKinds: ['STATUTE'] } as const;
+
 export function clientUrl(appUrl: string, clientId: Id): string {
   return new URL(`/c/${clientId}/overview`, appUrl).toString();
 }
@@ -79,7 +82,7 @@ export async function runConsultantDigest(deps: JobDeps, requestId: string): Pro
           );
           label ||= fyLabel(asOf, client.settings.fyStartMonth);
           const items = await deps.store.withFirm(firmId, requestId, (tx) =>
-            tx.listScoreItems(client.id, fy),
+            tx.listScoreItems(client.id, fy, STATUTE_ONLY),
           );
           const result = computeScore(items, asOf, firmSettings);
           const kpis = summarizeKpis(result);
