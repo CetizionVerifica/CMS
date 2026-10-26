@@ -353,6 +353,7 @@ export const risksHandlers: PartialHandlers<Ids> = {
         (r) =>
           r.clientId === clientId &&
           (q.includeArchived === true || r.archivedAt === null) &&
+          (q.ids === undefined || q.ids.includes(r.id)) &&
           (q.managementSystemId === undefined ||
             q.managementSystemId.includes(r.managementSystemId)) &&
           (q.unitId === undefined || (r.unitId !== null && q.unitId.includes(r.unitId))) &&
@@ -585,6 +586,7 @@ export const risksHandlers: PartialHandlers<Ids> = {
     const rows = liveIso(actor.firm, 'objectives', clientId)
       .filter(
         (o) =>
+          (q.ids === undefined || q.ids.includes(o.id)) &&
           (q.managementSystemId === undefined ||
             q.managementSystemId.includes(o.managementSystemId)) &&
           (q.standard === undefined || o.standards.some((s) => q.standard!.includes(s))) &&

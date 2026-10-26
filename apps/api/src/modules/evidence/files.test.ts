@@ -5,6 +5,7 @@ import {
   extensionOf,
   isAllowedType,
   requireAllowedType,
+  requireUploadId,
   storageKey,
 } from './files.js';
 import { attachment } from './storage.js';
@@ -57,5 +58,22 @@ describe('evidence file types (api-conventions.md §6)', () => {
     expect(attachment('रजिस्टर.pdf')).toMatch(
       /^attachment; filename="_+\.pdf"; filename\*=UTF-8''/,
     );
+  });
+});
+
+describe('upload ids', () => {
+  it('accepts the uuid a ticket gives out and refuses anything that could leave its key', () => {
+    expect(() => requireUploadId('01920000-0000-7000-8000-0000000000aa')).not.toThrow();
+    for (const probe of [
+      '../..',
+      '../../other/key',
+      '',
+      'abc',
+      '01920000-0000-7000-8000-0000000000aa/..',
+    ]) {
+      expect(() => requireUploadId(probe), probe).toThrow(
+        expect.objectContaining({ code: 'VALIDATION' }),
+      );
+    }
   });
 });

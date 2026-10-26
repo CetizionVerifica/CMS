@@ -8,7 +8,7 @@ import type {
   ObjectiveProgress,
 } from '../../schemas/iso-results.js';
 import { previewPeriods } from '../periods.js';
-import type { IsoRow } from '../store.js';
+import type { FirmState, IsoRow } from '../store.js';
 import { addDays, daysFrom } from './common.js';
 
 type Timing = z.input<typeof IsoTiming>;
@@ -27,6 +27,11 @@ export function localDate(instant: string, timeZone: string): string {
     month: '2-digit',
     day: '2-digit',
   }).format(new Date(instant));
+}
+
+/** The calendar day of `instant` in the client's time zone: the day a record made then is reported or raised on. */
+export function clientDay(firm: FirmState, clientId: string, instant: string): string {
+  return localDate(instant, firm.data.clients.find((c) => c.id === clientId)!.settings.timeZone);
 }
 
 /** `date` plus `months`, the day clamped to the month's end. */

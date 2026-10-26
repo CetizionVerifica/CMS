@@ -394,11 +394,13 @@ describe('import bodies', () => {
     expect(
       ok(ExportCreateBody, { kind: 'ISO_REVIEW_PACK_PDF', filters: `managementReviewId=${id}` }),
     ).toBe(true);
-    // A register filter is not an ISO list's; a PDF names its record; paging is never a filter.
+    // A register filter is not an ISO list's; a PDF names its record; paging and `ids` are never a filter (1.8.5).
     for (const [kind, filters] of [
       ['ISO_NC_LOG_XLSX', 'status=OVERDUE'],
       ['ISO_NC_LOG_XLSX', 'state=LATE'],
       ['ISO_NC_LOG_XLSX', 'limit=10'],
+      ['ISO_NC_LOG_XLSX', `ids=${id}`],
+      ['ISO_RISK_REGISTER_XLSX', `ids=${id}`],
       ['ISO_RISK_REGISTER_XLSX', 'kind=HAZARDOUS'],
       ['ISO_AUDIT_REPORT_PDF', ''],
       ['ISO_AUDIT_REPORT_PDF', `managementReviewId=${id}`],

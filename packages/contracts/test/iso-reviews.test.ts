@@ -2,17 +2,19 @@
 // (model §6): role matrix and unit scope (plan §3.2-3.3), every arrow and guard, locks, versions, audit events.
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
+  IncidentType,
   ISO_FILE_SUBJECT_COLUMNS,
+  NcSource,
   REVIEW_FIGURE_KEYS,
   ReviewInputFigures,
   ReviewInputKey,
   ReviewOutputKey,
   reviewRiskKinds,
 } from '../src/schemas/iso.js';
-import type { IsoStandardCode } from '../src/enums.js';
+import type { EntityType, IsoStandardCode } from '../src/enums.js';
 import { ReviewInputView } from '../src/api/iso.js';
 import { fixtureId } from '../src/fixtures/index.js';
-import type { IsoRow } from '../src/mock/store.js';
+import type { IsoRow, IsoTables } from '../src/mock/store.js';
 import {
   type App,
   base,
@@ -3266,6 +3268,138 @@ describe('review input figures', () => {
       }
     }
     stored(environmental.id).archivedAt = NOW;
+  });
+
+  it('stores ids only of the table each key names; a client-wide reader gets them all, a unit-limited one some', async () => {
+    const tables: Partial<Record<EntityType, keyof IsoTables>> = {
+      management_system: 'managementSystems',
+      context_item: 'contextItems',
+      risk_item: 'riskItems',
+      objective: 'objectives',
+      objective_reading: 'readings',
+      internal_audit: 'internalAudits',
+      external_audit: 'externalAudits',
+      audit_finding: 'findings',
+      nonconformity: 'nonconformities',
+      iso_action: 'actions',
+    };
+    const inTable = (entityType: EntityType, id: string) =>
+      entityType === 'instance'
+        ? firm().data.instances.some((i) => i.id === id)
+        : (firm().iso[tables[entityType]!] as { id: string }[]).some((r) => r.id === id);
+    // Records for the keys the data above leaves empty, so each key's ids are checked against its table.
+    const at = (day: string) => `${day}T06:30:00Z`;
+    const outcomes = [
+      'FIRST_AID',
+      'MEDICAL_TREATMENT',
+      'RESTRICTED_WORK',
+      'FATALITY',
+      'NONE',
+    ] as const;
+    IncidentType.options.forEach((type, i) => {
+      const nearMiss = type === 'NEAR_MISS';
+      // Each type open and closed, so the closed counts (closedNearMiss among them) hold ids too.
+      const fields = (n: number) => ({
+        source: nearMiss ? ('NEAR_MISS' as const) : ('INCIDENT' as const),
+        standards: ['ISO_45001' as const],
+        incident: {
+          occurredAt: '2024-09-30T04:00:00Z',
+          location: 'Yard',
+          type,
+          outcome: nearMiss ? ('NONE' as const) : outcomes[n % outcomes.length]!,
+          personCategory: 'EMPLOYEE' as const,
+          lostDays: null,
+          reportable: false,
+          statutoryInstanceId: null,
+          investigatorIds: [],
+          workerParticipation: true,
+        },
+      });
+      seedNc(system.id, fields(i));
+      seedNc(system.id, { ...fields(i + 1), ...closedNc('2024-11-01') });
+    });
+    for (const source of NcSource.options.filter((x) => x !== 'INCIDENT' && x !== 'NEAR_MISS')) {
+      seedNc(system.id, { source, severity: 'MAJOR' });
+      seedNc(system.id, { source, ...closedNc('2024-11-01') });
+    }
+    const raised = seedNc(system.id, { source: 'INTERNAL_AUDIT', severity: 'MAJOR' });
+    seedFinding({
+      internalAuditId: ids.auditReported,
+      type: 'MAJOR_NC',
+      nonconformityId: raised.id,
+    });
+    seedFinding({ internalAuditId: ids.auditReported, type: 'GOOD_PRACTICE' });
+    seedContext(system.id, { kind: 'INTERESTED_PARTY', text: 'Regulator', needs: 'Returns' });
+    const issue = seedContext(system.id, {
+      createdAt: at('2024-05-01'),
+      updatedAt: at('2024-11-01'),
+    });
+    seedEvent({
+      at: at('2024-11-01'),
+      action: 'UPDATE',
+      entityType: 'context_item',
+      entityId: issue.id,
+      before: { text: 'Old packing line' },
+      after: { text: issue.text },
+    });
+    seedRisk(system.id, { kind: 'OPPORTUNITY' });
+    seedRisk(system.id, {
+      kind: 'ASPECT',
+      impact: 'Air emissions',
+      lifeCycleStages: ['PRODUCTION'],
+      controlType: 'CONTROL',
+      condition: 'NORMAL',
+    });
+    seedRisk(system.id, {
+      kind: 'HAZARD',
+      impact: 'Cuts',
+      routine: true,
+      personsExposed: ['WORKER'],
+      condition: 'NORMAL',
+    });
+    seedObjective(system.id, { closedOn: '2024-11-01', outcome: 'NOT_ACHIEVED' });
+
+    const review = await plan(system.id);
+    await noteAll(review.id);
+    await hold(review.id);
+    const whole = await inputs(review.id, PERSON.kabir);
+    const limited = await inputs(review.id, PERSON.rohan);
+    const named = new Set<string>();
+    const withIds = new Set<string>();
+    let dropped = 0;
+    for (const row of firm().iso.reviewInputs.filter((r) => r.managementReviewId === review.id)) {
+      if (!row.sourceFigures) continue; // a MANUAL input, stored with none
+      const keys: Record<string, { entityType: EntityType | null }> =
+        REVIEW_FIGURE_KEYS[row.sourceFigures.source as keyof typeof REVIEW_FIGURE_KEYS];
+      const of = (views: InputView[]) => views.find((v) => v.id === row.id)!;
+      const cut = of(limited);
+      for (const fig of row.sourceFigures.figures) {
+        const { entityType } = keys[fig.key]!;
+        if (fig.ids.length > 0) withIds.add(`${row.sourceFigures.source}.${fig.key}`);
+        for (const id of fig.ids) {
+          expect(entityType !== null && inTable(entityType, id), `${fig.key} ${id}`).toBe(true);
+          named.add(entityType!);
+        }
+        expect(figureOf(of(whole), fig.key)).toEqual(fig);
+        if (cut.figuresWithheld) continue;
+        const seen = figureOf(cut, fig.key);
+        expect(seen.value, fig.key).toBe(fig.value);
+        expect(fig.ids, fig.key).toEqual(expect.arrayContaining(seen.ids));
+        dropped += fig.ids.length - seen.ids.length;
+      }
+    }
+    // Every key that counts ids holds one here, so none goes unchecked, but COMPLIANCE_EVALUATION's, which name
+    // instances of a Harbour evaluation activity and are checked by id in 'gives the evaluation of compliance and the statutory score for the period' above; and
+    // the Pune owner misses some, so the subset check is not empty either.
+    const counted = Object.entries(REVIEW_FIGURE_KEYS).flatMap(([source, keys]) =>
+      Object.entries(keys)
+        .filter(([, info]) => info.entityType !== null && source !== 'COMPLIANCE_EVALUATION')
+        .map(([key]) => `${source}.${key}`),
+    );
+    expect(sorted(counted.filter((k) => !withIds.has(k)))).toEqual([]);
+    expect(sorted([...named])).toEqual(sorted([...Object.keys(tables), 'instance']));
+    expect(dropped).toBeGreaterThan(0);
+    stored(review.id).archivedAt = NOW;
   });
 });
 

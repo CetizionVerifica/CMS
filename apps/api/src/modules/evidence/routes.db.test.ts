@@ -242,6 +242,29 @@ describe('scan, download and submission', () => {
   const service = () =>
     createEvidenceService({ db: testDb.db, storage: files.storage, clock: () => NOW });
 
+  it('refuses an upload id that is not a uuid, even when the route schema is skipped (#301 audit)', async () => {
+    const i = await fresh('OPEN');
+    const direct = {
+      ctx: {
+        requestId: 'direct-call',
+        firmId: f.firmId,
+        personId: f.people.owner,
+        memberships: [],
+        clientIds: [f.clientId],
+        mfaSatisfied: true,
+        asOf: '2023-01-20',
+      },
+      authorize: () => undefined,
+    } as unknown as Parameters<ReturnType<typeof service>['confirm']>[0];
+    await expect(
+      service().confirm(direct, i.id, {
+        uploadId: '../..',
+        fileName: 'a.pdf',
+        sha256: 'c'.repeat(64),
+      }),
+    ).rejects.toMatchObject({ code: 'VALIDATION' });
+  });
+
   it('needs a clean file to submit, and downloads only a clean file, audited', async () => {
     const i = await fresh('OPEN', 'evidence');
     const ticket = await upload(i);

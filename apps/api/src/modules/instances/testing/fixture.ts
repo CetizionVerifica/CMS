@@ -290,12 +290,63 @@ const STATE: Record<WorkflowState, Partial<NewEntity<ComplianceInstance>>> = {
   },
 };
 
-/** Adds one instance to an assignment of the fixture. */
+/**
+ * Adds an ISO activity to the fixture (ISO-11a): a STANDARD act, as only the system job may insert one, with one
+ * obligation and its assignment on unit A, owned by the owner and approved by the approver. Returns the assignment id,
+ * for `addInstance`'s `assignmentId`.
+ */
+export async function addIsoAssignment(db: Database, f: Fixture): Promise<string> {
+  return db.withTenant(systemContext(f.firmId, 'fixture-iso'), async (tx) => {
+    const act = await acts.create(tx, {
+      name: `ISO 45001 activities (${randomBytes(3).toString('hex')})`,
+      shortName: null,
+      jurisdiction: 'CENTRAL',
+      stateCode: null,
+      aliases: [],
+      kind: 'STANDARD',
+    });
+    const obligation = await obligations.create(tx, {
+      externalRef: null,
+      domain: 'EHS',
+      jurisdiction: 'CENTRAL',
+      stateCode: null,
+      actId: act.id,
+      categoryId: f.categoryId,
+      title: 'Emergency drill',
+      description: 'Run the drill and record it.',
+      applicabilityText: null,
+      criticality: 'MEDIUM',
+      timelineType: 'TIME_BASED',
+      recurrenceRule: { kind: 'ANNUAL', month: 1, day: 31 },
+      ruleStatus: 'CONFIRMED',
+      evidenceRequired: false,
+      forms: [],
+      logSheets: [],
+      libraryVersion: 1,
+    });
+    const assignment = await assignments.create(tx, {
+      clientId: f.clientId,
+      unitId: f.unitA,
+      obligationId: obligation.id,
+      departmentId: f.departmentId,
+      defaultOwnerId: f.people.owner,
+      defaultApproverId: f.people.approver,
+      applicability: 'APPLICABLE',
+      naReason: null,
+      activeFrom: d('2022-04-01'),
+      activeTo: null,
+    });
+    return assignment.id;
+  });
+}
+
+/** Adds one instance to an assignment of the fixture, or to `assignmentId` (an ISO one) on unit A. */
 export async function addInstance(
   db: Database,
   f: Fixture,
   input: {
     assignment?: 'plain' | 'evidence' | 'unitB';
+    assignmentId?: string;
     periodStart: string;
     dueDate: string;
     state?: WorkflowState;
@@ -303,11 +354,12 @@ export async function addInstance(
 ): Promise<ComplianceInstance> {
   const which = input.assignment ?? 'plain';
   const assignmentId =
-    which === 'plain'
+    input.assignmentId ??
+    (which === 'plain'
       ? f.plainAssignment
       : which === 'evidence'
         ? f.evidenceAssignment
-        : f.unitBAssignment;
+        : f.unitBAssignment);
   const unitId = which === 'unitB' ? f.unitB : f.unitA;
   const ownerId = which === 'unitB' ? f.people.otherOwner : f.people.owner;
   return db.withTenant(systemContext(f.firmId, 'fixture-instance'), (tx) =>

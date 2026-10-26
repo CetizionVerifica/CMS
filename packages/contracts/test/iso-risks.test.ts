@@ -394,6 +394,18 @@ describe('listIsoRisks', () => {
     expect(ids(other.items)).not.toContain(high.id);
   });
 
+  it('narrows to the ids given, in list order, within the other filters and the reader’s units (ISO-1a4)', async () => {
+    const other = await createRisk(harbour, { ownerId: PERSON.joseph });
+    const named = async (rows: { id: string }[], query = {}, as: string = PERSON.meera) =>
+      ids((await listRisks({ ids: ids(rows).join(','), ...query }, as)).items);
+    expect(await named([low, hazard, high])).toEqual([high.id, hazard.id, low.id]);
+    expect(await named([low, hazard, high], { unitId: PUNE })).toEqual([hazard.id, low.id]);
+    expect(await named([other, low])).toEqual([low.id]);
+    expect(await named([aspect, low], {}, PERSON.rohan)).toEqual([low.id]);
+    expect(await named([low, gone])).toEqual([low.id]);
+    expect(await named([low, gone], { includeArchived: 'true' })).toEqual([gone.id, low.id]);
+  });
+
   it('keeps AP and OW to their units and the items they own (plan §3.3)', async () => {
     // The system covers every unit, so items with no unit reach nisha and rohan too.
     expect(await of({}, PERSON.nisha)).toEqual([high.id, hazard.id, low.id]);
@@ -1173,6 +1185,24 @@ describe('getIsoObjective and listIsoObjectives', () => {
     expect(await of({ ownerId: PERSON.rohan })).toEqual([early.id]);
     expect(await of({ ownerId: 'me' }, PERSON.rohan)).toEqual([early.id]);
     expect(await of({ q: 'ENERGY' })).toEqual([late.id]);
+  });
+
+  it('narrows to the ids given, in list order, within the other filters and the reader’s units (ISO-1a4)', async () => {
+    const other = await createObjective(harbour, { ownerId: PERSON.joseph });
+    const hidden = await createObjective(blr, { text: 'Office water use' });
+    const named = async (rows: { id: string }[], query = {}, as: string = PERSON.meera) =>
+      ids(
+        (
+          await ok<{ items: Objective[] }>(app, 'listIsoObjectives', {
+            as,
+            query: { ids: ids(rows).join(','), ...query },
+          })
+        ).items,
+      );
+    expect(await named([late, closed, early])).toEqual([early.id, closed.id, late.id]);
+    expect(await named([late, closed, early], { open: 'true' })).toEqual([early.id, late.id]);
+    expect(await named([other, safety])).toEqual([safety.id]);
+    expect(await named([hidden, early], {}, PERSON.rohan)).toEqual([early.id]);
   });
 
   it('keeps AP and OW to their system’s units and the objectives they own', async () => {

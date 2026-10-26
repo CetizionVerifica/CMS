@@ -839,14 +839,14 @@ describe('the ISO export kinds', () => {
         after: { kind: body.kind },
       });
     }
-    // An ISO kind takes its ISO list's filters, not the register's.
-    await fails(
-      app,
-      'createExport',
-      { as: PERSON.kabir, body: { kind: 'ISO_NC_LOG_XLSX', filters: 'status=OVERDUE' } },
-      'VALIDATION',
-      400,
-    );
+    // An ISO kind takes its ISO list's filters, not the register's, and never `ids` (1.8.5).
+    for (const body of [
+      { kind: 'ISO_NC_LOG_XLSX', filters: 'status=OVERDUE' },
+      { kind: 'ISO_NC_LOG_XLSX', filters: `ids=${seedId()}` },
+      { kind: 'ISO_RISK_REGISTER_XLSX', filters: `ids=${seedId()}` },
+    ]) {
+      await fails(app, 'createExport', { as: PERSON.kabir, body }, 'VALIDATION', 400);
+    }
   });
 
   it('answer 403 FEATURE_NOT_ENABLED on create, job read and download while off, after the role check', async () => {
