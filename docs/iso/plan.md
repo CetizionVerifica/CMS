@@ -26,8 +26,9 @@ six ISO lists the overview links to by ids, since the lists are paged (certifica
 client has few certificates) (the #296 audit, Info 4; ISO-6b, ISO-6c, ISO-8b, ISO-8c). It also places what ISO-8a (ADR
 M16-0004) and the ISO-2g audit leave to others: ISO-2i, M3's side of the `ids` filter, a role lookup so a client role
 can name a firm admin or consultant, and documents found by issuer; the mock's N/A error path in ISO-1a4; `storeFigures`
-limits in ISO-2h. Its final review adds ISO-2j, the M3 list filters ISO-8b and ISO-8c need and the person's own state in
-the role lookup, and moves ADR M16-0004's external-audit decisions 3 and 4 into ISO-8c.
+limits in ISO-2h. Its final review adds ISO-2j, the M3 list filters ISO-8b and ISO-8c need, the person's own state in
+the role lookup and two reads the #308 audit asks of M3 for ISO-10c, and moves ADR M16-0004's external-audit decisions 3
+and 4 into ISO-8c.
 
 Every ISO thread reads, in order: the root `CLAUDE.md`, this file, its own brief in [packages.md](packages.md), the
 parts of [model.md](model.md) and [catalogue.md](catalogue.md) its brief names, then the area `CLAUDE.md` of the paths
@@ -453,7 +454,7 @@ hold.
 | I5 | ISO-10b | M9 | Off switch in the existing jobs, STATUTE-only digest, ISO file scan | ISO-10a, ISO-1b, ISO-2d, ISO-2f | started |
 | I5 | ISO-14a | none (`Tooling:`) | Wire the ISO catalogue copy | ISO-9, ISO-10a | merged (#283) |
 | I5 | ISO-11b | M10 | Statutory numbers exclude ISO; off switch | ISO-1b, ISO-2e, ISO-2f, ISO-4b, ISO-11e | |
-| I6 | ISO-10c | M9 | ISO reminders | ISO-10b, ISO-2e, ISO-3 | |
+| I6 | ISO-10c | M9 | ISO reminders | ISO-10b, ISO-2e, ISO-3, ISO-2j | |
 | I6 | ISO-11d | M10 | ISO exports and ISO data in the client archive | ISO-11b, ISO-3, ISO-3b, ISO-2h | |
 | I7 | ISO-14b | none (`Tooling:`) | Wire ISO files | ISO-8c, ISO-10c, ISO-14a, ISO-15 | |
 | I7 | ISO-13 | M14 | Integrated ISO journey and off-switch sweep | every other package | |

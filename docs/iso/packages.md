@@ -946,7 +946,8 @@ v2 adds around them. Status is as of 2026-10-26 (`origin/main` at #300); plan §
   package of a module at a time, plan §5.4).
 - **Read:** ISO-2i's brief and #304; ISO-1a4's brief; `IsoActionQuery`, `NcQuery` and `InternalAuditQuery` in
   `packages/contracts/src/api/iso.ts`; ISO-8a's `checkPerson` (`apps/api/src/modules/iso/db-context.ts`); migrations
-  0011 and 0012 (`canopy_lookup` on `person`); `packages/db/CLAUDE.md`.
+  0011 and 0012 (`canopy_lookup` on `person`); `packages/db/CLAUDE.md`; the #308 audit Infos on M9's `recordIsoScan` and
+  `standardInstanceIds` (`apps/api/src/jobs/postgres-store.ts`).
 - **Paths:** `packages/db/` (a migration that replaces the lookup function and changes no column; repositories and
   tests).
 - **Delivers:**
@@ -959,9 +960,19 @@ v2 adds around them. Status is as of 2026-10-26 (`origin/main` at #300); plan §
   - The role lookup also answers false for a person who is archived or DISABLED, as ISO-8a's `checkPerson` refuses them:
     a client role cannot read a firm admin's or consultant's `person` row, so the check moves here (`canopy_lookup`
     already reads `person.status` and `archived_at`, 0012).
+  - `isoFiles.settleScan(tx, id, scanStatus)`: writes the scan status only on a live PENDING file
+    (`archived_at IS NULL AND scan_status = 'PENDING'` in the UPDATE's WHERE) and returns whether it wrote, so a remove
+    that commits between M9's read and its write is not overwritten (the #308 audit Info). `setScanStatus` stays as it
+    is for its callers.
+  - `actKindOf.instances(tx, instanceIds)`: the act kind of many instances in one read per 1,000 ids, with
+    `actKindOf.instance`'s joins and its answer for archived rows; ids it cannot see are left out. M9's
+    `standardInstanceIds` reads one instance at a time today (the #308 audit Info).
 - **Tests:** each new filter alone, with another and across two pages, in a unit-limited scope; an action's system
   through each subject type; `ids` on internal audits as ISO-2i's tests; the lookup for an archived and a DISABLED
-  consultant of the client (false), and an INVITED and an UNCLAIMED one (true).
+  consultant of the client (false), and an INVITED and an UNCLAIMED one (true); `settleScan` on a PENDING, an already
+  scanned and an archived file, and on a file archived by a second transaction while the first waits on its row (false,
+  the status unchanged); `actKindOf.instances` for STATUTE and STANDARD instances, an archived one, one of another
+  client the scope cannot see, and 1,001 ids.
 
 ## ISO-6c · M17 · ISO screens 3: audits, nonconformities, management reviews
 - **Thread title:** "ISO-6c: ISO screens, part 3". **Needs:** ISO-6b, ISO-1a3 (the mock's stored figures,
@@ -1166,25 +1177,29 @@ v2 adds around them. Status is as of 2026-10-26 (`origin/main` at #300); plan §
   numbers; the register export with `source=ISO`, `source=LAW` and the feature off; golden counts unchanged.
 
 ## ISO-10c · M9 · ISO reminders
-- **Thread title:** "ISO-10c: ISO reminders". **Needs:** ISO-10b, ISO-2e, ISO-3.
+- **Thread title:** "ISO-10c: ISO reminders". **Needs:** ISO-10b, ISO-2e, ISO-3, ISO-2j.
 - **Read:** model §7.
 - **Paths:** `apps/api/src/jobs/`, `packages/notifications/` (templates).
 - **Delivers:** a daily ISO reminder run (client time, like `reminders`) that builds one `IsoNotificationInput` per
   subject, kind and anchor date (model §5.3, §7), resolving the recipients the §7 table names, calls
   `planIsoNotifications` with `ISO_REMINDER_SCHEDULE`, claims each send on `ISO_NOTIFICATION_DEDUPE_KEY`, and sends
   through `recipients(personIds, clientId)`. ISO-2b (#272) keeps the statutory send keys as they are: `ops.listDone`
-  returns instance and digest rows only, so M9's `SendKey.kind` stays `NotificationKind`, and ISO rows come from the
-  new `ops.listDoneIso(tx, clientId, sendDate)` as `IsoSendKey` (`isoSubjectType`, `isoSubjectId`, an
+  returns instance and digest rows only, so M9's `SendKey.kind` stays `NotificationKind`, and ISO rows come from the new
+  `ops.listDoneIso(tx, clientId, sendDate)` as `IsoSendKey` (`isoSubjectType`, `isoSubjectId`, an
   `IsoNotificationKind`); `ops.claim`, `markSent` and `markFailed` take the subject on a `NotificationSend`. M9 adds an
-  ISO send key beside `SendKey` in `apps/api/src/jobs/ports.ts` and `postgres-store.ts` methods over those, so the
-  ISO run's done set comes from `listDoneIso`; `sendKeyString` in
-  `apps/api/src/jobs/send.ts` appends `isoSubjectType:isoSubjectId` when they are set (it is the done-set key and the
-  source of the mailer's Message-ID in `smtp-mailer.ts`, so each ISO subject gets its own); templates for the nine
-  kinds; lists accounts with `listFirmIdsWithFeature('isoManagement')` (ISO-2f) and skips those not yet copied
-  (`FirmTx.accountFeatures()`, ISO-10a).
-- **Tests:** one person with two actions due the same day gets two emails, and a second run sends neither again;
-  a `send.test.ts` case: two ISO keys that differ only in subject give different strings; time-zone tests for
-  Asia/Kolkata; no reminder for closed subjects; the overdue management review repeats every 30 days.
+  ISO send key beside `SendKey` in `apps/api/src/jobs/ports.ts` and `postgres-store.ts` methods over those, so the ISO
+  run's done set comes from `listDoneIso`; `sendKeyString` in `apps/api/src/jobs/send.ts` appends
+  `isoSubjectType:isoSubjectId` when they are set (it is the done-set key and the source of the mailer's Message-ID in
+  `smtp-mailer.ts`, so each ISO subject gets its own); templates for the nine kinds; lists accounts with
+  `listFirmIdsWithFeature('isoManagement')` (ISO-2f) and skips those not yet copied (`FirmTx.accountFeatures()`,
+  ISO-10a). It also takes the two #308 audit Infos in `postgres-store.ts`: `recordIsoScan` writes through ISO-2j's
+  `isoFiles.settleScan` and answers its result, and `standardInstanceIds` reads through `actKindOf.instances` in place
+  of one read per instance.
+- **Tests:** one person with two actions due the same day gets two emails, and a second run sends neither again; a
+  `send.test.ts` case: two ISO keys that differ only in subject give different strings; time-zone tests for
+  Asia/Kolkata; no reminder for closed subjects; the overdue management review repeats every 30 days; ISO-10b's
+  `iso-switch.db.test.ts` cases for `recordIsoScan` and `standardInstanceIds` stay green, plus a file removed between
+  the scan's read and its write keeps its status.
 
 ## ISO-11d · M10 · ISO exports and ISO data in the client archive
 - **Thread title:** "ISO-11d: ISO exports and the client archive". **Needs:** ISO-11b, ISO-3, ISO-3b, ISO-2h.
@@ -1464,3 +1479,4 @@ How plan v2.3 takes in what the audits of #268 (ISO-12a, merged) and #273 (ISO-2
 | ADR M16-0004 decisions 3 and 4: external audits' later steps and the standards check on their PATCH wait for ISO-8c | ISO-8c |
 | Final review of #303: an over-200 documents link opened the ACTIVE list only; the My ISO actions card's `owner=me` | ISO-6b |
 | Statuses: #299, #300 and #301 merged; ISO-2i, ISO-1a3, ISO-6b and ISO-10b started | plan §6 |
+| #308 audit Infos: `recordIsoScan` reads then writes without a guard, so a remove can race it; `standardInstanceIds` reads one instance at a time | ISO-2j (`isoFiles.settleScan`, `actKindOf.instances`); ISO-10c (M9 uses them) |
