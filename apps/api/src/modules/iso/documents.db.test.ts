@@ -25,6 +25,7 @@ afterAll(async () => {
   await h?.close();
 });
 
+/** A record's audit events, oldest first; one request's events share `at`, so they are ordered by content. */
 const audit = (entityId: string) =>
   h.testDb.query<{
     action: string;
@@ -32,7 +33,7 @@ const audit = (entityId: string) =>
     reason: string | null;
     actor_id: string;
   }>(
-    'SELECT action, after, reason, actor_id FROM audit_event WHERE entity_id = $1 ORDER BY at, id',
+    'SELECT action, after, reason, actor_id FROM audit_event WHERE entity_id = $1 ORDER BY at, action, after::text, reason',
     [entityId],
   );
 
@@ -280,21 +281,25 @@ describe('the revision machine (model §4.2)', () => {
       ['B', 'APPROVED'],
       ['A', 'SUPERSEDED'],
     ]);
+    // The approval's events share one transaction time, and the uuid v7 ids order them only to the millisecond, so
+    // they are compared as a set; the state checks above and below show the write order held.
     const rows = await h.testDb.query<{
       action: string;
       entity_id: string;
       after: Record<string, unknown>;
     }>(
       `SELECT action, entity_id, after FROM audit_event
-        WHERE entity_id = ANY($1) AND (action <> 'CREATE') ORDER BY at, id`,
+        WHERE entity_id = ANY($1) AND at = (SELECT max(at) FROM audit_event WHERE entity_id = ANY($1))`,
       [[draft.id, b.id, doc.id]],
     );
-    const tail = rows.slice(-3).map((r) => [r.entity_id, r.action, r.after.action ?? null]);
-    expect(tail).toEqual([
-      [draft.id, 'TRANSITION', 'SUPERSEDE'],
-      [b.id, 'TRANSITION', 'APPROVE'],
-      [doc.id, 'UPDATE', null],
-    ]);
+    const last = rows.map((r) => [r.entity_id, r.action, r.after.action ?? null]);
+    expect(last.sort()).toEqual(
+      [
+        [draft.id, 'TRANSITION', 'SUPERSEDE'],
+        [b.id, 'TRANSITION', 'APPROVE'],
+        [doc.id, 'UPDATE', null],
+      ].sort(),
+    );
     const current = await h.testDb.query<{ state: string }>(
       `SELECT r.state FROM controlled_document d JOIN document_revision r ON r.id = d.current_revision_id
         WHERE d.id = $1`,

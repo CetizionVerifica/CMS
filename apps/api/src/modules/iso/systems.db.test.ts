@@ -17,6 +17,7 @@ afterAll(async () => {
   await h?.close();
 });
 
+/** A record's audit events, oldest first; one request's events share `at`, so they are ordered by content. */
 const audit = (entityId: string) =>
   h.testDb.query<{
     action: string;
@@ -25,7 +26,7 @@ const audit = (entityId: string) =>
     reason: string | null;
     actor_id: string;
   }>(
-    'SELECT action, before, after, reason, actor_id FROM audit_event WHERE entity_id = $1 ORDER BY at, id',
+    'SELECT action, before, after, reason, actor_id FROM audit_event WHERE entity_id = $1 ORDER BY at, action, after::text, reason',
     [entityId],
   );
 
