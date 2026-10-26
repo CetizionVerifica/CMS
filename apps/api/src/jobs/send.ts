@@ -1,10 +1,18 @@
 import type { Id } from '@canopy/contracts';
 import { renderEmail, type EmailMessage } from '@canopy/notifications';
-import type { FirmTx, JobDeps, JobReport, SendFailureCode, SendKey } from './ports.js';
+import type { AnySendKey, FirmTx, JobDeps, JobReport, SendFailureCode } from './ports.js';
 
-export function sendKeyString(key: SendKey): string {
+/**
+ * The send's identity as a string: the done-set key and the source of the mailer's Message-ID. An ISO reminder adds its
+ * subject, so two ISO records due the same day for the same person are two keys (`ISO_NOTIFICATION_DEDUPE_KEY`).
+ */
+export function sendKeyString(key: AnySendKey): string {
   if (key.eventId) return ['event', key.eventId, key.recipientId].join(':');
-  return [key.kind, key.instanceId ?? key.recipientId, key.recipientId, key.sendDate].join(':');
+  const parts = [key.kind, key.instanceId ?? key.recipientId, key.recipientId, key.sendDate];
+  if ('isoSubjectId' in key && key.isoSubjectId) {
+    parts.push(`${key.isoSubjectType}:${key.isoSubjectId}`);
+  }
+  return parts.join(':');
 }
 
 function bump(report: JobReport, name: string): void {
@@ -21,7 +29,7 @@ export async function deliver(
   deps: JobDeps,
   firmId: Id,
   requestId: string,
-  key: SendKey,
+  key: AnySendKey,
   to: { name: string; email: string | null; canReceive: boolean },
   message: EmailMessage | (() => Promise<EmailMessage>),
   job: string,
@@ -61,6 +69,10 @@ export async function deliver(
         instanceId: key.instanceId,
         sendDate: key.sendDate,
         sourceEventId: key.eventId ?? null,
+        ...('isoSubjectId' in key && {
+          isoSubjectType: key.isoSubjectType,
+          isoSubjectId: key.isoSubjectId,
+        }),
       },
     }),
   );
