@@ -42,6 +42,7 @@ import {
   keysetPage,
   linksOf,
   pageShape,
+  RecordIds,
   setLinks,
   SYSTEM_UNITS,
   systemUnitsMatch,
@@ -410,11 +411,13 @@ const revisionEntity = entity<DocumentRevision>({
 
 export const DocumentFilter = z.strictObject({
   ...pageShape,
+  /** Only these documents (ISO-2i): AND'd with the other filters and the scope; drops the ACTIVE-only default. */
+  ids: RecordIds.optional(),
   managementSystemIds: z.array(Id).optional(),
-  /** Case-insensitive substring of the code or title. */
+  /** Case-insensitive substring of the code, title, issuer or external reference. */
   q: z.string().trim().min(1).max(200).optional(),
   type: z.array(DocumentType).optional(),
-  /** Default: ACTIVE only (model §4.2). */
+  /** Default: ACTIVE only (model §4.2), unless `ids` is given (a document in its first review is not ACTIVE). */
   status: z.array(DocumentStatus).optional(),
   ownerId: Id.optional(),
   approverId: Id.optional(),
@@ -441,7 +444,7 @@ export const controlledDocuments = {
     const f = validate(DocumentFilter, filter);
     const d = s.controlledDocument;
     const text = f.q?.trim();
-    const status = f.status ?? ['ACTIVE'];
+    const status = f.status ?? (f.ids ? undefined : ['ACTIVE']);
     const { items, nextCursor, total } = await keysetPage(tx, {
       table: d,
       id: d.id,
@@ -452,13 +455,19 @@ export const controlledDocuments = {
         eq(d.clientId, clientId),
         f.includeArchived ? undefined : isNull(d.archivedAt),
         anyOf(d.managementSystemId, f.managementSystemIds),
-        status.length ? inArray(d.status, status) : sql`false`,
+        anyOf(d.id, f.ids),
+        status && (status.length ? inArray(d.status, status) : sql`false`),
         f.type && (f.type.length ? inArray(d.type, f.type) : sql`false`),
         f.ownerId ? eq(d.ownerId, f.ownerId) : undefined,
         f.approverId ? eq(d.approverId, f.approverId) : undefined,
         f.clauseIds && sql`${d.clauseIds} && ${uuids(f.clauseIds)}`,
         text
-          ? or(ilike(d.code, containsPattern(text)), ilike(d.title, containsPattern(text)))
+          ? or(
+              ilike(d.code, containsPattern(text)),
+              ilike(d.title, containsPattern(text)),
+              ilike(d.issuer, containsPattern(text)),
+              ilike(d.externalRef, containsPattern(text)),
+            )
           : undefined,
         f.scope &&
           inScope(f.scope, systemUnitsMatch(d.managementSystemId, f.scope.unitIds), [

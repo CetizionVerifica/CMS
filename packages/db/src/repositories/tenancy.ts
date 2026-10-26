@@ -7,6 +7,7 @@ import {
   Location,
   Membership,
   Person,
+  Role,
   Unit,
   Id,
 } from '@canopy/contracts';
@@ -350,7 +351,33 @@ const membershipEntity = entity<Membership>({
   schema: Membership,
   toRow: instantsToDates('expiresAt'),
 });
+/** A role check for ISO-2i's lookup: one to all of the roles, a client and, optionally, a unit of it. */
+export const RoleCheck = z.strictObject({
+  personId: Id,
+  roles: z.array(Role).min(1).max(Role.options.length),
+  clientId: Id,
+  unitId: Id.optional(),
+});
+export type RoleCheck = z.input<typeof RoleCheck>;
+
 export const memberships = {
+  /**
+   * Whether a person holds one of `roles` in a client, covering `unitId` when given (model §1 rule 5): a live
+   * membership in this firm that is firm-wide (FIRM_ADMIN), for the client (a client role, or a CONSULTANT listing
+   * it), and lists no units or lists the unit. Answers about memberships this context cannot read, through the
+   * SECURITY DEFINER `canopy_person_holds_role` (migration 0044), with a yes or no and no rows; false for a client
+   * this context may not see or a unit that is not the client's.
+   */
+  async holdsRole(tx: TenantTx, check: RoleCheck): Promise<boolean> {
+    const c = validate(RoleCheck, check);
+    const roles = sql`${`{${c.roles.join(',')}}`}::"role"[]`;
+    const { rows } = await tx
+      .execute<{ held: boolean }>(
+        sql`SELECT canopy_person_holds_role(${c.personId}, ${roles}, ${c.clientId}, ${c.unitId ?? null}::uuid) AS held`,
+      )
+      .catch(rethrow);
+    return rows[0]?.held === true;
+  },
   get: membershipEntity.get,
   require: membershipEntity.require,
   query: membershipEntity.query,
