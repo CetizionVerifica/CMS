@@ -102,6 +102,21 @@ describe('SystemOverview', () => {
     expect(within(docs).getByText(/all of the system's records/)).toBeTruthy();
   });
 
+  it('shows a count of 0 without a link, since there is nothing to open', () => {
+    render(
+      <SystemOverview
+        clientId={C}
+        system={{ ...view, documents: { ...view.documents, reviewOverdue: { count: 0, ids: [] } } }}
+        standards={ISO.standards}
+        missing={{ unitNames: {}, inputDefs: [] }}
+        clauseNumbers={{}}
+      />,
+    );
+    const docs = screen.getByRole('region', { name: 'Documents' });
+    expect(within(docs).queryByRole('link', { name: /review overdue/ })).toBeNull();
+    expect(within(docs).getByText('0')).toBeTruthy();
+  });
+
   it('warns about climate gaps and copes with no programme', () => {
     render(
       <SystemOverview

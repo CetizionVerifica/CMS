@@ -226,6 +226,9 @@ test.describe('ISO screens part 2 at 1280px', () => {
     ] as const) {
       await page.goto(`${ISO}/overview`);
       const link = page.getByRole('region', { name: group }).getByRole('link', { name: label });
+      await expect(page.getByRole('heading', { level: 1, name: 'ISO overview' })).toBeVisible();
+      // A count of 0 is not a link: there is nothing to open.
+      if ((await link.count()) === 0) continue;
       const counted = (await link.innerText()).trim();
       await link.click();
       await expect(page).toHaveURL(path);
