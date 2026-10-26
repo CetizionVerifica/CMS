@@ -905,6 +905,7 @@ export const managementReviews = {
 /**
  * Adds a review's input or output rows: one per key of these standards' definitions that the review has no row
  * for yet, a key shared by several standards once (the definition of the lowest standard code). Returns the ids.
+ * The keys hold among live rows only (migration 0043), so the arbiter names the same predicate.
  */
 async function addReviewRows(
   tx: TenantTx,
@@ -925,7 +926,7 @@ async function addReviewRows(
           AND NOT EXISTS (SELECT 1 FROM ${table} x JOIN ${defs} d2 ON d2.id = x.${def}
             WHERE x.management_review_id = ${review.id}::uuid AND x.archived_at IS NULL AND d2.key = d.key)
         ORDER BY d.key, st.code, d.id
-        ON CONFLICT (management_review_id, ${def}) DO NOTHING
+        ON CONFLICT (management_review_id, ${def}) WHERE archived_at IS NULL DO NOTHING
         RETURNING id`,
     )
     .catch(rethrow);
