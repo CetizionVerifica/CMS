@@ -83,6 +83,25 @@ describe('SystemOverview', () => {
     );
   });
 
+  it('says when a count has too many records to name in its link', () => {
+    const many = Array.from({ length: 201 }, (_, i) => `d${i}`);
+    render(
+      <SystemOverview
+        clientId={C}
+        system={{ ...view, documents: { ...view.documents, inReview: { count: 201, ids: many } } }}
+        standards={ISO.standards}
+        missing={{ unitNames: {}, inputDefs: [] }}
+        clauseNumbers={{}}
+      />,
+    );
+    const docs = screen.getByRole('region', { name: 'Documents' });
+    const link = within(docs).getByRole('link', { name: /^201 revision in review, / });
+    expect(link.getAttribute('href')).toBe(
+      `/c/${C}/iso/documents?managementSystemId=${view.managementSystemId}`,
+    );
+    expect(within(docs).getByText(/all of the system's records/)).toBeTruthy();
+  });
+
   it('warns about climate gaps and copes with no programme', () => {
     render(
       <SystemOverview

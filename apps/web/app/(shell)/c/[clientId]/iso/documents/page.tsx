@@ -97,7 +97,7 @@ export default async function IsoDocumentsPage({ params, searchParams }: Props) 
       {header}
       <DocumentsView
         clientId={clientId}
-        rows={documentRows(docs, peopleList, filters.ids)}
+        rows={documentRows(docs, peopleList)}
         filters={documentFilterDefs()}
         filterValue={{
           type: filters.type,

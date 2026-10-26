@@ -44,16 +44,19 @@ function Card({
 
 function Count({ item }: { item: CountLink }) {
   return (
-    <li className="flex items-baseline justify-between gap-3">
-      <span className="text-body text-muted">{item.label}</span>
-      <NextLink
-        href={item.href}
-        prefetch={false}
-        className="text-body font-semibold text-forest tabular-nums underline-offset-2 hover:underline"
-        aria-label={`${item.count} ${item.label.toLowerCase()}`}
-      >
-        {item.count}
-      </NextLink>
+    <li className="flex flex-col gap-0.5">
+      <span className="flex items-baseline justify-between gap-3">
+        <span className="text-body text-muted">{item.label}</span>
+        <NextLink
+          href={item.href}
+          prefetch={false}
+          className="text-body font-semibold text-forest tabular-nums underline-offset-2 hover:underline"
+          aria-label={`${item.count} ${item.label.toLowerCase()}${item.note ? `, ${item.note}` : ''}`}
+        >
+          {item.count}
+        </NextLink>
+      </span>
+      {item.note ? <span className="text-meta text-muted">{item.note}</span> : null}
     </li>
   );
 }

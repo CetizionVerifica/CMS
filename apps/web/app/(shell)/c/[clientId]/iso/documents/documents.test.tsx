@@ -70,7 +70,6 @@ describe('DocumentsView', () => {
     const rows = documentRows(
       [...ISO.docs, doc('NFG-WI-02', { id: 'obs', status: 'OBSOLETE' })],
       ISO.people,
-      [],
     );
     render(
       <DocumentsView
