@@ -361,6 +361,56 @@ describe('actKindOf', () => {
     expect(await failure(asAdmin((tx) => r.actKindOf.instance(tx, 'not-an-id')))).toBe(
       'VALIDATION',
     );
+    expect(await failure(asAdmin((tx) => r.actKindOf.instances(tx, ['not-an-id'])))).toBe(
+      'VALIDATION',
+    );
+  });
+
+  it('names the kinds of many instances at once, archived ones too, leaving out what it cannot see (ISO-2j)', async () => {
+    const both = [w.statute.instanceId, w.standard.instanceId];
+    expect(await asAdmin((tx) => r.actKindOf.instances(tx, both))).toEqual(
+      new Map([
+        [w.statute.instanceId, 'STATUTE'],
+        [w.standard.instanceId, 'STANDARD'],
+      ]),
+    );
+    expect(await asAdmin((tx) => r.actKindOf.instances(tx, []))).toEqual(new Map());
+
+    await t.ownerQuery('UPDATE compliance_instance SET archived_at = now() WHERE id = $1', [
+      w.standard.instanceId,
+    ]);
+    try {
+      expect(await asAdmin((tx) => r.actKindOf.instances(tx, [w.standard.instanceId]))).toEqual(
+        new Map([[w.standard.instanceId, 'STANDARD']]),
+      );
+    } finally {
+      await t.ownerQuery('UPDATE compliance_instance SET archived_at = null WHERE id = $1', [
+        w.standard.instanceId,
+      ]);
+    }
+
+    const outsider: TenantContext = {
+      firmId,
+      personId: w.ownerId,
+      clientIds: [w.otherClientId],
+      requestId: 'act-kinds-test',
+    };
+    expect(await t.db.withTenant(outsider, (tx) => r.actKindOf.instances(tx, both))).toEqual(
+      new Map(),
+    );
+
+    // 1,001 ids take two reads; the second read's id is answered too, and a repeated id once.
+    const ids: string[] = Array.from({ length: 1001 }, () => crypto.randomUUID());
+    ids[0] = w.statute.instanceId;
+    ids[1000] = w.standard.instanceId;
+    expect(
+      await asAdmin((tx) => r.actKindOf.instances(tx, [...ids, w.statute.instanceId])),
+    ).toEqual(
+      new Map([
+        [w.statute.instanceId, 'STATUTE'],
+        [w.standard.instanceId, 'STANDARD'],
+      ]),
+    );
   });
 });
 

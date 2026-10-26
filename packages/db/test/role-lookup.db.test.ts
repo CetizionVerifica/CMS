@@ -225,6 +225,47 @@ describe('memberships.holdsRole (canopy_person_holds_role)', () => {
     expect(await holds(ctx, w.archivedApprover, ['APPROVER'], w.kestrel)).toBe(false);
   });
 
+  it('needs the person live too: not DISABLED, not archived; INVITED and UNCLAIMED count (ISO-2j, migration 0045)', async () => {
+    const system = systemContext(firmId, 'role-lookup-test');
+    const consultant = (name: string, email: string | null, status: 'UNCLAIMED' | 'INVITED') =>
+      t.db.withTenant(system, async (tx) => {
+        const person = await r.people.create(tx, {
+          displayName: name,
+          nameNormalized: name.toLowerCase(),
+          email,
+          status,
+        });
+        await r.memberships.create(tx, {
+          personId: person.id,
+          role: 'CONSULTANT',
+          clientId: null,
+          consultantClientIds: [w.kestrel],
+          unitIds: null,
+          expiresAt: null,
+        });
+        return person.id;
+      });
+    const disabled = await consultant('Disabled Consultant', 'disabled@demo.example', 'INVITED');
+    const archived = await consultant('Archived Consultant', null, 'UNCLAIMED');
+    const invited = await consultant('Invited Consultant', 'invited@demo.example', 'INVITED');
+    const unclaimed = await consultant('Unclaimed Consultant', null, 'UNCLAIMED');
+    const ctx = kestrelAdmin();
+    for (const id of [disabled, archived, invited, unclaimed]) {
+      expect(await holds(ctx, id, ['CONSULTANT'], w.kestrel)).toBe(true);
+    }
+    await t.db.withTenant(system, async (tx) => {
+      const d = await r.people.require(tx, disabled);
+      await r.people.update(tx, d.id, d.version, { status: 'DISABLED' });
+      const a = await r.people.require(tx, archived);
+      await r.people.archive(tx, a.id, a.version);
+    });
+    // Their memberships stay live; the person is what fails.
+    expect(await holds(ctx, disabled, ['CONSULTANT'], w.kestrel)).toBe(false);
+    expect(await holds(ctx, archived, ['CONSULTANT'], w.kestrel)).toBe(false);
+    expect(await holds(ctx, invited, ['CONSULTANT'], w.kestrel)).toBe(true);
+    expect(await holds(ctx, unclaimed, ['CONSULTANT'], w.kestrel)).toBe(true);
+  });
+
   it('is false for a client of another firm or no client at all, even firm-wide', async () => {
     const firmWide = systemContext(firmId, 'role-lookup-test');
     const otherClient = await t.db.withTenant(

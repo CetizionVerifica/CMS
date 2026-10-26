@@ -316,6 +316,13 @@
       "when": 1793051838954,
       "tag": "0044_person_holds_role",
       "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "7",
+      "when": 1793053689276,
+      "tag": "0045_person_holds_role_live_person",
+      "breakpoints": true
     }
   ]
 }
