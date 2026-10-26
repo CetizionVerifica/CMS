@@ -1,6 +1,6 @@
 # ISO management systems add-on: plan (v2)
 
-Status: v2.5.1, 2026-10-26. Decisions: ADR [M16-0001](../adr/M16-0001-iso-management-systems.md), amended by ADRs
+Status: v2.5.2, 2026-10-26. Decisions: ADR [M16-0001](../adr/M16-0001-iso-management-systems.md), amended by ADRs
 [M16-0002](../adr/M16-0002-iso-plan-v2.md) and [M16-0003](../adr/M16-0003-stored-review-figures.md). v2 answers the 58
 findings of the independent review of v1 (trace at the end of [packages.md](packages.md)). v2.1 takes in the departures
 the ISO contracts (ISO-1, contracts 1.8.0) list in `docs/contracts/README.md` decision 51 (a-n), and points the API,
@@ -20,7 +20,13 @@ leave for later briefs. v2.5.1 closes the gaps a check of v2.5 found after it me
 climate-decision and late-finding days; risk kinds per input key; the window's first day; client-local days in M3; the
 residual-clear marker's writer) and shows a review's incident figures only to readers who see its whole system or took
 part in it (the #291 audit; model §3.11, §3.13, §5.4, §9; plan §3.3; ISO-1a3, ISO-2h, ISO-3b, ISO-6c, ISO-8b, ISO-8c,
-ISO-11d).
+ISO-11d). v2.5.2 words the readings ISO-1a3 took where the model was silent (an external audit's moved `endOn`, records
+with no trail, a rationale-only climate change; model §3.11, §5.4, §8) and adds ISO-1a4, an `ids` filter on four of the
+five ISO lists the overview links to by ids, since the lists are paged (certification keeps its page's own filter: a
+client has few certificates) (the #296 audit, Info 4; ISO-6b, ISO-6c, ISO-8b, ISO-8c). It also places what ISO-8a (ADR
+M16-0004) and the ISO-2g audit leave to others: ISO-2i, M3's side of the `ids` filter, a role lookup so a client role
+can name a firm admin or consultant, and documents found by issuer; the mock's N/A error path in ISO-1a4; `storeFigures`
+limits in ISO-2h.
 
 Every ISO thread reads, in order: the root `CLAUDE.md`, this file, its own brief in [packages.md](packages.md), the
 parts of [model.md](model.md) and [catalogue.md](catalogue.md) its brief names, then the area `CLAUDE.md` of the paths
@@ -372,10 +378,10 @@ ISO-14a (the catalogue copy) and ISO-14b (ISO files) are those packages.
 - M17's `e2e/tests/iso/`, M11's `e2e/tests/shell/`, M12's `e2e/tests/register/` and M13's `e2e/tests/overview/` lie
   inside M14's `e2e/`. A package that changes files there and an M14 thread may run at the same time only while the
   M14 thread does not touch those files (§5.5).
-- Up to five threads at once, as for the main build, not counting ISO-1a, ISO-1a2 and ISO-1a3, which continue the ISO-1
-  thread: six run while one of them is open, and another package starts only when fewer than five of the others run.
-  Each thread marks its PR ready only when it expects it to pass, gets it audited in a separate session, and merges
-  `main` before marking ready.
+- Up to five threads at once, as for the main build, not counting ISO-1a, ISO-1a2, ISO-1a3 and ISO-1a4, which continue
+  the ISO-1 thread: six run while one of them is open, and another package starts only when fewer than five of the
+  others run. Each thread marks its PR ready only when it expects it to pass, gets it audited in a separate session, and
+  merges `main` before marking ready.
 
 ### 5.5 Merging main
 
@@ -393,7 +399,9 @@ before any package that depends on the change starts.
 ## 6. Packages and waves
 
 Briefs: [packages.md](packages.md). Waves are for orientation; the Needs column decides. Status as of 2026-10-26
-(`origin/main` at #292). ISO-3 and ISO-7b started before ISO-1a was added to their Needs, and merged after it.
+(`origin/main` at #296). ISO-3 and ISO-7b started before ISO-1a was added to their Needs, and merged after it. ISO-6b
+may start before ISO-1a4 but marks its PR ready only once ISO-1a4 has merged (its brief), which the Needs column cannot
+hold.
 
 | Wave | Package | Module | Title | Needs | Status |
 |---|---|---|---|---|---|
@@ -413,30 +421,32 @@ Briefs: [packages.md](packages.md). Waves are for orientation; the Needs column 
 | I3 | ISO-12a | M13 | Audit trail words for ISO entity types | ISO-1, ISO-12b | merged (#268) |
 | I3 | ISO-11e | M10 | Default branch in the export builder ahead of new export kinds | ISO-1 | merged (#267) |
 | I3 | ISO-11c | M12 | Source filter on register, approvals, calendar and evidence screens | ISO-1, ISO-7b | merged (#290) |
-| I3 | ISO-6a | M17 | ISO screens 1: gate, overview, systems, checklist, documents, certification | ISO-1, ISO-7, ISO-7b | started |
+| I3 | ISO-6a | M17 | ISO screens 1: gate, overview, systems, checklist, documents, certification | ISO-1, ISO-7, ISO-7b | merged (#296) |
 | I3 | ISO-2c | M3 | Library guards, clause references and the catalogue marker | ISO-2b | merged (#273) |
 | I3 | ISO-12d | M13 | ISO states in words on the audit trail page | ISO-12a | merged (#275) |
-| I3 | ISO-1b | M0 | Join the staged ISO enum values | ISO-1a, ISO-2b, ISO-12a, ISO-11e | started (#294) |
+| I3 | ISO-1b | M0 | Join the staged ISO enum values | ISO-1a, ISO-2b, ISO-12a, ISO-11e | merged (#294) |
 | I3 | ISO-16 | M8 | Import matches and creates STATUTE acts only | ISO-2c | started (#287) |
 | I3 | ISO-5b | M15 | Features-changed event and copy status in the console | ISO-1, ISO-2c, ISO-5 | merged (#285) |
-| I4 | ISO-1a3 | M0 | Review figures: step days, figure keys, nothing before set-up, withheld incidents | ISO-1a2, ISO-1b | |
+| I4 | ISO-1a3 | M0 | Review figures: step days, figure keys, nothing before set-up, withheld incidents | ISO-1a2, ISO-1b | started |
+| I4 | ISO-1a4 | M0 | An `ids` filter on the ISO lists the overview links to | ISO-1b | |
 | I4 | ISO-2d | M3 | ISO tables 1: catalogue copy, systems, checklist, documents, certification, files | ISO-2c | merged (#276) |
 | I4 | ISO-4b | M5 | ISO policy rows, `hasFeature`, readiness and multi-unit scope | ISO-1a, ISO-2c, ISO-4c | merged (#281) |
 | I4 | ISO-10a | M9 | Copy the ISO catalogue when the add-on comes on | ISO-1, ISO-2c | merged (#277) |
 | I4 | ISO-3b | M4 | As-of date reads for review figures | ISO-3, ISO-1a3 | |
 | I4 | ISO-6b | M17 | ISO screens 2: risks, objectives, actions | ISO-6a, ISO-1b | |
-| I4 | ISO-12c | M13 | Statutory numbers link to Law only | ISO-1, ISO-11c, ISO-12a | |
+| I4 | ISO-12c | M13 | Statutory numbers link to Law only | ISO-1, ISO-11c, ISO-12a | merged (#298) |
 | I4 | ISO-9 | M6 | ISO catalogue as code and `copyIsoCatalogue` | ISO-2d | merged (#279) |
 | I4 | ISO-2e | M3 | ISO tables 2: risks, objectives, actions, audits, NCs, reviews | ISO-2d | merged (#280) |
-| I4 | ISO-15 | M7 | ISO file service (`IsoFiles`) | ISO-1b, ISO-2d | |
-| I5 | ISO-8a | M16 | ISO API 1: gate, audit gate test, systems, checklist, documents, certification, files | ISO-1b, ISO-2d, ISO-3, ISO-4b | |
-| I5 | ISO-2f | M3 | Act-kind and feature-aware reads, accounts by feature | ISO-2e | started (#282) |
-| I5 | ISO-2g | M3 | Stored review figure columns and live-only review-row keys (migration) | ISO-2e, ISO-1a2 | |
+| I4 | ISO-15 | M7 | ISO file service (`IsoFiles`) | ISO-1b, ISO-2d | started (#301) |
+| I5 | ISO-8a | M16 | ISO API 1: gate, audit gate test, systems, checklist, documents, certification, files | ISO-1b, ISO-2d, ISO-3, ISO-4b | started (#302) |
+| I5 | ISO-2f | M3 | Act-kind and feature-aware reads, accounts by feature | ISO-2e | merged (#282) |
+| I5 | ISO-2g | M3 | Stored review figure columns and live-only review-row keys (migration) | ISO-2e, ISO-1a2 | started (#299) |
 | I5 | ISO-2h | M3 | Review figure reads: gather, store, visible ids, rows that follow a replan | ISO-2g, ISO-1a3 | |
-| I5 | ISO-6c | M17 | ISO screens 3: audits, nonconformities, management reviews | ISO-6b, ISO-1a3 | |
-| I5 | ISO-8b | M16 | ISO API 2: risks, objectives, actions | ISO-8a, ISO-2e | |
-| I5 | ISO-8c | M16 | ISO API 3: internal audits, external-audit findings, nonconformities, management reviews, overview | ISO-8b, ISO-2h, ISO-3b | |
-| I5 | ISO-9b | M6 | Hide and refuse STANDARD library rows when off; no cross-kind changes | ISO-9, ISO-2f, ISO-4b | |
+| I5 | ISO-2i | M3 | `ids` on four ISO lists; role lookup for people named by client roles; documents found by issuer | ISO-2e | |
+| I5 | ISO-6c | M17 | ISO screens 3: audits, nonconformities, management reviews | ISO-6b, ISO-1a3, ISO-1a4 | |
+| I5 | ISO-8b | M16 | ISO API 2: risks, objectives, actions | ISO-8a, ISO-2e, ISO-1a4, ISO-2i | |
+| I5 | ISO-8c | M16 | ISO API 3: internal audits, external-audit findings, nonconformities, management reviews, overview | ISO-8b, ISO-2h, ISO-3b, ISO-2i | |
+| I5 | ISO-9b | M6 | Hide and refuse STANDARD library rows when off; no cross-kind changes | ISO-9, ISO-2f, ISO-4b | started (#300) |
 | I5 | ISO-11a | M7 | Source filter and the off switch on instances and evidence | ISO-15, ISO-2f, ISO-4b | |
 | I5 | ISO-10b | M9 | Off switch in the existing jobs, STATUTE-only digest, ISO file scan | ISO-10a, ISO-1b, ISO-2d, ISO-2f | |
 | I5 | ISO-14a | none (`Tooling:`) | Wire the ISO catalogue copy | ISO-9, ISO-10a | merged (#283) |
