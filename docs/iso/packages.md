@@ -21,7 +21,7 @@ its paths. Rules every brief shares (plan §5):
   API agree.
 
 Started packages keep their ids and scopes; the first-wave briefs those threads received are summarised here with what
-v2 adds around them. Status is as of 2026-10-26 (`origin/main` at #291); plan §6 holds the current status.
+v2 adds around them. Status is as of 2026-10-26 (`origin/main` at #292); plan §6 holds the current status.
 
 ---
 
@@ -311,24 +311,26 @@ v2 adds around them. Status is as of 2026-10-26 (`origin/main` at #291); plan §
 - **Paths:** as ISO-3.
 - **Delivers:** `reviewInputFigures` typed as the contract's `TypedReviewInputFigures`, taking `ReviewFigureData` (the
   engine's own per-source types go), with model §5.4's date rules: the creation day (for an NC, the later of `createdOn`
-  and `reportedOn`); `archivedOn` and `closedOn` after `asOf`; for audits, actions, objective closes and the climate
-  decision, the later of the entered date and the step day (the latest step when there are several), and an action's
-  settled day; an incident by the later of its `occurredAt` day and its NC's counting day, and a finding by the later of
-  its audit's day and its own creation day, whether or not its audit counts in the window (`incidentCounts` keeps the
+  and `reportedOn`); `archivedOn` and `closedOn` after `asOf`; for audits, actions and objective closes, the later of
+  the entered date and the step day, and an action's settled day (its latest settle); the climate decision by its
+  decisions' days (`climateDecided` from the first); an incident by its NC's counting day, and a finding by the later of
+  its audit's day and its own `createdOn`, whether or not its audit counts in the window (`incidentCounts` keeps the
   overview's `occurredAt` rule; the review places incidents before grouping them); readings created by `asOf`; the three
   event-day lists for re-rated, changed and not-effective counts; PREVIOUS_ACTIONS done and cancelled in the window
   only; `correctiveActionsOverdue` only for actions whose NC is open on `asOf` (not CANCELLED, and `closedOn` null or
-  after `asOf`). The caller picks risk kinds by input key and findings by standard (model §5.4), so the engine counts
-  what it is given. Every key it emits is in `REVIEW_FIGURE_KEYS`. No rebuild code. ADR M4-0001 item 18 and the
-  `iso-review.ts` header say the caller passes the system's records for the input's standards with no unit scope (plan
-  §3.3 exception), archived ones included. `ENGINE_VERSION` bumped (`packages/engine/CLAUDE.md` rule 4), since stored
-  figures name the version that produced them.
+  after `asOf`); `significant<Kind>` only for the risk kinds `data` names. The caller picks risk kinds by input key and
+  findings by standard (model §5.4), so the engine counts what it is given. Every key it emits is in
+  `REVIEW_FIGURE_KEYS`. No rebuild code. ADR M4-0001 item 18 and the `iso-review.ts` header say the caller passes the
+  system's records for the input's standards with no unit scope (plan §3.3 exception), archived ones included.
+  `ENGINE_VERSION` bumped (`packages/engine/CLAUDE.md` rule 4), since stored figures name the version that produced
+  them.
 - **Tests:** per source with an `asOf` earlier than the data's present (a record created, archived, closed or done after
   `asOf`; an NC reported before `asOf` but raised after it; an external audit recorded HELD after `asOf` with `endOn`
   before it; an action settled before `since`; an objective closed after `asOf` with `closedOn` before it; an incident
   that occurred before `since` on an NC raised after it, counted; an external finding created after `since` on an audit
-  placed before it, counted; an overdue OPEN action on a cancelled NC, not counted); the engine's keys match
-  `REVIEW_FIGURE_KEYS`; coverage as ISO-3.
+  placed before it, counted; an overdue OPEN action on a cancelled NC, not counted; a climate decision changed after
+  `asOf`, still decided; an action completed, reopened and completed again, by its later COMPLETE; RISKS data for ASPECT
+  only, with no `significantRisk` key); the engine's keys match `REVIEW_FIGURE_KEYS`; coverage as ISO-3.
 
 ## ISO-7b · M11 · Mock features per demo user for ISO screens
 - **Thread title:** "ISO-7b: mock add-on state per demo user". **Needs:** ISO-1, ISO-1a, ISO-7 (started before
@@ -484,36 +486,45 @@ v2 adds around them. Status is as of 2026-10-26 (`origin/main` at #291); plan §
 - **Delivers (patch bump):**
   - `ReviewFigureData` gains the client-local day of the step that set an entered date or settled a record (model §5.4):
     internal audits (REPORT), external audits (RECORD_HELD), actions (COMPLETE or CANCEL, the settled day), objectives
-    (their close) and the climate decision (the event that set it), the latest when there are several, on the row or as
-    event-day lists, as the thread chooses; and each finding's creation day.
+    (CLOSE) and every climate decision (its UPDATE), an action's latest settle when it was settled more than once, on
+    the row or as event-day lists, as the thread chooses (findings and incident NCs already carry `createdOn` in 1.8.2);
+    and, for RISKS, the kinds the input's key reads.
   - `REVIEW_FIGURE_KEYS`: for each source, every figure key the engine emits, the table its ids name (none for a score),
-    and whether its value is the number of its ids (not so for `lostDays`, `verifiedNotEffective` or a score). Keys are
-    only ever added, and a key whose meaning changes gets a new one, so stored figures stay legible (9001 7.5.3). M17
-    and M10 word every listed key, and ISO-2h's `isoVisibleIds` takes the tables from it.
-  - `ReviewInputView` gains `figuresWithheld` (boolean): true only on an INCIDENTS row read by an approver or owner
-    whose units do not cover every unit of the system (a system with no units covers every unit of the client) and who
-    is neither the review's chair nor an attendee; then `sourceFigures` and `figuresStoredAt` are null (model §3.13
-    item 4, plan §3.3).
-  - The mock: a backdated audit, action, objective close or climate decision counts by the later of its entered date and
-    its step day; an incident by the later of its `occurredAt` day and its NC's counting day; a finding by the later of
-    its audit's day and its own creation day, whether or not its audit counts in the window; PREVIOUS_ACTIONS counts
-    DONE and CANCELLED actions by their settled day inside the window; RISKS reads the kinds the input's key reads
-    (model §5.4); AUDIT_RESULTS counts a finding only when its clauses' standards overlap the input's; RECORD_HELD
-    stores nothing for a review held before its system's `createdOn`, and a HELD or CLOSED row without a stored copy
-    shows null (the fixture's held review follows whichever rule its dates meet); `correctiveActionsOverdue` counts only
-    NCs open on `asOf`; INCIDENTS rows withheld as above; the fixture's stored figures take a stable `figuresStoredAt`
-    with a tie-break for two held reviews on one day (#284 audit Infos 1 and 3). `docs/contracts/iso-mock.md` and the
-    **Scope.** paragraph of `endpoints.md` §10 (the review figures' exception to unit scope and its limit at incidents,
-    plan §3.3) follow.
+    and whether its value is the number of its ids (not so for `lostDays`, `verifiedNotEffective` or a score); the
+    `significant<Kind>` keys appear only for the kinds an input reads. Keys are only ever added, and a key whose meaning
+    changes gets a new one, so stored figures stay legible (9001 7.5.3). M17 and M10 word every listed key, and ISO-2h's
+    `isoVisibleIds` takes the tables from it.
+  - `ReviewInputView` gains `figuresWithheld` (boolean): true only on an INCIDENTS row that has figures, for a reader
+    who may not read one or more of the incidents its ids name and who is neither the review's chair nor an attendee;
+    then `sourceFigures`, `figuresStoredAt` and `notes` are null (model §3.13 item 4, plan §3.3). The mock also refuses
+    an incident's `occurredAt` after now or after its NC's `reportedOn` (model §3.11).
+  - The mock: a backdated audit, action or objective close counts by the later of its entered date and its step day; an
+    incident by its NC's counting day; each climate decision by its event's day (`climateDecided` from the first); a
+    finding by the later of its audit's day and its own creation day, whether or not its audit counts in the window;
+    PREVIOUS_ACTIONS counts DONE and CANCELLED actions by their settled day inside the window; RISKS reads the kinds the
+    input's key reads and emits `significant<Kind>` only for them (model §5.4); AUDIT_RESULTS counts a finding only when
+    its clauses' standards overlap the input's; RECORD_HELD stores nothing for a review held before its system's
+    `createdOn`, and a HELD or CLOSED row without a stored copy shows null (the fixture's held review follows whichever
+    rule its dates meet); `correctiveActionsOverdue` counts only NCs open on `asOf`; INCIDENTS rows withheld as above,
+    figures and notes; the fixture's stored figures take a stable `figuresStoredAt` with a tie-break for two held
+    reviews on one day (#284 audit Infos 1 and 3). `docs/contracts/iso-mock.md`, the **Scope.** paragraph of
+    `endpoints.md` §10, the note of its `GET .../management-reviews/{id}/inputs` row and the `ReviewInputView` doc
+    comment (the review figures' exception to unit scope and its limit at incidents, plan §3.3) follow.
 - **Tests:** an external audit recorded HELD after a review, with `endOn` before it, counts in the next review, and so
   does an external finding entered after a review that counted its audit; an incident that occurred before a review's
   `heldOn` and was raised after that review was recorded counts in the next one; an objective closed after a review was
   recorded, with `closedOn` before its `heldOn`, counts as achieved or not achieved in the next one; an action settled
-  before `since` is not counted again; an overdue action on a closed NC is not counted; a 9001-only input counts no
-  ASPECT or HAZARD item and no finding on a 14001 clause; in a 14001 review `SIGNIFICANT_ASPECTS` counts no RISK or
-  OPPORTUNITY and `RISKS_AND_OPPORTUNITIES` no ASPECT; an owner of one of two units who is not on the review gets the
-  INCIDENTS row withheld, while the chair and an attendee from that unit, and a client admin, see it; a review held
-  before its system's creation stores nothing; every key the mock emits is in `REVIEW_FIGURE_KEYS`.
+  before `since` is not counted again, and one completed, reopened and completed again counts by its later COMPLETE; a
+  climate decision changed after `asOf` still counts as decided, and a first decision recorded after a review was
+  recorded, dated before its `heldOn`, counts in the next one; an overdue action on a closed NC is not counted; a
+  9001-only input counts no ASPECT or HAZARD item and no finding on a 14001 clause; in a 14001 review
+  `SIGNIFICANT_ASPECTS` counts no RISK or OPPORTUNITY and `RISKS_AND_OPPORTUNITIES` no ASPECT, and neither row has a
+  `significant<Kind>` key for the other's kinds; an owner of unit A who is not on the review gets the INCIDENTS row
+  withheld, figures and notes, when it counts an incident at unit B, also after the system's units are narrowed to A,
+  and not when every counted incident is at A, while the chair and an attendee from A, and a client admin, see it; an
+  `occurredAt` after its NC's `reportedOn` is refused; a review held before its system's creation stores nothing; every
+  key the mock emits is in `REVIEW_FIGURE_KEYS`, and each key marked as counting its ids has a value equal to its number
+  of ids.
 
 ## ISO-16 · M8 · Import matches and creates STATUTE acts only
 - **Thread title:** "ISO-16: imports never touch ISO standard acts". **Needs:** ISO-2c.
@@ -700,7 +711,7 @@ v2 adds around them. Status is as of 2026-10-26 (`origin/main` at #291); plan §
 ## ISO-8a · M16 · ISO API 1: gate, audit gate test, systems, checklist, documents, certification, files
 - **Thread title:** "ISO-8a: ISO API, part 1". **Needs:** ISO-1b, ISO-2d, ISO-3, ISO-4b.
 - **Read:** plan §3-4; model §1, §3.1-3.4, §3.8, §4 preamble, §4.2, §4.4 (RECORD_HELD and CANCEL), §4.6, §5.1
-  (`clauseReadiness`, `climateDeterminationGaps`), §6, §10; `apps/api/CLAUDE.md`; `docs/contracts/README.md`
+  (`clauseReadiness`, `climateDeterminationGaps`), §6, §8, §10; `apps/api/CLAUDE.md`; `docs/contracts/README.md`
   decisions 42-51 and `docs/contracts/iso-mock.md` ("Shared rules", including file scans; "Systems and checklist";
   "Documents"; "Certifications"; the file rules in "Management reviews and files"; "Core routes with the switch off").
 - **Paths:** `apps/api/src/modules/iso/` (routes, services, `ports.ts` with `IsoFiles`, `testing/`,
@@ -750,7 +761,8 @@ v2 adds around them. Status is as of 2026-10-26 (`origin/main` at #291); plan §
   builder for a non-lead auditor and a chair in each role; for each record kind, a unit-limited reader is allowed by
   `can()` exactly the records the list SQL returns to them (#281 audit Info: the M5 unit rule holds only if
   `Resource.unitIds` follows plan §3.3 as the lists, overview counts and exports do). ISO-8b and ISO-8c add the same
-  test for their kinds.
+  test for their kinds. The climate route writes one UPDATE on `management_system` naming the climate fields it changed
+  (model §8).
 
 ## ISO-2f · M3 · Act-kind and feature-aware reads, accounts by feature
 - **Thread title:** "ISO-2f: reads that tell laws from ISO activities". **Needs:** ISO-2e.
@@ -807,8 +819,9 @@ v2 adds around them. Status is as of 2026-10-26 (`origin/main` at #291); plan §
     standards held on or before `asOf`. `data` is the contract's `ReviewFigureData[source]`, from the system's records
     with no unit scope, archived ones included, filtered by each source's rule (risk kinds by input key, findings by
     their clauses' standards), every timestamp a day through `localDay`, and the event and step days read from
-    `audit_event` (the latest step where there are several; the residual clear that carries `sourceActionId` left out).
-    M16 (ISO-8c) and M10 (ISO-11d) both call it.
+    `audit_event` (the events model §8 names: an action's latest settle, an objective's CLOSE, every climate decision,
+    the residual clear that carries `sourceActionId` left out); for RISKS, the kinds the key reads. M16 (ISO-8c) and M10
+    (ISO-11d) both call it.
   - `reviewInputs.storeFigures(tx, id, figures, engineVersion)`: checks `figures` against `ReviewInputFigures`, sets
     `figures_stored_at` to `now()`, and refuses a row that already has figures.
   - `isoVisibleIds(tx, clientId, refs, scope?)`: `refs` is a list of `{ table, ids }`, the table taken from the
@@ -820,7 +833,9 @@ v2 adds around them. Status is as of 2026-10-26 (`origin/main` at #291); plan §
     rows in line with its standards as the mock's `syncRows` does (model §3.13), and return the keys added and removed
     for M16's event on the review; a review in any other state is refused.
 - **Tests:** `gather` per source with records of other units, archived records, a record created after `asOf`, a
-  backdated audit step, a residual clear left out of `ratingChanges`, risk kinds per input key (a 14001 review's
+  backdated audit step, an objective closed after `asOf` with `closedOn` before it (its CLOSE day), a climate decision
+  taken after `asOf` with `climateDecidedOn` before it, an action COMPLETEd, REOPENed and COMPLETEd again (the later
+  COMPLETE's day), a residual clear left out of `ratingChanges`, risk kinds per input key (a 14001 review's
   `SIGNIFICANT_ASPECTS` gets ASPECT items only and its `RISKS_AND_OPPORTUNITIES` none), instants either side of local
   midnight placed by the `localDay` given, and a first review (`since` is the system's creation day); `storeFigures`
   twice refused; `isoVisibleIds` for a unit-limited scope, a named person, no scope, an instance on another unit and an
@@ -848,19 +863,22 @@ v2 adds around them. Status is as of 2026-10-26 (`origin/main` at #291); plan §
   shown with their `sourceFigures` (headed "Recorded <figuresStoredAt>, for <since> to <heldOn>" when stored, "No
   figures: held before the system was set up in the app" for a HELD or CLOSED row without them, "Live, to today" when
   PLANNED, "Not held" when CANCELLED; each figure worded from `REVIEW_FIGURE_KEYS`, with a test that every listed key
-  has words; "N (M you can open)" when a figure whose value is the number of its ids (`REVIEW_FIGURE_KEYS`) has fewer
-  ids than its value, and otherwise its value with "M records you can open"; "Figures withheld: they include incidents
-  at units outside your access" when `figuresWithheld`, with the row's notes), a note on the RECORD_HELD form, when
-  `heldOn` is before today, that the stored figures will count records up to `heldOn` but read their state (cancelled,
-  severity, significance, outcome, finding type, instance workflow) as it is today, so they can differ from the live
-  figures shown, and another when a review of the same standards is already recorded with a later `heldOn`, whose
-  figures stay as they are; outputs, actions and the pack download; "NC log (Excel)" and "Audit report (PDF)" downloads
-  beside the review pack, through `POST /clients/{clientId}/exports`. States and codes read in model §4.7's words, as in
-  ISO-6a (a finding's type "Major nonconformity", a review's input rows by their definition's title).
+  has words; for a key whose value is the number of its ids (`REVIEW_FIGURE_KEYS`), "N" when the reader has every id and
+  "N (M you can open)" when not; for another key with a table (`lostDays`, `verifiedNotEffective`), its value with "M
+  records you can open"; for a key with no table (a score), its value alone; "Figures and notes withheld: they count
+  incidents you may not open" when `figuresWithheld`), a note on the RECORD_HELD form that the minutes go to every
+  reader of the review, so incident details belong in the INCIDENTS row's notes, another, when `heldOn` is before today,
+  that the stored figures will count records up to `heldOn` but read their state (cancelled, severity, significance,
+  outcome, finding type, instance workflow) as it is today, so they can differ from the live figures shown, and another
+  when a review of the same standards is already recorded with a later `heldOn`, whose figures stay as they are;
+  outputs, actions and the pack download; "NC log (Excel)" and "Audit report (PDF)" downloads beside the review pack,
+  through `POST /clients/{clientId}/exports`. States and codes read in model §4.7's words, as in ISO-6a (a finding's
+  type "Major nonconformity", a review's input rows by their definition's title).
 - **Tests:** e2e against the mock: plan and report an audit with an NC finding; take an NC from OPEN to CLOSED and back
   through VERIFY_NOT_EFFECTIVE; hold and close a review, and see its figures unchanged after closing an NC it counted;
-  an owner limited to one of the system's units, not on the review, sees the INCIDENTS row withheld; the three
-  downloads; M11's shell ISO test stays green for the pages this package adds; a11y and layout checks as in ISO-6a.
+  an owner limited to one of the system's units, not on the review, sees the INCIDENTS row's figures and notes withheld
+  when it counts an incident at another unit; the three downloads; M11's shell ISO test stays green for the pages this
+  package adds; a11y and layout checks as in ISO-6a.
 
 ## ISO-8b · M16 · ISO API 2: risks, objectives, actions
 - **Thread title:** "ISO-8b: ISO API, part 2". **Needs:** ISO-8a, ISO-2e.
@@ -879,7 +897,8 @@ v2 adds around them. Status is as of 2026-10-26 (`origin/main` at #291); plan §
   the lock on DONE or CANCELLED actions; rows in the audit gate test for each new route; `allowedActions` on actions;
   the mock's picks kept or replaced by ADR, as ISO-8a.
 - **Tests:** as ISO-8a, including field edits refused on each locked subject; completing the last OPEN treatment action
-  writes that UPDATE with `sourceActionId`, and a PATCH that re-rates writes one without it.
+  writes that UPDATE with `sourceActionId`, and a PATCH that re-rates writes one without it; closing an objective writes
+  one TRANSITION whose `after.action` is `CLOSE` (model §8).
 
 ## ISO-8c · M16 · ISO API 3: internal audits, external-audit findings, nonconformities, management reviews, overview
 - **Thread title:** "ISO-8c: ISO API, part 3". **Needs:** ISO-8b, ISO-2h, ISO-3b.
@@ -892,13 +911,13 @@ v2 adds around them. Status is as of 2026-10-26 (`origin/main` at #291); plan §
   - Programmes, internal audits with checklist, independence rule, findings creating NCs in the same transaction.
   - External-audit findings (creating NCs), RECORD_RESPONSE and CLOSE (model §4.4).
   - Nonconformities with every arrow and guard of model §4.1, the disposition rule, incident rules (type and source,
-    lost days, the statutory-instance link checked for unit and act kind) and the personal-data rule; a raise by hand
-    refused for the two audit sources; the NC's reassign route (`isoNc.reassign`; FA, CO, CA: owner, approver, dates,
-    severity and incident outcome, with a reason; severity and outcome only while OPEN or ROOT_CAUSE_FOUND and never on
-    a finding's NC) and its PATCH (`isoNc.work`; CA, OW own: every other field), model §3.10, §3.11 and §4.1;
-    `rootCauseMethod` at ADD_ROOT_CAUSE, `dueOn` not before `reportedOn`, the lead not also an auditor; a finding's type
-    moves as model §3.9 allows, the NC's severity following, only while the NC is OPEN or ROOT_CAUSE_FOUND and never by
-    the NC's own owner.
+    `occurredAt` not after now or `reportedOn`, lost days, the statutory-instance link checked for unit and act kind)
+    and the personal-data rule; a raise by hand refused for the two audit sources; the NC's reassign route
+    (`isoNc.reassign`; FA, CO, CA: owner, approver, dates, severity and incident outcome, with a reason; severity and
+    outcome only while OPEN or ROOT_CAUSE_FOUND and never on a finding's NC) and its PATCH (`isoNc.work`; CA, OW own:
+    every other field), model §3.10, §3.11 and §4.1; `rootCauseMethod` at ADD_ROOT_CAUSE, `dueOn` not before
+    `reportedOn`, the lead not also an auditor; a finding's type moves as model §3.9 allows, the NC's severity
+    following, only while the NC is OPEN or ROOT_CAUSE_FOUND and never by the NC's own owner.
   - Management reviews with input and output rows from the account's definitions; the review's PATCH
     (`isoReview.write`, its chair included) and the replan route for standards, date and chair while PLANNED
     (`isoReview.plan`; a new date or chair with a reason), which changes the rows through ISO-2h's `syncForReview`
@@ -910,9 +929,8 @@ v2 adds around them. Status is as of 2026-10-26 (`origin/main` at #291); plan §
     stored for a review held before its system's `createdOn`; RECORD_HELD refuses a `heldOn` after the client-local
     today; a HELD or CLOSED review returns the stored copy and never computes; null for CANCELLED, `MANUAL` and unstored
     rows; each figure's ids cut through `isoVisibleIds`, with the tables `REVIEW_FIGURE_KEYS` names, for every reader;
-    the INCIDENTS row withheld (`figuresWithheld`) from an approver or owner whose units do not cover every unit of the
-    system (a system with no units covers every unit of the client) and who is neither the review's chair nor an
-    attendee (model §3.13 item 4).
+    the INCIDENTS row withheld (`figuresWithheld`, with no figures or notes) when cutting its ids for the reader drops
+    any and the reader is neither its chair nor an attendee (model §3.13 item 4).
   - The cross-row rules ISO-2e (#280) leaves to M16, each `400 VALIDATION`: a checklist row's finding belongs to the
     same audit, and the standards of an NC and of a review are among its system's. NC raises run at the default READ
     COMMITTED isolation: the NC number trigger takes `max + 1` after its lock (#280 audit Info 2).
@@ -927,11 +945,13 @@ v2 adds around them. Status is as of 2026-10-26 (`origin/main` at #291); plan §
   ROOT_CAUSE_FOUND and for the NC's owner; a chair is refused on the replan route; a held review's figures are the same
   after an NC it counted is closed, a risk is re-rated and a record is archived, and RECORD_HELD stores them once (a
   backdated and a same-day `heldOn`; none for a review held before its system's `createdOn`); a unit-limited reader and
-  a chair outside the system's units get the system's values with ids cut, and the INCIDENTS row is withheld from that
-  reader but not from the chair or an attendee; a replan that drops and re-adds a standard; the RECORD_HELD row in the
-  audit gate test asserts `figures` and `engineVersion`; a locked subject refuses add and remove for every role, and
-  field edits; a viewer and an owner of the unit who is not named on an incident NC cannot download its files; a plant-A
-  owner sees none of a plant-B-only system's objectives, reviews or unit-less NCs.
+  a chair outside the system's units get the system's values with ids cut, and the INCIDENTS row, figures and notes, is
+  withheld from that reader when it counts an incident at another unit, also after the system's units are narrowed, but
+  not from the chair or an attendee; an `occurredAt` after the NC's `reportedOn` is refused; a replan that drops and
+  re-adds a standard; the RECORD_HELD row in the audit gate test asserts `figures` and `engineVersion`; a locked subject
+  refuses add and remove for every role, and field edits; a viewer and an owner of the unit who is not named on an
+  incident NC cannot download its files; a plant-A owner sees none of a plant-B-only system's objectives, reviews or
+  unit-less NCs.
 
 ## ISO-9b · M6 · Hide and refuse STANDARD library rows when off; no cross-kind changes
 - **Thread title:** "ISO-9b: the library respects the ISO switch". **Needs:** ISO-9, ISO-2f, ISO-4b.
@@ -1028,19 +1048,20 @@ v2 adds around them. Status is as of 2026-10-26 (`origin/main` at #291); plan §
   PLANNED one, on ISO-2h's `reviewFigures.gather` (given the engine's `localDateIn` with the client's time zone) with no
   unit scope, marked as a draft; "No figures: held before the system was set up in the app" for a HELD or CLOSED one
   without them; none for a CANCELLED one; each figure worded from `REVIEW_FIGURE_KEYS`; record references only for ids
-  the requester may read, through ISO-2h's `isoVisibleIds` with the requester's `UnitScope` (their membership's
-  `unitIds` and their `personId`, for plan §3.3's named-person rule), built when the job runs; the INCIDENTS row's
-  figures withheld, with the model §9 heading, from a requester who would not see them on screen (model §3.13 item 4);
-  then outputs and actions); unit scope for everything else; no incident personal data; removes ISO-11e's refusal for
-  the four kinds. The client archive always includes ISO records, each held review's stored figures with their window,
-  recording time and engine version, and clean ISO files (model §9), with the NC log and risk register workbooks in its
-  `iso/` folder, counting withheld files in its README.
+  the requester may read, through ISO-2h's `isoVisibleIds` with the requester's `UnitScope` (`unitIds` from M10's
+  `unitScope`, the union of their unit-limited memberships, and their `personId`, for plan §3.3's named-person rule; no
+  scope when `unitScope` is null), built when the job runs; the INCIDENTS row's figures and notes withheld, with the
+  model §9 heading, from a requester who would not see them on screen (model §3.13 item 4); then outputs and actions);
+  unit scope for everything else; no incident personal data; removes ISO-11e's refusal for the four kinds. The client
+  archive always includes ISO records, each held review's stored figures with their window, recording time and engine
+  version, and clean ISO files (model §9), with the NC log and risk register workbooks in its `iso/` folder, counting
+  withheld files in its README.
 - **Tests:** each export's content from fixtures; scope per role; refused when off; archive contents with and without
   the feature; a held review's pack prints its stored figures unchanged after a later edit, with their heading; an
   approver limited to one unit gets the same pack values as the chair, with fewer references, and the INCIDENTS figures
-  withheld unless they attended; an approver who is named on a record of another unit gets its reference; the archive's
-  review register carries each held review's stored figures with their window, recording time and engine version; every
-  key in `REVIEW_FIGURE_KEYS` has words.
+  and notes withheld when they count an incident at another unit, unless the approver attended; an approver who is named
+  on a record of another unit gets its reference; the archive's review register carries each held review's stored
+  figures with their window, recording time and engine version; every key in `REVIEW_FIGURE_KEYS` has words.
 
 ## ISO-14a · Tooling · Wire the ISO catalogue copy
 - **Thread title:** "ISO-14a: wire the ISO catalogue copy". **PR title:** `Tooling: ISO ...` (no module owns these
@@ -1266,3 +1287,7 @@ How plan v2.3 takes in what the audits of #268 (ISO-12a, merged) and #273 (ISO-2
 | Check of v2.5: `packages/db` cannot call the engine's `localDateIn` | ISO-2h (`gather` takes the caller's `localDay`); ISO-8c, ISO-11d pass it; model §5.4 |
 | Check of v2.5: "N (M you can open)" misreads keys whose value is not a count of ids; the archive's figures lack their window, time and engine; the pack's scope drops the named person; the exception belongs in endpoints §10 | ISO-1a3 (`REVIEW_FIGURE_KEYS` says which keys count ids; endpoints §10), ISO-6c; model §9, ISO-11d |
 | Check of v2.5: ISO-6a and ISO-11c had started but showed no status | plan §6 (and ISO-1b, started) |
+| Self-check of v2.5.1 before its audit: withholding by the system's current units leaks after the units are narrowed, and the INCIDENTS row's notes (required at RECORD_HELD, and where corrections go) still showed | model §3.13 items 4 and 6, §9; plan §3.3, §7 item 9; ADR M16-0003; ISO-1a3, ISO-8c, ISO-11d, ISO-6c (withheld when cutting the row's ids drops any; notes withheld too; minutes note on the RECORD_HELD form) |
+| Self-check of v2.5.1: the objective CLOSE and climate events had no fixed shape or writer; "the latest counts" made a changed climate decision look undecided | model §5.4 (decisions by their events' days, `climateDecided` from the first), §8; ISO-8a, ISO-8b (event tests), ISO-2h, ISO-1a3, ISO-3b |
+| Self-check of v2.5.1: an editable, unbounded `occurredAt` could still put an incident in no review or two | model §3.11 (`occurredAt` not after `reportedOn`), §5.4 (incidents by their NC's counting day); ISO-1a3, ISO-8c |
+| Self-check of v2.5.1: `significant<Kind>` zeros on RISKS rows that do not read the kind; `RISK_ACTIONS` given hazards in the catalogue; findings' creation days claimed as new; the screen's figure rule for scores; the pack's scope for whole-client requesters; two more contract texts to update; ISO-11c merged | model §5.4; catalogue §5; ISO-1a3, ISO-3b, ISO-2h, ISO-6c, ISO-11d; plan §6 |

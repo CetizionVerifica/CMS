@@ -45,9 +45,9 @@ What a certification auditor checks is the retained record of what the review co
    reader sees the same values. Each figure's ids are cut to the records the reader may read (plan §3.3 exception; M3's
    `isoVisibleIds`). The values are counts and sums with no names. They include other units' records, which a reader
    limited to some units sees for the review as a whole. M3 gathers the data once for M16 and M10 (ISO-2h). Incidents
-   are the limit (plan v2.5.1, after the #291 audit): an outcome and its lost days can point to a person, so an approver
-   or owner whose units do not cover the system's, and who neither chairs nor attends the review, gets the INCIDENTS row
-   withheld, on screen and in the pack (model §3.11, §3.13 item 4).
+   are the limit (plan v2.5.1, after the #291 audit): an outcome and its lost days can point to a person, so a reader
+   who may not read every incident the INCIDENTS row counts, and who neither chairs nor attends the review, gets that
+   row's figures and notes withheld, on screen and in the pack (model §3.11, §3.13 item 4).
 4. **A record, not a cache.** Model §1.7 and `packages/db/CLAUDE.md` rule 7 get this exception. The RECORD_HELD event
    carries the values and the engine version, without ids (model §8). The pack and the client archive print the
    stored copy with its window, recording time and engine version (model §9).
