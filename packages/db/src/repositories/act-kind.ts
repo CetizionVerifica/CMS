@@ -62,14 +62,14 @@ async function first(rows: Promise<{ kind: ActKind }[]>): Promise<ActKind | null
   return row ? ActKind.parse(row.kind) : null;
 }
 
+/** Ids per read in `actKindOf.instances`. */
+const KIND_BATCH = 1000;
+
 /**
  * The act kind behind one instance, obligation or assignment, for the add-on's off-switch checks (plan §4.4): an
  * account without the add-on gets 404 on a STANDARD record. Null when the row does not exist or this context cannot
  * see it. Archived rows still answer: the switch applies to them too.
  */
-/** Ids per read in `actKindOf.instances`. */
-const KIND_BATCH = 1000;
-
 export const actKindOf = {
   instance(tx: TenantTx, instanceId: string): Promise<ActKind | null> {
     const id = validate(Id, instanceId);

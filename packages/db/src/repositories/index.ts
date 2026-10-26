@@ -129,6 +129,7 @@ export {
   internalAudits,
   IsoActionFilter,
   isoActions,
+  isoVisibleIds,
   ManagementReviewFilter,
   managementReviews,
   NonconformityFilter,
@@ -142,3 +143,6 @@ export {
   RiskItemFilter,
   riskItems,
 } from './iso-records.js';
+export type { FigureRefs, ReviewRowChanges } from './iso-records.js';
+export { reviewFigures } from './iso-review-figures.js';
+export type { GatheredFigures, LocalDayOf } from './iso-review-figures.js';
