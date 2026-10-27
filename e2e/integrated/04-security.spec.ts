@@ -556,17 +556,18 @@ const FILE_SUBJECTS: Record<IsoFileSubjectType, readonly string[]> = {
 const fileKey = (key: string) => `files@${key}`;
 
 /**
- * Uploads a small PDF to an ISO record as firm A's consultant, the way the screens do (upload URL, PUT to storage,
- * confirm); the file, PENDING until the scan job runs.
+ * Uploads a small PDF to an ISO record, the way the screens do (upload URL, PUT to storage, confirm); the file, PENDING
+ * until the scan job runs. `api` must be allowed to write the record: the client admin may write every subject type
+ * (a nonconformity's files are the client admin's or its owner's, not firm staff's).
  */
 async function isoFileOf(
-  admin: ApiSession,
+  api: ApiSession,
   clientId: string,
   subject: { type: IsoFileSubjectType; id: string },
   fileName = 'record.pdf',
 ): Promise<{ id: string; version: number }> {
   const iso = `/clients/${clientId}/iso`;
-  const ticket = await admin.post(`${iso}/files/upload-url`, {
+  const ticket = await api.post(`${iso}/files/upload-url`, {
     subject,
     fileName,
     mimeType: 'application/pdf',
@@ -578,9 +579,9 @@ async function isoFileOf(
     url: string;
     headers: Record<string, string>;
   };
-  const put = await admin.http.put(url, { headers, data: PDF });
+  const put = await api.http.put(url, { headers, data: PDF });
   expect(put.status(), `PUT on ${subject.type}`).toBe(200);
-  const confirmed = await admin.post(`${iso}/files`, {
+  const confirmed = await api.post(`${iso}/files`, {
     subject,
     uploadId,
     fileName,
@@ -613,7 +614,8 @@ async function isoOff(): Promise<void> {
  * Keyed by the path segment before each id, or by `<parent>/<segment>` where two parents share a segment, as `fill`
  * reads them. The external audit is HELD with an OFI finding of its own: RECORD_HELD needs the body's report file, which
  * is uploaded through the API first (PENDING counts as a report). Then every record `FILE_SUBJECTS` names gets a file
- * of its own, kept under `fileKey(key)`, and `files` is the report, for the probes that name one file.
+ * of its own, kept under `fileKey(key)`, and `files` is the report, for the probes that name one file. The files are
+ * the client admin's uploads, since firm staff may not add files to a nonconformity.
  */
 async function isoRecordsOf(
   admin: ApiSession,
@@ -704,8 +706,9 @@ async function isoRecordsOf(
     startOn: '2023-04-10',
     endOn: '2023-04-11',
   });
+  const uploader = await apiAs('clientAdmin');
   const report = await isoFileOf(
-    admin,
+    uploader,
     clientId,
     { type: 'external_audit', id: plannedVisit.id },
     'stage-1-report.pdf',
@@ -782,9 +785,10 @@ async function isoRecordsOf(
       files[fileKey(key)] =
         key === 'external-audits'
           ? report
-          : await isoFileOf(admin, clientId, { type, id: record.id });
+          : await isoFileOf(uploader, clientId, { type, id: record.id });
     }
   }
+  await uploader.dispose();
   return { ...records, ...files };
 }
 
@@ -1132,6 +1136,73 @@ test.describe('sessions', () => {
     expect(nobody.status()).toBe(401);
     expect(await wrong.json()).toMatchObject({ error: { code: (await nobody.json()).error.code } });
     await http.dispose();
+  });
+});
+
+test.describe('ISO files', () => {
+  test('firm A lists, downloads once clean, and removes its own file on every ISO subject', async () => {
+    test.setTimeout(240_000);
+    const { clients, people } = seeded();
+    const consultant = await apiAs('consultant');
+    const records = await isoRecordsOf(consultant, clients.kestrel, {
+      owner: people.owner,
+      approver: people.approver,
+    });
+    await consultant.dispose();
+    const admin = await apiAs('clientAdmin');
+    const iso = `/clients/${clients.kestrel}/iso`;
+    const subjects = (Object.entries(FILE_SUBJECTS) as [string, readonly string[]][]).flatMap(
+      ([type, keys]) =>
+        keys.map((key) => ({ type, key, id: records[key]!.id, file: records[fileKey(key)]!.id })),
+    );
+    type File = { id: string; scanStatus: string };
+    const listed = async (s: (typeof subjects)[number], removed = false) => {
+      const res = await admin.get(
+        `${iso}/files?subjectType=${s.type}&subjectId=${s.id}${removed ? '&includeRemoved=true' : ''}`,
+      );
+      expect(res.status, `list on ${s.key}: ${JSON.stringify(res.body)}`).toBe(200);
+      return itemsOf(res.body) as unknown as File[];
+    };
+    for (const s of subjects) {
+      expect(
+        (await listed(s)).map((f) => f.id),
+        `files on ${s.key}`,
+      ).toContain(s.file);
+    }
+    // PENDING until M9's scan job (once a minute) passes it.
+    const early = await admin.get(`${iso}/files/${subjects[0]!.file}/download-url`);
+    expect(early).toMatchObject({ status: 422, body: { error: { code: 'EVIDENCE_NOT_READY' } } });
+    await expect
+      .poll(
+        async () => {
+          const states = new Set<string>();
+          for (const s of subjects) {
+            for (const f of await listed(s)) if (f.id === s.file) states.add(f.scanStatus);
+          }
+          return [...states];
+        },
+        { timeout: 200_000, intervals: [5_000] },
+      )
+      .toEqual(['CLEAN']);
+    for (const s of subjects) {
+      const link = await admin.get(`${iso}/files/${s.file}/download-url`);
+      expect(link.status, `download on ${s.key}: ${JSON.stringify(link.body)}`).toBe(200);
+      const { url } = link.body as { url: string };
+      expect(new URL(url).searchParams.get('X-Amz-Expires')).toBe('300');
+      const download = await admin.http.get(url);
+      expect(download.status(), `stored file on ${s.key}`).toBe(200);
+      expect(Buffer.from(await download.body()).equals(PDF)).toBe(true);
+    }
+    for (const s of subjects) {
+      const removed = await admin.post(`${iso}/files/${s.file}/remove`, { reason: PROBE });
+      expect(removed.status, `remove on ${s.key}: ${JSON.stringify(removed.body)}`).toBe(200);
+      expect(
+        (await listed(s)).map((f) => f.id),
+        `files left on ${s.key}`,
+      ).not.toContain(s.file);
+      expect((await listed(s, true)).map((f) => f.id)).toContain(s.file);
+    }
+    await admin.dispose();
   });
 });
 
