@@ -1,5 +1,9 @@
 import type { IsoAction, IsoActionSubjectType } from '@canopy/contracts';
 import {
+  auditChecklistItems,
+  auditFindings,
+  auditProgrammes,
+  internalAudits,
   isoActions,
   isoCatalogue,
   managementSystems,
@@ -14,6 +18,7 @@ import {
   type TenantTx,
 } from '@canopy/db';
 import type {
+  IsoAuditBook,
   IsoNames,
   IsoNcBook,
   IsoNcFilter,
@@ -161,4 +166,40 @@ export async function isoRiskBook(
     obligations: items.flatMap((r) => r.obligationIds),
   });
   return { items, controls, actions, names };
+}
+
+export async function isoAuditBook(
+  tx: TenantTx,
+  clientId: string,
+  id: string,
+  scope: IsoNcFilter['scope'],
+): Promise<IsoAuditBook | null> {
+  const [audit] = (await internalAudits.list(tx, clientId, { ids: [id], scope: scopeOf(scope) }))
+    .items;
+  if (audit === undefined) return null;
+  const programme = await auditProgrammes.require(tx, audit.programmeId);
+  const checklist = await auditChecklistItems.forAudit(tx, audit.id);
+  const findings = await auditFindings.forAudit(tx, { internalAuditId: audit.id });
+  const ncNumbers = new Map<string, number>();
+  for (const finding of findings) {
+    if (finding.nonconformityId === null) continue;
+    const nc = await nonconformities.require(tx, finding.nonconformityId);
+    ncNumbers.set(nc.id, nc.number);
+  }
+  const actions = await actionsOf(
+    tx,
+    clientId,
+    'AUDIT_FINDING',
+    new Set(findings.map((f) => f.id)),
+  );
+  const names = await namesOf(tx, clientId, {
+    people: [
+      audit.leadAuditorId,
+      ...audit.auditorIds,
+      ...audit.auditeeIds,
+      ...audit.reportedToIds,
+      ...actions.map((a) => a.ownerId),
+    ],
+  });
+  return { audit, programme, checklist, findings, ncNumbers, actions, names };
 }

@@ -1,5 +1,4 @@
 import { randomUUID } from 'node:crypto';
-import { inflateSync } from 'node:zlib';
 import {
   ENDPOINTS,
   ExportJob,
@@ -16,6 +15,7 @@ import { createTestAuth, membership } from '../../auth/testing.js';
 import { createWorld, NOW } from '../dashboard/testing/world.js';
 import { REGISTER_HEADERS } from './register-xlsx.js';
 import { createExport, IdempotencyCache, runExport, type ReportsDeps } from './service.js';
+import { pdfText } from './testing/pdf-text.js';
 
 const w = createWorld();
 afterAll(() => w.app.close());
@@ -65,30 +65,6 @@ async function sheetRows(bytes: Uint8Array): Promise<unknown[][]> {
     rows.push((row.values as unknown[]).slice(1));
   });
   return rows;
-}
-
-/** Text drawn in a pdf-lib PDF: inflate each content stream and decode its hex strings. */
-function pdfText(bytes: Uint8Array): string {
-  const raw = Buffer.from(bytes);
-  const parts: string[] = [];
-  let at = 0;
-  for (;;) {
-    const start = raw.indexOf('stream\n', at);
-    if (start < 0) break;
-    const end = raw.indexOf('\nendstream', start);
-    const body = raw.subarray(start + 7, end);
-    at = end + 10;
-    let text: string;
-    try {
-      text = inflateSync(body).toString('latin1');
-    } catch {
-      continue;
-    }
-    for (const match of text.matchAll(/<([0-9A-Fa-f]+)> Tj/g)) {
-      parts.push(Buffer.from(match[1]!, 'hex').toString('latin1'));
-    }
-  }
-  return parts.join(' ');
 }
 
 describe('reports: role matrix', () => {
@@ -507,8 +483,8 @@ describe('exports: kinds M10 does not build yet', () => {
     });
   }
 
-  // ISO-11d builds the NC log and the risk register first; the PDFs follow.
-  for (const kind of ['ISO_AUDIT_REPORT_PDF', 'ISO_REVIEW_PACK_PDF'] as const) {
+  // ISO-11d builds the NC log, the risk register and the audit report first; the review pack follows.
+  for (const kind of ['ISO_REVIEW_PACK_PDF'] as const) {
     it(`${kind}: a queued job fails in the build branch and nothing is stored`, async () => {
       // With the add-on on the worker reaches the build, whose default branch fails the job.
       w.store.features.set(w.firmId, ['isoManagement']);
