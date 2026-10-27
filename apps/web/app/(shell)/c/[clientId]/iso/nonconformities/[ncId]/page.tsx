@@ -87,7 +87,31 @@ async function finding(
       }
     }
   }
-  return { id: nc.findingId, label: 'An internal audit finding', href: null };
+  if (nc.source === 'INTERNAL_AUDIT') {
+    const audits = await allPages(
+      async (query) =>
+        (
+          await api.call('listIsoInternalAudits', {
+            params,
+            query: { managementSystemId: nc.managementSystemId, ...query },
+          })
+        ).data,
+    );
+    for (const a of audits) {
+      const found = await api
+        .call('listIsoInternalFindings', { params: { clientId, id: a.id } })
+        .then((r) => r.data.items.some((f) => f.id === nc.findingId))
+        .catch(() => false);
+      if (found) {
+        return {
+          id: a.id,
+          label: `A finding of the internal audit “${a.title}”`,
+          href: `${isoPath(clientId, 'audits')}/${a.id}`,
+        };
+      }
+    }
+  }
+  return { id: nc.findingId, label: 'An audit finding you cannot open', href: null };
 }
 
 export default async function IsoNonconformityPage({ params }: Props) {

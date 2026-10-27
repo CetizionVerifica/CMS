@@ -84,6 +84,8 @@ const TONES: Partial<Record<WordsEnum, Partial<Record<string, Tone>>>> = {
   DocumentStatus: { ACTIVE: 'ok' },
   ExternalAuditState: { HELD: 'warn', RESPONDED: 'warn', CLOSED: 'ok' },
   FindingType: { MAJOR_NC: 'crit', MINOR_NC: 'warn', GOOD_PRACTICE: 'ok' },
+  InternalAuditState: { IN_PROGRESS: 'warn', REPORTED: 'warn', CLOSED: 'ok' },
+  ChecklistResult: { CONFORMS: 'ok', FINDING: 'warn' },
   ManagementSystemStatus: { CERTIFIED: 'ok', SUSPENDED: 'crit' },
 };
 

@@ -29,25 +29,28 @@ const ids = (c: IdCount) => c.ids.join(',');
 /** The most ids a list's `ids` filter takes (contracts, ISO-1a4). */
 export const MAX_LINK_IDS = 200;
 
+/** What a count's link opens past the `ids` limit: every record, a close filter, or exactly its records by filter. */
+type Fallback = 'all' | 'near' | 'exact';
+
+const FALLBACK_NOTES: Record<Exclude<Fallback, 'exact'>, string> = {
+  all: "Too many to list on their own: the link shows all of the system's records.",
+  near: "Too many to list on their own: the link shows the system's records by the nearest filter.",
+};
+
 /**
  * A count's link to the list holding exactly its records, by their ids. Past the `ids` filter's limit it opens the
- * system's whole list instead, and says so.
+ * system's list with `whole` instead, and says so unless that filter is exact.
  */
 function idsLink(
   href: (query: Record<string, string | undefined>) => string,
   systemId: string,
   c: IdCount,
   whole: Record<string, string> = {},
-  /** `whole` is a filter close to the count, not every record of the kind. */
-  near = false,
+  fallback: Fallback = 'all',
 ): Pick<CountLink, 'href' | 'note'> {
   if (c.ids.length <= MAX_LINK_IDS) return { href: href({ ids: ids(c) }) };
-  return {
-    href: href({ managementSystemId: systemId, ...whole }),
-    note: near
-      ? "Too many to list on their own: the link shows the system's records by the nearest filter."
-      : "Too many to list on their own: the link shows all of the system's records.",
-  };
+  const link = { href: href({ managementSystemId: systemId, ...whole }) };
+  return fallback === 'exact' ? link : { ...link, note: FALLBACK_NOTES[fallback] };
 }
 
 // The documents list shows only ACTIVE documents unless it is given a status or ids, so the whole-system link names
@@ -76,6 +79,27 @@ export function incidentLinks(clientId: string, s: IsoSystemOverview): CountLink
         count: t.count,
         ...idsLink(at, sys, t, all),
       })),
+  ];
+}
+
+/**
+ * The audit programme card's counts: planned (every audit not cancelled), reported (reported or closed) and cancelled.
+ * Past the `ids` limit a link names the programme's FY and the states, which is exactly its count.
+ */
+export function programmeLinks(clientId: string, s: IsoSystemOverview): CountLink[] {
+  const programme = s.auditProgramme;
+  if (!programme) return [];
+  const at = (query: Record<string, string | undefined>) =>
+    hrefWith(isoPath(clientId, 'audits'), query);
+  const link = (label: string, c: IdCount, state: string): CountLink => ({
+    label,
+    count: c.count,
+    ...idsLink(at, s.managementSystemId, c, { fy: programme.fy, state }, 'exact'),
+  });
+  return [
+    link('Planned', programme.planned, 'PLANNED,IN_PROGRESS,REPORTED,CLOSED'),
+    link('Reported', programme.reported, 'REPORTED,CLOSED'),
+    link('Cancelled', programme.cancelled, 'CANCELLED'),
   ];
 }
 
@@ -111,7 +135,7 @@ export function countGroups(clientId: string, s: IsoSystemOverview): CountGroup[
             sys,
             s.nonconformities.overdue,
             { overdue: 'true' },
-            true,
+            'near',
           ),
         },
         {

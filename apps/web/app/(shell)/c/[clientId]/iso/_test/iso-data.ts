@@ -47,6 +47,8 @@ export async function isoData(api?: ApiClient) {
     objectives,
     actions,
     ncs,
+    programmes,
+    internalAudits,
   ] = await Promise.all([
     a.call('getIsoOverview', p).then((r) => r.data),
     a.call('listIsoSystems', { ...p, query: limit }).then((r) => r.data.items),
@@ -66,12 +68,16 @@ export async function isoData(api?: ApiClient) {
     a.call('listIsoObjectives', { ...p, query: limit }).then((r) => r.data.items),
     a.call('listIsoActions', { ...p, query: limit }).then((r) => r.data.items),
     a.call('listIsoNonconformities', { ...p, query: limit }).then((r) => r.data.items),
+    a.call('listIsoAuditProgrammes', { ...p, query: limit }).then((r) => r.data.items),
+    a.call('listIsoInternalAudits', { ...p, query: limit }).then((r) => r.data.items),
   ]);
   const system = systems[0]!;
   // Every item's controls and every objective's readings, keyed by their item or objective.
-  const [controls, readings] = await Promise.all([
+  const [controls, readings, auditChecklists, auditFindings] = await Promise.all([
     keyed(risks, (r) => riskControls(a, r.id)),
     keyed(objectives, (o) => objectiveReadings(a, o.id)),
+    keyed(internalAudits, (x) => auditChecklist(a, x.id)),
+    keyed(internalAudits, (x) => internalFindings(a, x.id)),
   ]);
   const [checklist, contextItems] = await Promise.all([
     a
@@ -104,6 +110,10 @@ export async function isoData(api?: ApiClient) {
     readings,
     actions,
     ncs,
+    programmes,
+    internalAudits,
+    auditChecklists,
+    auditFindings,
   };
 }
 
@@ -120,3 +130,7 @@ const objectiveReadings = async (a: ApiClient, id: string) =>
   (await a.call('listIsoReadings', { params: { clientId: CLIENT, id } })).data.items;
 
 export type IsoData = Awaited<ReturnType<typeof isoData>>;
+const auditChecklist = async (a: ApiClient, id: string) =>
+  (await a.call('listIsoAuditChecklist', { params: { clientId: CLIENT, id } })).data.items;
+const internalFindings = async (a: ApiClient, id: string) =>
+  (await a.call('listIsoInternalFindings', { params: { clientId: CLIENT, id } })).data.items;
