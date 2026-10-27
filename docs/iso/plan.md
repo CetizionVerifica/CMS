@@ -1,6 +1,6 @@
 # ISO management systems add-on: plan (v2)
 
-Status: v2.5.4, 2026-10-27. Decisions: ADR [M16-0001](../adr/M16-0001-iso-management-systems.md), amended by ADRs
+Status: v2.5.5, 2026-10-27. Decisions: ADR [M16-0001](../adr/M16-0001-iso-management-systems.md), amended by ADRs
 [M16-0002](../adr/M16-0002-iso-plan-v2.md) and [M16-0003](../adr/M16-0003-stored-review-figures.md). v2 answers the 58
 findings of the independent review of v1 (trace at the end of [packages.md](packages.md)). v2.1 takes in the departures
 the ISO contracts (ISO-1, contracts 1.8.0) list in `docs/contracts/README.md` decision 51 (a-n), and points the API,
@@ -38,7 +38,11 @@ check onto M3's role lookup (model §1.5), and that ISO-8c and ISO-11d do not wa
 `AccountOverride.removedFeatures` because it is only a request body (contracts README decision 56). It adds ISO-1c2,
 which makes the mock's overview count overdue nonconformities as the NC list does (the #321 audit), and ISO-1e, which
 makes `kind` and `clauseRefs` required once their creators set them (the #324 audit). It also passes on the #322 audit's
-notes on ISO-8c's parts and ADR M16-0006's rule for who owns and approves an NC.
+notes on ISO-8c's parts and ADR M16-0006's rule for who owns and approves an NC. v2.5.5 records ISO-6c, ISO-8c, ISO-14b
+and ISO-1c2 as built and splits ISO-13 in two. Its journey (ISO-13) uses no ISO export and no field ISO-1e makes
+required, so it waits for every package but ISO-11d, ISO-1e and ISO-13b, and runs while ISO-11d's last parts are built.
+The off-switch sweep (ISO-13b) checks the ISO export kinds too, so it comes last. v2.5.5 also gives ISO-1e a start check
+(the #326 audit).
 
 Every ISO thread reads, in order: the root `CLAUDE.md`, this file, its own brief in [packages.md](packages.md), the
 parts of [model.md](model.md) and [catalogue.md](catalogue.md) its brief names, then the area `CLAUDE.md` of the paths
@@ -410,8 +414,8 @@ guard, so the audit of each `Tooling: ISO ...` PR holds it to its brief's Paths,
 
 The "Harden the app for launch" thread finished on 2026-10-25, so no ISO package waits for it. Every package merges
 `main` before marking ready. Packages that change files under `e2e/` (ISO-6a-c, ISO-7b, ISO-8a-c, ISO-11c, ISO-12b,
-ISO-12c, ISO-13, ISO-14b) check that no open M14 PR touches the same files; if one does, the coordinator sequences the
-two.
+ISO-12c, ISO-13, ISO-13b, ISO-14b) check that no open M14 PR touches the same files; if one does, the coordinator
+sequences the two.
 
 ### 5.6 Changing this plan
 
@@ -423,9 +427,10 @@ before any package that depends on the change starts.
 ## 6. Packages and waves
 
 Briefs: [packages.md](packages.md). Waves are for orientation; the Needs column decides. Status as of 2026-10-27
-(`origin/main` at #324). ISO-3 and ISO-7b started before ISO-1a was added to their Needs, and merged after it. ISO-6b
-may start before ISO-1a4 but marks its PR ready only once ISO-1a4 has merged (its brief), which the Needs column cannot
-hold.
+(`origin/main` at #330). ISO-3 and ISO-7b started before ISO-1a was added to their Needs, and merged after it. ISO-6b
+may start before ISO-1a4 but marks its PR ready only once ISO-1a4 has merged (its brief). Before ISO-1e starts, the
+coordinator checks that no other open PR edits a builder of acts or obligations in M3, M6 to M10, M13 or M16, and
+sequences the two if one does (its start check, the #326 audit). The Needs column can hold neither condition.
 
 | Wave | Package | Module | Title | Needs | Status |
 |---|---|---|---|---|---|
@@ -468,9 +473,9 @@ hold.
 | I5 | ISO-2h | M3 | Review figure reads: gather, store, visible ids, rows that follow a replan | ISO-2g, ISO-1a3 | merged (#316) |
 | I5 | ISO-2i | M3 | `ids` on four ISO lists; role lookup for people named by client roles; documents found by issuer | ISO-2e | merged (#304) |
 | I5 | ISO-2j | M3 | More ISO list filters; the person's own state in the role lookup | ISO-2i | merged (#310) |
-| I5 | ISO-6c | M17 | ISO screens 3: audits, nonconformities, management reviews | ISO-6b, ISO-1a3, ISO-1a4 | started (part 3a, #321) |
+| I5 | ISO-6c | M17 | ISO screens 3: audits, nonconformities, management reviews | ISO-6b, ISO-1a3, ISO-1a4 | merged (#321, #327, #329) |
 | I5 | ISO-8b | M16 | ISO API 2: risks, objectives, actions | ISO-8a, ISO-2e, ISO-1a4, ISO-2i, ISO-2j | merged (#320) |
-| I5 | ISO-8c | M16 | ISO API 3: internal audits, external-audit findings, nonconformities, management reviews, overview | ISO-8b, ISO-2h, ISO-3b, ISO-2i, ISO-2j | started (part 1 merged, #323; part 2, #325) |
+| I5 | ISO-8c | M16 | ISO API 3: internal audits, external-audit findings, nonconformities, management reviews, overview | ISO-8b, ISO-2h, ISO-3b, ISO-2i, ISO-2j | merged (#323, #325, #328) |
 | I5 | ISO-9b | M6 | Hide and refuse STANDARD library rows when off; no cross-kind changes | ISO-9, ISO-2f, ISO-4b | merged (#300) |
 | I5 | ISO-11a | M7 | Source filter and the off switch on instances and evidence | ISO-15, ISO-2f, ISO-4b | merged (#312) |
 | I5 | ISO-10b | M9 | Off switch in the existing jobs, STATUTE-only digest, ISO file scan | ISO-10a, ISO-1b, ISO-2d, ISO-2f | merged (#308) |
@@ -478,11 +483,12 @@ hold.
 | I5 | ISO-11b | M10 | Statutory numbers exclude ISO; off switch | ISO-1b, ISO-2e, ISO-2f, ISO-4b, ISO-11e | merged (#309) |
 | I6 | ISO-10c | M9 | ISO reminders | ISO-10b, ISO-2e, ISO-3, ISO-2j | merged (#318) |
 | I6 | ISO-11d | M10 | ISO exports and ISO data in the client archive | ISO-11b, ISO-3, ISO-3b, ISO-2h | started (part 1 merged, #319) |
-| I7 | ISO-14b | none (`Tooling:`) | Wire ISO files | ISO-8c, ISO-10c, ISO-14a, ISO-15 | |
-| I7 | ISO-13 | M14 | Integrated ISO journey and off-switch sweep | every other package | |
+| I7 | ISO-14b | none (`Tooling:`) | Wire ISO files | ISO-8c, ISO-10c, ISO-14a, ISO-15 | merged (#330) |
+| I7 | ISO-13 | M14 | Integrated ISO journey | every other package but ISO-11d, ISO-1e and ISO-13b | |
 | I7 | ISO-1c | M0 | Type the engine API's review figures; keep three add-on fields optional | ISO-1b, ISO-2c, ISO-4a, ISO-5, ISO-5b, ISO-9, ISO-16, ISO-3b | merged (#324) |
-| I7 | ISO-1c2 | M0 | The mock's overview counts overdue nonconformities as the NC list does | ISO-1c, ISO-6c | |
+| I7 | ISO-1c2 | M0 | The mock's overview counts overdue nonconformities as the NC list does | ISO-1c, ISO-6c | merged (#331) |
 | I7 | ISO-1e | M0 | Require `Act.kind` and `Obligation.clauseRefs` once their creators set them | ISO-1c, ISO-1c2, ISO-8c, ISO-11d | |
+| I8 | ISO-13b | M14 | Off-switch sweep against the real stack | every other package | |
 
 Modules with ISO packages: M0, M3, M4, M5, M6, M7, M8, M9, M10, M11, M12, M13, M14, M15, M16, M17, and Tooling.
 
@@ -500,9 +506,10 @@ Modules with ISO packages: M0, M3, M4, M5, M6, M7, M8, M9, M10, M11, M12, M13, M
    successful request calls the port once with the right subject and that a refused request does not call it. The
    file `AuditEvent`s each port call writes are asserted in ISO-15's db tests and end to end in ISO-13.
 3. With the feature off: every ISO route answers 403 `FEATURE_NOT_ENABLED`; every route in §4.5 refuses or leaves out
-   ISO items; an M14 test calls every `ENDPOINTS` entry with an ISO fixture id (ISO record, STANDARD act, obligation,
-   assignment, instance, ISO file) and expects 403 or no ISO item; no reminder, escalation, digest line or workflow
-   email mentions ISO work. With it back on, all data is unchanged. The next request after a switch sees it.
+   ISO items; an M14 test (ISO-13b) calls every `ENDPOINTS` entry with an ISO fixture id (ISO record, STANDARD act,
+   obligation, assignment, instance, ISO file) and expects 403 or no ISO item; no reminder, escalation, digest line or
+   workflow email mentions ISO work (the jobs' tests, ISO-10b and ISO-10c). With it back on, all data is unchanged. The
+   next request after a switch sees it.
 4. Turning the feature on copies the catalogue once, whether through an override, a plan change or a plan edit, with
    the event delivered twice and the sweep running at the same time; ISO routes answer 409 `FEATURE_NOT_READY` until
    the copy is recorded.
