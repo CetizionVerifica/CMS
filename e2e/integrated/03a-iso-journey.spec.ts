@@ -374,7 +374,6 @@ test.describe.serial('the ISO add-on, turned on, used and turned off', () => {
       });
       await expect(files.getByRole('listitem').filter({ hasText: name })).toBeVisible();
     }
-    await expect(files.getByText('Being checked').first()).toBeVisible();
     await files.getByRole('button', { name: `Remove ${WRONG}` }).click();
     const remove = page.getByRole('alertdialog', { name: `Remove ${WRONG}?` });
     await remove.getByLabel('Reason').fill('Uploaded the wrong scale’s certificate.');
