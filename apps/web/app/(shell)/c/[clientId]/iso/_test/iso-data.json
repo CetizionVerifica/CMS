@@ -589,8 +589,8 @@
             ]
           },
           "overdue": {
-            "count": 2,
-            "ids": ["4fe2918b-7f7f-5553-a25e-180bbd8743bb", "ab0ef76f-f459-5aa1-89af-10260aef3325"]
+            "count": 1,
+            "ids": ["ab0ef76f-f459-5aa1-89af-10260aef3325"]
           },
           "awaitingVerification": {
             "count": 1,

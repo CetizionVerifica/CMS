@@ -5,6 +5,7 @@ import type {
   CertificationCycle,
   IsoDueStatus,
   IsoTiming,
+  NonconformityStatus,
   ObjectiveProgress,
 } from '../../schemas/iso-results.js';
 import { previewPeriods } from '../periods.js';
@@ -84,6 +85,32 @@ export function isoTiming(
   if (days < 0) return { timing: 'OVERDUE', overdueDays: -days };
   const timing: Timing = days <= dueSoonDays ? 'DUE_SOON' : 'ON_TIME';
   return { timing, overdueDays: null };
+}
+
+/**
+ * `nonconformityStatus` (model §5.2) as the mock reads it: CLOSED once CLOSED or CANCELLED. Otherwise the earliest of
+ * `dueOn` (until the owner submits it) and the due dates of its OPEN actions decides ON_TIME, DUE_SOON or OVERDUE, and
+ * the effectiveness check is overdue the day after `effectivenessDueOn`. `actions` are the nonconformity's own; the
+ * list's `overdue` filter and the overview's `nonconformities.overdue` both read this.
+ */
+export function ncStatus(
+  nc: IsoRow<'nonconformities'>,
+  actions: readonly IsoRow<'actions'>[],
+  today: string,
+  dueSoonDays: number,
+): z.input<typeof NonconformityStatus> {
+  if (nc.state === 'CLOSED' || nc.state === 'CANCELLED') {
+    return { timing: 'CLOSED', overdueDays: null, effectivenessOverdueDays: null };
+  }
+  const dates = actions.filter((a) => a.state === 'OPEN').map((a) => a.dueOn);
+  if (nc.state !== 'AWAITING_VERIFICATION') dates.push(nc.dueOn);
+  const earliest = dates.sort()[0] ?? null;
+  const effectivenessLate =
+    nc.effectivenessDueOn === null ? 0 : daysFrom(nc.effectivenessDueOn, today);
+  return {
+    ...isoTiming(earliest, false, today, dueSoonDays),
+    effectivenessOverdueDays: effectivenessLate > 0 ? effectivenessLate : null,
+  };
 }
 
 /** Clause readiness points: IMPLEMENTED 1, PARTIAL 0.5, others 0; score 0-100 with one decimal, null when none count. */

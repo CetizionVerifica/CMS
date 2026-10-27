@@ -19,7 +19,7 @@ ISO add-on (M16): its records, engine interface, 119 routes (1.8.1), catalogue a
 | [CHANGELOG.md](CHANGELOG.md) | Contract versions | everyone |
 
 ## Status
-Version `1.8.6` (`CONTRACTS_VERSION` in `packages/contracts/src/version.ts`). The domain model in §1-8 of
+Version `1.8.7` (`CONTRACTS_VERSION` in `packages/contracts/src/version.ts`). The domain model in §1-8 of
 [domain-model.md](domain-model.md) is published as v1 so wave 1 (M3, M4, M8, M11) can build against it. Each consumer
 module owner still reviews its part (MODULES.md M0 acceptance); review findings ship as additive changes or, if breaking,
 with sign-off per "How to change a contract".
@@ -413,7 +413,16 @@ with sign-off per "How to change a contract".
     (model §5.2) is OVERDUE on as-of: `dueOn` counts until the owner submits, and a late OPEN action counts too, the
     test the nonconformity list's `overdue` filter already used. The mock's overview still counts an open
     nonconformity past `dueOn`, even once submitted and whatever its actions, so it disagrees with its list (ISO-6c
-    audit Info 1). It moves to the definition in a later patch together with M17's demo snapshot (`iso-data.json`),
-    which records the mock's overview and which an M0 PR cannot regenerate; ISO-8c builds the API's count to the
-    definition. It is a patch: no wire shape changes, the narrowed signature's only implementer already has it, and no
-    API serves the overview yet.
+    audit Info 1). It moves to the definition in a later patch (done in 1.8.7, decision 57) together with M17's demo
+    snapshot (`iso-data.json`), which records the mock's overview and which an M0 PR cannot regenerate; ISO-8c builds
+    the API's count to the definition. It is a patch: no wire shape changes, the narrowed signature's only implementer
+    already has it, and no API serves the overview yet.
+57. The mock's ISO overview follows 1.8.6's definition (ISO-1c2, contracts 1.8.7). `nonconformities.overdue` counts
+    the open nonconformities whose status from the mock's one `ncStatus` (`src/mock/iso/derive.ts`, model §5.2) is
+    OVERDUE on as-of, the function its NC list's `overdue` filter and `NonconformityView.status` read, and
+    `effectivenessOverdue` those whose status has `effectivenessOverdueDays`, as the API's overview does (ISO-8c). A
+    submitted nonconformity past `dueOn` is no longer counted, and one with a late OPEN action now is, so firm B's
+    demo client counts 1 where it counted 2. The PR is a Tooling one because M17's demo snapshot (`iso-data.json`)
+    records the mock's overview and is regenerated with it, and the overview's NC "Overdue" link goes back to the
+    log's own `overdue=true` filter, which now returns exactly the counted records. It is a patch: only mock values
+    change.

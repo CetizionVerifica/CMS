@@ -16,6 +16,7 @@ import {
   isoApp,
   isoEvents,
   NORTHWIND,
+  NOW,
   ok,
   PERSON,
   PUNE,
@@ -2057,6 +2058,69 @@ describe('ISO overview', () => {
     const all = [seen.id, unseen.id].sort();
     expect(await listed(PERSON.meera)).toEqual(all);
     expect([...(await overview(PERSON.meera, both.id)).actions.open.ids].sort()).toEqual(all);
+  });
+
+  it('counts a nonconformity overdue by its own status, the ids the list gives for overdue=true (README decision 57)', async () => {
+    const own = seedSystem(app, { unitIds: [PUNE], name: 'Nonconformity timing' });
+    // Due before today but submitted: dueOn no longer counts, and it has no open action.
+    const submitted = nc(own.id, {
+      ...worked,
+      state: 'AWAITING_VERIFICATION',
+      dueOn: '2024-10-01',
+      effectivenessDueOn: '2024-12-01',
+    });
+    // Due later, but an OPEN corrective action is late.
+    const lateAction = nc(own.id, { dueOn: '2024-12-31' });
+    action('NONCONFORMITY', lateAction.id, { dueOn: '2024-11-01' });
+    // Due later, and its late action is done.
+    const doneAction = nc(own.id, { dueOn: '2024-12-31' });
+    action('NONCONFORMITY', doneAction.id, {
+      dueOn: '2024-11-01',
+      state: 'DONE',
+      doneOn: '2024-11-02',
+    });
+    const late = nc(own.id, { dueOn: '2024-11-01' });
+
+    const counted = [...(await overview(PERSON.meera, own.id)).nonconformities.overdue.ids].sort();
+    expect(counted).toEqual([lateAction.id, late.id].sort());
+    const listed = await ok<{ items: { id: string }[] }>(app, 'listIsoNonconformities', {
+      as: PERSON.meera,
+      query: { managementSystemId: own.id, overdue: 'true' },
+    });
+    expect(listed.items.map((n) => n.id).sort()).toEqual(counted);
+    expect([submitted.id, doneAction.id].some((id) => counted.includes(id))).toBe(false);
+    // Before the action and the NC fell due, nothing is overdue.
+    const earlier = await overview(PERSON.meera, own.id, { asOf: '2024-10-31' });
+    expect(earlier.nonconformities.overdue.ids).toEqual([]);
+    firm().iso.managementSystems.find((s) => s.id === own.id)!.archivedAt = NOW;
+  });
+
+  it("counts 1 overdue nonconformity on firm B's demo system, where it counted 2 before 1.8.7 (README decision 57)", async () => {
+    // A fresh mock, so no other test's records are in the demo system.
+    const fresh = await isoApp();
+    try {
+      const iso = firmB(fresh).iso;
+      const demo = iso.managementSystems.find((s) => s.archivedAt === null)!;
+      const submitted = iso.nonconformities.find(
+        (n) => n.managementSystemId === demo.id && n.state === 'AWAITING_VERIFICATION',
+      )!;
+      // Past its due date, but submitted: no longer counted.
+      expect(submitted.dueOn < TODAY).toBe(true);
+      const { systems } = await ok<IsoOverview>(fresh, 'getIsoOverview', {
+        as: PERSON.meera,
+        query: { managementSystemId: demo.id },
+      });
+      const counted = systems[0]!.nonconformities.overdue;
+      expect(counted.count).toBe(1);
+      expect(counted.ids).not.toContain(submitted.id);
+      const listed = await ok<{ items: { id: string }[] }>(fresh, 'listIsoNonconformities', {
+        as: PERSON.meera,
+        query: { managementSystemId: demo.id, overdue: 'true' },
+      });
+      expect(listed.items.map((n) => n.id)).toEqual(counted.ids);
+    } finally {
+      await fresh.close();
+    }
   });
 
   it('takes an as-of date from firm roles and viewers only, and filters by system', async () => {

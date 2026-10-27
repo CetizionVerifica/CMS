@@ -70,9 +70,13 @@ describe('countGroups', () => {
       count: view.documents.inReview.count,
       href: `/c/${C}/iso/documents?ids=${view.documents.inReview.ids.join('%2C')}`,
     });
-    expect(groups[0]!.items[1]!.href).toBe(
-      `/c/${C}/iso/nonconformities?ids=${view.nonconformities.overdue.ids.join('%2C')}`,
-    );
+    // The overview counts overdue nonconformities by the log's own `overdue` filter (contracts 1.8.7), so the link is
+    // that filter, with no ids.
+    expect(groups[0]!.items[1]!).toEqual({
+      label: 'Overdue',
+      count: view.nonconformities.overdue.count,
+      href: `/c/${C}/iso/nonconformities?managementSystemId=${SYS}&overdue=true`,
+    });
     expect(groups[1]!.items[0]!.href).toBe(
       `/c/${C}/iso/actions?managementSystemId=${SYS}&state=OPEN`,
     );
@@ -102,14 +106,14 @@ describe('countGroups', () => {
     expect(docs.find((g) => g.title === 'Documents')!.items[1]!.href).toBe(
       `/c/${C}/iso/documents?managementSystemId=${SYS}&status=ACTIVE%2COBSOLETE`,
     );
-    // Past the limit the overdue nonconformities open on the log's own overdue filter, which is close but not exact.
+    // Any number of overdue nonconformities opens the log's own overdue filter, with no note.
     const ncs = countGroups(C, {
       ...view,
       nonconformities: { ...view.nonconformities, overdue: { count: many.length, ids: many } },
     });
     const overdue = ncs.find((g) => g.title === 'Nonconformities')!.items[1]!;
     expect(overdue.href).toBe(`/c/${C}/iso/nonconformities?managementSystemId=${SYS}&overdue=true`);
-    expect(overdue.note).toMatch(/by the nearest filter/);
+    expect(overdue.note).toBeUndefined();
   });
 });
 

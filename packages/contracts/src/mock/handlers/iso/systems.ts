@@ -50,6 +50,7 @@ import {
   incidentsIn,
   isoTiming,
   localDate,
+  ncStatus,
   objectiveOnTrack,
   readinessScore,
   uncoveredByAudits,
@@ -744,6 +745,18 @@ function systemOverview(actor: Actor, system: System, asOf: string): SystemOverv
     seen(reach({ clientId, unitIds: c.unitIds, systemId })),
   );
   const overdue = (dueOn: string | null) => dueOn !== null && dueOn < asOf;
+  // Each open nonconformity's own status on as-of, from all its actions, as the list's `overdue` filter reads it.
+  const ncStatusOf = new Map(
+    openNcs.map((n) => [
+      n.id,
+      ncStatus(
+        n,
+        records.actions.filter((a) => a.subject.type === 'NONCONFORMITY' && a.subject.id === n.id),
+        asOf,
+        dueSoonDays,
+      ),
+    ]),
+  );
 
   const fy = fyOf(asOf, startMonth);
   const programme = records.programmes.find((p) => p.fy === fy);
@@ -776,12 +789,16 @@ function systemOverview(actor: Actor, system: System, asOf: string): SystemOverv
     climateGaps: climateGaps(system, records),
     nonconformities: {
       open: idCount(openNcs.map((n) => n.id)),
-      overdue: idCount(openNcs.filter((n) => overdue(n.dueOn)).map((n) => n.id)),
+      overdue: idCount(
+        openNcs.filter((n) => ncStatusOf.get(n.id)!.timing === 'OVERDUE').map((n) => n.id),
+      ),
       awaitingVerification: idCount(
         ncs.filter((n) => n.state === 'AWAITING_VERIFICATION').map((n) => n.id),
       ),
       effectivenessOverdue: idCount(
-        openNcs.filter((n) => overdue(n.effectivenessDueOn)).map((n) => n.id),
+        openNcs
+          .filter((n) => ncStatusOf.get(n.id)!.effectivenessOverdueDays !== null)
+          .map((n) => n.id),
       ),
     },
     actions: {
