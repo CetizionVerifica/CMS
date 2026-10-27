@@ -1,4 +1,11 @@
-import { ExportJob, FyLabel, LocalDate, type RequestContext } from '@canopy/contracts';
+import {
+  ExportJob,
+  FyLabel,
+  LocalDate,
+  type RequestContext,
+  type ReviewInputKey,
+  type ReviewInputSource,
+} from '@canopy/contracts';
 import {
   auditChecklistItems,
   auditFindings,
@@ -6,10 +13,13 @@ import {
   internalAudits,
   isoActions,
   isoCatalogue,
+  managementReviews,
   managementSystems,
   nonconformities,
   obligations,
   people,
+  reviewInputs,
+  reviewOutputs,
   riskControls,
   riskItems,
   systemContext,
@@ -55,6 +65,7 @@ const runner = new InProcessRunner();
 const auth = createTestAuth();
 let app: ReturnType<typeof buildServer>;
 let seeded: Awaited<ReturnType<typeof seedIso>>;
+let reviews: Awaited<ReturnType<typeof seedReviews>>;
 
 /** Writes the ISO records through M3's repositories as the system context, as M16 would have. */
 async function seedIso(world: FirmWorld) {
@@ -233,7 +244,7 @@ async function seedIso(world: FirmWorld) {
       tx,
       fields(controlRecord(cast, aspect.id, { text: 'Extraction hood' })),
     );
-    await isoActions.create(
+    const riskAction = await isoActions.create(
       tx,
       fields(
         actionRecord(
@@ -330,7 +341,132 @@ async function seedIso(world: FirmWorld) {
       wide,
       reportedAudit,
       plannedAudit,
+      incident,
+      aspect,
+      riskAction,
+      ncFinding,
+      iso9001: iso9001.id,
+      iso45001: iso45001.id,
     };
+  });
+}
+
+/**
+ * Management reviews of a "Site system" on both units (ISO-11d part 3): a HELD review whose stored figures name
+ * records of every kind the pack labels, at Plant and at Head Office, chaired by the office owner with the approver
+ * attending; and a PLANNED one, computed through M3's gather and the engine when the pack is made.
+ */
+async function seedReviews(world: FirmWorld, iso: Awaited<ReturnType<typeof seedIso>>) {
+  return t.db.withTenant(systemContext(world.firmId, 'm10-iso-reviews'), async (tx: TenantTx) => {
+    const input = (standardId: string, key: ReviewInputKey, source: ReviewInputSource) => ({
+      standardId,
+      key,
+      clauseNumber: '9.3.2',
+      item: key === 'INCIDENTS' ? null : 'c',
+      title: `Input ${key.toLowerCase()}`,
+      source,
+    });
+    await isoCatalogue.createReviewInputDefs(tx, [
+      input(iso.iso9001, 'NONCONFORMITIES', 'NONCONFORMITIES'),
+      input(iso.iso9001, 'CUSTOMER_SATISFACTION', 'MANUAL'),
+      input(iso.iso9001, 'AUDIT_RESULTS', 'AUDIT_RESULTS'),
+      input(iso.iso9001, 'RISK_ACTIONS', 'RISKS'),
+      input(iso.iso9001, 'CONTEXT_CHANGES', 'CONTEXT'),
+      input(iso.iso45001, 'INCIDENTS', 'INCIDENTS'),
+      input(iso.iso45001, 'COMPLIANCE_EVALUATION', 'COMPLIANCE_EVALUATION'),
+    ]);
+    await isoCatalogue.createReviewOutputDefs(tx, [
+      {
+        standardId: iso.iso9001,
+        key: 'IMPROVEMENT',
+        clauseNumber: '9.3.3',
+        item: 'a',
+        title: 'Improvement',
+      },
+    ]);
+    const site = await managementSystems.create(tx, {
+      clientId: world.clientId,
+      name: 'Site system',
+      standardIds: [iso.iso9001, iso.iso45001],
+      scopeStatement: null,
+      unitIds: [world.unit1, world.unit2],
+      status: 'IMPLEMENTING',
+      reviewIntervalMonths: 12,
+      climateChangeRelevant: null,
+      climateChangeRationale: null,
+      climateDecidedOn: null,
+    });
+    const review = async (fields: Partial<Parameters<typeof managementReviews.create>[1]>) => {
+      const made = await managementReviews.create(tx, {
+        clientId: world.clientId,
+        managementSystemId: site.id,
+        standards: ['ISO_9001', 'ISO_45001'],
+        plannedOn: d('2026-09-30'),
+        heldOn: null,
+        chairId: iso.officeOwner,
+        attendeeIds: [world.people.approver],
+        minutes: null,
+        state: 'PLANNED',
+        cancelReason: null,
+        ...fields,
+      });
+      await reviewInputs.addForReview(tx, made, [iso.iso9001, iso.iso45001]);
+      await reviewOutputs.addForReview(tx, made, [iso.iso9001]);
+      return made;
+    };
+    const held = await review({ state: 'HELD', heldOn: d('2026-09-30'), minutes: 'Guarding' });
+    const figures = (source: ReviewInputSource, list: [string, number, string[]][]) => ({
+      source,
+      since: d('2026-04-01'),
+      asOf: d('2026-09-30'),
+      figures: list.map(([key, value, ids]) => ({ key, value, ids })),
+    });
+    const stored: Partial<Record<ReviewInputKey, ReturnType<typeof figures>>> = {
+      NONCONFORMITIES: figures('NONCONFORMITIES', [
+        ['raised', 2, [iso.gauge.id, iso.complaint.id]],
+        ['open', 1, [iso.gauge.id]],
+      ]),
+      INCIDENTS: figures('INCIDENTS', [
+        ['incidents', 1, [iso.incident.id]],
+        ['lostDays', 4, [iso.incident.id]],
+      ]),
+      AUDIT_RESULTS: figures('AUDIT_RESULTS', [
+        ['internalAuditsReported', 1, [iso.reportedAudit.id]],
+        ['findingsMinorNc', 1, [iso.ncFinding.id]],
+      ]),
+      RISK_ACTIONS: figures('RISKS', [
+        ['itemsAdded', 1, [iso.aspect.id]],
+        ['treatmentActionsOpen', 1, [iso.riskAction.id]],
+      ]),
+      CONTEXT_CHANGES: figures('CONTEXT', [['climateDecided', 1, [site.id]]]),
+      COMPLIANCE_EVALUATION: figures('COMPLIANCE_EVALUATION', [
+        ['statutoryInstancesDue', 1, [world.approved.id]],
+        ['statutoryScore', 100, []],
+      ]),
+    };
+    const defs = await isoCatalogue.reviewDefs(tx);
+    for (const row of await reviewInputs.forReview(tx, held.id)) {
+      const key = defs.inputs.find((def) => def.id === row.inputDefId)!.key;
+      const notes = key === 'INCIDENTS' ? 'Roller line injury' : `Notes on ${key.toLowerCase()}`;
+      const noted = await reviewInputs.update(tx, row.id, row.version, { notes });
+      if (stored[key]) await reviewInputs.storeFigures(tx, noted.id, stored[key], '1.2.0');
+    }
+    const planned = await review({ plannedOn: d('2027-03-15') });
+    await isoActions.create(tx, {
+      clientId: world.clientId,
+      subject: { type: 'MANAGEMENT_REVIEW', id: held.id },
+      text: 'Buy two light curtains',
+      resources: null,
+      ownerId: world.people.owner,
+      dueOn: d('2026-12-01'),
+      doneOn: null,
+      state: 'OPEN',
+      effectivenessNote: null,
+      cancelReason: null,
+      controlHierarchy: null,
+      outputKey: 'IMPROVEMENT',
+    });
+    return { held, planned };
   });
 }
 
@@ -339,6 +475,7 @@ beforeAll(async () => {
   a = await seedFirm(t.db, await t.createFirm('Kestrel Advisory'), 'Kestrel');
   b = await seedFirm(t.db, await t.createFirm('Osprey Ledger'), 'Osprey');
   seeded = await seedIso(a);
+  reviews = await seedReviews(a, seeded);
   app = buildServer({
     authStore: auth.store,
     clock: () => NOW,
@@ -579,5 +716,104 @@ describe('the internal audit report on Postgres', () => {
 
   it("never reads another firm's audit", async () => {
     expect((await create(b, seeded.reportedAudit.id, admin(b))).statusCode).toBe(404);
+  });
+});
+
+describe('the management review pack on Postgres', () => {
+  function create(world: FirmWorld, managementReviewId: string, as: Record<string, string>) {
+    return app.inject({
+      method: 'POST',
+      url: `/api/v1/clients/${world.clientId}/exports`,
+      headers: as,
+      payload: { kind: 'ISO_REVIEW_PACK_PDF', filters: `managementReviewId=${managementReviewId}` },
+    });
+  }
+
+  async function pack(managementReviewId: string, as: Record<string, string>): Promise<string> {
+    const res = await create(a, managementReviewId, as);
+    expect(res.statusCode).toBe(202);
+    const job = ExportJob.parse(res.json());
+    await runner.idle();
+    const read = await app.inject({ url: `/api/v1/exports/${job.id}`, headers: as });
+    expect(ExportJob.parse(read.json()).status).toBe('DONE');
+    const ctx = {
+      requestId: 'm10-iso-read',
+      firmId: a.firmId,
+      personId: job.requestedById,
+      memberships: [],
+      clientIds: [a.clientId],
+      mfaSatisfied: true,
+    } as unknown as RequestContext;
+    const key = await new PostgresReportsStore(t.db).exportStorageKey(ctx, job.id);
+    return pdfText(files.files.get(key!)!.bytes);
+  }
+
+  it('prints the stored figures with their heading and a reference for every kind of record', async () => {
+    const text = await pack(reviews.held.id, admin(a));
+    for (const words of [
+      'Kestrel Metals Group / Site system / ISO 9001, ISO 45001',
+      'Chair: Office Owner',
+      'Attendees: Kestrel Approver',
+      'Input nonconformities (ISO 9001 9.3.2 c)',
+      'Input incidents (ISO 45001 9.3.2)',
+      'Figures for 2026-04-01 to 2026-09-30, recorded',
+      '(engine 1.2.0)',
+      'Raised: 2',
+      'Records: NC 1; NC 2',
+      'Records: NC 3',
+      'Notes: Roller line injury',
+      'Records: Casthouse process audit',
+      'Records: Minor nonconformity: Gauge 14 out of calibration',
+      'Records: Degreasing: A late alloy delivery stops the line',
+      'Records: Recalibrate the gauge',
+      'Records: Site system',
+      'Statutory compliance score: 100',
+      'Input customer_satisfaction',
+      'Notes: Notes on customer_satisfaction',
+      'Improvement (ISO 9001 9.3.3 a)',
+      'Buy two light curtains · Kestrel Owner · due 2026-12-01 · Open',
+    ]) {
+      expect(text).toContain(words);
+    }
+    expect(text).toContain(`Records: Daily safety register, due ${a.approved.dueDate}`);
+  });
+
+  it('keeps the values for an approver of Plant, with fewer references and the incidents withheld', async () => {
+    const plant = headers(a, 'APPROVER', a.people.viewer, [a.unit1]);
+    const text = await pack(reviews.held.id, plant);
+    expect(text).toContain('Raised: 2 (1 you can open)');
+    expect(text).toContain('Records: NC 1');
+    expect(text).not.toContain('NC 2');
+    expect(text).toContain('Figures and notes withheld: they count incidents you may not open');
+    expect(text).not.toContain('Roller line injury');
+    // The approver attends: the incidents show, with the references they may open.
+    const attendee = headers(a, 'APPROVER', a.people.approver, [a.unit1]);
+    const attended = await pack(reviews.held.id, attendee);
+    expect(attended).toContain('Notes: Roller line injury');
+    expect(attended).toContain('Incidents and near misses: 1');
+    // Named on the incident (its investigator): its reference, so the row.
+    const investigator = headers(a, 'APPROVER', seeded.investigator, [a.unit1]);
+    expect(await pack(reviews.held.id, investigator)).toContain('Records: NC 3');
+  });
+
+  it('prints the stored figures unchanged after the records change', async () => {
+    await t.db.withTenant(systemContext(a.firmId, 'm10-iso-edit'), async (tx: TenantTx) => {
+      const gauge = await nonconformities.require(tx, seeded.gauge.id);
+      await nonconformities.archive(tx, gauge.id, gauge.version);
+    });
+    const text = await pack(reviews.held.id, admin(a));
+    expect(text).toContain('Raised: 2');
+    expect(text).toContain('Open: 1');
+    expect(text).toContain('Records: NC 1; NC 2');
+  });
+
+  it('computes a planned review as of the day the pack is made, and refuses another firm', async () => {
+    const text = await pack(reviews.planned.id, admin(a));
+    expect(text).toContain('Draft: this review is planned and not yet held.');
+    expect(text).toMatch(/Draft: figures for \d{4}-\d{2}-\d{2} to 2026-10-12/);
+    expect(text).toContain('Raised: 0');
+    expect((await create(b, reviews.held.id, admin(b))).statusCode).toBe(404);
+    const office = headers(a, 'APPROVER', a.people.viewer, [a.unit2]);
+    expect(await pack(reviews.planned.id, office)).toContain('Draft');
   });
 });

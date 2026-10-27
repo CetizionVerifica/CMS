@@ -10,14 +10,20 @@ import type {
   FirmSettings,
   InternalAudit,
   IsoAction,
+  IsoReviewInputDef,
+  IsoReviewOutputDef,
   IsoStandardCode,
   LocalDate,
+  ManagementReview,
   NcSeverity,
   NcSource,
   NcState,
   Nonconformity,
   ObligationDomain,
   RequestContext,
+  ReviewInput,
+  ReviewInputFigures,
+  ReviewOutput,
   RiskControl,
   RiskItem,
   RiskKind,
@@ -175,6 +181,42 @@ export interface IsoAuditBook {
   names: IsoNames;
 }
 
+/** One input row of a review pack, with the figures its review's state gives it (docs/iso/model.md §3.13 item 5). */
+export interface IsoReviewInputRow {
+  row: ReviewInput;
+  def: IsoReviewInputDef;
+  /** "ISO 9001 9.3.2 c": the definition's clause. */
+  clause: string;
+  /**
+   * PLANNED: computed as of the pack's day over the whole system; HELD or CLOSED: the stored copy (null for a review
+   * held before its system was set up); CANCELLED and MANUAL: null. Ids are not cut to the reader yet.
+   */
+  figures: ReviewInputFigures | null;
+}
+
+/** One output row of a review pack. */
+export interface IsoReviewOutputRow {
+  row: ReviewOutput;
+  def: IsoReviewOutputDef;
+  clause: string;
+}
+
+/** One management review for its pack (docs/iso/model.md §3.13, §9): rows in key order, its review actions, names. */
+export interface IsoReviewBook {
+  review: ManagementReview;
+  inputs: IsoReviewInputRow[];
+  outputs: IsoReviewOutputRow[];
+  /** The live actions raised by the review, any state. */
+  actions: IsoAction[];
+  names: IsoNames;
+}
+
+/** A review figure's ids with the table `REVIEW_FIGURE_KEYS` names for them. */
+export interface IsoFigureRef {
+  table: string;
+  ids: readonly string[];
+}
+
 export interface ReportsStore {
   firmSettings(ctx: RequestContext): Promise<FirmSettings>;
   /**
@@ -231,4 +273,26 @@ export interface ReportsStore {
     id: string,
     scope: UnitScope | null,
   ): Promise<IsoAuditBook | null>;
+  /**
+   * A live management review of the client that `scope` may read (its system's units, or its chair or an attendee),
+   * with its pack's rows; a PLANNED review's figures are computed as of `today` in `timeZone`, or not at all when
+   * `day` is null (create only checks the review exists for the requester). Null otherwise.
+   */
+  isoManagementReview(
+    ctx: RequestContext,
+    clientId: string,
+    id: string,
+    scope: UnitScope | null,
+    day: { today: LocalDate; timeZone: string } | null,
+  ): Promise<IsoReviewBook | null>;
+  /**
+   * For each of `refs`, the ids of the client's records `scope` may read (all of the client's with no scope), in their
+   * order, and a short reference for each of them ("NC 12", an audit's title): plan §3.3, through M3's `isoVisibleIds`.
+   */
+  isoFigureReferences(
+    ctx: RequestContext,
+    clientId: string,
+    refs: readonly IsoFigureRef[],
+    scope: UnitScope | null,
+  ): Promise<{ visible: string[][]; labels: ReadonlyMap<string, string> }>;
 }

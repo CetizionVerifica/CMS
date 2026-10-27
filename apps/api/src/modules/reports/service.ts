@@ -13,7 +13,7 @@ import {
   type ScoreResult,
   type SignedUrl,
 } from '@canopy/contracts';
-import { compareDates, computeScore, fyRangeOf } from '@canopy/engine';
+import { compareDates, computeScore, fyRangeOf, localDateIn } from '@canopy/engine';
 import { z } from 'zod';
 import { ApiError, can } from '../../auth/index.js';
 import type { ClientInfo, RowFilter, UnitInfo } from '../dashboard/ports.js';
@@ -42,6 +42,7 @@ import {
 import { clientArchive, type ArchiveInstance } from './archive.js';
 import { auditReportPdf } from './audit-report-pdf.js';
 import { certificatePdf } from './certificate-pdf.js';
+import { packInputs, reviewFigureRefs, reviewPackPdf } from './review-pack-pdf.js';
 import type { ExportFiles } from './files.js';
 import {
   filterWords,
@@ -208,6 +209,7 @@ const BUILT_KINDS: ReadonlySet<ExportKind> = new Set([
   'ISO_NC_LOG_XLSX',
   'ISO_RISK_REGISTER_XLSX',
   'ISO_AUDIT_REPORT_PDF',
+  'ISO_REVIEW_PACK_PDF',
 ]);
 
 /** The ISO export kinds are ISO data (docs/iso/plan.md §4.4). */
@@ -303,6 +305,20 @@ export async function createExport(
         clientId,
         internalAuditId,
         isoScope(ctx, clientId),
+      );
+      if (book === null) throw new ApiError('NOT_FOUND');
+    }
+    if (body.kind === 'ISO_REVIEW_PACK_PDF') {
+      // Likewise for the review (plan §3.3: its system's units, or its chair or an attendee); no figures yet.
+      const { managementReviewId } = ISO_EXPORT_FILTERS.ISO_REVIEW_PACK_PDF.parse(
+        Object.fromEntries(new URLSearchParams(body.filters)),
+      );
+      const book = await deps.store.isoManagementReview(
+        ctx,
+        clientId,
+        managementReviewId,
+        isoScope(ctx, clientId),
+        null,
       );
       if (book === null) throw new ApiError('NOT_FOUND');
     }
@@ -612,9 +628,29 @@ async function buildIsoFile(
         contentType: 'application/pdf',
       };
     }
-    default:
-      // An ISO kind M10 does not build yet: the job ends FAILED.
-      throw new Error(`No file builder for ${String(job.kind)}`);
+    case 'ISO_REVIEW_PACK_PDF': {
+      const { managementReviewId } = ISO_EXPORT_FILTERS.ISO_REVIEW_PACK_PDF.parse(raw);
+      const generatedAt = deps.clock().toISOString();
+      // A PLANNED review's figures are computed as of the client's today when the pack is made (model §9).
+      const book = await deps.store.isoManagementReview(ctx, client.id, managementReviewId, scope, {
+        today: localDateIn(generatedAt, timeZone),
+        timeZone,
+      });
+      if (book === null) throw new ApiError('NOT_FOUND');
+      const { refs } = reviewFigureRefs(book);
+      const { visible, labels } = await deps.store.isoFigureReferences(ctx, client.id, refs, scope);
+      return {
+        bytes: await reviewPackPdf({
+          clientName: client.name,
+          book,
+          inputs: packInputs(book, visible, labels, { personId: ctx.personId, timeZone }),
+          generatedAt,
+          timeZone,
+        }),
+        fileName: `management-review-pack-${book.review.heldOn ?? book.review.plannedOn}.pdf`,
+        contentType: 'application/pdf',
+      };
+    }
   }
 }
 

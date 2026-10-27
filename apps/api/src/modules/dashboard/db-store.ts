@@ -1,4 +1,4 @@
-import type { ExportJob, FirmSettings, RequestContext } from '@canopy/contracts';
+import type { ExportJob, FirmSettings, LocalDate, RequestContext } from '@canopy/contracts';
 import {
   account,
   auditEvents,
@@ -18,14 +18,22 @@ import {
   type UnitScope,
 } from '@canopy/db';
 import { ApiError } from '../../auth/index.js';
-import { isoAuditBook, isoNcBook, isoRiskBook } from '../reports/db-iso.js';
+import {
+  isoAuditBook,
+  isoFigureReferences,
+  isoNcBook,
+  isoReviewBook,
+  isoRiskBook,
+} from '../reports/db-iso.js';
 import type {
   ArchiveEvidence,
   ClientInfo,
   ExportDetail,
   IsoAuditBook,
+  IsoFigureRef,
   IsoNcBook,
   IsoNcFilter,
+  IsoReviewBook,
   IsoRiskBook,
   IsoRiskFilter,
   NewExportJob,
@@ -258,5 +266,24 @@ export class PostgresReportsStore implements ReportsStore {
     scope: UnitScope | null,
   ): Promise<IsoAuditBook | null> {
     return this.run(ctx, (tx) => isoAuditBook(tx, clientId, id, scope));
+  }
+
+  isoManagementReview(
+    ctx: RequestContext,
+    clientId: string,
+    id: string,
+    scope: UnitScope | null,
+    day: { today: LocalDate; timeZone: string } | null,
+  ): Promise<IsoReviewBook | null> {
+    return this.run(ctx, (tx) => isoReviewBook(tx, clientId, id, scope, day));
+  }
+
+  isoFigureReferences(
+    ctx: RequestContext,
+    clientId: string,
+    refs: readonly IsoFigureRef[],
+    scope: UnitScope | null,
+  ): Promise<{ visible: string[][]; labels: ReadonlyMap<string, string> }> {
+    return this.run(ctx, (tx) => isoFigureReferences(tx, clientId, refs, scope));
   }
 }

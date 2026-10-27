@@ -1,3 +1,4 @@
+import { selfAuditors } from '@canopy/contracts';
 import { PDFDocument, StandardFonts } from 'pdf-lib';
 import type { IsoAuditBook } from '../dashboard/ports.js';
 import { FOREST, localTime, MUTED, pdfSafe, Writer } from './certificate-pdf.js';
@@ -86,7 +87,16 @@ export async function auditReportPdf(data: AuditReportData): Promise<Uint8Array>
   line('Reported to', people(audit.reportedToIds));
 
   w.heading('Independence');
-  w.paragraph(audit.independenceNote ?? NO_SELF_AUDIT, 10);
+  // The contract asks for a note whenever an auditor is an auditee; the table does not, so the lists decide here.
+  const self = selfAuditors(audit);
+  if (audit.independenceNote !== null) w.paragraph(audit.independenceNote, 10);
+  else if (self.length === 0) w.paragraph(NO_SELF_AUDIT, 10);
+  else
+    w.paragraph(
+      `No independence note is recorded, though these auditors are also auditees: ${people(self)}.`,
+      10,
+      bold,
+    );
 
   w.heading('Summary');
   w.paragraph(
