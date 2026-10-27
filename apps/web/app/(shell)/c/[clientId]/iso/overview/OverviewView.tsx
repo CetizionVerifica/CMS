@@ -15,6 +15,7 @@ import {
   climateGapText,
   countGroups,
   incidentLinks,
+  programmeLinks,
   gateRows,
   isoPath,
   readinessLinks,
@@ -222,21 +223,8 @@ export function SystemOverview({
             <>
               <p className="text-body text-muted">FY {programme.fy}</p>
               <ul className="flex flex-col gap-1.5">
-                {(
-                  [
-                    ['Planned', programme.planned, 'PLANNED'],
-                    ['Reported', programme.reported, 'REPORTED,CLOSED'],
-                    ['Cancelled', programme.cancelled, 'CANCELLED'],
-                  ] as const
-                ).map(([label, count]) => (
-                  <Count
-                    key={label}
-                    item={{
-                      label,
-                      count: count.count,
-                      href: hrefWith(isoPath(clientId, 'audits'), { ids: count.ids.join(',') }),
-                    }}
-                  />
+                {programmeLinks(clientId, system).map((item) => (
+                  <Count key={item.label} item={item} />
                 ))}
               </ul>
               <p className="text-meta text-muted">
