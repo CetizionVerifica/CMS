@@ -11,7 +11,6 @@ import {
   externalAudits,
   isoFiles,
   managementSystems,
-  units,
   type TenantTx,
 } from '@canopy/db';
 import { certificationCycle, isoTransition } from '@canopy/engine';
@@ -85,26 +84,6 @@ function checkVisit(visit: Pick<ExternalAudit, 'startOn' | 'endOn' | 'responseDu
 }
 
 export function certificationsHandlers(core: Core): IsoHandlers<Ids> {
-  /** A certificate's units are units of its system (or, with none listed there, of the client). */
-  async function checkSystemUnits(
-    tx: TenantTx,
-    system: ManagementSystem,
-    unitIds: readonly string[],
-  ): Promise<void> {
-    for (const id of unitIds) {
-      const unit = await units.get(tx, id);
-      const ofSystem = system.unitIds.length === 0 || system.unitIds.includes(id);
-      if (
-        unit === null ||
-        unit.clientId !== system.clientId ||
-        unit.archivedAt !== null ||
-        !ofSystem
-      ) {
-        invalid('unitIds', 'Not a unit of this management system');
-      }
-    }
-  }
-
   /** The live external audits of a system, for the certification cycle. */
   async function auditsOf(tx: TenantTx, system: ManagementSystem): Promise<ExternalAudit[]> {
     const out: ExternalAudit[] = [];
@@ -264,7 +243,7 @@ export function certificationsHandlers(core: Core): IsoHandlers<Ids> {
           }),
         );
         checkStandards(system, [fields.standardId], 'standardId');
-        await checkSystemUnits(tx, system, fields.unitIds);
+        await core.checkSystemUnits(tx, system, fields.unitIds, 'unitIds');
         const certificate = await certifications.create(tx, {
           clientId,
           managementSystemId,
@@ -292,7 +271,8 @@ export function certificationsHandlers(core: Core): IsoHandlers<Ids> {
         authorize(ctx, 'isoCertification.write', isoResource(ctx, 'certification', reach));
         const { version, ...fields } = body;
         checkVersion(certificate, version);
-        if (fields.unitIds !== undefined) await checkSystemUnits(tx, system, fields.unitIds);
+        if (fields.unitIds !== undefined)
+          await core.checkSystemUnits(tx, system, fields.unitIds, 'unitIds');
         checkIssued({ ...certificate, ...definedOf(fields) });
         const updated = await core.edit(tx, ctx, certificate, fields, 'certification', (changes) =>
           certifications.update(tx, certificate.id, version, changes),

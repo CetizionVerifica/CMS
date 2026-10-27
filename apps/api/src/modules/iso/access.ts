@@ -5,8 +5,10 @@ import type {
   ControlledDocument,
   IsoEntityType,
   ManagementSystem,
+  Objective,
   RequestContext,
   Resource,
+  RiskItem,
   Role,
 } from '@canopy/contracts';
 import type { UnitScope } from '@canopy/db';
@@ -55,6 +57,25 @@ export const certificateReach = (system: ManagementSystem, certificate: Certific
   clientId: certificate.clientId,
   unitIds: certificate.unitIds.length > 0 ? certificate.unitIds : system.unitIds,
   people: [],
+});
+
+/** A risk item takes its own unit, else its management system's units; its owner always sees it. */
+export const riskReach = (
+  system: ManagementSystem,
+  item: Pick<RiskItem, 'unitId' | 'ownerId'>,
+): Reach => ({
+  clientId: system.clientId,
+  unitIds: item.unitId === null ? system.unitIds : [item.unitId],
+  people: [item.ownerId],
+});
+
+/** An objective has no unit of its own: it takes its management system's units; its owner always sees it. */
+export const objectiveReach = (
+  system: ManagementSystem,
+  objective: Pick<Objective, 'ownerId'>,
+): Reach => ({
+  ...systemReach(system),
+  people: [objective.ownerId],
 });
 
 /** Roles that see every unit of a client they can see. */

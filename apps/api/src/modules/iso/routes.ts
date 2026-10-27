@@ -1,9 +1,12 @@
 import { ENDPOINTS } from '@canopy/contracts';
 import type { FastifyInstance } from 'fastify';
+import { actionsHandlers } from './db-actions.js';
 import { createCore } from './db-context.js';
 import { certificationsHandlers } from './db-certifications.js';
 import { documentsHandlers } from './db-documents.js';
 import { filesHandlers } from './db-files.js';
+import { objectivesHandlers } from './db-objectives.js';
+import { risksHandlers } from './db-risks.js';
 import { systemsHandlers } from './db-systems.js';
 import { parseInput } from './errors.js';
 import { keyedRequest } from './idempotency.js';
@@ -24,6 +27,9 @@ export function registerIsoRoutes(app: FastifyInstance, options: IsoRouteOptions
     ...systemsHandlers(core),
     ...documentsHandlers(core),
     ...certificationsHandlers(core),
+    ...risksHandlers(core),
+    ...objectivesHandlers(core),
+    ...actionsHandlers(core),
     ...(options.files === undefined ? {} : filesHandlers(core, options.files)),
   } as Partial<Record<IsoEndpointId, AnyHandler>>;
 

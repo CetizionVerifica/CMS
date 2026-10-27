@@ -1,10 +1,12 @@
-import type {
-  AuditEvent,
-  IsoEntityType,
-  LocalDate,
-  ManagementSystem,
-  RequestContext,
-  Role,
+import {
+  DEFAULT_ISO_RISK_RULE,
+  type AuditEvent,
+  type IsoEntityType,
+  type IsoRiskRule,
+  type LocalDate,
+  type ManagementSystem,
+  type RequestContext,
+  type Role,
 } from '@canopy/contracts';
 import {
   auditEvents,
@@ -14,8 +16,8 @@ import {
   idempotencyKeys,
   managementSystems,
   memberships,
-  people,
   tenantFromRequest,
+  units,
   type TenantTx,
 } from '@canopy/db';
 import { localDateIn } from '@canopy/engine';
@@ -34,6 +36,10 @@ import type { IsoRouteOptions } from './types.js';
 export interface Calendar {
   timeZone: string;
   dueSoonDays: number;
+  /** The client's financial year start, for objective reading periods. */
+  fyStartMonth: number;
+  /** The firm's significance rule (`FirmSettings.isoRisk`, not editable in v1). */
+  riskRule: IsoRiskRule;
 }
 
 export type AuditAction = AuditEvent['action'];
@@ -123,11 +129,16 @@ export function createCore(options: IsoRouteOptions) {
       }
     },
 
-    /** The client's time zone and the firm's due-soon window. */
+    /** The client's time zone and financial year, and the firm's due-soon window and significance rule. */
     async calendar(tx: TenantTx, clientId: string): Promise<Calendar> {
       const client = await clients.require(tx, clientId);
       const firm = await firms.current(tx);
-      return { timeZone: client.settings.timeZone, dueSoonDays: firm.settings.dueSoonDays };
+      return {
+        timeZone: client.settings.timeZone,
+        dueSoonDays: firm.settings.dueSoonDays,
+        fyStartMonth: client.settings.fyStartMonth,
+        riskRule: firm.settings.isoRisk ?? DEFAULT_ISO_RISK_RULE,
+      };
     },
 
     /** Today in the client's time zone. */
@@ -188,8 +199,9 @@ export function createCore(options: IsoRouteOptions) {
 
     /**
      * A person named on an ISO record holds a live role in its client (model §1.5): FIRM_ADMIN, CONSULTANT of the
-     * client, or a client membership (with no unit list, or one that has `unitId` when the record has one). VIEWER
-     * never counts. 400 VALIDATION on `path` otherwise.
+     * client, or a client membership (with no unit list, or one that has `unitId` when the record has one), and is
+     * neither archived nor DISABLED. VIEWER never counts. M3's lookup answers it for memberships the actor cannot read
+     * (a client admin naming a consultant, ISO-2i). 400 VALIDATION on `path` otherwise.
      */
     async checkPerson(
       tx: TenantTx,
@@ -198,19 +210,33 @@ export function createCore(options: IsoRouteOptions) {
       path: string,
       options: { unitId?: string | null; roles?: readonly Role[] } = {},
     ): Promise<void> {
-      const roles = options.roles ?? NAMED_ROLES;
-      const now = core.now();
-      const person = await people.get(tx, personId);
-      const held = person === null ? [] : await memberships.forPerson(tx, personId);
-      const fits = held.some((m) => {
-        if (!roles.includes(m.role) || (m.expiresAt !== null && m.expiresAt <= now)) return false;
-        if (m.role === 'FIRM_ADMIN') return true;
-        if (m.role === 'CONSULTANT') return (m.consultantClientIds ?? []).includes(clientId);
-        if (m.clientId !== clientId) return false;
-        return options.unitId == null || m.unitIds === null || m.unitIds.includes(options.unitId);
+      const held = await memberships.holdsRole(tx, {
+        personId,
+        roles: [...(options.roles ?? NAMED_ROLES)],
+        clientId,
+        ...(options.unitId == null ? {} : { unitId: options.unitId }),
       });
-      if (!fits || person === null || person.archivedAt !== null || person.status === 'DISABLED') {
-        invalid(path, 'Not a person who works in this client and unit');
+      if (!held) invalid(path, 'Not a person who works in this client and unit');
+    },
+
+    /** Each id is a live unit of the system (or, with none listed there, of the client); 400 on `path` otherwise. */
+    async checkSystemUnits(
+      tx: TenantTx,
+      system: ManagementSystem,
+      unitIds: readonly string[],
+      path: string,
+    ): Promise<void> {
+      for (const id of unitIds) {
+        const unit = await units.get(tx, id);
+        const ofSystem = system.unitIds.length === 0 || system.unitIds.includes(id);
+        if (
+          unit === null ||
+          unit.clientId !== system.clientId ||
+          unit.archivedAt !== null ||
+          !ofSystem
+        ) {
+          invalid(path, 'Not a unit of this management system');
+        }
       }
     },
 
@@ -226,7 +252,12 @@ export function createCore(options: IsoRouteOptions) {
       patch: Partial<T>,
       entityType: IsoEntityType,
       write: (changes: Partial<T>) => Promise<T>,
-      options: { split?: Readonly<Record<string, AuditAction>>; reason?: string | null } = {},
+      options: {
+        split?: Readonly<Record<string, AuditAction>>;
+        reason?: string | null;
+        /** The UPDATE carries the reason too (a significance override, model §3.5). */
+        reasonOnUpdate?: boolean;
+      } = {},
     ): Promise<T> {
       const changed = Object.keys(definedOf(patch)).filter(
         (k) => !same(row[k as keyof T], patch[k as keyof T]),
@@ -248,7 +279,10 @@ export function createCore(options: IsoRouteOptions) {
           entityId: row.id,
           before: Object.fromEntries(keys.map((k) => [k, row[k as keyof T]])),
           after: Object.fromEntries(keys.map((k) => [k, patch[k as keyof T]])),
-          reason: action === 'UPDATE' ? null : (options.reason ?? null),
+          reason:
+            action === 'UPDATE' && options.reasonOnUpdate !== true
+              ? null
+              : (options.reason ?? null),
         });
       }
       return updated;

@@ -169,7 +169,7 @@ describe('creating and editing documents', () => {
       approverId: h.f.people.approver,
     });
     expect(stranger.status).toBe(400);
-    // ADR M16-0004 §6: a client role cannot see firm staff's memberships, so only firm staff name them.
+    // M3's role lookup (ISO-2i) lets a client admin name the client's consultant too (ADR M16-0005 decision 1).
     const consultant = {
       managementSystemId: systemId,
       title: 'Named consultant',
@@ -179,7 +179,7 @@ describe('creating and editing documents', () => {
     };
     expect(
       (await h.send('clientAdmin', 'POST', '/documents', { ...consultant, code: 'QP-C1' })).status,
-    ).toBe(400);
+    ).toBe(201);
     expect(
       (await h.send('consultant', 'POST', '/documents', { ...consultant, code: 'QP-C2' })).status,
     ).toBe(201);
@@ -574,5 +574,58 @@ describe('who reads a document (plan §3.3)', () => {
     };
     expect(mine.total).toBeGreaterThan(0);
     expect(all.total).toBeGreaterThanOrEqual(mine.total);
+  });
+});
+
+describe('listIsoDocuments ?ids= (contracts 1.8.5)', () => {
+  it('narrows to the ids given within the reader’s units, dropping the ACTIVE-only default and unknown ids', async () => {
+    const systemB = (
+      await h.ok('clientAdmin', 'POST', '/systems', {
+        name: 'Highmoor system',
+        standardIds: [h.f.std9001],
+        unitIds: [h.f.unitB],
+      })
+    ).id as string;
+    const inA = await document();
+    const inB = await document({
+      managementSystemId: systemB,
+      clauseIds: [],
+      ownerId: h.f.people.otherOwner,
+      approverId: h.f.people.approverB,
+    });
+    const old = await document();
+    await h.ok('clientAdmin', 'POST', `/documents/${old.id}/obsolete`, {
+      version: 1,
+      reason: 'Replaced by the group manual',
+    });
+    const unknown = '0190a0b0-0000-7000-8000-000000000000';
+    const ids = [inA.id, inB.id, old.id, unknown].join(',');
+    const listed = async (who: Who, query = '') =>
+      ((await h.ok(who, 'GET', `/documents?ids=${ids}${query}`)).items as { id: string }[]).map(
+        (d) => d.id,
+      );
+    // The obsolete document is listed: `ids` drops the default; the unknown id drops out with no error.
+    expect((await listed('clientAdmin')).sort()).toEqual([inA.id, inB.id, old.id].sort());
+    expect((await listed('owner')).sort()).toEqual([inA.id, old.id].sort());
+    expect(await listed('otherOwner')).toEqual([inB.id]);
+    expect(await listed('clientAdmin', '&status=OBSOLETE')).toEqual([old.id]);
+    expect(await listed('clientAdmin', `&managementSystemId=${systemB}`)).toEqual([inB.id]);
+  });
+});
+
+describe('listIsoDocuments ?q=', () => {
+  it('matches the issuer and external reference of an external document (M3 ISO-2i)', async () => {
+    const external = await document({
+      type: 'EXTERNAL',
+      clauseIds: [],
+      issuer: 'Osprey Standards Board',
+      externalRef: 'OSB-1187',
+    });
+    for (const q of ['osprey', 'OSB-1187']) {
+      const items = (await h.ok('clientAdmin', 'GET', `/documents?q=${q}`)).items as {
+        id: string;
+      }[];
+      expect([q, items.map((d) => d.id)]).toEqual([q, [external.id]]);
+    }
   });
 });

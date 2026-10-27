@@ -169,6 +169,68 @@ async function rowFile() {
   return { ...r, fileId: file.id as string };
 }
 
+async function riskItem(fields: Record<string, unknown> = {}) {
+  const item = await h.ok('clientAdmin', 'POST', '/risks', {
+    managementSystemId: await system(),
+    kind: 'RISK',
+    activity: 'Packaging supply',
+    description: 'One supplier makes every carton',
+    likelihood: 3,
+    severity: 4,
+    ownerId: h.f.people.owner,
+    ...fields,
+  });
+  return { id: item.id as string, path: `/risks/${item.id}` };
+}
+
+async function control() {
+  const item = await riskItem();
+  const c = await h.ok('owner', 'POST', `${item.path}/controls`, { text: 'Two weeks of stock' });
+  return `${item.path}/controls/${c.id}`;
+}
+
+async function objective() {
+  const o = await h.ok('clientAdmin', 'POST', '/objectives', {
+    managementSystemId: await system(),
+    standards: ['ISO_9001'],
+    text: 'On-time delivery',
+    target: 98,
+    unitOfMeasure: '%',
+    direction: 'INCREASE',
+    readingRule: { kind: 'MONTHLY', day: 'LAST', offsetMonths: 0 },
+    ownerId: h.f.people.owner,
+    dueOn: '2027-03-31',
+  });
+  // The row's createdAt is the database's clock; the closing date is checked against the test's day.
+  await h.testDb.query('UPDATE objective SET created_at = $2 WHERE id = $1', [
+    o.id,
+    NOW.toISOString(),
+  ]);
+  return `/objectives/${o.id}`;
+}
+
+async function reading() {
+  const path = await objective();
+  const r = await h.ok('owner', 'POST', `${path}/readings`, {
+    periodStart: '2026-09-01',
+    periodEnd: '2026-09-30',
+    value: 95,
+  });
+  return `${path}/readings/${r.id}`;
+}
+
+/** A treatment action on a risk item with a residual rating, owned by the unit A owner. */
+async function treatment() {
+  const item = await riskItem({ residualLikelihood: 2, residualSeverity: 2 });
+  const a = await h.ok('clientAdmin', 'POST', '/actions', {
+    subject: { type: 'RISK_ITEM', id: item.id },
+    text: 'Qualify a second supplier',
+    ownerId: h.f.people.owner,
+    dueOn: '2026-11-30',
+  });
+  return `/actions/${a.id}`;
+}
+
 const fileTicket = (rowId: string) => ({
   subject: { type: 'clause_assessment', id: rowId },
   fileName: 'record.pdf',
@@ -507,6 +569,222 @@ const GATE: Record<string, () => Promise<GateCase>> = {
       change: post('clientAdmin', `${v.path}/cancel`, body),
       audit: ['TRANSITION'],
       refused: no(post('owner', `${v.path}/cancel`, body), 403),
+    };
+  },
+  'GET /risks': async () => ({ change: get('owner', '/risks'), audit: [] }),
+  'POST /risks': async () => {
+    const body = {
+      managementSystemId: await system(),
+      kind: 'OPPORTUNITY',
+      activity: 'Scrap recovery',
+      description: 'Remelt our own offcuts',
+      likelihood: 3,
+      severity: 2,
+      ownerId: h.f.people.owner,
+    };
+    return {
+      change: post('clientAdmin', '/risks', body),
+      audit: ['CREATE'],
+      refused: no(post('viewer', '/risks', body), 403),
+    };
+  },
+  'GET /risks/:id': async () => {
+    const item = await riskItem();
+    return {
+      change: get('owner', item.path),
+      audit: [],
+      refused: no(get('otherOwner', item.path), 404),
+    };
+  },
+  'PATCH /risks/:id': async () => {
+    const item = await riskItem();
+    return {
+      change: patch('owner', item.path, { version: 1, likelihood: 4 }),
+      audit: ['UPDATE'],
+      refused: no(patch('approver', item.path, { version: 1, likelihood: 4 }), 403),
+    };
+  },
+  'POST /risks/:id/archive': async () => {
+    const item = await riskItem();
+    const body = { version: 1, reason: 'Duplicate' };
+    return {
+      change: post('clientAdmin', `${item.path}/archive`, body),
+      audit: ['ARCHIVE'],
+      refused: no(post('viewer', `${item.path}/archive`, body), 403),
+    };
+  },
+  'POST /risks/:id/review': async () => {
+    const item = await riskItem();
+    const body = { version: 1, nextReviewDueOn: '2027-10-20' };
+    return {
+      change: post('owner', `${item.path}/review`, body),
+      audit: ['TRANSITION'],
+      refused: no(post('approver', `${item.path}/review`, body), 403),
+    };
+  },
+  'PUT /risks/:id/significance': async () => {
+    const item = await riskItem();
+    const body = { version: 1, significantOverride: false, reason: 'Second supplier found' };
+    const path = `${item.path}/significance`;
+    return {
+      change: { who: 'clientAdmin', method: 'PUT', path, payload: body },
+      audit: ['UPDATE'],
+      refused: no({ who: 'owner', method: 'PUT', path, payload: body }, 403),
+    };
+  },
+  'GET /risks/:id/controls': async () => {
+    const item = await riskItem();
+    return {
+      change: get('viewer', `${item.path}/controls`),
+      audit: [],
+      refused: no(get('otherOwner', `${item.path}/controls`), 404),
+    };
+  },
+  'POST /risks/:id/controls': async () => {
+    const item = await riskItem();
+    const body = { text: 'Two weeks of stock' };
+    return {
+      change: post('owner', `${item.path}/controls`, body),
+      audit: ['CREATE'],
+      refused: no(post('approver', `${item.path}/controls`, body), 403),
+    };
+  },
+  'PATCH /risks/:id/controls/:controlId': async () => {
+    const path = await control();
+    return {
+      change: patch('owner', path, { version: 1, text: 'Three weeks of stock' }),
+      audit: ['UPDATE'],
+      refused: no(patch('viewer', path, { version: 1, text: 'No' }), 403),
+    };
+  },
+  'POST /risks/:id/controls/:controlId/archive': async () => {
+    const path = await control();
+    const body = { version: 1, reason: 'Replaced' };
+    return {
+      change: post('owner', `${path}/archive`, body),
+      audit: ['ARCHIVE'],
+      refused: no(post('approver', `${path}/archive`, body), 403),
+    };
+  },
+  'GET /objectives': async () => ({ change: get('owner', '/objectives'), audit: [] }),
+  'POST /objectives': async () => {
+    const body = {
+      managementSystemId: await system(),
+      standards: ['ISO_9001'],
+      text: 'On-time delivery',
+      target: 98,
+      unitOfMeasure: '%',
+      direction: 'INCREASE',
+      readingRule: { kind: 'MONTHLY', day: 'LAST', offsetMonths: 0 },
+      ownerId: h.f.people.owner,
+      dueOn: '2027-03-31',
+    };
+    return {
+      change: post('owner', '/objectives', body),
+      audit: ['CREATE'],
+      refused: no(post('approver', '/objectives', body), 403),
+    };
+  },
+  'GET /objectives/:id': async () => {
+    const path = await objective();
+    return { change: get('viewer', path), audit: [], refused: no(get('otherOwner', path), 404) };
+  },
+  'PATCH /objectives/:id': async () => {
+    const path = await objective();
+    return {
+      change: patch('owner', path, { version: 1, target: 99 }),
+      audit: ['UPDATE'],
+      refused: no(patch('viewer', path, { version: 1, target: 99 }), 403),
+    };
+  },
+  'POST /objectives/:id/close': async () => {
+    const path = await objective();
+    const body = { version: 1, closedOn: '2026-10-20', outcome: 'ACHIEVED' };
+    return {
+      change: post('owner', `${path}/close`, body),
+      audit: ['TRANSITION'],
+      refused: no(post('approver', `${path}/close`, body), 403),
+    };
+  },
+  'GET /objectives/:id/readings': async () => {
+    const path = await objective();
+    return {
+      change: get('viewer', `${path}/readings`),
+      audit: [],
+      refused: no(get('otherOwner', `${path}/readings`), 404),
+    };
+  },
+  'POST /objectives/:id/readings': async () => {
+    const path = await objective();
+    const body = { periodStart: '2026-09-01', periodEnd: '2026-09-30', value: 95 };
+    return {
+      change: post('owner', `${path}/readings`, body),
+      audit: ['CREATE'],
+      refused: no(post('viewer', `${path}/readings`, body), 403),
+    };
+  },
+  'PATCH /objectives/:id/readings/:readingId': async () => {
+    const path = await reading();
+    return {
+      change: patch('owner', path, { version: 1, value: 96 }),
+      audit: ['UPDATE'],
+      refused: no(patch('approver', path, { version: 1, value: 96 }), 403),
+    };
+  },
+  'GET /actions': async () => ({ change: get('owner', '/actions'), audit: [] }),
+  'POST /actions': async () => {
+    const item = await riskItem();
+    const body = {
+      subject: { type: 'RISK_ITEM', id: item.id },
+      text: 'Qualify a second supplier',
+      ownerId: h.f.people.owner,
+      dueOn: '2026-11-30',
+    };
+    return {
+      change: post('owner', '/actions', body),
+      audit: ['CREATE'],
+      refused: no(post('approver', '/actions', body), 403),
+    };
+  },
+  'GET /actions/:id': async () => {
+    const path = await treatment();
+    return { change: get('owner', path), audit: [], refused: no(get('otherOwner', path), 404) };
+  },
+  'PATCH /actions/:id': async () => {
+    const path = await treatment();
+    return {
+      change: patch('owner', path, { version: 1, text: 'Qualify two suppliers' }),
+      audit: ['UPDATE'],
+      refused: no(patch('viewer', path, { version: 1, text: 'No' }), 403),
+    };
+  },
+  'POST /actions/:id/complete': async () => {
+    const path = await treatment();
+    const body = { version: 1, doneOn: '2026-10-20' };
+    return {
+      change: post('owner', `${path}/complete`, body),
+      // The step, then the control it puts in place, the review date, and the residual rating cleared (model §3.5).
+      audit: ['TRANSITION', 'CREATE', 'DUE_DATE_CHANGE', 'UPDATE'],
+      refused: no(post('approver', `${path}/complete`, body), 403),
+    };
+  },
+  'POST /actions/:id/cancel': async () => {
+    const path = await treatment();
+    const body = { version: 1, reason: 'Duplicate' };
+    return {
+      change: post('clientAdmin', `${path}/cancel`, body),
+      audit: ['TRANSITION'],
+      refused: no(post('owner', `${path}/cancel`, body), 403),
+    };
+  },
+  'POST /actions/:id/reopen': async () => {
+    const path = await treatment();
+    await h.ok('owner', 'POST', `${path}/complete`, { version: 1, doneOn: '2026-10-20' });
+    const body = { version: 2, reason: 'Supplier failed its audit' };
+    return {
+      change: post('clientAdmin', `${path}/reopen`, body),
+      audit: ['TRANSITION'],
+      refused: no(post('consultant', `${path}/reopen`, body), 403),
     };
   },
   'POST /files/upload-url': async () => {
