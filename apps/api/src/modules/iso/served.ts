@@ -1,13 +1,14 @@
 import type { ENDPOINTS } from '@canopy/contracts';
 
 /**
- * The ISO add-on endpoints M16 serves so far, by contract id (ISO-8a's and ISO-8b's; ISO-8c adds its own): those always
+ * The ISO add-on endpoints M16 serves so far, by contract id (ISO-8a's, ISO-8b's and ISO-8c's so far): those always
  * mounted, and the file routes, mounted only when the server is given an `IsoFiles` (ISO-15 wires it). M14's security
  * spec (`e2e/integrated/04-security.spec.ts`) reads them to sweep these routes and keep the rest on its unmounted list.
  * `served.test.ts` holds them equal to the routes `registerIsoRoutes` mounts. No imports beyond contract types, so the
  * e2e package can load this file on its own.
  */
 export const ISO_SERVED_ENDPOINTS = [
+  'addIsoNcRootCause',
   'approveIsoClauseNa',
   'approveIsoRevision',
   'archiveIsoContextItem',
@@ -15,6 +16,7 @@ export const ISO_SERVED_ENDPOINTS = [
   'archiveIsoRiskControl',
   'cancelIsoAction',
   'cancelIsoExternalAudit',
+  'cancelIsoNc',
   'closeIsoObjective',
   'completeIsoAction',
   'createIsoAction',
@@ -31,6 +33,7 @@ export const ISO_SERVED_ENDPOINTS = [
   'getIsoAction',
   'getIsoDocument',
   'getIsoExternalAudit',
+  'getIsoNonconformity',
   'getIsoObjective',
   'getIsoRisk',
   'getIsoSystem',
@@ -41,6 +44,7 @@ export const ISO_SERVED_ENDPOINTS = [
   'listIsoContextItems',
   'listIsoDocuments',
   'listIsoExternalAudits',
+  'listIsoNonconformities',
   'listIsoObjectives',
   'listIsoReadings',
   'listIsoReviewDefs',
@@ -50,16 +54,22 @@ export const ISO_SERVED_ENDPOINTS = [
   'listIsoStandards',
   'listIsoSystems',
   'obsoleteIsoDocument',
+  'planIsoNcActions',
+  'raiseIsoNonconformity',
+  'reassignIsoNonconformity',
   'recordIsoEdition',
   'recordIsoExternalAuditHeld',
   'rejectIsoClauseNa',
   'reopenIsoAction',
+  'reopenIsoNc',
   'requestIsoClauseNa',
   'reviewIsoDocument',
   'reviewIsoRisk',
   'sendBackIsoRevision',
   'setIsoClimateDecision',
   'setIsoRiskSignificance',
+  'submitIsoNc',
+  'submitIsoNcNoAction',
   'submitIsoRevision',
   'updateIsoAction',
   'updateIsoCertification',
@@ -67,12 +77,15 @@ export const ISO_SERVED_ENDPOINTS = [
   'updateIsoContextItem',
   'updateIsoDocument',
   'updateIsoExternalAudit',
+  'updateIsoNonconformity',
   'updateIsoObjective',
   'updateIsoReading',
   'updateIsoRevision',
   'updateIsoRisk',
   'updateIsoRiskControl',
   'updateIsoSystem',
+  'verifyIsoNcEffective',
+  'verifyIsoNcNotEffective',
   'withdrawIsoClauseNa',
 ] as const satisfies readonly (keyof typeof ENDPOINTS)[];
 

@@ -275,8 +275,21 @@ export function risksHandlers(core: Core): IsoHandlers<Ids> {
         const cal = await core.calendar(tx, item.clientId);
         const merged: RiskItem = { ...item, ...defined };
         Object.assign(merged, rated(merged, cal.riskRule));
-        if (merged.unitId !== null && merged.unitId !== item.unitId) {
-          await core.checkSystemUnits(tx, system, [merged.unitId], 'unitId');
+        if (merged.unitId !== item.unitId) {
+          // The writer must cover the new unit too, whoever the item names (ADR M16-0006).
+          authorize(
+            ctx,
+            'isoRisk.write',
+            isoResource(
+              ctx,
+              'risk_item',
+              { ...riskReach(system, merged), people: [] },
+              { ownerId: item.ownerId },
+            ),
+          );
+          if (merged.unitId !== null) {
+            await core.checkSystemUnits(tx, system, [merged.unitId], 'unitId');
+          }
         }
         if (merged.ownerId !== item.ownerId || merged.unitId !== item.unitId) {
           await core.checkPerson(tx, item.clientId, merged.ownerId, 'ownerId', {

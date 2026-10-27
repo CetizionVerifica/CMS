@@ -619,4 +619,52 @@ describe('listIsoActions', () => {
       overdueDays: 19,
     });
   });
+
+  it('filters by system and due-date range, and pages overdue actions without short pages', async () => {
+    const other = (
+      await h.ok('clientAdmin', 'POST', '/systems', {
+        name: 'Paging system',
+        standardIds: [h.f.std9001],
+        unitIds: [h.f.unitA],
+      })
+    ).id as string;
+    const nc = await seedNc(h, other);
+    const subject = { type: 'NONCONFORMITY' as const, id: nc.id };
+    const first = await seedAction(h, subject, { dueOn: LocalDate.parse('2026-10-05') });
+    const fine = await seedAction(h, subject, {
+      dueOn: LocalDate.parse('2026-10-10'),
+      state: 'DONE',
+      doneOn: LocalDate.parse('2026-10-09'),
+    });
+    const second = await seedAction(h, subject, { dueOn: LocalDate.parse('2026-10-12') });
+    const notYet = await seedAction(h, subject, { dueOn: LocalDate.parse('2026-11-12') });
+    const ids = async (query: string) =>
+      (
+        (await h.ok('clientAdmin', 'GET', `/actions?managementSystemId=${other}${query}`))
+          .items as { id: string }[]
+      ).map((a) => a.id);
+    expect(await ids('')).toEqual([first.id, fine.id, second.id, notYet.id]);
+    const inA = (
+      (await h.ok('clientAdmin', 'GET', `/actions?managementSystemId=${systemA}&limit=200`))
+        .items as {
+        id: string;
+      }[]
+    ).map((a) => a.id);
+    expect(inA).not.toContain(notYet.id);
+    expect(await ids('&to=2026-10-10')).toEqual([first.id, fine.id]);
+    expect(await ids('&from=2026-10-06&to=2026-10-31')).toEqual([fine.id, second.id]);
+    const page1 = await h.ok(
+      'clientAdmin',
+      'GET',
+      `/actions?managementSystemId=${other}&overdue=true&limit=1`,
+    );
+    expect((page1.items as { id: string }[]).map((a) => a.id)).toEqual([first.id]);
+    const page2 = await h.ok(
+      'clientAdmin',
+      'GET',
+      `/actions?managementSystemId=${other}&overdue=true&limit=1&cursor=${String(page1.nextCursor)}`,
+    );
+    expect((page2.items as { id: string }[]).map((a) => a.id)).toEqual([second.id]);
+    expect(page2.nextCursor).toBeNull();
+  });
 });

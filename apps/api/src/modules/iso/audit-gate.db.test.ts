@@ -231,6 +231,70 @@ async function treatment() {
   return `/actions/${a.id}`;
 }
 
+/** A nonconformity on unit A, owned by the unit A owner (version 1). */
+async function nc(fields: Record<string, unknown> = {}) {
+  const raised = await h.ok('clientAdmin', 'POST', '/nonconformities', {
+    managementSystemId: await system(),
+    source: 'PROCESS',
+    severity: 'MINOR',
+    standards: ['ISO_9001'],
+    unitId: h.f.unitA,
+    description: 'Gate nonconformity',
+    ownerId: h.f.people.owner,
+    approverId: h.f.people.approver,
+    dueOn: '2026-11-30',
+    ...fields,
+  });
+  return `/nonconformities/${raised.id}`;
+}
+
+const ROOT_CAUSE = {
+  containment: 'Quarantined',
+  correction: 'Recalibrated',
+  rootCauseMethod: 'FIVE_WHYS',
+  rootCause: 'No schedule',
+  similarOccurrences: 'None',
+};
+
+/** Through ADD_ROOT_CAUSE (version 2). */
+async function ncFound() {
+  const path = await nc();
+  await h.ok('owner', 'POST', `${path}/root-cause`, { version: 1, ...ROOT_CAUSE });
+  return path;
+}
+
+/** Through PLAN_ACTIONS with its one action done (version 3). */
+async function ncPlanned() {
+  const path = await ncFound();
+  const id = path.split('/').at(-1)!;
+  const action = await h.ok('clientAdmin', 'POST', '/actions', {
+    subject: { type: 'NONCONFORMITY', id },
+    text: 'Calibrate',
+    ownerId: h.f.people.owner,
+    dueOn: '2026-11-15',
+  });
+  await h.ok('owner', 'POST', `${path}/plan-actions`, {
+    version: 2,
+    effectivenessDueOn: '2026-10-20',
+  });
+  await h.ok('owner', 'POST', `/actions/${action.id}/complete`, {
+    version: 1,
+    doneOn: '2026-10-20',
+  });
+  return path;
+}
+
+/** Awaiting verification (version 4). */
+async function ncSubmitted() {
+  const path = await ncPlanned();
+  await h.ok('owner', 'POST', `${path}/submit`, {
+    version: 3,
+    riskReview: 'None',
+    systemChange: 'None',
+  });
+  return path;
+}
+
 const fileTicket = (rowId: string) => ({
   subject: { type: 'clause_assessment', id: rowId },
   fileName: 'record.pdf',
@@ -785,6 +849,142 @@ const GATE: Record<string, () => Promise<GateCase>> = {
       change: post('clientAdmin', `${path}/reopen`, body),
       audit: ['TRANSITION'],
       refused: no(post('consultant', `${path}/reopen`, body), 403),
+    };
+  },
+  'GET /nonconformities': async () => {
+    await nc();
+    return { change: get('viewer', '/nonconformities'), audit: [] };
+  },
+  'POST /nonconformities': async () => {
+    const body = {
+      managementSystemId: await system(),
+      source: 'PROCESS',
+      severity: 'MINOR',
+      standards: ['ISO_9001'],
+      unitId: h.f.unitA,
+      description: 'Gate nonconformity',
+      ownerId: h.f.people.owner,
+      approverId: h.f.people.approver,
+      dueOn: '2026-11-30',
+    };
+    return {
+      change: post('owner', '/nonconformities', body),
+      audit: ['CREATE'],
+      refused: no(post('viewer', '/nonconformities', body), 403),
+    };
+  },
+  'GET /nonconformities/:id': async () => {
+    const path = await nc();
+    return { change: get('owner', path), audit: [], refused: no(get('otherOwner', path), 404) };
+  },
+  'PATCH /nonconformities/:id': async () => {
+    const path = await nc();
+    return {
+      change: patch('owner', path, { version: 1, rootCause: 'No schedule' }),
+      audit: ['UPDATE'],
+      refused: no(patch('consultant', path, { version: 1, rootCause: 'No' }), 403),
+    };
+  },
+  'POST /nonconformities/:id/reassign': async () => {
+    const path = await nc();
+    const body = {
+      version: 1,
+      ownerId: h.f.people.clientAdmin,
+      dueOn: '2026-12-31',
+      reason: 'Leave',
+    };
+    return {
+      change: post('consultant', `${path}/reassign`, body),
+      audit: ['REASSIGN', 'DUE_DATE_CHANGE'],
+      refused: no(post('owner', `${path}/reassign`, body), 403),
+    };
+  },
+  'POST /nonconformities/:id/root-cause': async () => {
+    const path = await nc();
+    const body = { version: 1, ...ROOT_CAUSE };
+    return {
+      change: post('owner', `${path}/root-cause`, body),
+      audit: ['TRANSITION'],
+      refused: no(post('approver', `${path}/root-cause`, body), 403),
+    };
+  },
+  'POST /nonconformities/:id/plan-actions': async () => {
+    const path = await ncFound();
+    const id = path.split('/').at(-1)!;
+    await h.ok('clientAdmin', 'POST', '/actions', {
+      subject: { type: 'NONCONFORMITY', id },
+      text: 'Calibrate',
+      ownerId: h.f.people.owner,
+      dueOn: '2026-11-15',
+    });
+    const body = { version: 2, effectivenessDueOn: '2026-12-01' };
+    return {
+      change: post('owner', `${path}/plan-actions`, body),
+      audit: ['TRANSITION'],
+      refused: no(post('firmAdmin', `${path}/plan-actions`, body), 403),
+    };
+  },
+  'POST /nonconformities/:id/submit-no-action': async () => {
+    const path = await ncFound();
+    const body = {
+      version: 2,
+      noActionReason: 'One-off',
+      riskReview: 'None',
+      systemChange: 'None',
+    };
+    return {
+      change: post('owner', `${path}/submit-no-action`, body),
+      audit: ['TRANSITION'],
+      refused: no(post('approver', `${path}/submit-no-action`, body), 403),
+    };
+  },
+  'POST /nonconformities/:id/submit': async () => {
+    const path = await ncPlanned();
+    const body = { version: 3, riskReview: 'None', systemChange: 'None' };
+    return {
+      change: post('owner', `${path}/submit`, body),
+      audit: ['TRANSITION'],
+      refused: no(post('consultant', `${path}/submit`, body), 403),
+    };
+  },
+  'POST /nonconformities/:id/verify-effective': async () => {
+    const path = await ncSubmitted();
+    const body = { version: 4, effectivenessNote: 'No repeat' };
+    return {
+      change: post('approver', `${path}/verify-effective`, body),
+      audit: ['TRANSITION'],
+      refused: no(post('owner', `${path}/verify-effective`, body), 403),
+    };
+  },
+  'POST /nonconformities/:id/verify-not-effective': async () => {
+    const path = await ncSubmitted();
+    const body = { version: 4, reason: 'Drifted again', backTo: 'OPEN' };
+    return {
+      change: post('approver', `${path}/verify-not-effective`, body),
+      audit: ['TRANSITION'],
+      refused: no(post('firmAdmin', `${path}/verify-not-effective`, body), 403),
+    };
+  },
+  'POST /nonconformities/:id/cancel': async () => {
+    const path = await nc();
+    const body = { version: 1, reason: 'Raised twice' };
+    return {
+      change: post('approver', `${path}/cancel`, body),
+      audit: ['TRANSITION'],
+      refused: no(post('owner', `${path}/cancel`, body), 403),
+    };
+  },
+  'POST /nonconformities/:id/reopen': async () => {
+    const path = await ncSubmitted();
+    await h.ok('approver', 'POST', `${path}/verify-effective`, {
+      version: 4,
+      effectivenessNote: 'Held',
+    });
+    const body = { version: 5, reason: 'Repeat found', backTo: 'OPEN' };
+    return {
+      change: post('clientAdmin', `${path}/reopen`, body),
+      audit: ['TRANSITION'],
+      refused: no(post('approver', `${path}/reopen`, body), 403),
     };
   },
   'POST /files/upload-url': async () => {

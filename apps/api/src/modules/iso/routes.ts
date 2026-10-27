@@ -5,6 +5,7 @@ import { createCore } from './db-context.js';
 import { certificationsHandlers } from './db-certifications.js';
 import { documentsHandlers } from './db-documents.js';
 import { filesHandlers } from './db-files.js';
+import { nonconformitiesHandlers } from './db-nonconformities.js';
 import { objectivesHandlers } from './db-objectives.js';
 import { risksHandlers } from './db-risks.js';
 import { systemsHandlers } from './db-systems.js';
@@ -30,6 +31,7 @@ export function registerIsoRoutes(app: FastifyInstance, options: IsoRouteOptions
     ...risksHandlers(core),
     ...objectivesHandlers(core),
     ...actionsHandlers(core),
+    ...nonconformitiesHandlers(core),
     ...(options.files === undefined ? {} : filesHandlers(core, options.files)),
   } as Partial<Record<IsoEndpointId, AnyHandler>>;
 

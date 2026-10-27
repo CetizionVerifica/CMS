@@ -25,6 +25,7 @@ const all = {
   risks: [] as string[],
   objectives: [] as string[],
   actions: [] as string[],
+  nonconformities: [] as string[],
 };
 
 let codes = 0;
@@ -99,6 +100,21 @@ async function seedSystem(units: string[], recordOwner: Who = 'clientAdmin') {
     dueOn: '2027-03-31',
   });
   all.objectives.push(objective.id as string);
+  // A unit-less nonconformity (the system's units) naming the record owner, and one on the system's first unit.
+  for (const unitId of [null, units[0] ?? null]) {
+    const nc = await h.ok('clientAdmin', 'POST', '/nonconformities', {
+      managementSystemId: id,
+      source: 'PROCESS',
+      severity: 'MINOR',
+      standards: ['ISO_9001'],
+      unitId,
+      description: 'Scope nonconformity',
+      ownerId: h.f.people[unitId === null && recordOwner === 'owner' ? 'owner' : 'clientAdmin'],
+      approverId: h.f.people.otherAdmin,
+      dueOn: '2026-11-30',
+    });
+    all.nonconformities.push(nc.id as string);
+  }
   return id;
 }
 
@@ -149,6 +165,7 @@ async function allowed(who: Who, kind: keyof typeof all, id: string): Promise<bo
     risks: `/risks/${id}`,
     objectives: `/objectives/${id}`,
     actions: `/actions/${id}`,
+    nonconformities: `/nonconformities/${id}`,
   }[kind];
   const reply = await h.send(who, 'GET', path);
   expect([200, 404]).toContain(reply.status);
@@ -177,6 +194,8 @@ async function listed(who: Who, kind: keyof typeof all): Promise<string[]> {
       return ids(who, '/objectives');
     case 'actions':
       return ids(who, '/actions');
+    case 'nonconformities':
+      return ids(who, '/nonconformities');
   }
 }
 
@@ -211,6 +230,13 @@ describe('can() allows exactly what the lists return (plan §3.3)', () => {
     expect(await ids('otherOwner', '/actions')).toEqual(
       expect.arrayContaining([all.actions[2], all.actions[3]]),
     );
+    // Unit B's unit-less NC names the unit A owner; its unit B NC and unit A's NCs stay apart.
+    const [aNone, aUnit, bNone, bUnit2] = all.nonconformities;
+    expect(await ids('owner', '/nonconformities')).toEqual(
+      expect.arrayContaining([aNone, aUnit, bNone]),
+    );
+    expect(await ids('owner', '/nonconformities')).not.toContain(bUnit2);
+    expect(await ids('otherOwner', '/nonconformities')).not.toContain(aNone);
   });
 });
 
@@ -231,7 +257,7 @@ describe('the catalogue copy not yet recorded', () => {
     );
     await probe.ready();
     await probe.close();
-    expect(routes.length).toBe(71);
+    expect(routes.length).toBe(84);
 
     h.auth.store.isoCataloguePending.add(h.f.firmId);
     try {

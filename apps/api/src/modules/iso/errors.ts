@@ -44,6 +44,26 @@ const GUARD_MESSAGES: Readonly<Record<string, string>> = {
   REPORT_FILE: "Upload the certification body's report first",
   RESPONSE_DUE_AFTER_END: 'The response is due on or after the last day of the visit',
   DONE_ON_NOT_FUTURE: 'doneOn is not in the future',
+  DUE_NOT_BEFORE_REPORTED: 'The nonconformity is due on or after the day it is reported',
+  AUDIT_SOURCE_FROM_FINDING: 'An audit nonconformity is raised from its finding',
+  OWNER_IS_NOT_APPROVER: 'The approver is not the owner',
+  INCIDENT_FOR_INCIDENT_SOURCES: 'An INCIDENT or NEAR_MISS has incident fields, other sources none',
+  DISPOSITION_AUTHORISED: 'A disposition names who authorised it',
+  INCIDENT_RISK_REVIEW:
+    'An incident investigation reviews related risk items or records a risk review',
+  OPEN_ACTION: 'PLAN_ACTIONS needs at least one OPEN action on the nonconformity',
+  EFFECTIVENESS_DUE_NOT_PAST: 'The effectiveness check is due today or later',
+  MAJOR_NEEDS_ACTIONS: 'A MAJOR nonconformity needs corrective actions',
+  EXTERNAL_AUDIT_NEEDS_ACTIONS: 'A nonconformity from an external audit needs corrective actions',
+  INCIDENT_OUTCOME_NEEDS_ACTIONS:
+    'An incident with a lost-time or fatal outcome needs corrective actions',
+  NOT_EFFECTIVE_NEEDS_ACTIONS: 'A nonconformity found not effective needs corrective actions',
+  ACTION_DONE: 'At least one action is DONE first',
+  ACTIONS_SETTLED: 'Every action is DONE or CANCELLED first',
+  ACTION_DONE_SINCE_RESET:
+    'An action added since the nonconformity was found not effective or reopened is DONE first',
+  EFFECTIVENESS_DUE: 'Effectiveness is verified on or after its due date',
+  EFFECTIVENESS_DUE_AFTER_TODAY: 'The new effectiveness check is due after today',
 };
 
 /**
