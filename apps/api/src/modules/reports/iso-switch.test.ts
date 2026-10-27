@@ -120,6 +120,9 @@ const ISO_FILTERS: Record<string, string> = {
 };
 const isoBody = (kind: string) => ({ kind, filters: ISO_FILTERS[kind] ?? '' });
 
+/** The ISO kinds ISO-11d has built so far (the NC log and the risk register, part 1). */
+const BUILT_ISO: readonly ExportKind[] = ['ISO_NC_LOG_XLSX', 'ISO_RISK_REGISTER_XLSX'];
+
 describe('ISO export kinds while the add-on is off (endpoints.md §6)', () => {
   /** A finished job of `kind` requested by `personId`, as an earlier switch-on would have left it. */
   async function storedJob(kind: ExportKind, personId: string): Promise<ExportJob> {
@@ -154,8 +157,14 @@ describe('ISO export kinds while the add-on is off (endpoints.md §6)', () => {
       expect(res.json().error.code).toBe('FORBIDDEN');
     });
 
-    it(`${kind}: with the add-on on, create is still refused until M10 builds the kind`, async () => {
+    it(`${kind}: with the add-on on, create is refused only until M10 builds the kind`, async () => {
       w.setIso(true);
+      if (BUILT_ISO.includes(kind)) {
+        const res = await startExport(admin(), isoBody(kind));
+        expect(res.statusCode).toBe(202);
+        await w.runner.idle();
+        return;
+      }
       const jobs = w.store.jobs.size;
       const res = await startExport(admin(), isoBody(kind));
       expect(res.statusCode).toBe(400);

@@ -505,7 +505,10 @@ describe('exports: kinds M10 does not build yet', () => {
       });
       expect(w.store.jobs.size).toBe(jobs);
     });
+  }
 
+  // ISO-11d builds the NC log and the risk register first; the PDFs follow.
+  for (const kind of ['ISO_AUDIT_REPORT_PDF', 'ISO_REVIEW_PACK_PDF'] as const) {
     it(`${kind}: a queued job fails in the build branch and nothing is stored`, async () => {
       // With the add-on on the worker reaches the build, whose default branch fails the job.
       w.store.features.set(w.firmId, ['isoManagement']);

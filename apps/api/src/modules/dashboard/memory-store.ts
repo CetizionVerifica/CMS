@@ -4,15 +4,24 @@ import {
   DEFAULT_FIRM_SETTINGS,
   ExportJob,
   type FirmSettings,
+  type IsoAction,
+  type Nonconformity,
   type ObligationDomain,
   type RequestContext,
+  type RiskControl,
+  type RiskItem,
 } from '@canopy/contracts';
-import type { RegisterRow } from '@canopy/db';
+import type { RegisterRow, UnitScope } from '@canopy/db';
 import { ApiError } from '../../auth/index.js';
 import type {
   ArchiveEvidence,
   ClientInfo,
   ExportDetail,
+  IsoNames,
+  IsoNcBook,
+  IsoNcFilter,
+  IsoRiskBook,
+  IsoRiskFilter,
   NewExportJob,
   ReportsStore,
   RowFilter,
@@ -65,6 +74,24 @@ export class MemoryReportsStore implements ReportsStore {
     scanStatus: 'PENDING' | 'CLEAN' | 'INFECTED' | 'FAILED';
     archived?: boolean;
   })[] = [];
+  /**
+   * ISO records as M3 holds them, and the names they print. `systems` gives each management system's units for the
+   * unit scope (plan §3.3: a record with no unit takes its system's; a system with none covers every unit).
+   */
+  readonly iso = {
+    systems: new Map<string, { firmId: string; clientId: string; unitIds: string[] }>(),
+    nonconformities: [] as Nonconformity[],
+    riskItems: [] as RiskItem[],
+    controls: [] as RiskControl[],
+    actions: [] as IsoAction[],
+    names: {
+      people: new Map<string, string>(),
+      units: new Map<string, string>(),
+      systems: new Map<string, string>(),
+      clauses: new Map<string, string>(),
+      obligations: new Map<string, string>(),
+    } satisfies IsoNames,
+  };
   /** Fails the next export status update, to test job failure handling. */
   failNextStatusUpdate = false;
 
@@ -204,6 +231,90 @@ export class MemoryReportsStore implements ReportsStore {
   async exportStorageKey(ctx: RequestContext, id: string): Promise<string | null> {
     const job = this.jobs.get(id);
     return job && job.firmId === ctx.firmId ? job.storageKey : null;
+  }
+
+  /** M3's unit scope (plan §3.3): the record's unit, else its system's units, or a person it names. */
+  private isoInScope(
+    scope: UnitScope | null,
+    record: { managementSystemId: string; unitId: string | null },
+    named: readonly string[],
+  ): boolean {
+    if (scope === null) return true;
+    if (scope.personId !== null && named.includes(scope.personId)) return true;
+    if (record.unitId !== null) return scope.unitIds.includes(record.unitId);
+    const units = this.iso.systems.get(record.managementSystemId)?.unitIds ?? [];
+    return units.length === 0 || units.some((id) => scope.unitIds.includes(id));
+  }
+
+  private isoActionsOf(ids: ReadonlySet<string>): IsoAction[] {
+    return this.iso.actions
+      .filter((a) => a.archivedAt === null && ids.has(a.subject.id))
+      .sort((a, b) => a.dueOn.localeCompare(b.dueOn) || a.id.localeCompare(b.id));
+  }
+
+  async isoNonconformities(
+    ctx: RequestContext,
+    clientId: string,
+    f: IsoNcFilter,
+  ): Promise<IsoNcBook> {
+    const has = <T>(list: readonly T[] | undefined, value: T) =>
+      list === undefined || list.includes(value);
+    const items = this.iso.nonconformities
+      .filter(
+        (n) =>
+          n.firmId === ctx.firmId &&
+          n.clientId === clientId &&
+          n.archivedAt === null &&
+          has(f.managementSystemIds, n.managementSystemId) &&
+          (f.unitIds === undefined || (n.unitId !== null && f.unitIds.includes(n.unitId))) &&
+          has(f.state, n.state) &&
+          has(f.source, n.source) &&
+          has(f.severity, n.severity) &&
+          (f.standards === undefined || n.standards.some((code) => f.standards!.includes(code))) &&
+          (f.ownerId === undefined || n.ownerId === f.ownerId) &&
+          (f.approverId === undefined || n.approverId === f.approverId) &&
+          this.isoInScope(f.scope, n, [
+            n.ownerId,
+            n.approverId,
+            ...(n.incident?.investigatorIds ?? []),
+          ]),
+      )
+      .sort((a, b) => a.number - b.number);
+    return {
+      items,
+      actions: this.isoActionsOf(new Set(items.map((n) => n.id))),
+      names: this.iso.names,
+    };
+  }
+
+  async isoRiskItems(
+    ctx: RequestContext,
+    clientId: string,
+    f: IsoRiskFilter,
+  ): Promise<IsoRiskBook> {
+    const items = this.iso.riskItems
+      .filter(
+        (r) =>
+          r.firmId === ctx.firmId &&
+          r.clientId === clientId &&
+          (f.includeArchived === true || r.archivedAt === null) &&
+          (f.managementSystemIds === undefined ||
+            f.managementSystemIds.includes(r.managementSystemId)) &&
+          (f.unitIds === undefined || (r.unitId !== null && f.unitIds.includes(r.unitId))) &&
+          (f.kind === undefined || f.kind.includes(r.kind)) &&
+          (f.significant === undefined || r.significant === f.significant) &&
+          (f.climateRelated === undefined || r.climateRelated === f.climateRelated) &&
+          (f.ownerId === undefined || r.ownerId === f.ownerId) &&
+          this.isoInScope(f.scope, r, [r.ownerId]),
+      )
+      .sort((a, b) => a.id.localeCompare(b.id));
+    const ids = new Set(items.map((r) => r.id));
+    return {
+      items,
+      controls: this.iso.controls.filter((c) => c.archivedAt === null && ids.has(c.riskItemId)),
+      actions: this.isoActionsOf(ids),
+      names: this.iso.names,
+    };
   }
 }
 

@@ -5,13 +5,22 @@ import type {
   ExportJob,
   ExportKind,
   FirmSettings,
+  IsoAction,
+  IsoStandardCode,
   LocalDate,
+  NcSeverity,
+  NcSource,
+  NcState,
+  Nonconformity,
   ObligationDomain,
   RequestContext,
+  RiskControl,
+  RiskItem,
+  RiskKind,
   TimelineType,
   WorkflowState,
 } from '@canopy/contracts';
-import type { RegisterRow } from '@canopy/db';
+import type { RegisterRow, UnitScope } from '@canopy/db';
 
 /**
  * What M10 reads and writes, as a narrow port (docs/adr/M10-0001-dashboards-and-reports.md).
@@ -87,6 +96,64 @@ export interface NewExportJob {
   params: Record<string, unknown>;
 }
 
+/**
+ * The names an ISO export prints for the ids its records carry, archived ones included (a record keeps naming a
+ * person or unit archived since). `clauses` reads e.g. "ISO 9001 8.7".
+ */
+export interface IsoNames {
+  people: ReadonlyMap<string, string>;
+  units: ReadonlyMap<string, string>;
+  systems: ReadonlyMap<string, string>;
+  clauses: ReadonlyMap<string, string>;
+  obligations: ReadonlyMap<string, string>;
+}
+
+/**
+ * The NC log's filters the store applies (docs/iso/model.md §9): `NcQuery`'s list filters resolved (`me` → a person
+ * id), and `scope`, the requester's unit scope (plan §3.3), null for a reader who sees the whole client. `incident`,
+ * `overdue` and `q` are applied by M10 after the read.
+ */
+export interface IsoNcFilter {
+  managementSystemIds?: readonly string[];
+  unitIds?: readonly string[];
+  state?: readonly NcState[];
+  source?: readonly NcSource[];
+  severity?: readonly NcSeverity[];
+  standards?: readonly IsoStandardCode[];
+  ownerId?: string;
+  approverId?: string;
+  scope: UnitScope | null;
+}
+
+/** The risk register's filters the store applies, as `IsoNcFilter`; `q` is applied by M10 after the read. */
+export interface IsoRiskFilter {
+  managementSystemIds?: readonly string[];
+  unitIds?: readonly string[];
+  kind?: readonly RiskKind[];
+  significant?: boolean;
+  climateRelated?: boolean;
+  ownerId?: string;
+  includeArchived?: boolean;
+  scope: UnitScope | null;
+}
+
+/** The client's nonconformities in scope (live ones), with their corrective actions and the names they print. */
+export interface IsoNcBook {
+  items: Nonconformity[];
+  /** The live actions of `items`, any state. */
+  actions: IsoAction[];
+  names: IsoNames;
+}
+
+/** The client's risk items in scope, with their controls in place, their treatment actions and the names. */
+export interface IsoRiskBook {
+  items: RiskItem[];
+  controls: RiskControl[];
+  /** The live actions of `items`, any state. */
+  actions: IsoAction[];
+  names: IsoNames;
+}
+
 export interface ReportsStore {
   firmSettings(ctx: RequestContext): Promise<FirmSettings>;
   /**
@@ -128,4 +195,12 @@ export interface ReportsStore {
   ): Promise<ExportJob>;
   /** Where a finished export's file is stored; never returned to clients. */
   exportStorageKey(ctx: RequestContext, id: string): Promise<string | null>;
+  /** Every live nonconformity of the client matching `filter` and its scope (docs/iso/model.md §9). */
+  isoNonconformities(
+    ctx: RequestContext,
+    clientId: string,
+    filter: IsoNcFilter,
+  ): Promise<IsoNcBook>;
+  /** Every risk item of the client matching `filter` and its scope (live ones unless `includeArchived`). */
+  isoRiskItems(ctx: RequestContext, clientId: string, filter: IsoRiskFilter): Promise<IsoRiskBook>;
 }
