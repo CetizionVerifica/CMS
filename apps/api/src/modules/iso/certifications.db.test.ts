@@ -2,8 +2,9 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { attach, createHarness, type Harness, type Reply, type Who } from './testing/fixture.js';
 
 /**
- * Certificates and external audit visits (model §3.8, §4.4): who writes them, the issuing rule, the order of the
- * certificate list, and the visit through RECORD_HELD and CANCEL (ISO-8a's arrows), with locks and audit events.
+ * Certificates and external audit visits (model §3.8, §3.9, §4.4): who writes them, the issuing rule, the order of the
+ * certificate list, the visit through every arrow with locks and audit events, and its findings with the nonconformity
+ * an NC finding raises.
  */
 
 const NOW = new Date('2026-10-20T06:00:00Z');
@@ -281,7 +282,8 @@ describe('external audit visits (model §4.4)', () => {
       state: 'HELD',
       endOn: '2026-10-20',
       recommendation: 'RECOMMENDED',
-      allowedActions: [],
+      // No finding raised a nonconformity, so it may close straight from HELD (ADR M16-0004 decision 3).
+      allowedActions: ['RECORD_RESPONSE', 'CLOSE'],
     });
     expect((await audit(id)).at(-1)).toMatchObject({
       action: 'TRANSITION',
@@ -329,5 +331,262 @@ describe('external audit visits (model §4.4)', () => {
       reason: 'Wrong file',
     });
     expect(remove.status).toBe(409);
+  });
+});
+
+/** A visit of `standardIds` held on 12-13 October with the body's report on file (version 2). */
+async function heldVisit(standardIds = [h.f.std9001], system = systemId) {
+  const id = (await visit({ standardIds, managementSystemId: system })).body.id as string;
+  await attach(h, 'clientAdmin', { type: 'external_audit', id }, 'report.pdf');
+  await h.ok('clientAdmin', 'POST', `/external-audits/${id}/held`, {
+    version: 1,
+    startOn: '2026-10-12',
+    endOn: '2026-10-13',
+  });
+  return { id, path: `/external-audits/${id}` };
+}
+
+const field = (reply: Reply) =>
+  ((details(reply) as { issues?: { path: unknown[] }[] } | undefined)?.issues ?? [])[0]?.path;
+
+describe('external findings, RECORD_RESPONSE and CLOSE (model §3.9, §4.4)', () => {
+  const nc = (fields: Record<string, string> = {}) => ({
+    ownerId: h.f.people.owner,
+    approverId: h.f.people.approver,
+    dueOn: '2026-11-30',
+    ...fields,
+  });
+
+  it('findings are recorded while HELD; an NC finding raises its nonconformity', async () => {
+    const planned = (await visit()).body.id as string;
+    const early = await h.send('clientAdmin', 'POST', `/external-audits/${planned}/findings`, {
+      type: 'OFI',
+      description: 'Too early',
+    });
+    expect([early.status, details(early)]).toEqual([
+      409,
+      { entity: 'external_audit', from: 'PLANNED', action: 'UPDATE' },
+    ]);
+    const v = await heldVisit();
+    const send = (body: Record<string, unknown>, who: Who = 'clientAdmin') =>
+      h.send(who, 'POST', `${v.path}/findings`, body);
+    const notOfAudit = await send({
+      type: 'OFI',
+      clauseIds: [h.f.clauses['14001:4.1']],
+      description: 'Wrong standard',
+    });
+    expect([notOfAudit.status, field(notOfAudit)]).toEqual([400, ['clauseIds']]);
+    const badUnit = await send({ type: 'OFI', unitId: h.f.unitB, description: 'Wrong unit' });
+    expect([badUnit.status, field(badUnit)]).toEqual([400, ['unitId']]);
+    expect((await send({ type: 'OFI', description: 'x' }, 'owner')).status).toBe(403);
+    const noNc = await send({ type: 'MINOR_NC', description: 'Missing its NC' });
+    expect(noNc.status).toBe(400);
+    const badOwner = await send({
+      type: 'MINOR_NC',
+      description: 'Labels faded',
+      nonconformity: nc({ ownerId: h.f.people.otherOwner }),
+    });
+    expect([badOwner.status, field(badOwner)]).toEqual([400, ['nonconformity', 'ownerId']]);
+
+    const finding = await h.ok('consultant', 'POST', `${v.path}/findings`, {
+      type: 'MINOR_NC',
+      clauseIds: [h.f.clauses['9001:10.1']],
+      description: 'Labels faded, found by Asha Verma',
+      nonconformity: nc(),
+    });
+    expect(finding).toMatchObject({
+      internalAuditId: null,
+      externalAuditId: v.id,
+      type: 'MINOR_NC',
+      unitId: null,
+    });
+    // The system's only unit; the standards of its clauses.
+    const raised = await h.ok('owner', 'GET', `/nonconformities/${finding.nonconformityId}`);
+    expect(raised).toMatchObject({
+      source: 'EXTERNAL_AUDIT',
+      severity: 'MINOR',
+      standards: ['ISO_9001'],
+      unitId: h.f.unitA,
+      state: 'OPEN',
+    });
+    const events = [...(await audit(raised.id as string)), ...(await audit(finding.id as string))];
+    expect(events.map((e) => [e.action, e.after?.action ?? null])).toEqual([
+      ['CREATE', 'RAISE'],
+      ['CREATE', null],
+    ]);
+    expect(events[0]!.after).toMatchObject({ auditFindingId: finding.id });
+    expect(events[1]!.after).toEqual({
+      externalAuditId: v.id,
+      type: 'MINOR_NC',
+      clauseIds: [h.f.clauses['9001:10.1']],
+      unitId: null,
+      nonconformityId: raised.id,
+    });
+    expect(JSON.stringify(events)).not.toContain('Asha Verma');
+    const list = await h.ok('owner', 'GET', `${v.path}/findings`);
+    expect((list.items as { id: string }[]).map((f) => f.id)).toEqual([finding.id]);
+    expect((await h.send('otherOwner', 'GET', `${v.path}/findings`)).status).toBe(404);
+  });
+
+  it('finding type moves: within a family; the NC owner never moves the severity', async () => {
+    const v = await heldVisit();
+    const ofi = await h.ok('clientAdmin', 'POST', `${v.path}/findings`, {
+      type: 'OFI',
+      description: 'Labels could be clearer',
+    });
+    const at = (f: Record<string, unknown>) => `${v.path}/findings/${f.id}`;
+    const toNc = await h.send('clientAdmin', 'PATCH', at(ofi), { version: 1, type: 'MAJOR_NC' });
+    expect([toNc.status, field(toNc)]).toEqual([400, ['type']]);
+    expect(
+      await h.ok('clientAdmin', 'PATCH', at(ofi), { version: 1, type: 'GOOD_PRACTICE' }),
+    ).toMatchObject({ type: 'GOOD_PRACTICE', version: 2 });
+    const major = await h.ok('clientAdmin', 'POST', `${v.path}/findings`, {
+      type: 'MAJOR_NC',
+      description: 'No calibration',
+      nonconformity: nc({ ownerId: h.f.people.otherAdmin }),
+    });
+    const own = await h.send('otherAdmin', 'PATCH', at(major), { version: 1, type: 'MINOR_NC' });
+    expect([own.status, details(own)]).toEqual([403, { action: 'isoCertification.write' }]);
+    expect(
+      await h.ok('clientAdmin', 'PATCH', at(major), { version: 1, type: 'MINOR_NC' }),
+    ).toMatchObject({ type: 'MINOR_NC' });
+    expect((await h.ok('owner', 'GET', `/nonconformities/${major.nonconformityId}`)).severity).toBe(
+      'MINOR',
+    );
+  });
+
+  it('a standard a finding cites stays on the audit; one none cites can go', async () => {
+    const v = await heldVisit([h.f.std9001, h.f.std14001]);
+    await h.ok('clientAdmin', 'POST', `${v.path}/findings`, {
+      type: 'OBSERVATION',
+      clauseIds: [h.f.clauses['14001:6.1.2']],
+      description: 'Aspects register dated last year',
+    });
+    const drop = await h.send('clientAdmin', 'PATCH', v.path, {
+      version: 2,
+      standardIds: [h.f.std9001],
+    });
+    expect([drop.status, field(drop)]).toEqual([400, ['standardIds']]);
+    const kept = await h.ok('clientAdmin', 'PATCH', v.path, {
+      version: 2,
+      standardIds: [h.f.std14001],
+    });
+    expect(kept.standardIds).toEqual([h.f.std14001]);
+  });
+
+  it('moving endOn while HELD or RESPONDED is one UPDATE; responseDueOn is its own DUE_DATE_CHANGE', async () => {
+    const v = await heldVisit();
+    await h.ok('clientAdmin', 'PATCH', v.path, { version: 2, endOn: '2026-10-14' });
+    expect((await audit(v.id)).at(-1)).toMatchObject({
+      action: 'UPDATE',
+      after: { endOn: '2026-10-14' },
+      reason: null,
+    });
+    const responded = await h.ok('clientAdmin', 'POST', `${v.path}/response`, { version: 3 });
+    expect(responded).toMatchObject({ state: 'RESPONDED', allowedActions: ['CLOSE'] });
+    const before = (await audit(v.id)).length;
+    await h.ok('clientAdmin', 'PATCH', v.path, {
+      version: 4,
+      endOn: '2026-10-15',
+      responseDueOn: '2026-11-15',
+      reason: 'The body extended the deadline',
+    });
+    const added = (await audit(v.id)).slice(before);
+    expect(added).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ action: 'UPDATE', after: { endOn: '2026-10-15' }, reason: null }),
+        expect.objectContaining({
+          action: 'DUE_DATE_CHANGE',
+          after: { responseDueOn: '2026-11-15' },
+          reason: 'The body extended the deadline',
+        }),
+      ]),
+    );
+    expect(added).toHaveLength(2);
+  });
+
+  it('RECORD_RESPONSE waits for raised NCs to leave OPEN; CLOSE from HELD needs no NC finding', async () => {
+    const v = await heldVisit();
+    const finding = await h.ok('clientAdmin', 'POST', `${v.path}/findings`, {
+      type: 'MINOR_NC',
+      description: 'Labels faded',
+      nonconformity: nc({ ownerId: h.f.people.clientAdmin }),
+    });
+    const held = await h.ok('clientAdmin', 'GET', v.path);
+    expect(held.allowedActions).toEqual(['RECORD_RESPONSE']);
+    expect((await h.ok('owner', 'GET', v.path)).allowedActions).toEqual([]);
+    const close = await h.send('clientAdmin', 'POST', `${v.path}/close`, {
+      version: 2,
+      recommendation: 'RECOMMENDED',
+    });
+    expect([close.status, field(close)]).toEqual([400, ['findings']]);
+    const open = await h.send('clientAdmin', 'POST', `${v.path}/response`, { version: 2 });
+    expect([open.status, field(open)]).toEqual([400, ['nonconformities']]);
+    await h.ok('clientAdmin', 'POST', `/nonconformities/${finding.nonconformityId}/root-cause`, {
+      version: 1,
+      containment: 'None',
+      correction: 'Relabelled',
+      rootCauseMethod: 'FIVE_WHYS',
+      rootCause: 'Labels not UV resistant',
+      similarOccurrences: 'None',
+    });
+    expect((await h.send('owner', 'POST', `${v.path}/response`, { version: 2 })).status).toBe(403);
+    await h.ok('consultant', 'POST', `${v.path}/response`, { version: 2 });
+    expect((await audit(v.id)).at(-1)).toMatchObject({
+      action: 'TRANSITION',
+      after: { action: 'RECORD_RESPONSE', state: 'RESPONDED', delegated: true },
+    });
+    const noRec = await h.send('clientAdmin', 'POST', `${v.path}/close`, { version: 3 });
+    expect([noRec.status, field(noRec)]).toEqual([400, ['recommendation']]);
+    const closed = await h.ok('clientAdmin', 'POST', `${v.path}/close`, {
+      version: 3,
+      recommendation: 'RECOMMENDED',
+    });
+    expect(closed).toMatchObject({
+      state: 'CLOSED',
+      recommendation: 'RECOMMENDED',
+      allowedActions: [],
+    });
+    // Closed, the visit and its findings take no more files or edits.
+    const ticket = await h.send('clientAdmin', 'POST', '/files/upload-url', {
+      subject: { type: 'audit_finding', id: finding.id },
+      fileName: 'late.pdf',
+      mimeType: 'application/pdf',
+      sizeBytes: 2048,
+    });
+    expect([ticket.status, details(ticket)]).toEqual([
+      409,
+      { entity: 'external_audit', from: 'CLOSED', action: 'UPDATE' },
+    ]);
+    const edit = await h.send('clientAdmin', 'PATCH', `${v.path}/findings/${finding.id}`, {
+      version: 1,
+      description: 'Late',
+    });
+    expect(details(edit)).toEqual({ entity: 'external_audit', from: 'CLOSED', action: 'UPDATE' });
+
+    // With no NC finding a HELD visit closes straight away.
+    const quiet = await heldVisit();
+    expect(
+      await h.ok('clientAdmin', 'POST', `${quiet.path}/close`, {
+        version: 2,
+        recommendation: 'RECOMMENDED',
+      }),
+    ).toMatchObject({ state: 'CLOSED' });
+  });
+
+  it('files on an external finding: managers write them while the visit is open', async () => {
+    const v = await heldVisit();
+    const finding = await h.ok('clientAdmin', 'POST', `${v.path}/findings`, {
+      type: 'OFI',
+      description: 'Labels could be clearer',
+    });
+    await attach(h, 'consultant', { type: 'audit_finding', id: finding.id as string });
+    const ticket = await h.send('owner', 'POST', '/files/upload-url', {
+      subject: { type: 'audit_finding', id: finding.id },
+      fileName: 'photo.pdf',
+      mimeType: 'application/pdf',
+      sizeBytes: 2048,
+    });
+    expect(ticket.status).toBe(403);
   });
 });

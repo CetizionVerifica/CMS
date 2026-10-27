@@ -209,7 +209,7 @@ export function createCore(options: IsoRouteOptions) {
       tx: TenantTx,
       clientId: string,
       personId: string,
-      path: string,
+      path: string | readonly string[],
       options: { unitId?: string | null; roles?: readonly Role[] } = {},
     ): Promise<void> {
       const held = await memberships.holdsRole(tx, {
@@ -259,6 +259,8 @@ export function createCore(options: IsoRouteOptions) {
         reason?: string | null;
         /** The UPDATE carries the reason too (a significance override, model §3.5). */
         reasonOnUpdate?: boolean;
+        /** How a field's value is written into the event (free text noted as changed, not copied). */
+        record?: (key: string, value: unknown) => unknown;
       } = {},
     ): Promise<T> {
       const changed = Object.keys(definedOf(patch)).filter(
@@ -268,6 +270,7 @@ export function createCore(options: IsoRouteOptions) {
       const updated = await write(
         Object.fromEntries(changed.map((k) => [k, patch[k]])) as Partial<T>,
       );
+      const record = options.record ?? ((_key: string, value: unknown) => value);
       const byAction = new Map<AuditAction, string[]>([['UPDATE', []]]);
       for (const key of changed) {
         const action = options.split?.[key] ?? 'UPDATE';
@@ -279,8 +282,8 @@ export function createCore(options: IsoRouteOptions) {
           action,
           entityType,
           entityId: row.id,
-          before: Object.fromEntries(keys.map((k) => [k, row[k as keyof T]])),
-          after: Object.fromEntries(keys.map((k) => [k, patch[k as keyof T]])),
+          before: Object.fromEntries(keys.map((k) => [k, record(k, row[k as keyof T])])),
+          after: Object.fromEntries(keys.map((k) => [k, record(k, patch[k as keyof T])])),
           reason:
             action === 'UPDATE' && options.reasonOnUpdate !== true
               ? null
