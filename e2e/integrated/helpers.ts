@@ -68,3 +68,23 @@ export async function pageAs(browser: Browser, key: AccountKey): Promise<Page> {
   });
   return context.newPage();
 }
+
+/** The ISO add-on's name on its screens, and the heading each ISO screen shows while the account lacks it. */
+export const ISO = 'ISO management systems';
+export const OFF = `${ISO} is not turned on for your account`;
+
+/**
+ * Opens `path` until `check` passes. The web app keeps each session's `Me`, and so its add-ons, for 5 seconds
+ * (`meCache` in apps/web/lib/api/server.ts), so the shell and the ISO gate see a switch within that time, while the API
+ * sees it on the next request.
+ */
+export async function shownAfterMeCache(
+  page: Page,
+  path: string,
+  check: () => Promise<void>,
+): Promise<void> {
+  await expect(async () => {
+    await page.goto(path);
+    await check();
+  }).toPass({ timeout: 20_000, intervals: [1_000, 2_000] });
+}

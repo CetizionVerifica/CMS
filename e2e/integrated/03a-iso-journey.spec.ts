@@ -12,7 +12,7 @@ import pg from 'pg';
 
 import { expectNoA11yViolations } from '../support/a11y.js';
 import { apiAs, type ApiSession } from './api.js';
-import { checkPage, pageAs, seeded } from './helpers.js';
+import { ISO, OFF, checkPage, pageAs, seeded, shownAfterMeCache } from './helpers.js';
 import {
   CONSOLE_URL,
   E2E_DATABASE,
@@ -35,8 +35,6 @@ import { nextUnusedCode } from './totp.js';
 // afterAll takes the console's override back off, as 04-security does with its own, so later files start as before.
 
 const DEMO_ADVISORY = 'Demo Advisory';
-const ISO = 'ISO management systems';
-const OFF = `${ISO} is not turned on for your account`;
 const SETTING_UP = `${ISO} is being set up`;
 const PHONE = { width: 375, height: 812 };
 const DESKTOP = { width: 1280, height: 800 };
@@ -70,22 +68,6 @@ async function date(scope: Locator, label: string, value: string): Promise<void>
   const input = scope.getByRole('textbox', { name: label, exact: true });
   await input.fill(value);
   await input.press('Tab');
-}
-
-/**
- * Opens `path` until `check` passes. The web app keeps each session's `Me`, and so its add-ons, for 5 seconds
- * (`meCache` in apps/web/lib/api/server.ts), so the shell and the ISO gate see a switch within that time, while the API
- * sees it on the next request.
- */
-async function shownAfterMeCache(
-  page: Page,
-  path: string,
-  check: () => Promise<void>,
-): Promise<void> {
-  await expect(async () => {
-    await page.goto(path);
-    await check();
-  }).toPass({ timeout: 20_000, intervals: [1_000, 2_000] });
 }
 
 /** The record's state panel. */
