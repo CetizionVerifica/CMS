@@ -61,7 +61,11 @@ const raise = {
   timeZone: 'Asia/Kolkata',
 };
 
+// Keys go in without a timer between them: typing stays in one act, quick and in order on a loaded runner.
+let user: ReturnType<typeof userEvent.setup>;
+
 beforeEach(() => {
+  user = userEvent.setup({ delay: null });
   actions.isoWrite.mockReset();
   actions.isoWrite.mockResolvedValue(ok({ id: 'new-nc' }));
   actions.isoRead.mockReset();
@@ -112,7 +116,7 @@ describe('NcLogView', () => {
     exports.isoExportProgress.mockResolvedValue({ status: 'ready', url: 'https://x.invalid/l' });
     log({ ids: 'a,b', state: 'OPEN', overdue: 'true' });
     expect(screen.getByText(/without the overview’s selection/)).toBeTruthy();
-    await userEvent.click(screen.getByRole('button', { name: 'Download NC log (Excel)' }));
+    await user.click(screen.getByRole('button', { name: 'Download NC log (Excel)' }));
     await waitFor(() => expect(assign).toHaveBeenCalledWith('https://x.invalid/l'));
     expect(exports.startIsoExport).toHaveBeenCalledWith(
       C,
@@ -132,42 +136,40 @@ describe('NcLogView', () => {
       }),
     );
     log({}, true);
-    await userEvent.click(screen.getByRole('button', { name: 'Raise a nonconformity' }));
+    await user.click(screen.getByRole('button', { name: 'Raise a nonconformity' }));
     const form = screen.getByRole('dialog', { name: 'Raise a nonconformity' });
     const pick = async (label: string, option: string) => {
-      await userEvent.click(within(form).getByRole('combobox', { name: label }));
-      await userEvent.click(screen.getByRole('option', { name: option }));
+      await user.click(within(form).getByRole('combobox', { name: label }));
+      await user.click(screen.getByRole('option', { name: option }));
     };
     await pick('Where it came from', 'Process');
-    await userEvent.click(within(form).getByRole('radio', { name: 'Minor' }));
-    await userEvent.click(
-      within(form).getByRole('checkbox', { name: SYSTEM!.standards[0]!.title }),
-    );
-    await userEvent.type(
+    await user.click(within(form).getByRole('radio', { name: 'Minor' }));
+    await user.click(within(form).getByRole('checkbox', { name: SYSTEM!.standards[0]!.title }));
+    await user.type(
       within(form).getByRole('textbox', { name: 'What happened or was found' }),
       'The drill took too long.',
     );
     const search = within(form).getByRole('textbox', { name: 'Search the register' });
-    await userEvent.type(search, 'd');
-    await userEvent.click(within(form).getByRole('button', { name: 'Search' }));
+    await user.type(search, 'd');
+    await user.click(within(form).getByRole('button', { name: 'Search' }));
     expect(within(form).getByText('Type at least two letters.')).toBeTruthy();
-    await userEvent.type(search, 'rill{Enter}');
+    await user.type(search, 'rill{Enter}');
     expect(actions.isoRead).toHaveBeenCalledWith(
       C,
       'listInstances',
       {},
       { q: 'drill', limit: '10' },
     );
-    await userEvent.click(within(form).getByRole('radio', { name: /^Emergency drill · Line 2/ }));
+    await user.click(within(form).getByRole('radio', { name: /^Emergency drill · Line 2/ }));
     expect(within(form).getByText('Emergency drill · Line 2 · due 1 Nov 2024')).toBeTruthy();
     await pick('Owner', 'Rohan Joshi');
     await pick('Approver', 'Rohan Joshi');
-    await userEvent.type(within(form).getByRole('textbox', { name: 'Due on' }), '15 Dec 2024');
-    await userEvent.tab();
-    await userEvent.click(within(form).getByRole('button', { name: 'Raise' }));
+    await user.type(within(form).getByRole('textbox', { name: 'Due on' }), '15 Dec 2024');
+    await user.tab();
+    await user.click(within(form).getByRole('button', { name: 'Raise' }));
     expect(actions.isoWrite).not.toHaveBeenCalled();
     await pick('Approver', 'Nisha Patil');
-    await userEvent.click(within(form).getByRole('button', { name: 'Raise' }));
+    await user.click(within(form).getByRole('button', { name: 'Raise' }));
     await waitFor(() =>
       expect(actions.isoWrite).toHaveBeenCalledWith(
         C,
@@ -197,49 +199,39 @@ describe('NcLogView', () => {
 
   it('raises an incident with its time where the client is, its unit and its outcome', async () => {
     log({}, true);
-    await userEvent.click(screen.getByRole('button', { name: 'Raise a nonconformity' }));
+    await user.click(screen.getByRole('button', { name: 'Raise a nonconformity' }));
     const form = screen.getByRole('dialog', { name: 'Raise a nonconformity' });
     const pick = async (label: string, option: string) => {
-      await userEvent.click(within(form).getByRole('combobox', { name: label }));
-      await userEvent.click(screen.getByRole('option', { name: option }));
+      await user.click(within(form).getByRole('combobox', { name: label }));
+      await user.click(screen.getByRole('option', { name: option }));
     };
     await pick('Where it came from', 'Incident');
-    await userEvent.click(
-      within(form).getByRole('checkbox', { name: SYSTEM!.standards[0]!.title }),
-    );
+    await user.click(within(form).getByRole('checkbox', { name: SYSTEM!.standards[0]!.title }));
     expect(within(form).getAllByText(/Write no injured person’s name/).length).toBeGreaterThan(0);
-    await userEvent.click(within(form).getByRole('radio', { name: 'Major' }));
-    await userEvent.type(
+    await user.click(within(form).getByRole('radio', { name: 'Major' }));
+    await user.type(
       within(form).getByRole('textbox', { name: 'What happened or was found' }),
       'A hand was burnt on a tray.',
     );
     await pick('Unit', units[0]!.name);
-    await userEvent.type(
-      within(form).getByRole('textbox', { name: 'Date it happened' }),
-      '14 Nov 2024',
-    );
-    await userEvent.tab();
-    await userEvent.type(within(form).getByRole('textbox', { name: 'Time (HH:MM)' }), '09:30');
-    await userEvent.type(
-      within(form).getByRole('textbox', { name: 'Where it happened' }),
-      'Oven bay',
-    );
+    await user.type(within(form).getByRole('textbox', { name: 'Date it happened' }), '14 Nov 2024');
+    await user.tab();
+    await user.type(within(form).getByRole('textbox', { name: 'Time (HH:MM)' }), '09:30');
+    await user.type(within(form).getByRole('textbox', { name: 'Where it happened' }), 'Oven bay');
     await pick('Kind of incident', 'Injury');
     await pick('Outcome', 'Lost time');
-    await userEvent.click(
-      within(form).getByRole('checkbox', { name: 'Reportable to the authorities' }),
-    );
+    await user.click(within(form).getByRole('checkbox', { name: 'Reportable to the authorities' }));
     expect(within(form).getByText(/A statutory accident notice is due/)).toBeTruthy();
     await pick('Owner', 'Rohan Joshi');
     await pick('Approver', 'Nisha Patil');
-    await userEvent.type(within(form).getByRole('textbox', { name: 'Due on' }), '15 Dec 2024');
-    await userEvent.tab();
+    await user.type(within(form).getByRole('textbox', { name: 'Due on' }), '15 Dec 2024');
+    await user.tab();
     expect(
       within(form).getByRole('button', { name: 'Raise' }).getAttribute('aria-disabled') ??
         within(form).getByRole('button', { name: 'Raise' }).hasAttribute('disabled'),
     ).toBeTruthy();
-    await userEvent.type(within(form).getByRole('textbox', { name: 'Days lost' }), '2');
-    await userEvent.click(within(form).getByRole('button', { name: 'Raise' }));
+    await user.type(within(form).getByRole('textbox', { name: 'Days lost' }), '2');
+    await user.click(within(form).getByRole('button', { name: 'Raise' }));
     await waitFor(() =>
       expect(actions.isoWrite).toHaveBeenCalledWith(
         C,
@@ -339,19 +331,19 @@ describe('NcRecord', () => {
   it('records the root cause, asking for what ADD_ROOT_CAUSE needs', async () => {
     actions.isoWrite.mockResolvedValue(ok(null));
     record(withSteps(COMPLAINT, ['ADD_ROOT_CAUSE', 'CANCEL']));
-    await userEvent.click(screen.getByRole('button', { name: 'Record root cause' }));
+    await user.click(screen.getByRole('button', { name: 'Record root cause' }));
     const form = screen.getByRole('dialog', { name: 'Record root cause' });
     const fill = async (label: string, text: string) =>
-      userEvent.type(within(form).getByRole('textbox', { name: label }), text);
+      user.type(within(form).getByRole('textbox', { name: label }), text);
     await fill('Containment', 'Held the batch.');
     await fill('Correction', 'Repacked it.');
-    await userEvent.click(within(form).getByRole('combobox', { name: 'Root cause method' }));
-    await userEvent.click(screen.getByRole('option', { name: 'Five whys' }));
+    await user.click(within(form).getByRole('combobox', { name: 'Root cause method' }));
+    await user.click(screen.getByRole('option', { name: 'Five whys' }));
     await fill('Root cause', 'Label roll swapped.');
-    await userEvent.click(within(form).getByRole('button', { name: 'Record root cause' }));
+    await user.click(within(form).getByRole('button', { name: 'Record root cause' }));
     expect(actions.isoWrite).not.toHaveBeenCalled();
     await fill('Similar occurrences', 'None found.');
-    await userEvent.click(within(form).getByRole('button', { name: 'Record root cause' }));
+    await user.click(within(form).getByRole('button', { name: 'Record root cause' }));
     await waitFor(() =>
       expect(actions.isoWrite).toHaveBeenCalledWith(
         C,
@@ -372,10 +364,10 @@ describe('NcRecord', () => {
   it('cancels with a reason', async () => {
     actions.isoWrite.mockResolvedValue(ok(null));
     record(withSteps(COMPLAINT, ['CANCEL']));
-    await userEvent.click(screen.getByRole('button', { name: 'Cancel nonconformity' }));
+    await user.click(screen.getByRole('button', { name: 'Cancel nonconformity' }));
     const dialog = screen.getByRole('alertdialog');
-    await userEvent.type(within(dialog).getByRole('textbox'), 'Raised twice');
-    await userEvent.click(within(dialog).getByRole('button', { name: 'Cancel nonconformity' }));
+    await user.type(within(dialog).getByRole('textbox'), 'Raised twice');
+    await user.click(within(dialog).getByRole('button', { name: 'Cancel nonconformity' }));
     await waitFor(() =>
       expect(actions.isoWrite).toHaveBeenCalledWith(
         C,
@@ -393,20 +385,20 @@ describe('NcRecord', () => {
     actions.isoWrite.mockResolvedValue(ok(null));
     const rcf = withSteps(byNumber(5), ['PLAN_ACTIONS', 'SUBMIT_NO_ACTION']);
     const { unmount } = record(rcf, { actions: [] });
-    await userEvent.click(screen.getByRole('button', { name: 'Mark actions planned' }));
+    await user.click(screen.getByRole('button', { name: 'Mark actions planned' }));
     let form = screen.getByRole('dialog', { name: 'Mark actions planned' });
     expect(within(form).getByText(/There is no open corrective action yet/)).toBeTruthy();
-    await userEvent.click(within(form).getByRole('button', { name: 'Cancel' }));
-    await userEvent.click(screen.getByRole('button', { name: 'Close without corrective action' }));
+    await user.click(within(form).getByRole('button', { name: 'Cancel' }));
+    await user.click(screen.getByRole('button', { name: 'Close without corrective action' }));
     form = screen.getByRole('dialog', { name: 'Close without corrective action' });
     for (const [label, text] of [
       ['Why no corrective action is needed', 'Corrected on the spot.'],
       ['Risk review', 'None needed.'],
       ['Change to the system', 'None needed.'],
     ] as const) {
-      await userEvent.type(within(form).getByRole('textbox', { name: label }), text);
+      await user.type(within(form).getByRole('textbox', { name: label }), text);
     }
-    await userEvent.click(within(form).getByRole('button', { name: 'Submit for verification' }));
+    await user.click(within(form).getByRole('button', { name: 'Submit for verification' }));
     await waitFor(() =>
       expect(actions.isoWrite).toHaveBeenCalledWith(
         C,
@@ -425,20 +417,20 @@ describe('NcRecord', () => {
     const open = ISO.actions.find((a) => a.subject.type === 'NONCONFORMITY' && a.state === 'OPEN')!;
     const planned = withSteps(FROM_AUDIT, ['SUBMIT']);
     const second = record(planned, { actions: [open] });
-    await userEvent.click(screen.getByRole('button', { name: 'Submit for verification' }));
+    await user.click(screen.getByRole('button', { name: 'Submit for verification' }));
     form = screen.getByRole('dialog', { name: 'Submit for verification' });
     expect(within(form).getByText('1 corrective action is still open.')).toBeTruthy();
     second.unmount();
 
     record(withSteps(byNumber(5), ['PLAN_ACTIONS']), { actions: [open] });
-    await userEvent.click(screen.getByRole('button', { name: 'Mark actions planned' }));
+    await user.click(screen.getByRole('button', { name: 'Mark actions planned' }));
     form = screen.getByRole('dialog', { name: 'Mark actions planned' });
-    await userEvent.type(
+    await user.type(
       within(form).getByRole('textbox', { name: 'Effectiveness check due on' }),
       '31 Jan 2025',
     );
-    await userEvent.tab();
-    await userEvent.click(within(form).getByRole('button', { name: 'Mark actions planned' }));
+    await user.tab();
+    await user.click(within(form).getByRole('button', { name: 'Mark actions planned' }));
     await waitFor(() =>
       expect(actions.isoWrite).toHaveBeenCalledWith(
         C,
@@ -456,14 +448,14 @@ describe('NcRecord', () => {
     actions.isoWrite.mockResolvedValue(ok(null));
     const planned = withSteps(FROM_AUDIT, ['SUBMIT']);
     record(planned, { actions: [] });
-    await userEvent.click(screen.getByRole('button', { name: 'Submit for verification' }));
+    await user.click(screen.getByRole('button', { name: 'Submit for verification' }));
     const form = screen.getByRole('dialog', { name: 'Submit for verification' });
-    await userEvent.type(within(form).getByRole('textbox', { name: 'Risk review' }), 'Reviewed.');
-    await userEvent.type(
+    await user.type(within(form).getByRole('textbox', { name: 'Risk review' }), 'Reviewed.');
+    await user.type(
       within(form).getByRole('textbox', { name: 'Change to the system' }),
       'Tray lifter added.',
     );
-    await userEvent.click(within(form).getByRole('button', { name: 'Submit for verification' }));
+    await user.click(within(form).getByRole('button', { name: 'Submit for verification' }));
     await waitFor(() =>
       expect(actions.isoWrite).toHaveBeenCalledWith(
         C,
@@ -482,14 +474,11 @@ describe('NcRecord', () => {
     actions.isoWrite.mockResolvedValue(ok(null));
     const awaiting = withSteps(INJURY, ['VERIFY_EFFECTIVE', 'VERIFY_NOT_EFFECTIVE']);
     record(awaiting);
-    await userEvent.click(screen.getByRole('button', { name: 'Verify effective' }));
+    await user.click(screen.getByRole('button', { name: 'Verify effective' }));
     let form = screen.getByRole('dialog', { name: 'Verify effective' });
     expect(within(form).getByText(/due on 12 Nov 2024/)).toBeTruthy();
-    await userEvent.type(
-      within(form).getByRole('textbox', { name: 'How it was checked' }),
-      'No burns.',
-    );
-    await userEvent.click(within(form).getByRole('button', { name: 'Verify and close' }));
+    await user.type(within(form).getByRole('textbox', { name: 'How it was checked' }), 'No burns.');
+    await user.click(within(form).getByRole('button', { name: 'Verify and close' }));
     await waitFor(() =>
       expect(actions.isoWrite).toHaveBeenCalledWith(
         C,
@@ -502,18 +491,18 @@ describe('NcRecord', () => {
       ),
     );
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
-    await userEvent.click(screen.getByRole('button', { name: 'Not effective' }));
+    await user.click(screen.getByRole('button', { name: 'Not effective' }));
     form = screen.getByRole('dialog', { name: 'Not effective' });
-    await userEvent.click(within(form).getByRole('radio', { name: /^Back to the actions/ }));
-    await userEvent.type(within(form).getByRole('textbox', { name: 'Why' }), 'Burns again.');
-    await userEvent.click(within(form).getByRole('button', { name: 'Not effective' }));
+    await user.click(within(form).getByRole('radio', { name: /^Back to the actions/ }));
+    await user.type(within(form).getByRole('textbox', { name: 'Why' }), 'Burns again.');
+    await user.click(within(form).getByRole('button', { name: 'Not effective' }));
     expect(actions.isoWrite).toHaveBeenCalledTimes(1);
-    await userEvent.type(
+    await user.type(
       within(form).getByRole('textbox', { name: 'New effectiveness check due on' }),
       '28 Feb 2025',
     );
-    await userEvent.tab();
-    await userEvent.click(within(form).getByRole('button', { name: 'Not effective' }));
+    await user.tab();
+    await user.click(within(form).getByRole('button', { name: 'Not effective' }));
     await waitFor(() =>
       expect(actions.isoWrite).toHaveBeenLastCalledWith(
         C,
@@ -534,11 +523,11 @@ describe('NcRecord', () => {
     const closed = withSteps(byNumber(1), ['REOPEN']);
     record(closed);
     expect(screen.getByText(/^closed /)).toBeTruthy();
-    await userEvent.click(screen.getByRole('button', { name: 'Reopen' }));
+    await user.click(screen.getByRole('button', { name: 'Reopen' }));
     const form = screen.getByRole('dialog', { name: 'Reopen' });
-    await userEvent.click(within(form).getByRole('radio', { name: /^Back to the root cause/ }));
-    await userEvent.type(within(form).getByRole('textbox', { name: 'Why' }), 'Found again.');
-    await userEvent.click(within(form).getByRole('button', { name: 'Reopen' }));
+    await user.click(within(form).getByRole('radio', { name: /^Back to the root cause/ }));
+    await user.type(within(form).getByRole('textbox', { name: 'Why' }), 'Found again.');
+    await user.click(within(form).getByRole('button', { name: 'Reopen' }));
     await waitFor(() =>
       expect(actions.isoWrite).toHaveBeenCalledWith(
         C,
@@ -556,11 +545,11 @@ describe('NcRecord', () => {
   it('edits only what changed, on the PATCH', async () => {
     actions.isoWrite.mockResolvedValue(ok(null));
     record(COMPLAINT);
-    await userEvent.click(screen.getByRole('button', { name: 'Edit details' }));
+    await user.click(screen.getByRole('button', { name: 'Edit details' }));
     let form = screen.getByRole('dialog', { name: 'Edit details' });
     const text = within(form).getByRole('textbox', { name: 'What happened or was found' });
-    await userEvent.type(text, ' More.');
-    await userEvent.click(within(form).getByRole('button', { name: 'Save details' }));
+    await user.type(text, ' More.');
+    await user.click(within(form).getByRole('button', { name: 'Save details' }));
     await waitFor(() =>
       expect(actions.isoWrite).toHaveBeenCalledWith(
         C,
@@ -573,32 +562,30 @@ describe('NcRecord', () => {
       ),
     );
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
-    await userEvent.click(screen.getByRole('button', { name: 'Edit investigation' }));
+    await user.click(screen.getByRole('button', { name: 'Edit investigation' }));
     form = screen.getByRole('dialog', { name: 'Edit investigation' });
-    await userEvent.type(within(form).getByRole('textbox', { name: 'Containment' }), 'Held.');
-    await userEvent.click(
+    await user.type(within(form).getByRole('textbox', { name: 'Containment' }), 'Held.');
+    await user.click(
       within(form).getByRole('combobox', {
         name: 'Disposition of nonconforming outputs (optional)',
       }),
     );
-    await userEvent.click(screen.getByRole('option', { name: 'None' }));
+    await user.click(screen.getByRole('option', { name: 'None' }));
     expect(within(form).queryByRole('combobox', { name: 'Disposition authorised by' })).toBeNull();
-    await userEvent.click(
+    await user.click(
       within(form).getByRole('combobox', {
         name: 'Disposition of nonconforming outputs (optional)',
       }),
     );
-    await userEvent.click(screen.getByRole('option', { name: 'Segregation' }));
+    await user.click(screen.getByRole('option', { name: 'Segregation' }));
     expect(blocked(within(form).getByRole('button', { name: 'Save investigation' }))).toBe(
       'Name who authorised the disposition',
     );
-    await userEvent.click(within(form).getByRole('button', { name: 'Save investigation' }));
+    await user.click(within(form).getByRole('button', { name: 'Save investigation' }));
     expect(actions.isoWrite).toHaveBeenCalledTimes(1);
-    await userEvent.click(
-      within(form).getByRole('combobox', { name: 'Disposition authorised by' }),
-    );
-    await userEvent.click(screen.getByRole('option', { name: 'Nisha Patil' }));
-    await userEvent.click(within(form).getByRole('button', { name: 'Save investigation' }));
+    await user.click(within(form).getByRole('combobox', { name: 'Disposition authorised by' }));
+    await user.click(screen.getByRole('option', { name: 'Nisha Patil' }));
+    await user.click(within(form).getByRole('button', { name: 'Save investigation' }));
     await waitFor(() =>
       expect(actions.isoWrite).toHaveBeenLastCalledWith(
         C,
@@ -618,20 +605,20 @@ describe('NcRecord', () => {
     actions.isoWrite.mockResolvedValue(ok(null));
     const near = byNumber(6);
     record(near);
-    await userEvent.click(screen.getByRole('button', { name: 'Edit incident' }));
+    await user.click(screen.getByRole('button', { name: 'Edit incident' }));
     const form = screen.getByRole('dialog', { name: 'Edit near miss' });
     expect(within(form).queryByRole('combobox', { name: 'Outcome' })).toBeNull();
     expect(within(form).getByRole('textbox', { name: 'Time (HH:MM)' })).toHaveProperty(
       'value',
       '13:45',
     );
-    await userEvent.click(
+    await user.click(
       within(form).getByRole('checkbox', {
         name: 'A worker who is not a manager took part in the investigation',
       }),
     );
-    await userEvent.click(within(form).getByRole('checkbox', { name: 'Nisha Patil' }));
-    await userEvent.click(within(form).getByRole('button', { name: 'Save' }));
+    await user.click(within(form).getByRole('checkbox', { name: 'Nisha Patil' }));
+    await user.click(within(form).getByRole('button', { name: 'Save' }));
     await waitFor(() =>
       expect(actions.isoWrite).toHaveBeenCalledWith(
         C,
@@ -651,24 +638,21 @@ describe('NcRecord', () => {
   it('reassigns with a reason, offering severity only on a record raised by hand', async () => {
     actions.isoWrite.mockResolvedValue(ok(null));
     const { unmount } = record(byNumber(5));
-    await userEvent.click(screen.getByRole('button', { name: 'Reassign' }));
+    await user.click(screen.getByRole('button', { name: 'Reassign' }));
     expect(screen.queryByRole('radiogroup', { name: 'Severity' })).toBeNull();
     expect(screen.getByText('Its severity follows the audit finding that raised it.')).toBeTruthy();
     unmount();
 
     record(COMPLAINT);
-    await userEvent.click(screen.getByRole('button', { name: 'Reassign' }));
+    await user.click(screen.getByRole('button', { name: 'Reassign' }));
     const form = screen.getByRole('dialog', { name: 'Reassign' });
-    await userEvent.click(within(form).getByRole('combobox', { name: 'Owner' }));
-    await userEvent.click(screen.getByRole('option', { name: 'Sameer Gowda' }));
-    await userEvent.click(within(form).getByRole('radio', { name: 'Minor' }));
-    await userEvent.click(within(form).getByRole('button', { name: 'Save' }));
+    await user.click(within(form).getByRole('combobox', { name: 'Owner' }));
+    await user.click(screen.getByRole('option', { name: 'Sameer Gowda' }));
+    await user.click(within(form).getByRole('radio', { name: 'Minor' }));
+    await user.click(within(form).getByRole('button', { name: 'Save' }));
     expect(actions.isoWrite).not.toHaveBeenCalled();
-    await userEvent.type(
-      within(form).getByRole('textbox', { name: 'Why' }),
-      'Sameer runs packing.',
-    );
-    await userEvent.click(within(form).getByRole('button', { name: 'Save' }));
+    await user.type(within(form).getByRole('textbox', { name: 'Why' }), 'Sameer runs packing.');
+    await user.click(within(form).getByRole('button', { name: 'Save' }));
     await waitFor(() =>
       expect(actions.isoWrite).toHaveBeenCalledWith(
         C,
@@ -688,20 +672,17 @@ describe('NcRecord', () => {
     actions.isoWrite.mockResolvedValue(ok(null));
     const open = { ...INJURY, state: 'OPEN', effectivenessDueOn: null } as NonconformityView;
     record(open);
-    await userEvent.click(screen.getByRole('button', { name: 'Reassign' }));
+    await user.click(screen.getByRole('button', { name: 'Reassign' }));
     const form = screen.getByRole('dialog', { name: 'Reassign' });
-    await userEvent.click(within(form).getByRole('combobox', { name: 'Outcome' }));
-    await userEvent.click(screen.getByRole('option', { name: 'Fatality' }));
-    await userEvent.click(within(form).getByRole('combobox', { name: 'Outcome' }));
-    await userEvent.click(screen.getByRole('option', { name: 'Lost time' }));
+    await user.click(within(form).getByRole('combobox', { name: 'Outcome' }));
+    await user.click(screen.getByRole('option', { name: 'Fatality' }));
+    await user.click(within(form).getByRole('combobox', { name: 'Outcome' }));
+    await user.click(screen.getByRole('option', { name: 'Lost time' }));
     expect(within(form).queryByRole('textbox', { name: 'Days lost' })).toBeNull();
-    await userEvent.click(within(form).getByRole('combobox', { name: 'Outcome' }));
-    await userEvent.click(screen.getByRole('option', { name: 'First aid' }));
-    await userEvent.type(
-      within(form).getByRole('textbox', { name: 'Why' }),
-      'Doctor said first aid.',
-    );
-    await userEvent.click(within(form).getByRole('button', { name: 'Save' }));
+    await user.click(within(form).getByRole('combobox', { name: 'Outcome' }));
+    await user.click(screen.getByRole('option', { name: 'First aid' }));
+    await user.type(within(form).getByRole('textbox', { name: 'Why' }), 'Doctor said first aid.');
+    await user.click(within(form).getByRole('button', { name: 'Save' }));
     await waitFor(() =>
       expect(actions.isoWrite).toHaveBeenCalledWith(
         C,
