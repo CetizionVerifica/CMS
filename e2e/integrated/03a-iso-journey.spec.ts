@@ -72,6 +72,22 @@ async function date(scope: Locator, label: string, value: string): Promise<void>
   await input.press('Tab');
 }
 
+/**
+ * Opens `path` until `check` passes. The web app keeps each session's `Me`, and so its add-ons, for 5 seconds
+ * (`meCache` in apps/web/lib/api/server.ts), so the shell and the ISO gate see a switch within that time, while the API
+ * sees it on the next request.
+ */
+async function shownAfterMeCache(
+  page: Page,
+  path: string,
+  check: () => Promise<void>,
+): Promise<void> {
+  await expect(async () => {
+    await page.goto(path);
+    await check();
+  }).toPass({ timeout: 20_000, intervals: [1_000, 2_000] });
+}
+
 /** The record's state panel. */
 const standing = (page: Page) => page.getByRole('region', { name: 'Where it stands' });
 
@@ -191,8 +207,11 @@ test.describe.serial('the ISO add-on, turned on, used and turned off', () => {
       await admin.dispose();
       const page = await pageAs(browser, 'clientAdmin');
       for (const path of ['overview', 'nonconformities']) {
-        await page.goto(`/c/${clients.kestrel}/iso/${path}`);
-        await expect(page.getByRole('heading', { name: SETTING_UP })).toBeVisible();
+        await shownAfterMeCache(page, `/c/${clients.kestrel}/iso/${path}`, async () => {
+          await expect(page.getByRole('heading', { name: SETTING_UP })).toBeVisible({
+            timeout: 2_000,
+          });
+        });
         await expect(page.getByRole('table')).toHaveCount(0);
         await checkPage(page);
       }
@@ -513,10 +532,11 @@ test.describe.serial('the ISO add-on, turned on, used and turned off', () => {
     // this journey take a made-up one: the gate answers before any read.
     const none = '00000000-0000-5000-8000-00000000abcd';
     const page = await pageAs(browser, 'clientAdmin');
-    await page.goto(`/c/${clients.kestrel}/overview`);
     const nav = page.getByRole('navigation', { name: 'Main' });
-    await expect(nav.getByRole('link', { name: 'Register', exact: true })).toBeVisible();
-    await expect(nav.getByText('ISO', { exact: true })).toHaveCount(0);
+    await shownAfterMeCache(page, `/c/${clients.kestrel}/overview`, async () => {
+      await expect(nav.getByRole('link', { name: 'Register', exact: true })).toBeVisible();
+      await expect(nav.getByText('ISO', { exact: true })).toHaveCount(0, { timeout: 2_000 });
+    });
     for (const path of [
       'overview',
       'checklist',
