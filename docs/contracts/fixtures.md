@@ -20,8 +20,9 @@ Built in contracts 1.2.0: the first four files, by `pnpm --filter @canopy/contra
 writes the two ISO files since contracts 1.8.0 (`scripts/fixtures/iso-catalogue.ts`, `scripts/fixtures/firm-b-iso.ts`). `mock-large.json` and `import-edge/*.xlsx` are not built yet.
 
 Since 1.8.6 every act in `firm-a.sample.json` and `firm-b.synthetic.json` carries `kind: 'STATUTE'` and every
-obligation `clauseRefs: []`, as M3 stores them (README decision 56). The mock's firm B also holds the STANDARD acts and
-their activities copied from `iso.catalogue.json`, with their own `kind` and clauses.
+obligation `clauseRefs: []`, as M3 stores them (README decision 56); both fields are required since 1.8.8 (decision
+58). The mock's firm B also holds the STANDARD acts and their activities copied from `iso.catalogue.json`, with their
+own `kind` and clauses.
 
 IDs in fixtures are deterministic UUIDv5 from a fixed namespace and a natural key (e.g. `obligation:TAX-CL-033-6067-60218`, `instance:<externalRef>:<dueDate>`), so every module gets the same ids and the JSON is reproducible.
 

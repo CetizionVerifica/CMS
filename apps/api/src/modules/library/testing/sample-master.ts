@@ -12,6 +12,7 @@ export const SAMPLE_MASTER: MasterLibrary = {
       jurisdiction: 'CENTRAL',
       stateCode: null,
       aliases: [],
+      kind: 'STATUTE',
     },
   ],
   obligations: [
@@ -32,6 +33,7 @@ export const SAMPLE_MASTER: MasterLibrary = {
       evidenceRequired: true,
       forms: [],
       logSheets: [],
+      clauseRefs: [],
     },
     {
       act: 'factories',
@@ -50,6 +52,7 @@ export const SAMPLE_MASTER: MasterLibrary = {
       evidenceRequired: false,
       forms: [],
       logSheets: [],
+      clauseRefs: [],
     },
   ],
 };

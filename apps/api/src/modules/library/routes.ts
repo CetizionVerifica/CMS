@@ -89,13 +89,8 @@ export function libraryRoutes(app: FastifyInstance, deps: M6Deps): void {
   mount(app, deps, ENDPOINTS.createAct, async (call) => {
     call.authorize({ type: 'act', clientId: null });
     return store.transaction(call.ctx, (tx) =>
-      auditedInsert(
-        tx,
-        tx.acts,
-        'act',
-        call.body as Parameters<Tx['acts']['insert']>[0],
-        () => null,
-      ),
+      // The body takes no kind: only the ISO catalogue copy makes a STANDARD act (README decision 41).
+      auditedInsert(tx, tx.acts, 'act', { ...call.body, kind: 'STATUTE' }, () => null),
     );
   });
 
@@ -289,7 +284,8 @@ export function libraryRoutes(app: FastifyInstance, deps: M6Deps): void {
         tx,
         tx.obligations,
         'obligation',
-        { ...body, libraryVersion: 1 },
+        // The body takes no clauses: only the ISO catalogue sets them.
+        { ...body, clauseRefs: [], libraryVersion: 1 },
         () => null,
       );
       await emit(

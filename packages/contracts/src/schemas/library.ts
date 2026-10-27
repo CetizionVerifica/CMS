@@ -57,11 +57,10 @@ export const Act = z
     aliases: z.array(Name),
     /**
      * STATUTE (a law) or STANDARD (an ISO management-system standard, ADR M16-0001). A STANDARD act is CENTRAL with no
-     * stateCode. M3 stores it on every act (STATUTE unless the catalogue copy says STANDARD) and the mock sends it, but
-     * it stays optional: other modules build acts from this type and do not set it yet (README decision 56). A reader
-     * treats a missing kind as STATUTE.
+     * stateCode. M3 stores it on every act (STATUTE unless the catalogue copy says STANDARD) and sends it on every read.
+     * Required since 1.8.8 (README decision 58); M3's create still defaults it.
      */
-    kind: ActKind.optional(),
+    kind: ActKind,
   })
   .superRefine(checkJurisdiction)
   .refine((a) => a.kind !== 'STANDARD' || a.jurisdiction === 'CENTRAL', {
@@ -179,15 +178,14 @@ export const Obligation = z
     /**
      * The clauses an activity under a STANDARD act serves (docs/iso/catalogue.md §2), e.g. calibration names
      * `{ standard: 'ISO_9001', clauseNumber: '7.1.5' }` and the 9.1.1 clauses of 14001 and 45001. Never bare numbers:
-     * 9001 8.2 and 14001 8.2 are different clauses. M3 stores it on every obligation (`[]` when none) and the mock
-     * sends it, but it stays optional: other modules build obligations from this type and do not set it yet (README
-     * decision 56). A reader treats a missing list as empty.
+     * 9001 8.2 and 14001 8.2 are different clauses. M3 stores it on every obligation (`[]` when none) and sends it on
+     * every read. Required since 1.8.8 (README decision 58); M3's create still defaults it.
      */
-    clauseRefs: z.array(ClauseRef).max(20).optional(),
+    clauseRefs: z.array(ClauseRef).max(20),
   })
   .superRefine(checkJurisdiction)
   .superRefine((o, ctx) => {
-    const keys = (o.clauseRefs ?? []).map((ref) => `${ref.standard} ${ref.clauseNumber}`);
+    const keys = o.clauseRefs.map((ref) => `${ref.standard} ${ref.clauseNumber}`);
     if (new Set(keys).size !== keys.length) {
       ctx.addIssue({ code: 'custom', path: ['clauseRefs'], message: 'Clause references repeat' });
     }

@@ -56,6 +56,8 @@ interface TableDef {
   policy: Kind;
   uniques: Unique[];
   versioned: boolean;
+  /** Column defaults an insert gets when it leaves the field out, as in Postgres. */
+  defaults?: Record<string, unknown>;
 }
 
 const lower = (v: unknown) => (typeof v === 'string' ? v.toLowerCase() : null);
@@ -98,13 +100,19 @@ const TABLES = {
     // As act_name_key: a STANDARD act may share a law's name.
     uniques: [{ field: 'name', key: (r) => `${String(r.kind ?? 'STATUTE')}|${String(r.name)}` }],
     versioned: true,
+    defaults: { kind: 'STATUTE' },
   },
   categories: {
     policy: { kind: 'firmWide', insert: 'staff' },
     uniques: [{ field: 'name', key: (r) => String(r.name) }],
     versioned: true,
   },
-  obligations: { policy: { kind: 'firmWide', insert: 'staff' }, uniques: [], versioned: true },
+  obligations: {
+    policy: { kind: 'firmWide', insert: 'staff' },
+    uniques: [],
+    versioned: true,
+    defaults: { clauseRefs: [] },
+  },
   assignments: {
     policy: { kind: 'client', clientOf: (r) => r.clientId as Id },
     uniques: [
@@ -337,7 +345,9 @@ export class MemoryStore implements Store {
 
   private newRow(table: TableName, values: object, scope: Scope): Row {
     const now = this.now();
+    const { defaults }: TableDef = TABLES[table];
     return {
+      ...structuredClone(defaults),
       ...(values as Record<string, unknown>),
       id: uuidv7(),
       firmId: scope.firmId,

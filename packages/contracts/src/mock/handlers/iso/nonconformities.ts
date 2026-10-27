@@ -347,8 +347,7 @@ function checkInstance(firm: FirmState, clientId: string, id: string, path: stri
 }
 
 /**
- * `statutoryInstanceId`: a live instance of a STATUTE obligation on the nonconformity's unit (model §3.11). A missing
- * `Act.kind` reads as STATUTE.
+ * `statutoryInstanceId`: a live instance of a STATUTE obligation on the nonconformity's unit (model §3.11).
  */
 function checkStatutoryInstance(
   firm: FirmState,

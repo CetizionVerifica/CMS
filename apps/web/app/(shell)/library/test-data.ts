@@ -15,6 +15,7 @@ export function act(n: number, overrides: Partial<Act> = {}): Act {
     jurisdiction: 'CENTRAL',
     stateCode: null,
     aliases: [],
+    kind: 'STATUTE',
     ...overrides,
   } as Act;
 }
@@ -39,6 +40,7 @@ export function obligation(n: number, overrides: Partial<Obligation> = {}): Obli
     evidenceRequired: false,
     forms: [],
     logSheets: [],
+    clauseRefs: [],
     libraryVersion: 1,
     ...overrides,
   } as Obligation;

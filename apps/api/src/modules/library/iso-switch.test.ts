@@ -283,7 +283,7 @@ describe('clauseRefs', () => {
         }
         // Only the catalogue copy writes them: the stored references are as seeded.
         expect(store.raw('obligations', ids.isoObligation)?.clauseRefs).toEqual(refs);
-        expect(store.raw('obligations', ids.obligation)?.clauseRefs).toBeUndefined();
+        expect(store.raw('obligations', ids.obligation)?.clauseRefs).toEqual([]);
         expect(store.audits).toEqual([]);
       }
     },

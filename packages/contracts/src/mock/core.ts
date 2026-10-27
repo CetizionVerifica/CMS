@@ -192,7 +192,10 @@ export function isoNotEnabled(): MockError<'FEATURE_NOT_ENABLED'> {
   });
 }
 
-/** An act's kind; an act without one is a STATUTE (`Act.kind`). */
+/**
+ * An act's kind (`Act.kind`, required since 1.8.8). A shape that leaves it out is a STATUTE, as an M3 create stores
+ * it.
+ */
 export const actKind = (act: { kind?: ActKind | undefined }): ActKind => act.kind ?? 'STATUTE';
 
 /** The kind of the act an obligation belongs to. */

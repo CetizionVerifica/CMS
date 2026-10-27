@@ -142,7 +142,7 @@ interface Act extends Base, Versioned {
   name: string; shortName: string | null
   jurisdiction: Jurisdiction; stateCode: string | null
   aliases: string[]                                 // other spellings that resolve to this Act on import
-  kind?: ActKind                                    // STATUTE | STANDARD (ADR M16-0001); missing = STATUTE; STANDARD is CENTRAL
+  kind: ActKind                                     // STATUTE | STANDARD (ADR M16-0001); STANDARD is CENTRAL; an M3 create defaults it to STATUTE
 }
 interface Category extends Base, Versioned { name: string; aliases: string[] }
 
@@ -162,7 +162,7 @@ interface Obligation extends Base, Versioned {
   forms: TemplateRef[]
   logSheets: TemplateRef[]
   libraryVersion: number                            // bumped on every published change
-  clauseRefs?: ClauseRef[]                          // the clauses a STANDARD act's activity serves; max 20; unique per standard and number; missing = []
+  clauseRefs: ClauseRef[]                           // the clauses a STANDARD act's activity serves; max 20; unique per standard and number; an M3 create defaults it to []
 }
 interface ClauseRef { standard: IsoStandardCode; clauseNumber: ClauseNumber }   // { standard: "ISO_9001", clauseNumber: "7.1.5" }
 interface TemplateRef { label: string; fileName: string | null; templateFileId: Id | null } // fileName set + templateFileId null = "file not attached"
@@ -177,9 +177,9 @@ Act, one per standard, so instances, reminders, evidence and maker-checker work 
 numbers), never a bare number, because 9001 8.2 and 14001 8.2 are different clauses; the standard's own text is never
 stored. Contracts 1.7.0 typed it as bare numbers; 1.8.0 reshapes it (README decision 43). M3 stored the object form
 before 1.8.0, so nothing stored changed, and since ISO-2c (#273) it reads `clauseRefs` back on every row (`[]` when
-none) and accepts non-empty ones. `kind` and `clauseRefs` stay optional all the same: a missing `kind` reads as
-STATUTE, a missing `clauseRefs` as empty (plan §5.1). M3 sends both on every row, but other modules still build acts
-and obligations without them (README decision 56).
+none) and accepts non-empty ones. `kind` and `clauseRefs` arrived optional (plan §5.1) and are required since 1.8.8,
+once every creator set them (README decisions 56 and 58). A create through M3's repositories may still leave them out:
+Postgres stores STATUTE and `[]`.
 
 ### RecurrenceRule (owned by M4 semantics, shape fixed here)
 

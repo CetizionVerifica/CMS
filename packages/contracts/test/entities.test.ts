@@ -222,6 +222,7 @@ describe('library', () => {
       jurisdiction: 'STATE',
       stateCode: 'WB',
       aliases: [],
+      kind: 'STATUTE',
     };
     expect(Act.safeParse(act).success).toBe(true);
     expect(Act.safeParse({ ...act, stateCode: null }).success).toBe(false);

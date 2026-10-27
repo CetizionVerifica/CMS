@@ -632,6 +632,7 @@ describe.skipIf(!url)('M6 on the Postgres store', () => {
               jurisdiction: 'CENTRAL',
               stateCode: null,
               aliases: [],
+              kind: 'STATUTE',
             }),
           ).rejects.toMatchObject({ field: 'name', existingId: w.act });
           await expect(
@@ -747,6 +748,7 @@ describe.skipIf(!url)('M6 on the Postgres store', () => {
             jurisdiction: 'CENTRAL',
             stateCode: null,
             aliases: [],
+            kind: 'STATUTE',
           }),
         ).rejects.toMatchObject({ field: 'name', existingId: w.act });
       });

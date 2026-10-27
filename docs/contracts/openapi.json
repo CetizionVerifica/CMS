@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Canopy API",
-    "version": "1.8.7",
+    "version": "1.8.8",
     "description": "Generated from @canopy/contracts; do not edit. Conventions: docs/contracts/api-conventions.md. Role permissions per operation are in x-canopy-roles (all, own, limited); a missing role is 403. An operation with x-canopy-feature needs that add-on: 403 FEATURE_NOT_ENABLED without it, and 409 FEATURE_NOT_READY while the account is still being set up for it."
   },
   "servers": [
@@ -22337,7 +22337,8 @@
           "shortName",
           "jurisdiction",
           "stateCode",
-          "aliases"
+          "aliases",
+          "kind"
         ],
         "additionalProperties": false
       },
@@ -32373,7 +32374,8 @@
           "evidenceRequired",
           "forms",
           "logSheets",
-          "libraryVersion"
+          "libraryVersion",
+          "clauseRefs"
         ],
         "additionalProperties": false
       },

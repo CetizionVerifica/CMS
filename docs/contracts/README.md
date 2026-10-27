@@ -19,7 +19,7 @@ ISO add-on (M16): its records, engine interface, 119 routes (1.8.1), catalogue a
 | [CHANGELOG.md](CHANGELOG.md) | Contract versions | everyone |
 
 ## Status
-Version `1.8.7` (`CONTRACTS_VERSION` in `packages/contracts/src/version.ts`). The domain model in §1-8 of
+Version `1.8.8` (`CONTRACTS_VERSION` in `packages/contracts/src/version.ts`). The domain model in §1-8 of
 [domain-model.md](domain-model.md) is published as v1 so wave 1 (M3, M4, M8, M11) can build against it. Each consumer
 module owner still reviews its part (MODULES.md M0 acceptance); review findings ship as additive changes or, if breaking,
 with sign-off per "How to change a contract".
@@ -131,8 +131,9 @@ with sign-off per "How to change a contract".
 41. Add-ons (contracts 1.7.0, ADR M16-0001, `docs/iso/plan.md` ISO-0). New fields are optional so this bump merges
     before their providers send them: `AccountOverride.removedFeatures` and `Me.account.features` (a reader treats a
     missing list as empty), `Act.kind` (missing reads as `STATUTE`) and `Obligation.clauseRefs` (missing reads as
-    empty); later patches make them required once M3 stores and M5 sends them (not done: in 1.8.6 M3 stores and M5
-    sends them, but they stay optional, decision 56 says why). A `STANDARD` act is `CENTRAL` with no state code rather
+    empty); later patches make them required once M3 stores and M5 sends them (not as planned: `kind` and
+    `clauseRefs` stayed optional until their creators set them, decision 56, and are required since 1.8.8, decision
+    58; `removedFeatures` and `Me.account.features` stay optional for good, decision 56). A `STANDARD` act is `CENTRAL` with no state code rather
     than a new jurisdiction, and the library's create and update bodies take no `kind`: only the ISO catalogue (M6, as
     code) creates STANDARD acts. The ISO entity types are staged in `ISO_ENTITY_TYPES` and join `EntityType` in a
     later bump, after M3's migration and the audit page's words, as `account` did (decision 39). The mock gives firm B
@@ -400,7 +401,7 @@ with sign-off per "How to change a contract".
     obligation's `clauseRefs`), and test builders in M3, M6, M7, M8, M9, M10 and M16. Requiring either field would
     stop those compiling, and an M0 change cannot edit them. M6's in-memory test store also answers acts and
     obligations without them. A later contracts bump can require a field once its creators set it or build from a
-    create type that leaves it optional. Meanwhile the mock stores a created act as a STATUTE and a created obligation
+    create type that leaves it optional (done in 1.8.8, decision 58). Meanwhile the mock stores a created act as a STATUTE and a created obligation
     with no clauses, and the fixtures carry `kind` and `clauseRefs` on every act and obligation, as Postgres does.
     `AccountOverride.removedFeatures` stays optional for another reason: `AccountOverride` is no read shape, only the
     body of `PUT /accounts/{id}/override`, where M15 reads a missing list as an empty one. The body and the type are
@@ -426,3 +427,19 @@ with sign-off per "How to change a contract".
     records the mock's overview and is regenerated with it, and the overview's NC "Overdue" link goes back to the
     log's own `overdue=true` filter, which now returns exactly the counted records. It is a patch: only mock values
     change.
+58. `Act.kind` and `Obligation.clauseRefs` are required (ISO-1e, contracts 1.8.8), now that every creator sets them or
+    builds from a create type that lets the store default them, as decision 56 asked. M3's `acts.create` and
+    `obligations.create` take `NewAct` and `NewObligation`, where the two fields stay optional because Postgres
+    defaults them (STATUTE and `[]`) and an M3 repository test creates a STATUTE act without a kind on purpose, so
+    calls through M3's repositories (M8's import commit, and the test builders in M3, M7, M9, M10 and M16) are
+    unchanged. Code that builds `Act` or `Obligation` values itself sets them: M6's master library (`masterFromPlan`
+    sets STATUTE and `[]`, and `master-data.ts` is regenerated with `MASTER_VERSION` unchanged, because a copy already
+    stored the same defaults), its sample master and test world, `createAct` (`kind: 'STATUTE'`; its body takes no
+    kind) and `createObligation` (`clauseRefs: []`; its body takes no clauses), and M13's `act()` and `obligation()`
+    test builders. M6's in-memory test store gives a new act STATUTE and a new obligation `[]`, as Postgres does.
+    Nothing changes on the wire: M3 and the mock already send both on every read, and the create bodies are
+    unchanged. The audit `after` of a library create through M6 now names the stored `kind` or `clauseRefs`. Requiring
+    a field is breaking for code that builds the type, so the bump and every creator's change are one Tooling PR, and
+    the M0 audit's check that outside M0 only those lines changed is the modules' sign-off ("How to change a
+    contract", item 3). It is a patch: every builder in the repository moves with it and the wire is unchanged.
+    `AccountOverride.removedFeatures` and `AccountSummary.features` stay optional for good (decision 56).
