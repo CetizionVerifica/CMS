@@ -49,6 +49,7 @@ export async function isoData(api?: ApiClient) {
     ncs,
     programmes,
     internalAudits,
+    reviews,
   ] = await Promise.all([
     a.call('getIsoOverview', p).then((r) => r.data),
     a.call('listIsoSystems', { ...p, query: limit }).then((r) => r.data.items),
@@ -70,15 +71,19 @@ export async function isoData(api?: ApiClient) {
     a.call('listIsoNonconformities', { ...p, query: limit }).then((r) => r.data.items),
     a.call('listIsoAuditProgrammes', { ...p, query: limit }).then((r) => r.data.items),
     a.call('listIsoInternalAudits', { ...p, query: limit }).then((r) => r.data.items),
+    a.call('listIsoManagementReviews', { ...p, query: limit }).then((r) => r.data.items),
   ]);
   const system = systems[0]!;
   // Every item's controls and every objective's readings, keyed by their item or objective.
-  const [controls, readings, auditChecklists, auditFindings] = await Promise.all([
-    keyed(risks, (r) => riskControls(a, r.id)),
-    keyed(objectives, (o) => objectiveReadings(a, o.id)),
-    keyed(internalAudits, (x) => auditChecklist(a, x.id)),
-    keyed(internalAudits, (x) => internalFindings(a, x.id)),
-  ]);
+  const [controls, readings, auditChecklists, auditFindings, reviewInputs, reviewOutputs] =
+    await Promise.all([
+      keyed(risks, (r) => riskControls(a, r.id)),
+      keyed(objectives, (o) => objectiveReadings(a, o.id)),
+      keyed(internalAudits, (x) => auditChecklist(a, x.id)),
+      keyed(internalAudits, (x) => internalFindings(a, x.id)),
+      keyed(reviews, (x) => reviewRows(a, 'listIsoReviewInputs', x.id)),
+      keyed(reviews, (x) => reviewRows(a, 'listIsoReviewOutputs', x.id)),
+    ]);
   const [checklist, contextItems] = await Promise.all([
     a
       .call('listIsoChecklist', { params: { clientId: CLIENT, id: system.id } })
@@ -114,6 +119,9 @@ export async function isoData(api?: ApiClient) {
     internalAudits,
     auditChecklists,
     auditFindings,
+    reviews,
+    reviewInputs,
+    reviewOutputs,
   };
 }
 
@@ -134,3 +142,12 @@ const auditChecklist = async (a: ApiClient, id: string) =>
   (await a.call('listIsoAuditChecklist', { params: { clientId: CLIENT, id } })).data.items;
 const internalFindings = async (a: ApiClient, id: string) =>
   (await a.call('listIsoInternalFindings', { params: { clientId: CLIENT, id } })).data.items;
+async function reviewRows<R extends 'listIsoReviewInputs' | 'listIsoReviewOutputs'>(
+  a: ApiClient,
+  route: R,
+  id: string,
+) {
+  return (await a.call(route, { params: { clientId: CLIENT, id } })).data.items as Awaited<
+    ReturnType<typeof a.call<R>>
+  >['data']['items'];
+}

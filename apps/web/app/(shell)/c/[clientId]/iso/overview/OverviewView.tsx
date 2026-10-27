@@ -68,7 +68,14 @@ function Count({ item }: { item: CountLink }) {
   );
 }
 
-function ReviewDue({ due, standards }: { due: ManagementReviewDue; standards: IsoStandard[] }) {
+/** When each standard's next management review is due (M4 `managementReviewDue`), here and on the reviews page. */
+export function ReviewDue({
+  due,
+  standards,
+}: {
+  due: ManagementReviewDue;
+  standards: IsoStandard[];
+}) {
   return (
     <ul className="flex flex-col gap-2">
       {due.items.map((item) => (

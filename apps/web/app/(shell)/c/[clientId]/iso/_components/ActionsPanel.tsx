@@ -1,9 +1,14 @@
 'use client';
-// The actions on one ISO subject (model §3.12): a risk item's treatment actions, an objective's plan, and later an NC's
-// corrective actions, a finding's improvement actions and a review's actions. Each action is named by its subject
+// The actions on one ISO subject (model §3.12): a risk item's treatment actions, an objective's plan, an NC's corrective
+// actions, and a review's actions, each of which may name the output it carries out. Each action is named by its subject
 // (§4.7). Its steps are exactly the API's `allowedActions`; a plain edit follows the contracts' role table, and a new
 // owner or a moved due date asks for a reason (model §1.9).
-import { ControlHierarchy, type IsoActionSubjectType, type IsoActionView } from '@canopy/contracts';
+import {
+  ControlHierarchy,
+  type IsoActionSubjectType,
+  type IsoActionView,
+  type ReviewOutputKey,
+} from '@canopy/contracts';
 import { Button, DateInput, formatDate, Select, Textarea } from '@canopy/ui';
 import { useState, type ReactNode } from 'react';
 
@@ -44,6 +49,8 @@ export type ActionsPanelProps = {
   hierarchy?: 'required' | 'optional';
   /** What completing an action does besides closing it, for the confirm step. */
   completeNote?: string;
+  /** A review's outputs: its actions may name the output they carry out (`outputKey`). */
+  outputs?: { key: ReviewOutputKey; title: string }[];
   today: string;
 };
 
@@ -116,6 +123,14 @@ export function ActionItem(
           <>
             <dt className="text-muted">Done</dt>
             <dd>{formatDate(a.doneOn)}</dd>
+          </>
+        ) : null}
+        {a.outputKey ? (
+          <>
+            <dt className="text-muted">Output</dt>
+            <dd>
+              {props.outputs?.find((o) => o.key === a.outputKey)?.title ?? 'An earlier output'}
+            </dd>
           </>
         ) : null}
         {a.controlHierarchy ? (
@@ -281,12 +296,13 @@ export function ActionForm({
   people,
   editing,
   hierarchy,
+  outputs,
   today,
   action,
   onClose,
 }: Pick<
   ActionsPanelProps,
-  'clientId' | 'subject' | 'people' | 'editing' | 'hierarchy' | 'today'
+  'clientId' | 'subject' | 'people' | 'editing' | 'hierarchy' | 'outputs' | 'today'
 > & { action?: IsoActionView; onClose: () => void }) {
   const [text, setText] = useState(action?.text ?? '');
   const [resources, setResources] = useState(action?.resources ?? '');
@@ -295,6 +311,7 @@ export function ActionForm({
   );
   const [dueOn, setDueOn] = useState<string | null>(action?.dueOn ?? null);
   const [control, setControl] = useState<string | null>(action?.controlHierarchy ?? null);
+  const [outputKey, setOutputKey] = useState<ReviewOutputKey | null>(action?.outputKey ?? null);
   const [reason, setReason] = useState('');
   const { pending, error, save } = useSave();
   const name = actionName(subject.type).toLowerCase();
@@ -305,6 +322,7 @@ export function ActionForm({
     ownerId,
     dueOn,
     controlHierarchy: hierarchy ? control : null,
+    outputKey: outputs ? outputKey : null,
   };
   const body: Record<string, unknown> = action ? { version: action.version } : {};
   if (action) {
@@ -315,6 +333,7 @@ export function ActionForm({
     if (hierarchy && values.controlHierarchy !== action.controlHierarchy) {
       body.controlHierarchy = values.controlHierarchy;
     }
+    if (outputs && values.outputKey !== action.outputKey) body.outputKey = values.outputKey;
   }
   const needsReason = action !== undefined && ('ownerId' in body || 'dueOn' in body);
   if (needsReason) body.reason = reason.trim();
@@ -348,6 +367,7 @@ export function ActionForm({
             ownerId: values.ownerId!,
             dueOn: values.dueOn!,
             controlHierarchy: values.controlHierarchy as ControlHierarchy | null,
+            ...(outputs ? { outputKey: values.outputKey } : {}),
           },
         );
 
@@ -389,6 +409,17 @@ export function ActionForm({
           ]}
           value={control ?? (hierarchy === 'optional' ? '__none__' : undefined)}
           onValueChange={(v) => setControl(v === '__none__' ? null : v)}
+        />
+      ) : null}
+      {outputs ? (
+        <Select
+          label="Output it carries out (optional)"
+          options={[
+            { value: '__none__', label: 'None' },
+            ...outputs.map((o) => ({ value: o.key, label: o.title })),
+          ]}
+          value={outputKey ?? '__none__'}
+          onValueChange={(v) => setOutputKey(v === '__none__' ? null : (v as ReviewOutputKey))}
         />
       ) : null}
       <Textarea
