@@ -4,24 +4,24 @@ Part of plan v2 ([plan.md](plan.md)). One brief per package. A thread gets: the 
 below, the parts of [model.md](model.md) and [catalogue.md](catalogue.md) the brief names, and the area `CLAUDE.md` of
 its paths. Rules every brief shares (plan §5):
 
-- Title PRs `M<n>: ISO ...` (ISO-8a to ISO-8c, ISO-14a and ISO-14b: `Tooling: ISO ...`, plan §5.3) and change only the
-  module's paths, plus shared files.
+- Title PRs `M<n>: ISO ...` (ISO-1c2, ISO-1e, ISO-8a to ISO-8c, ISO-14a and ISO-14b: `Tooling: ISO ...`, plan §5.3) and
+  change only the module's paths, plus shared files.
 - Start only when every package in **Needs** has merged; one thread per module at a time.
 - If the work must depart from the brief, say so in the PR and tell the coordinator; do not edit `docs/iso/`.
 - Every package merges `main` before marking ready (plan §5.5).
 - Tests with every PR; isolation test for every new table; `AuditEvent` for every state change; fictional names only
   (the ISO fixtures use firm B's Northwind Foods Group and invented people).
 - ADRs go in `docs/adr/M<n>-NNNN-slug.md` with the next free number of the module's own series.
-- The contracts (ISO-1, contracts 1.8.0; its patches ISO-1a, 1.8.1, ISO-1a2, 1.8.2, ISO-1b, 1.8.3, ISO-1a3, 1.8.4, and
-  ISO-1a4, 1.8.5) are the source of shapes, routes and role lists; the departures they took from model.md and plan §3.2
-  are `docs/contracts/README.md` decision 51 (a-n, and o from ISO-1a), already folded into these files (traces at the
-  end). Every ISO route takes one `can()` action (plan §3.2). Where model.md is silent, the M0 mock had to pick a rule;
-  its picks are in `docs/contracts/iso-mock.md`. M4, M16 and M17 keep each pick that touches their work, or record a
-  different one in their module's ADR and tell the coordinator, who asks M0 to change the mock so screens tested
-  against it and the real API agree.
+- The contracts (ISO-1, contracts 1.8.0; its patches ISO-1a, 1.8.1, ISO-1a2, 1.8.2, ISO-1b, 1.8.3, ISO-1a3, 1.8.4,
+  ISO-1a4, 1.8.5, and ISO-1c, 1.8.6) are the source of shapes, routes and role lists; the departures they took from
+  model.md and plan §3.2 are `docs/contracts/README.md` decision 51 (a-n, and o from ISO-1a), already folded into these
+  files (traces at the end). Every ISO route takes one `can()` action (plan §3.2). Where model.md is silent, the M0 mock
+  had to pick a rule; its picks are in `docs/contracts/iso-mock.md`. M4, M16 and M17 keep each pick that touches their
+  work, or record a different one in their module's ADR and tell the coordinator, who asks M0 to change the mock so
+  screens tested against it and the real API agree.
 
 Started packages keep their ids and scopes; the first-wave briefs those threads received are summarised here with what
-v2 adds around them. Status is as of 2026-10-27 (`origin/main` at #320); plan §6 holds the current status.
+v2 adds around them. Status is as of 2026-10-27 (`origin/main` at #324); plan §6 holds the current status.
 
 ---
 
@@ -34,7 +34,9 @@ v2 adds around them. Status is as of 2026-10-27 (`origin/main` at #320); plan §
   decision 41). The mock lists each firm's features (firm B, Second Ledger Consulting, has `isoManagement`; firm A
   none) and `PUT /__mock/firms/{firmId}/features` changes them.
 - **What later packages change:** ISO-1 replaces `ISO_ENTITY_TYPES` with the v2 list (model §8) and reshapes
-  `clauseRefs` to `{ standard, clauseNumber }[]`; ISO-1b joins the staged values; ISO-1c makes fields required.
+  `clauseRefs` to `{ standard, clauseNumber }[]`; ISO-1b joins the staged values; ISO-1c keeps `Act.kind`, `clauseRefs`
+  and `removedFeatures` optional (contracts README decision 56), and ISO-1e makes `kind` and `clauseRefs` required once
+  their creators set them.
 
 ## ISO-2a · M3 · Store add-on switches and the ISO library columns
 - **Status:** merged (#253, migration 0036; #258, migration 0037's strict `clause_refs` check). **Needs:** ISO-0.
@@ -1044,8 +1046,10 @@ v2 adds around them. Status is as of 2026-10-27 (`origin/main` at #320); plan §
   against the database; each `IsoActionQuery` filter, `overdue` across two pages included.
 
 ## ISO-8c · M16 · ISO API 3: internal audits, external-audit findings, nonconformities, management reviews, overview
-- **Thread title:** "ISO-8c: ISO API, part 3". **PR title:** `Tooling: ISO ...` (plan §5.3; it may ship in parts, each
-  with its spec changes). **Needs:** ISO-8b, ISO-2h, ISO-3b, ISO-2i, ISO-2j.
+- **Thread title:** "ISO-8c: ISO API, part 3". **PR title:** `Tooling: ISO ...` (plan §5.3). It ships in three parts,
+  each with its spec changes (ADR M16-0006): nonconformities (#323, merged); audit programmes, internal audits with
+  their checklist, internal and external findings, and the external audits' RECORD_RESPONSE and CLOSE (#325); then
+  management reviews, their figures and the overview. **Needs:** ISO-8b, ISO-2h, ISO-3b, ISO-2i, ISO-2j.
 - **Read:** model §1.7, §1.9, §3.7-3.11, §3.13, §4 preamble, §4.1, §4.3, §4.4, §4.5, §5.1-5.2, §5.4, §6, §8, §9 (unit
   scope only), §10; plan §3.3 (the review figures' exception); ADR M16-0003; ADR M16-0004 (decisions 3, 4 and 6); ADR
   M16-0005; the #320 audits; `docs/contracts/iso-mock.md` ("Shared rules"; "Internal audits"; "Nonconformities";
@@ -1088,8 +1092,13 @@ v2 adds around them. Status is as of 2026-10-27 (`origin/main` at #320); plan §
     reads it for actions.
   - Every person ISO-8c's routes name (model §1.5) is checked through `checkPerson`, which ISO-8b moved onto ISO-2i's
     lookup, with ISO-2j's check of the person's own state (ADR M16-0005 decision 1, closing ADR M16-0004 decision 6), so
-    a client admin may name a firm admin or consultant of the client.
+    a client admin may name a firm admin or consultant of the client, except as an NC's owner (an OWNER or CLIENT_ADMIN)
+    or approver (an APPROVER or CLIENT_ADMIN), as the mock does (ADR M16-0006 decision 1).
   - The ISO overview (model §5.1-5.2 engine results with the ids behind each number), under `isoSystem.read`.
+    `nonconformities.overdue` counts the open NCs whose `nonconformityStatus` is OVERDUE on as-of, as the NC list's
+    `overdue` filter does, and `effectivenessOverdue` those whose status has an overdue effectiveness check (contracts
+    1.8.6, ISO-1c; model §10). It builds that count, not the mock's, which keeps the old one until ISO-1c2 (the #324
+    audit, Info 1).
   - File routes for internal audits, findings, nonconformities and management reviews with the model §6 lock rules,
     and the incident-file download rule (model §6).
   - Rows in the audit gate test for each new route; `allowedActions` on audits, NCs and reviews; the mock's picks kept
@@ -1097,7 +1106,11 @@ v2 adds around them. Status is as of 2026-10-27 (`origin/main` at #320); plan §
   - The security spec: every route ISO-8c lists in `ISO_SERVED_ENDPOINTS` leaves `UNMOUNTED` on its own, so the same PR
     has firm A make a programme, an internal audit with a checklist row and a finding, an external-audit finding, a
     nonconformity and a management review through the API (`isoRecordsOf`, keyed so the path segments `fill` reads get
-    their own ids), and adds a `BODIES` entry, parsed by the contract, for each new write, as #305 and #320 did.
+    their own ids), and adds a `BODIES` entry, parsed by the contract, for each new write, as #305 and #320 did. Each
+    part lists exactly the routes it mounts, so the 401 and 404 sweeps cover each part's routes and no unmounted one
+    (the #322 audit, Info 2; its auditor checks the list). `isoRecordsOf` keys a real external-audit finding, so
+    `updateIsoExternalFinding` is swept with its own id, not an internal finding's (the #325 e2e audit, Low); part 3
+    adds it if part 2 did not.
   - The #320 audit's follow-ups on ISO-8b: `updateIsoRisk` authorizes `isoRisk.write` on the new unit as well as the
     item's current reach when a PATCH changes `unitId`, and on the system's units when it sets `unitId` to null, as
     `createIsoRisk` does. The gap is reachable when the same PATCH also sets `ownerId` to an owner of the new unit; a
@@ -1105,7 +1118,9 @@ v2 adds around them. Status is as of 2026-10-27 (`origin/main` at #320); plan §
     units, while a checklist row's or finding's `unitId` stays bounded by its audit's units (plan §3.3; the mock's
     `checkAuditUnit`). The action-list tests ISO-8b left out (below). ADR M16-0005 decision 3 reworded: the action list
     applies `q` itself so that it also matches `resources`, as the mock does, though `IsoActionFilter` takes `q` on the
-    text since ISO-2j. The unit check departs from the mock, so ISO-8c's ADR records it.
+    text since ISO-2j. The unit check departs from the mock, so ISO-8c's ADR records it. They went in the first part
+    (#323, merged), as the #322 audit asked (Info 1); #323 also authorizes an NC's move to a new unit on that unit, and
+    the later parts do the same for their records with a unit (ADR M16-0006 decision 7).
 - **Tests:** as ISO-8a, plus plan §7 items 6, 8 and 9; an NC owner with the OWNER role is refused on the reassign route
   (owner, approver, dates, severity, outcome), FA and CO are refused on the NC's PATCH, severity and outcome are refused
   after ROOT_CAUSE_FOUND and on a finding's NC, and a finding's MAJOR_NC/MINOR_NC move is refused once its NC has left
@@ -1118,17 +1133,20 @@ v2 adds around them. Status is as of 2026-10-27 (`origin/main` at #320); plan §
   re-adds a standard; the RECORD_HELD row in the audit gate test asserts `figures` and `engineVersion`; a locked subject
   refuses add and remove for every role, and field edits; a viewer and an owner of the unit who is not named on an
   incident NC cannot download its files; a plant-A owner sees none of a plant-B-only system's objectives, reviews or
-  unit-less NCs; a client admin names a consultant of the client as a document approver and as an NC owner (accepted),
-  and a consultant of another client (refused); `ids` on the NC and internal-audit lists as ISO-1a4's tests, against the
-  database; an archived and a DISABLED consultant of the client refused as a named person; dropping a standard that a
-  finding of the external audit cites refused, and dropping one no finding cites accepted; a PATCH moving an external
-  audit's `endOn` while HELD or RESPONDED writes one UPDATE on `external_audit` naming `endOn`, also when
-  `responseDueOn` moves in the same PATCH (its own DUE_DATE_CHANGE; ISO-8a's route, model §8); the action list's
-  `managementSystemId` and `to` filters, and `overdue=true` paged with `limit=1` over two overdue actions and one that
-  is not (two full pages, the second with no next cursor); an owner limited to unit A is refused with 403, not the owner
-  check's 400, on a PATCH of their risk item that sets `unitId` to unit B and `ownerId` to an owner of B, with a reason,
-  and accepted when B is also one of their units; the integrated security spec green with ISO-8c's routes swept, its
-  part audited by the e2e auditor.
+  unit-less NCs; a client admin names a consultant of the client as a document approver and as an NC investigator
+  (accepted), and a consultant of another client (refused), while an NC's owner must be an OWNER or CLIENT_ADMIN and its
+  approver an APPROVER or CLIENT_ADMIN, as the mock (`iso-mock.md`, "Nonconformities"; ADR M16-0006 decision 1); `ids`
+  on the NC and internal-audit lists as ISO-1a4's tests, against the database; an archived and a DISABLED consultant of
+  the client refused as a named person; dropping a standard that a finding of the external audit cites refused, and
+  dropping one no finding cites accepted; a PATCH moving an external audit's `endOn` while HELD or RESPONDED writes one
+  UPDATE on `external_audit` naming `endOn`, also when `responseDueOn` moves in the same PATCH (its own DUE_DATE_CHANGE;
+  ISO-8a's route, model §8); the action list's `managementSystemId` and `to` filters, and `overdue=true` paged with
+  `limit=1` over two overdue actions and one that is not (two full pages, the second with no next cursor); an owner
+  limited to unit A is refused with 403, not the owner check's 400, on a PATCH of their risk item that sets `unitId` to
+  unit B and `ownerId` to an owner of B, with a reason, and accepted when B is also one of their units; the overview's
+  `nonconformities.overdue` ids equal the NC list's `overdue=true` ids for the same reader, an NC whose OPEN action is
+  late counted and a submitted NC past `dueOn` not (contracts 1.8.6), though the mock counts the old way until ISO-1c2;
+  the integrated security spec green with ISO-8c's routes swept, its part audited by the e2e auditor.
 
 ## ISO-9b · M6 · Hide and refuse STANDARD library rows when off; no cross-kind changes
 - **Thread title:** "ISO-9b: the library respects the ISO switch". **Needs:** ISO-9, ISO-2f, ISO-4b.
@@ -1274,7 +1292,9 @@ v2 adds around them. Status is as of 2026-10-27 (`origin/main` at #320); plan §
     merged), and the spec fails when a value has no such record; the list, upload-URL and confirm probes name each of
     those subjects (confirm with an `uploadId` nobody has, as the `confirmEvidence` probe does), the download-URL and
     remove probes name each file, each write's probe body goes through the contract's `e.body.parse` before it is sent,
-    and firm B gets the same answer for firm A's ids and for unknown ones.
+    and firm B gets the same answer for firm A's ids and for unknown ones. If `isoRecordsOf` still has no real
+    external-audit finding after ISO-8c, ISO-14b adds one, so `updateIsoExternalFinding` and the file probes on a
+    finding name an external finding's id where the route expects one (the #325 e2e audit, Low).
 - **Tests:** a server test that the ISO file routes mount only with evidence storage; the integrated suite green with
   the file routes swept, and a mutation check that putting one file route back on `UNMOUNTED`, or dropping one subject
   type's record, fails the spec. The spec part is audited by the e2e auditor, as #305's and #320's were.
@@ -1292,22 +1312,90 @@ v2 adds around them. Status is as of 2026-10-27 (`origin/main` at #320); plan §
   console's account page with the Add-ons card open (ISO-5 shipped the drawer with no integrated or axe step).
 - **Tests:** the specs themselves, in the `e2e-integrated` job.
 
-## ISO-1c · M0 · Make the add-on's optional fields required
-- **Thread title:** "ISO-1c: required add-on fields". **Needs:** ISO-1b, ISO-2c, ISO-4a, ISO-5, ISO-5b, ISO-9, ISO-16,
-  ISO-3b.
+## ISO-1c · M0 · Type the engine API's review figures; keep three add-on fields optional
+- **Thread title:** the ISO-1 thread ("Build ISO contracts") continues (#324). **Needs:** ISO-1b, ISO-2c, ISO-4a, ISO-5,
+  ISO-5b, ISO-9, ISO-16, ISO-3b.
 - **Paths:** `packages/contracts/`, `docs/contracts/`.
-- **Delivers:** a contracts bump that makes `Act.kind`, `Obligation.clauseRefs` and `AccountOverride.removedFeatures`
-  required on read shapes, only where every provider sends them and every create caller in M6 and M8 sets them (or the
-  create body keeps them optional). If any caller does not, the field stays optional and the PR says why. M3's
-  obligation reads always return `clauseRefs`, `[]` when there are none (ISO-2c, #273). `AccountSummary.features` stays
-  optional (missing = none), because `AccountView` spreads `AccountSummary` and `GET /account` does not send it (plan
-  §5.1). It also narrows `IsoEngineApi.reviewInputFigures` to `TypedReviewInputFigures` (contracts 1.8.2), now that
-  ISO-3b has moved the engine onto it. ISO-8c and ISO-11d do not wait for it: no app code types against `IsoEngineApi`,
-  and they call `@canopy/engine`'s `reviewInputFigures`, which ISO-3b (#315) typed per source. Where they read
-  `Act.kind`, `Obligation.clauseRefs` or `AccountOverride.removedFeatures`, they write reads that compile whether the
-  field is optional or required (compare; do not default with `??`), since neither the lint nor `tsc` flags a `??` left
-  on a field once it is required, and neither PR may edit the other's files.
-- **Tests:** every package's typecheck and tests stay green (`--affected` covers them).
+- **Delivers:** a contracts patch (#324, 1.8.6).
+  - `IsoEngineApi.reviewInputFigures` is `TypedReviewInputFigures` (contracts 1.8.2, README decision 52), now that
+    ISO-3b has moved the engine onto it; a call through `IsoEngineApi` with another source's data fails `tsc`.
+  - `Act.kind`, `Obligation.clauseRefs` and `AccountOverride.removedFeatures` stay optional (README decision 56). The
+    brief asked for them required only where every provider sends them and every create caller sets them. M3 sends the
+    first two on every read, but M6's master library (`master-data.ts`, `from-register.ts`), its `NewRow<T>` and
+    `createObligation`, M8's import commit (an obligation's `clauseRefs`) and test builders in M3, M6 to M10 and M16
+    build records from the read types without them. `AccountOverride` is only the body of `PUT /accounts/{id}/override`,
+    where a missing list means none. The mock's `createAct` and `createObligation` store `STATUTE` and `[]`, the
+    fixtures carry both fields on every act and obligation, as Postgres does, and the mock's `getAccount` drops its
+    top-level `features`. `AccountSummary.features` stays optional (plan §5.1).
+  - `docs/contracts/events.md` describes an ISO reminder's `notification.sent` (the #318 audit, Info 1).
+  - `IsoSystemOverview.nonconformities.overdue` is defined as the open NCs whose `nonconformityStatus` (model §5.2) is
+    OVERDUE on as-of: `dueOn` counts until the owner submits, and a late OPEN action counts too, the NC list's `overdue`
+    test (the #321 audit, Info 1); `effectivenessOverdue` as the open ones whose status has an overdue effectiveness
+    check. The mock keeps its old count until ISO-1c2, because changing it breaks M17's snapshot, which an `M0:` PR
+    cannot regenerate.
+  - Reads of the three fields keep plan §5.1's meaning of a missing value (a missing `kind` is STATUTE, a missing list
+    empty). ISO-8c and ISO-11d did not wait for ISO-1c. ISO-1e makes `kind` and `clauseRefs` required once their
+    creators set them (the #324 audit, Info 2).
+- **Tests:** a type test of the narrowed member; every act carries `kind` and every obligation `clauseRefs` in both
+  firms' fixtures; a created act is a STATUTE and a created obligation has `clauseRefs: []`; every package's typecheck
+  and tests stay green.
+
+## ISO-1c2 · M0 · The mock's overview counts overdue nonconformities as the NC list does
+- **Thread title:** the ISO-1 thread ("Build ISO contracts") continues. **PR title:** `Tooling: ISO ...` (plan §5.3).
+  **Needs:** ISO-1c, ISO-6c.
+- **Read:** ISO-1c's PR (#324) and the patch the thread saved for this package; the #321 and #324 audits (Info 1 of
+  each); `docs/contracts/iso-mock.md` ("Overview", "NC status"); M17's `iso/overview/overview-model.ts`.
+- **Paths:** `packages/contracts/`, `docs/contracts/`, and in M17's `apps/web/app/(shell)/c/[clientId]/iso/`:
+  `_test/iso-data.json`, regenerated only (`UPDATE_ISO_DATA=1 pnpm --filter @canopy/web test iso-data`, then Prettier),
+  and `overview/overview-model.ts` with its test (the NC link below).
+- **Delivers:** contracts 1.8.7, the next patch after ISO-1c (ISO-1e waits for it).
+  - The mock's overview counts `nonconformities.overdue` with the same NC status its NC list's `overdue` filter reads,
+    through one shared function, and `effectivenessOverdue` from that status's overdue effectiveness check, as 1.8.6
+    defines them. The demo client's overdue count drops from 2 to 1: its AWAITING_VERIFICATION NC is no longer overdue.
+  - The saved patch predates #324: its mock and test hunks apply, and its docs and `api/iso.ts` hunks are redone on
+    #324's text. Each "later patch" that #324 left in `iso-mock.md` ("Overview"), the `IsoSystemOverview` comment and
+    README decision 56 now says the mock follows the definition; a README decision 57 and a 1.8.7 CHANGELOG entry say
+    so, and the version files read 1.8.7.
+  - With the two counts equal, the overview's NC "Overdue" link goes back to the log's own filter (`managementSystemId`
+    and `overdue=true`, as the actions' "Overdue" link does), with no `ids`, no 200 limit and no "nearest filter" note,
+    and the comment saying the two differ goes (the #321 audit, Info 1).
+  - It needs all of ISO-6c, not only its NC part (#321), because each ISO-6c PR may regenerate the same snapshot, and a
+    mock change merged while one is open fails that PR's snapshot test in the merge queue. Only ISO-13 needs ISO-1c2,
+    and ISO-13 waits for ISO-6c anyway. Until it merges, the mock's overview count differs from the contract's, and
+    ISO-8c builds the contract's (the #324 audit, Info 1).
+- **Tests:** on a seeded system, an NC past `dueOn` and one whose OPEN action is late are overdue, while a submitted NC
+  past `dueOn` and one whose late action is DONE are not, the overview's overdue NC ids equal the NC list's
+  `overdue=true` ids, and none is overdue before they fall due (the saved patch's test); firm B's demo client counts 1
+  where it counted 2 (firm A has no ISO rows); the overview link test for the NC "Overdue" count; M17's `iso-data` test
+  green with the regenerated file; every package's tests stay green. The M0 audit thread audits the PR, and the M17
+  auditor checks that only the snapshot and that link changed in M17's paths. The PR carries `no-automerge` until both
+  have posted Ready for its head, as #305, #320 and #323 did.
+
+## ISO-1e · M0 · Require `Act.kind` and `Obligation.clauseRefs` once their creators set them
+- **Thread title:** the ISO-1 thread ("Build ISO contracts") continues. **PR title:** `Tooling: ISO ...` (plan §5.3).
+  **Needs:** ISO-1c, ISO-1c2, ISO-8c, ISO-11d.
+- **Read:** plan §5.1; ISO-1c's PR (#324), contracts README decisions 41 and 56, and the #324 audit (Info 2).
+- **Paths:** `packages/contracts/`, `docs/contracts/`, and the creators and test builders of acts and obligations that
+  `tsc` or the tests name once the two fields are required: M6's master library (`master-data.ts`, `from-register.ts`),
+  its `NewRow<T>`, `createObligation` and `createAct` (whose body cast hides a missing `kind` from `tsc`), its test
+  world (`entities/testing/world.ts`, whose `store.seed` takes an untyped row) and in-memory store
+  (`entities/testing/memory-store.ts`, which has no column defaults), M8's import commit (an obligation's `clauseRefs`),
+  and the test builders in M3, M6 to M10 and M16. In those modules it changes only the lines that build an act or an
+  obligation, the in-memory store's defaults, and assertions that expect a seeded row to lack a field.
+- **Delivers:** each of those creators and builders sets `kind` (STATUTE, except where the catalogue copy makes a
+  STANDARD act) and `clauseRefs` (`[]` unless it copies them), or builds from a create type that keeps them optional,
+  and M6's in-memory store gives a new act `STATUTE` and a new obligation `[]`, as Postgres does; then a contracts bump
+  makes both required on `Act` and `Obligation`. Requiring a field breaks its creators, so the bump and every creator's
+  change go in one `Tooling:` PR (plan §5.3). Nothing changes on the wire: M3 already stores both NOT NULL with defaults
+  and sends them on every read. `AccountOverride.removedFeatures` and `AccountSummary.features` stay optional for good
+  (decision 56; plan §5.1). It waits for ISO-8c and ISO-11d, whose threads are changing M16's and M10's tests, so no two
+  PRs edit the same builders, and for ISO-1c2, so the two contracts patches land in a known order.
+- **Tests:** `tsc --noEmit` clean in every package with both fields required (with `clauseRefs` alone required, the #324
+  audit counted 135 errors in `apps/api`; both give 179 at #323); fixtures parse; M6's contract tests pass on its
+  in-memory store; every package's tests stay green. Requiring a field is a breaking change, which needs sign-off from
+  the modules that use the contract (README "How to change a contract", item 3). No module's behaviour changes, so the
+  M0 audit thread's check that outside M0 only the lines above changed stands as that sign-off; the PR names each module
+  whose files it touches.
 
 ---
 
@@ -1527,3 +1615,22 @@ How plan v2.3 takes in what the audits of #268 (ISO-12a, merged) and #273 (ISO-2
 | ISO-8c asked whether to wait for ISO-1c | ISO-1c (Delivers): it does not |
 | ISO-1a3 (1.8.4) and ISO-1a4 (1.8.5) merged | shared rules (the contracts) |
 | Statuses: ISO-16, ISO-1a3, ISO-1a4, ISO-2h, ISO-2i, ISO-2j, ISO-3b, ISO-6b, ISO-8a, ISO-8b, ISO-10b, ISO-10c, ISO-11a and ISO-11b merged; ISO-11d (part 1 merged, #319) and ISO-8c started | plan §6 |
+
+### Notes from audited packages (plan v2.5.4)
+
+| Note | Where it is addressed |
+|---|---|
+| #324 (ISO-1c): `Act.kind` and `clauseRefs` stay optional, since M6, M8 and test builders in M3, M6 to M10 and M16 build records from the read types without them, and `removedFeatures` because `AccountOverride` is a request body only (contracts README decision 56) | plan §5.1; ISO-0 (what later packages change); ISO-1c (title, Delivers); plan §6 |
+| #324 (ISO-1c): `IsoEngineApi.reviewInputFigures` narrowed to the typed form (1.8.6) | model §5.4; ISO-1c |
+| #324 audit, Info 1: the mock's overview count differs from the contract's definition until the follow-up, which should land soon after #321 | ISO-1c2 (it needs all of ISO-6c, for M17's snapshot); ISO-8c (overview: it builds the defined count) |
+| #324 audit, Info 2: a package to require `Act.kind` and `Obligation.clauseRefs` once M6 and M8 set them | ISO-1e (new, after ISO-1c2, ISO-8c and ISO-11d); plan §5.1, §5.3, §6; ISO-0; ISO-1c |
+| #321 audit, Info 1: the mock's overview counts an NC past `dueOn` as overdue after it is submitted, while the NC list's `overdue` filter reads its status; the overview's link can then go back to `overdue=true` | ISO-1c (the definition, 1.8.6); ISO-1c2 (new: the mock, M17's snapshot and the link); ISO-8c (overview); model §10; plan §5.3, §6 |
+| #318 audit, Info 1: an ISO reminder's `notification.sent` is not described | ISO-1c (`events.md`) |
+| #322 audit, Info 1: if ISO-8c ships in parts, the risk item's unit check belongs in the first | ISO-8c (follow-ups: in #323) |
+| #322 audit, Info 2: each ISO-8c part must take exactly the routes it mounts off `UNMOUNTED` | ISO-8c (security spec) |
+| #322 audit, gate check: a `Tooling:` title switches off the module-paths guard, so its audit holds the PR to its brief's Paths | plan §5.3 |
+| ADR M16-0006 (#323): an NC's owner is an OWNER or CLIENT_ADMIN and its approver an APPROVER or CLIENT_ADMIN, as the mock, so the brief's consultant-as-NC-owner case cannot pass | ISO-8c (Delivers: named people; Tests: a consultant as investigator) |
+| #325 e2e audit, Low: `updateIsoExternalFinding` is swept with an internal finding's id | ISO-8c (security spec: part 3 if part 2 did not); ISO-14b (if still open) |
+| ISO-8c ships in three parts (#323 merged, #325 open) | ISO-8c (PR title) |
+| ISO-1c, ISO-1c2 and ISO-1e continue the ISO-1 thread | ISO-1c, ISO-1c2, ISO-1e (thread titles); plan §5.4 |
+| Statuses: ISO-1c (#324) and ISO-8c part 1 (#323) merged; ISO-6c (part 3a, #321) and ISO-8c part 2 (#325) started | plan §6 |

@@ -1,6 +1,6 @@
 # ISO management systems add-on: plan (v2)
 
-Status: v2.5.3, 2026-10-27. Decisions: ADR [M16-0001](../adr/M16-0001-iso-management-systems.md), amended by ADRs
+Status: v2.5.4, 2026-10-27. Decisions: ADR [M16-0001](../adr/M16-0001-iso-management-systems.md), amended by ADRs
 [M16-0002](../adr/M16-0002-iso-plan-v2.md) and [M16-0003](../adr/M16-0003-stored-review-figures.md). v2 answers the 58
 findings of the independent review of v1 (trace at the end of [packages.md](packages.md)). v2.1 takes in the departures
 the ISO contracts (ISO-1, contracts 1.8.0) list in `docs/contracts/README.md` decision 51 (a-n), and points the API,
@@ -32,7 +32,13 @@ and 4 into ISO-8c. v2.5.3 places what the two audits of ISO-8b (#320) leave to o
 integrated security sweep when ISO-14b wires them, and ISO-8c takes three follow-ups (the action list's missing tests, a
 risk item's unit move authorized on the new unit, and ADR M16-0005 decision 3's wording). It records that ISO-8a to
 ISO-8c are `Tooling:` PRs because each also changes M14's security spec, that ISO-8b already moved the named-person
-check onto M3's role lookup (model §1.5), and that ISO-8c and ISO-11d do not wait for ISO-1c.
+check onto M3's role lookup (model §1.5), and that ISO-8c and ISO-11d do not wait for ISO-1c. v2.5.4 records what ISO-1c
+(#324, contracts 1.8.6) settled: `IsoEngineApi.reviewInputFigures` takes the data of the source it names; `Act.kind` and
+`Obligation.clauseRefs` stay optional, because modules that build records from the read types still leave them out, and
+`AccountOverride.removedFeatures` because it is only a request body (contracts README decision 56). It adds ISO-1c2,
+which makes the mock's overview count overdue nonconformities as the NC list does (the #321 audit), and ISO-1e, which
+makes `kind` and `clauseRefs` required once their creators set them (the #324 audit). It also passes on the #322 audit's
+notes on ISO-8c's parts and ADR M16-0006's rule for who owns and approves an NC.
 
 Every ISO thread reads, in order: the root `CLAUDE.md`, this file, its own brief in [packages.md](packages.md), the
 parts of [model.md](model.md) and [catalogue.md](catalogue.md) its brief names, then the area `CLAUDE.md` of the paths
@@ -350,9 +356,14 @@ it, and exhaustive maps in other modules stop compiling. The order is always:
 New fields on existing shapes arrive **optional**, with the meaning of a missing value written down (a missing
 `Act.kind` reads as STATUTE, a missing `clauseRefs`, `removedFeatures` or `features` as empty). `.default()` alone is
 not enough, because `NewEntity<T>` and the create callers in M6 and M8 use the output type. A field becomes required
-only in a later contracts bump, after its column exists and every provider and create caller sets it (ISO-1c).
-`features` lives on `AccountSummary` as an optional field (1.7.0), so `AccountView`, which spreads its shape, keeps
-compiling.
+only in a later contracts bump, after its column exists and every provider and create caller sets it. ISO-1c (#324,
+contracts 1.8.6) checked: M3 sends `kind` and `clauseRefs` on every read, but M6's master library (`master-data.ts`,
+`from-register.ts`), its `NewRow<T>` and `createObligation`, M8's import commit (an obligation's `clauseRefs`) and test
+builders in M3, M6 to M10 and M16 build records from the read types without them, and `removedFeatures` is only on the
+override's request body, where a missing list means none. So all three stay optional for now (contracts README
+decision 56). ISO-1e makes `kind` and `clauseRefs` required once those creators and builders set them; `removedFeatures`
+stays optional. `features` lives on `AccountSummary` as an optional field (1.7.0), so `AccountView`, which spreads its
+shape, keeps compiling.
 
 ### 5.2 New error codes
 
@@ -372,7 +383,11 @@ only in a PR with no module prefix, titled `Tooling: ISO ...`, as earlier wiring
 ISO-14a (the catalogue copy) and ISO-14b (ISO files) are those packages. ISO-8a, ISO-8b and ISO-8c are titled
 `Tooling: ISO ...` too (#305, #320): each mounts M16 routes that leave `UNMOUNTED` in M14's
 `e2e/integrated/04-security.spec.ts`, so the same PR adds them to that spec's sweeps, and ISO-14b does the same for the
-ISO file routes.
+ISO file routes. ISO-1c2 and ISO-1e are `Tooling: ISO ...` as well: ISO-1c2 changes M0's mock with M17's `iso-data.json`
+(the snapshot of that mock which M17's component tests read) and M17's overview link to overdue NCs, and ISO-1e changes
+the contracts with the creators and test builders of other modules. A `Tooling:` title switches off the module-paths
+guard, so the audit of each `Tooling: ISO ...` PR holds it to its brief's Paths, as the #305 and #320 audits did (the
+#322 audit).
 
 ### 5.4 Start order
 
@@ -386,10 +401,10 @@ ISO file routes.
 - M17's `e2e/tests/iso/`, M11's `e2e/tests/shell/`, M12's `e2e/tests/register/` and M13's `e2e/tests/overview/` lie
   inside M14's `e2e/`. A package that changes files there and an M14 thread may run at the same time only while the
   M14 thread does not touch those files (§5.5).
-- Up to five threads at once, as for the main build, not counting ISO-1a, ISO-1a2, ISO-1a3 and ISO-1a4, which continue
-  the ISO-1 thread: six run while one of them is open, and another package starts only when fewer than five of the
-  others run. Each thread marks its PR ready only when it expects it to pass, gets it audited in a separate session, and
-  merges `main` before marking ready.
+- Up to five threads at once, as for the main build, not counting ISO-1a, ISO-1a2, ISO-1a3, ISO-1a4, ISO-1c, ISO-1c2 and
+  ISO-1e, which continue the ISO-1 thread: six run while one of them is open, and another package starts only when fewer
+  than five of the others run. Each thread marks its PR ready only when it expects it to pass, gets it audited in a
+  separate session, and merges `main` before marking ready.
 
 ### 5.5 Merging main
 
@@ -408,7 +423,7 @@ before any package that depends on the change starts.
 ## 6. Packages and waves
 
 Briefs: [packages.md](packages.md). Waves are for orientation; the Needs column decides. Status as of 2026-10-27
-(`origin/main` at #320). ISO-3 and ISO-7b started before ISO-1a was added to their Needs, and merged after it. ISO-6b
+(`origin/main` at #324). ISO-3 and ISO-7b started before ISO-1a was added to their Needs, and merged after it. ISO-6b
 may start before ISO-1a4 but marks its PR ready only once ISO-1a4 has merged (its brief), which the Needs column cannot
 hold.
 
@@ -453,9 +468,9 @@ hold.
 | I5 | ISO-2h | M3 | Review figure reads: gather, store, visible ids, rows that follow a replan | ISO-2g, ISO-1a3 | merged (#316) |
 | I5 | ISO-2i | M3 | `ids` on four ISO lists; role lookup for people named by client roles; documents found by issuer | ISO-2e | merged (#304) |
 | I5 | ISO-2j | M3 | More ISO list filters; the person's own state in the role lookup | ISO-2i | merged (#310) |
-| I5 | ISO-6c | M17 | ISO screens 3: audits, nonconformities, management reviews | ISO-6b, ISO-1a3, ISO-1a4 | |
+| I5 | ISO-6c | M17 | ISO screens 3: audits, nonconformities, management reviews | ISO-6b, ISO-1a3, ISO-1a4 | started (part 3a, #321) |
 | I5 | ISO-8b | M16 | ISO API 2: risks, objectives, actions | ISO-8a, ISO-2e, ISO-1a4, ISO-2i, ISO-2j | merged (#320) |
-| I5 | ISO-8c | M16 | ISO API 3: internal audits, external-audit findings, nonconformities, management reviews, overview | ISO-8b, ISO-2h, ISO-3b, ISO-2i, ISO-2j | started |
+| I5 | ISO-8c | M16 | ISO API 3: internal audits, external-audit findings, nonconformities, management reviews, overview | ISO-8b, ISO-2h, ISO-3b, ISO-2i, ISO-2j | started (part 1 merged, #323; part 2, #325) |
 | I5 | ISO-9b | M6 | Hide and refuse STANDARD library rows when off; no cross-kind changes | ISO-9, ISO-2f, ISO-4b | merged (#300) |
 | I5 | ISO-11a | M7 | Source filter and the off switch on instances and evidence | ISO-15, ISO-2f, ISO-4b | merged (#312) |
 | I5 | ISO-10b | M9 | Off switch in the existing jobs, STATUTE-only digest, ISO file scan | ISO-10a, ISO-1b, ISO-2d, ISO-2f | merged (#308) |
@@ -465,7 +480,9 @@ hold.
 | I6 | ISO-11d | M10 | ISO exports and ISO data in the client archive | ISO-11b, ISO-3, ISO-3b, ISO-2h | started (part 1 merged, #319) |
 | I7 | ISO-14b | none (`Tooling:`) | Wire ISO files | ISO-8c, ISO-10c, ISO-14a, ISO-15 | |
 | I7 | ISO-13 | M14 | Integrated ISO journey and off-switch sweep | every other package | |
-| I7 | ISO-1c | M0 | Make the add-on's optional fields required | ISO-1b, ISO-2c, ISO-4a, ISO-5, ISO-5b, ISO-9, ISO-16, ISO-3b | |
+| I7 | ISO-1c | M0 | Type the engine API's review figures; keep three add-on fields optional | ISO-1b, ISO-2c, ISO-4a, ISO-5, ISO-5b, ISO-9, ISO-16, ISO-3b | merged (#324) |
+| I7 | ISO-1c2 | M0 | The mock's overview counts overdue nonconformities as the NC list does | ISO-1c, ISO-6c | |
+| I7 | ISO-1e | M0 | Require `Act.kind` and `Obligation.clauseRefs` once their creators set them | ISO-1c, ISO-1c2, ISO-8c, ISO-11d | |
 
 Modules with ISO packages: M0, M3, M4, M5, M6, M7, M8, M9, M10, M11, M12, M13, M14, M15, M16, M17, and Tooling.
 
