@@ -20,6 +20,7 @@ import { IdempotencyCache, InProcessRunner, type ExportRunner } from './modules/
 import { libraryAndEntities, type M6Deps } from './modules/entities/index.js';
 import { registerAuditRoutes } from './modules/audit/routes.js';
 import { createAuditService } from './modules/audit/service.js';
+import { createIsoFiles } from './modules/evidence/index.js';
 import { registerEvidenceRoutes } from './modules/evidence/routes.js';
 import { createEvidenceService } from './modules/evidence/service.js';
 import type { EvidenceStorage } from './modules/evidence/storage.js';
@@ -62,7 +63,10 @@ export interface ServerOptions {
   readonly database?: Database;
   /** M7 · Evidence file storage; with `database`, the evidence routes are mounted too. */
   readonly evidenceStorage?: EvidenceStorage;
-  /** M16 · The ISO file service; with `database`, the ISO file routes are mounted too. */
+  /**
+   * M16 · The ISO file service; with `database`, the ISO file routes are mounted too. Defaults to M7's service over
+   * `evidenceStorage` when that is given, so the ISO file routes are served exactly when the evidence routes are.
+   */
   readonly isoFiles?: IsoFiles;
   /** M15 · The operator API under /api/platform/v1, mounted when given (`PLATFORM_ENABLED=true`). */
   readonly platform?: PlatformOptions;
@@ -169,6 +173,14 @@ export function buildServer(options: ServerOptions = {}): FastifyInstance {
   }
 
   const { database } = options;
+  const isoFiles =
+    options.isoFiles ??
+    (options.evidenceStorage === undefined
+      ? undefined
+      : createIsoFiles({
+          storage: options.evidenceStorage,
+          ...(options.clock === undefined ? {} : { clock: options.clock }),
+        }));
   if (database) {
     void app.register(
       async (api) => {
@@ -180,7 +192,7 @@ export function buildServer(options: ServerOptions = {}): FastifyInstance {
         registerIsoRoutes(api, {
           db: database,
           ...(options.clock === undefined ? {} : { clock: options.clock }),
-          ...(options.isoFiles === undefined ? {} : { files: options.isoFiles }),
+          ...(isoFiles === undefined ? {} : { files: isoFiles }),
         });
         if (options.evidenceStorage) {
           const storage = options.evidenceStorage;
