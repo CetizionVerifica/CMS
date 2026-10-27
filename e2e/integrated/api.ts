@@ -36,12 +36,15 @@ async function wrap(http: APIRequestContext, csrfToken: string): Promise<ApiSess
   };
 }
 
-/** The API as `key`, signed in with the browser state from auth.setup.ts. */
-export async function apiAs(key: AccountKey): Promise<ApiSession> {
+/**
+ * The API as `key`, signed in with the browser state from auth.setup.ts. `address` picks another of the journey's
+ * addresses (stack.ts `addressOf`), for a sweep that makes more calls than one address may per minute.
+ */
+export async function apiAs(key: AccountKey, address = 0): Promise<ApiSession> {
   const http = await request.newContext({
     baseURL: API_URL,
     storageState: storageStateOf(key),
-    extraHTTPHeaders: { 'x-forwarded-for': addressOf(key, visit()) },
+    extraHTTPHeaders: { 'x-forwarded-for': addressOf(key, visit() + address) },
   });
   const me = await http.get('/api/v1/me');
   if (!me.ok()) throw new Error(`GET /me as ${key}: ${me.status()}`);

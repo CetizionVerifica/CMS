@@ -119,6 +119,9 @@ below changes a contract shape.
     - An external finding needs a HELD visit, and a HELD visit needs the body's report file. The file routes are not
       mounted in the integrated run until ISO-15, so the external finding routes name firm A's internal finding,
       which is still one of firm A's records.
+    - With 101 routes served, one admin's sweep makes more calls than the API's per-IP limit allows in a minute
+      (300). The sweep now takes a fresh address of the journey's every 60 endpoints, as stack.ts `addressOf` does
+      for journeys (F7). The limit itself is still checked by `05-shell-load.spec.ts`.
 
 ## Consequences
 

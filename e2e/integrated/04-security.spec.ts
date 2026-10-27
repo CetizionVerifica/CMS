@@ -719,6 +719,9 @@ const UNKNOWN = '01920000-0000-7000-8000-0000000dead0';
 /** Ids no firm has, for every record kind `fill` can name. */
 const NOBODY = new Proxy({} as Record<string, string>, { get: () => UNKNOWN });
 
+/** Endpoints swept from one address: at most two calls each, well under the API's 300 a minute. */
+const SWEEP_CHUNK = 60;
+
 async function call(api: ApiSession, method: string, path: string, body: unknown = {}) {
   if (method === 'GET') return api.get(path);
   const res = await api.http.fetch(`/api/v1${path}`, {
@@ -744,10 +747,16 @@ test.describe('tenant isolation', () => {
   test('firm B’s admins reach none of firm A’s records through any endpoint', async () => {
     const ids = await firmAIds();
     const kestrelNames = ['Kestrel', 'Person Mike', 'challan.pdf'];
+    const swept = endpoints.filter(([name, e]) => sweepable(name, e) && !(name in UNMOUNTED));
     for (const key of ['ospreyFirmAdmin', 'ospreyAdmin'] as const) {
-      const api = await apiAs(key);
-      for (const [name, e] of endpoints) {
-        if (!sweepable(name, e) || name in UNMOUNTED) continue;
+      // Up to two calls an endpoint: a fresh address every SWEEP_CHUNK endpoints keeps each under the API's per-IP
+      // limit (300 a minute), which 05-shell-load.spec.ts checks on its own.
+      let api = await apiAs(key, 1);
+      for (const [index, [name, e]] of swept.entries()) {
+        if (index > 0 && index % SWEEP_CHUNK === 0) {
+          await api.dispose();
+          api = await apiAs(key, 1 + index / SWEEP_CHUNK);
+        }
         let res: { status: number; body: unknown };
         let label: string;
         if (e.method === 'GET' && !e.path.includes('{')) {
