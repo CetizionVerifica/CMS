@@ -19,7 +19,7 @@ ISO add-on (M16): its records, engine interface, 119 routes (1.8.1), catalogue a
 | [CHANGELOG.md](CHANGELOG.md) | Contract versions | everyone |
 
 ## Status
-Version `1.8.5` (`CONTRACTS_VERSION` in `packages/contracts/src/version.ts`). The domain model in §1-8 of
+Version `1.8.6` (`CONTRACTS_VERSION` in `packages/contracts/src/version.ts`). The domain model in §1-8 of
 [domain-model.md](domain-model.md) is published as v1 so wave 1 (M3, M4, M8, M11) can build against it. Each consumer
 module owner still reviews its part (MODULES.md M0 acceptance); review findings ship as additive changes or, if breaking,
 with sign-off per "How to change a contract".
@@ -324,7 +324,7 @@ with sign-off per "How to change a contract".
     its own shapes and checks itself with `satisfies IsoEngineApi`, so narrowing the signature here would break its
     build, and M0 cannot change packages/engine. M4 takes `TypedReviewInputFigures` in ISO-3b (a function typed that
     way satisfies the 1.8.2 signature, test/engine-api.test.ts), and M0 narrows `IsoEngineApi` to it in the next
-    contracts PR after that merges. `ReviewFigure` and `ReviewInputFigures` move to `src/schemas/iso.ts`, beside the
+    contracts PR after that merges (done in 1.8.6, decision 56). `ReviewFigure` and `ReviewInputFigures` move to `src/schemas/iso.ts`, beside the
     record that stores them; the package exports the same names.
 53. The ISO values join the contract enums (contracts 1.8.3, ISO-1b; plan §5.1 step 4). `ISO_ENTITY_TYPES`,
     `ISO_NOTIFICATION_KINDS` and `ISO_EXPORT_KINDS` are now the last values of `EntityType`, `NotificationKind` and
@@ -390,3 +390,20 @@ with sign-off per "How to change a contract".
     leaves out paging, so the NC log and risk register exports keep their filters. Also in 1.8.5: the mock's REQUEST_NA
     on a clause that allows no exclusion names `status`, not `clauseId`, as the engine's guard and the API do (ADR
     M16-0004 decision 5). It is a patch: an optional query parameter, and a mock error path.
+56. The add-on's optional fields after ISO-1c (contracts 1.8.6). `IsoEngineApi.reviewInputFigures` is now
+    `TypedReviewInputFigures`, as decision 52 planned, since ISO-3b moved the engine onto it: a caller through
+    `IsoEngineApi` passes the data of the source it names. `Act.kind`, `Obligation.clauseRefs` and
+    `AccountOverride.removedFeatures` stay optional. M3 stores each on every row (NOT NULL, with defaults STATUTE,
+    `[]` and none, backfilled by migration 0036) and returns it on every read, and the console always sends
+    `removedFeatures`. But other modules build records from these same types: M3's `NewEntity<T>` and
+    `accountOverrides.put`, M6's `NewRow<T>`, master library and `createObligation`, and M8's import commit. Those
+    callers, and test builders in M3, M6, M7, M8, M9, M10, M13 and M15, leave the fields out (since ISO-16 the
+    import commit sets an act's `kind`, but not an obligation's `clauseRefs`), so requiring a field would stop them
+    compiling, and an M0 change cannot edit them. M6's in-memory test store also answers acts and obligations
+    without them. A later contracts bump can require a field once its creators set it or build from a create type
+    that leaves it optional. Meanwhile the mock stores a created act as a STATUTE and a created obligation with no
+    clauses, and the fixtures carry `kind` and `clauseRefs` on every act and obligation, as Postgres does.
+    `AccountSummary.features` stays optional for good: `AccountView` (`GET /account`) spreads that shape and carries
+    the features in `entitlements` only (plan §5.1), while `Me.account` always has them. Also in 1.8.6, events.md
+    describes the `notification.sent` of an ISO reminder (ISO-10c audit Info 1). It is a patch: no wire shape
+    changes, and the narrowed signature's only implementer already has it.

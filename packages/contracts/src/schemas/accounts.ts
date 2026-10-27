@@ -72,7 +72,9 @@ export type Plan = z.infer<typeof Plan>;
 /**
  * Per-account changes on top of the plan. A key that is absent keeps the plan's value. `features` adds flags and
  * `removedFeatures` takes flags away even when the plan has them, so the console's add-on switch can turn one off for
- * one account (ADR M16-0001 decision 2); `removedFeatures` is optional until M3 stores it, and missing means none.
+ * one account (ADR M16-0001 decision 2). M3 stores `removedFeatures` on every override and the console always sends
+ * it, but it stays optional, missing meaning none: this is also the type M3's store and M15's tests build overrides
+ * with, some without it (README decision 56).
  */
 export const AccountOverride = z
   .strictObject({
@@ -125,7 +127,9 @@ export const AccountSummary = z.strictObject({
   trialEndsOn: LocalDate.nullable(),
   /**
    * The account's features (`Entitlements.features`), so the app shows add-ons such as `isoManagement` only when the
-   * account has them (ADR M16-0001). Optional until M5 sends it: a reader treats a missing list as empty.
+   * account has them (ADR M16-0001). `Me.account` always carries it. It stays optional, a missing list read as empty,
+   * because `AccountView` (`GET /account`) spreads this shape and carries the features in `entitlements` only (plan
+   * §5.1; README decision 56).
    */
   features: z.array(FeatureFlag).optional(),
 });

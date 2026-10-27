@@ -664,7 +664,7 @@ describe('mock server', () => {
       query: { domain: 'TAX,EHS' },
     });
     expect(list.items.length).toBeGreaterThan(0);
-    const obligation = await ok<{ id: string }>(app, 'createObligation', {
+    const obligation = await ok<{ id: string; clauseRefs?: unknown[] }>(app, 'createObligation', {
       body: {
         externalRef: 'SLC-HRS-099',
         domain: 'HRS',
@@ -684,6 +684,8 @@ describe('mock server', () => {
         logSheets: [],
       },
     });
+    // Stored with no clauses, as M3 stores it (README decision 56).
+    expect(obligation.clauseRefs).toEqual([]);
     const updated = await ok<{ libraryVersion: number }>(app, 'updateObligation', {
       params: { id: obligation.id },
       body: { version: 1, criticality: 'MEDIUM' },

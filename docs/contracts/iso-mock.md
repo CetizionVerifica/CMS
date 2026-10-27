@@ -74,7 +74,7 @@ README decisions 42-51. M4 owns every formula marked "stand-in".
   `updatedAt`, in that order (ties by id), each counting as earlier only the reviews stored before it, so two held on
   one day get the same figures on every load. The mock works as M3 and M4 will (ISO-1a3): it gathers each input's
   `ReviewFigureData` from the store and its audit trail, as ISO-2h's gather will, then computes the figures from that
-  data and the window alone, typed as `TypedReviewInputFigures`, as ISO-3b's engine will.
+  data and the window alone, typed as `TypedReviewInputFigures`, as ISO-3b's engine does.
   - **Window.** `since` is worked out per standard of the input: the later of the system's creation day and the
     `heldOn` of the last other HELD or CLOSED review of the system that covers the standard with `heldOn` on or
     before as-of. The input's `since` is the earliest of these, and never after as-of. At RECORD_HELD the review is

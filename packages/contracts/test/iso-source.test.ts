@@ -1139,7 +1139,7 @@ describe('the library', () => {
       body: { name: 'ISO 14001 environmental management', jurisdiction: 'CENTRAL' },
       headers: OFF,
     });
-    expect(named.kind).toBeUndefined();
+    expect(named.kind).toBe('STATUTE');
     await fails(
       app,
       'createAct',

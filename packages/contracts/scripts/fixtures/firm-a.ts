@@ -402,6 +402,7 @@ export function buildFirmA(sheet: Cell[][], sourceName: string): FirmA {
         jurisdiction: state ? 'STATE' : 'CENTRAL',
         stateCode: state ? 'WB' : null,
         aliases: aliasesOf(ACT_ALIASES, name),
+        kind: 'STATUTE',
       };
     });
   const byName = <T extends { name: string; id: string }>(list: T[], name: string) =>
@@ -493,6 +494,7 @@ export function buildFirmA(sheet: Cell[][], sourceName: string): FirmA {
       forms: templates(first.form),
       logSheets: templates(first.logSheet),
       libraryVersion: 1,
+      clauseRefs: [],
     };
     obligations.push(obligation);
     const departmentId = byName(departments, canonical(DEPARTMENT_ALIASES, first.department));

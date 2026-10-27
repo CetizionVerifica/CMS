@@ -944,12 +944,12 @@ export const entityHandlers: PartialHandlers<
   createAct(ctx) {
     const actor = actorOf(ctx);
     ctx.authorize({ clientId: null });
-    // Names are unique per kind, and a new act is a STATUTE (catalogue.md §2).
+    // Names are unique per kind, and a new act is a STATUTE (catalogue.md §2), stored as one as M3 does.
     noDuplicateName(
       actor.firm.data.acts.filter((a) => actKind(a) === 'STATUTE'),
       ctx.body.name,
     );
-    const act = { ...fresh(ctx, actor.firm.data.firm.id), ...ctx.body };
+    const act = { ...fresh(ctx, actor.firm.data.firm.id), ...ctx.body, kind: 'STATUTE' as const };
     actor.firm.data.acts.push(act);
     audit(ctx, actor, {
       action: 'CREATE',
@@ -1094,7 +1094,13 @@ export const entityHandlers: PartialHandlers<
     // Staff may add activities under a STANDARD act while the add-on is on (catalogue.md §2).
     checkKindEnabled(actor, actKind(ref(actor, 'acts', ctx.body.actId, 'actId')));
     ref(actor, 'categories', ctx.body.categoryId, 'categoryId');
-    const obligation = { ...fresh(ctx, actor.firm.data.firm.id), ...ctx.body, libraryVersion: 1 };
+    // The body names no clauses, so the activity starts with none, as M3 stores it.
+    const obligation = {
+      ...fresh(ctx, actor.firm.data.firm.id),
+      ...ctx.body,
+      libraryVersion: 1,
+      clauseRefs: [],
+    };
     actor.firm.data.obligations.push(obligation);
     audit(ctx, actor, {
       action: 'CREATE',

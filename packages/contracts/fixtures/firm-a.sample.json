@@ -819,7 +819,8 @@
       "shortName": null,
       "jurisdiction": "CENTRAL",
       "stateCode": null,
-      "aliases": []
+      "aliases": [],
+      "kind": "STATUTE"
     },
     {
       "id": "61faeda3-27be-53d3-9925-211367971508",
@@ -832,7 +833,8 @@
       "shortName": null,
       "jurisdiction": "CENTRAL",
       "stateCode": null,
-      "aliases": []
+      "aliases": [],
+      "kind": "STATUTE"
     },
     {
       "id": "fd46d77f-fd4e-58e1-90f5-e2faacafecff",
@@ -845,7 +847,8 @@
       "shortName": null,
       "jurisdiction": "CENTRAL",
       "stateCode": null,
-      "aliases": []
+      "aliases": [],
+      "kind": "STATUTE"
     },
     {
       "id": "7c74f959-a13d-5193-b292-53e04a2bffdb",
@@ -858,7 +861,8 @@
       "shortName": null,
       "jurisdiction": "CENTRAL",
       "stateCode": null,
-      "aliases": []
+      "aliases": [],
+      "kind": "STATUTE"
     },
     {
       "id": "a115c348-17c8-523a-ab9f-e0d036db90bb",
@@ -871,7 +875,8 @@
       "shortName": null,
       "jurisdiction": "CENTRAL",
       "stateCode": null,
-      "aliases": []
+      "aliases": [],
+      "kind": "STATUTE"
     },
     {
       "id": "c625d108-aa0c-5da1-8ea3-2aa28e739d40",
@@ -884,7 +889,8 @@
       "shortName": null,
       "jurisdiction": "CENTRAL",
       "stateCode": null,
-      "aliases": []
+      "aliases": [],
+      "kind": "STATUTE"
     },
     {
       "id": "7faea9f3-766f-5af1-9f76-9049e59141c3",
@@ -897,7 +903,8 @@
       "shortName": null,
       "jurisdiction": "CENTRAL",
       "stateCode": null,
-      "aliases": []
+      "aliases": [],
+      "kind": "STATUTE"
     },
     {
       "id": "25311842-5ab2-5398-8177-5f9d9a0525b6",
@@ -910,7 +917,8 @@
       "shortName": null,
       "jurisdiction": "CENTRAL",
       "stateCode": null,
-      "aliases": []
+      "aliases": [],
+      "kind": "STATUTE"
     },
     {
       "id": "41e92bb3-f954-5861-8aa6-1504f94b65d3",
@@ -923,7 +931,8 @@
       "shortName": null,
       "jurisdiction": "CENTRAL",
       "stateCode": null,
-      "aliases": []
+      "aliases": [],
+      "kind": "STATUTE"
     },
     {
       "id": "3ef74569-dac9-517a-9913-5f59ce9319ab",
@@ -936,7 +945,8 @@
       "shortName": null,
       "jurisdiction": "CENTRAL",
       "stateCode": null,
-      "aliases": []
+      "aliases": [],
+      "kind": "STATUTE"
     },
     {
       "id": "d089c2a9-aff6-559d-9fce-3741ca35c959",
@@ -949,7 +959,8 @@
       "shortName": null,
       "jurisdiction": "CENTRAL",
       "stateCode": null,
-      "aliases": []
+      "aliases": [],
+      "kind": "STATUTE"
     },
     {
       "id": "c59fa3a6-b6f1-532d-bd3e-948f4e613e84",
@@ -962,7 +973,8 @@
       "shortName": null,
       "jurisdiction": "CENTRAL",
       "stateCode": null,
-      "aliases": []
+      "aliases": [],
+      "kind": "STATUTE"
     },
     {
       "id": "6b5a2b3e-388c-5f68-a146-15fccd7dd360",
@@ -975,7 +987,8 @@
       "shortName": null,
       "jurisdiction": "CENTRAL",
       "stateCode": null,
-      "aliases": []
+      "aliases": [],
+      "kind": "STATUTE"
     },
     {
       "id": "8170b13d-ce14-592d-8581-c2b099330ce1",
@@ -988,7 +1001,8 @@
       "shortName": null,
       "jurisdiction": "CENTRAL",
       "stateCode": null,
-      "aliases": []
+      "aliases": [],
+      "kind": "STATUTE"
     },
     {
       "id": "99e2dc81-4efb-5aca-a9f3-54401a71238f",
@@ -1001,7 +1015,8 @@
       "shortName": null,
       "jurisdiction": "CENTRAL",
       "stateCode": null,
-      "aliases": []
+      "aliases": [],
+      "kind": "STATUTE"
     },
     {
       "id": "350537d9-a137-56be-8c4c-32036e04b20a",
@@ -1014,7 +1029,8 @@
       "shortName": null,
       "jurisdiction": "CENTRAL",
       "stateCode": null,
-      "aliases": []
+      "aliases": [],
+      "kind": "STATUTE"
     },
     {
       "id": "b0d586e9-e70b-561c-bffd-64e12fd10b22",
@@ -1027,7 +1043,8 @@
       "shortName": null,
       "jurisdiction": "CENTRAL",
       "stateCode": null,
-      "aliases": []
+      "aliases": [],
+      "kind": "STATUTE"
     },
     {
       "id": "89f4b36b-4589-5bbd-bd51-33de3b2ca414",
@@ -1040,7 +1057,8 @@
       "shortName": null,
       "jurisdiction": "CENTRAL",
       "stateCode": null,
-      "aliases": []
+      "aliases": [],
+      "kind": "STATUTE"
     },
     {
       "id": "5af0a5dc-15ff-52ef-87c2-d936091bd868",
@@ -1053,7 +1071,8 @@
       "shortName": null,
       "jurisdiction": "CENTRAL",
       "stateCode": null,
-      "aliases": []
+      "aliases": [],
+      "kind": "STATUTE"
     },
     {
       "id": "4b10160b-8c59-5846-9c37-0eac104b0f17",
@@ -1066,7 +1085,8 @@
       "shortName": null,
       "jurisdiction": "CENTRAL",
       "stateCode": null,
-      "aliases": []
+      "aliases": [],
+      "kind": "STATUTE"
     },
     {
       "id": "26c3ed9b-4cc0-5082-b6aa-433b0b2e182e",
@@ -1079,7 +1099,8 @@
       "shortName": null,
       "jurisdiction": "CENTRAL",
       "stateCode": null,
-      "aliases": []
+      "aliases": [],
+      "kind": "STATUTE"
     },
     {
       "id": "46c16bb5-6813-5980-84b3-427d0d1a5949",
@@ -1092,7 +1113,8 @@
       "shortName": null,
       "jurisdiction": "CENTRAL",
       "stateCode": null,
-      "aliases": []
+      "aliases": [],
+      "kind": "STATUTE"
     },
     {
       "id": "25ba2996-dd3c-5ffc-8451-8c9650288bf8",
@@ -1105,7 +1127,8 @@
       "shortName": null,
       "jurisdiction": "CENTRAL",
       "stateCode": null,
-      "aliases": []
+      "aliases": [],
+      "kind": "STATUTE"
     },
     {
       "id": "fd819764-ec36-5946-9f45-edeb2517f12a",
@@ -1118,7 +1141,8 @@
       "shortName": null,
       "jurisdiction": "CENTRAL",
       "stateCode": null,
-      "aliases": []
+      "aliases": [],
+      "kind": "STATUTE"
     },
     {
       "id": "94d53b5f-5248-55a2-89b7-f43341602e3c",
@@ -1131,7 +1155,8 @@
       "shortName": null,
       "jurisdiction": "CENTRAL",
       "stateCode": null,
-      "aliases": []
+      "aliases": [],
+      "kind": "STATUTE"
     },
     {
       "id": "5746b303-508a-50f3-b425-43f945fb1cb8",
@@ -1144,7 +1169,8 @@
       "shortName": null,
       "jurisdiction": "CENTRAL",
       "stateCode": null,
-      "aliases": []
+      "aliases": [],
+      "kind": "STATUTE"
     },
     {
       "id": "69be2e28-3114-5f00-a51a-bcd2a8c1564c",
@@ -1157,7 +1183,8 @@
       "shortName": null,
       "jurisdiction": "CENTRAL",
       "stateCode": null,
-      "aliases": []
+      "aliases": [],
+      "kind": "STATUTE"
     },
     {
       "id": "deee41f4-d152-546b-a6a3-927da853aca3",
@@ -1174,7 +1201,8 @@
         "The Petroleum Act, 1934 and Petroleum Rules, 2002",
         "The Petroleum Act, 1934 and Petroleum Rules, 2003",
         "The Petroleum Act, 1934 and Petroleum Rules, 2005"
-      ]
+      ],
+      "kind": "STATUTE"
     },
     {
       "id": "a396ae85-b41f-54b3-b929-78a371a23866",
@@ -1187,7 +1215,8 @@
       "shortName": null,
       "jurisdiction": "CENTRAL",
       "stateCode": null,
-      "aliases": []
+      "aliases": [],
+      "kind": "STATUTE"
     },
     {
       "id": "a3cfcffb-f632-5417-82d2-343f440580cc",
@@ -1200,7 +1229,8 @@
       "shortName": null,
       "jurisdiction": "CENTRAL",
       "stateCode": null,
-      "aliases": []
+      "aliases": [],
+      "kind": "STATUTE"
     },
     {
       "id": "7ee2a69b-1f8a-59c8-9b56-ae4654bca858",
@@ -1213,7 +1243,8 @@
       "shortName": null,
       "jurisdiction": "STATE",
       "stateCode": "WB",
-      "aliases": []
+      "aliases": [],
+      "kind": "STATUTE"
     },
     {
       "id": "00e5e24b-c89f-5ca1-bf82-5cbb6c17939a",
@@ -1226,7 +1257,8 @@
       "shortName": null,
       "jurisdiction": "STATE",
       "stateCode": "WB",
-      "aliases": []
+      "aliases": [],
+      "kind": "STATUTE"
     },
     {
       "id": "f28db9fd-8c4c-5258-abc2-70507a1b4bbc",
@@ -1239,7 +1271,8 @@
       "shortName": null,
       "jurisdiction": "STATE",
       "stateCode": "WB",
-      "aliases": []
+      "aliases": [],
+      "kind": "STATUTE"
     }
   ],
   "categories": [
@@ -1420,7 +1453,8 @@
       "evidenceRequired": false,
       "forms": [],
       "logSheets": [],
-      "libraryVersion": 1
+      "libraryVersion": 1,
+      "clauseRefs": []
     },
     {
       "id": "1bb052ad-8510-5864-b0d3-4be0ea97ef77",
@@ -1497,7 +1531,8 @@
       "evidenceRequired": false,
       "forms": [],
       "logSheets": [],
-      "libraryVersion": 1
+      "libraryVersion": 1,
+      "clauseRefs": []
     },
     {
       "id": "08690be3-385d-524f-873f-e03231e26501",
@@ -1542,7 +1577,8 @@
       "evidenceRequired": false,
       "forms": [],
       "logSheets": [],
-      "libraryVersion": 1
+      "libraryVersion": 1,
+      "clauseRefs": []
     },
     {
       "id": "40a3961f-ae2e-5a10-8b99-872411a537d8",
@@ -1625,7 +1661,8 @@
           "templateFileId": null
         }
       ],
-      "libraryVersion": 1
+      "libraryVersion": 1,
+      "clauseRefs": []
     },
     {
       "id": "545c617a-a1af-5570-9bc6-b6349e55f835",
@@ -1660,7 +1697,8 @@
         }
       ],
       "logSheets": [],
-      "libraryVersion": 1
+      "libraryVersion": 1,
+      "clauseRefs": []
     },
     {
       "id": "2e42bc93-1974-59f4-855a-2ad77ef6bae9",
@@ -1711,7 +1749,8 @@
         }
       ],
       "logSheets": [],
-      "libraryVersion": 1
+      "libraryVersion": 1,
+      "clauseRefs": []
     },
     {
       "id": "4c7c2fc2-d2d4-580e-bebd-ed8a8f6ab1f9",
@@ -1746,7 +1785,8 @@
         }
       ],
       "logSheets": [],
-      "libraryVersion": 1
+      "libraryVersion": 1,
+      "clauseRefs": []
     },
     {
       "id": "89d2f604-11ae-58f0-9ed9-8d93f3134dd6",
@@ -1829,7 +1869,8 @@
           "templateFileId": null
         }
       ],
-      "libraryVersion": 1
+      "libraryVersion": 1,
+      "clauseRefs": []
     },
     {
       "id": "385efc3f-919e-53b3-8b2e-8d2a8dc9046d",
@@ -1906,7 +1947,8 @@
       "evidenceRequired": false,
       "forms": [],
       "logSheets": [],
-      "libraryVersion": 1
+      "libraryVersion": 1,
+      "clauseRefs": []
     },
     {
       "id": "ba3bc150-5216-5023-a42f-472de73e2b54",
@@ -1989,7 +2031,8 @@
           "templateFileId": null
         }
       ],
-      "libraryVersion": 1
+      "libraryVersion": 1,
+      "clauseRefs": []
     },
     {
       "id": "0b4e525b-9773-51d0-9ba3-864bbe5b6fe7",
@@ -2032,7 +2075,8 @@
         }
       ],
       "logSheets": [],
-      "libraryVersion": 1
+      "libraryVersion": 1,
+      "clauseRefs": []
     },
     {
       "id": "f3f5f1e2-1465-5f3f-a3f8-5a1089c2285a",
@@ -2060,7 +2104,8 @@
       "evidenceRequired": false,
       "forms": [],
       "logSheets": [],
-      "libraryVersion": 1
+      "libraryVersion": 1,
+      "clauseRefs": []
     },
     {
       "id": "17113e83-b027-54be-bd86-d98cb65f8906",
@@ -2094,7 +2139,8 @@
           "templateFileId": null
         }
       ],
-      "libraryVersion": 1
+      "libraryVersion": 1,
+      "clauseRefs": []
     },
     {
       "id": "fc66b51b-c4e5-599b-b31b-dc00c411c771",
@@ -2131,7 +2177,8 @@
       "evidenceRequired": false,
       "forms": [],
       "logSheets": [],
-      "libraryVersion": 1
+      "libraryVersion": 1,
+      "clauseRefs": []
     },
     {
       "id": "1ba61d87-4d97-5159-8395-db1e758d8758",
@@ -2165,7 +2212,8 @@
           "templateFileId": null
         }
       ],
-      "libraryVersion": 1
+      "libraryVersion": 1,
+      "clauseRefs": []
     },
     {
       "id": "07df492c-5253-5083-bd9d-cecb6870ee99",
@@ -2193,7 +2241,8 @@
       "evidenceRequired": false,
       "forms": [],
       "logSheets": [],
-      "libraryVersion": 1
+      "libraryVersion": 1,
+      "clauseRefs": []
     },
     {
       "id": "b8db336b-14f4-5a99-a84b-af2e01f39ac4",
@@ -2230,7 +2279,8 @@
       "evidenceRequired": false,
       "forms": [],
       "logSheets": [],
-      "libraryVersion": 1
+      "libraryVersion": 1,
+      "clauseRefs": []
     },
     {
       "id": "133dfbca-b754-5c63-989c-24fc43a2534b",
@@ -2258,7 +2308,8 @@
       "evidenceRequired": false,
       "forms": [],
       "logSheets": [],
-      "libraryVersion": 1
+      "libraryVersion": 1,
+      "clauseRefs": []
     },
     {
       "id": "73ff8cef-7afd-5f0d-ae1b-b4772c5a406d",
@@ -2295,7 +2346,8 @@
       "evidenceRequired": false,
       "forms": [],
       "logSheets": [],
-      "libraryVersion": 1
+      "libraryVersion": 1,
+      "clauseRefs": []
     },
     {
       "id": "c5834439-8aae-5da5-852a-28fe3d0926f9",
@@ -2323,7 +2375,8 @@
       "evidenceRequired": false,
       "forms": [],
       "logSheets": [],
-      "libraryVersion": 1
+      "libraryVersion": 1,
+      "clauseRefs": []
     },
     {
       "id": "7d01f77b-2189-51d9-9b56-674eb5ecb631",
@@ -2360,7 +2413,8 @@
       "evidenceRequired": false,
       "forms": [],
       "logSheets": [],
-      "libraryVersion": 1
+      "libraryVersion": 1,
+      "clauseRefs": []
     },
     {
       "id": "60dce41b-498d-5889-b3fe-4cb54003971b",
@@ -2394,7 +2448,8 @@
           "templateFileId": null
         }
       ],
-      "libraryVersion": 1
+      "libraryVersion": 1,
+      "clauseRefs": []
     },
     {
       "id": "89e120e1-3172-5123-bcf2-35315bdd2dc4",
@@ -2422,7 +2477,8 @@
       "evidenceRequired": false,
       "forms": [],
       "logSheets": [],
-      "libraryVersion": 1
+      "libraryVersion": 1,
+      "clauseRefs": []
     },
     {
       "id": "3d639ad0-3352-514b-b00d-68f42e4765ee",
@@ -2450,7 +2506,8 @@
       "evidenceRequired": false,
       "forms": [],
       "logSheets": [],
-      "libraryVersion": 1
+      "libraryVersion": 1,
+      "clauseRefs": []
     },
     {
       "id": "bf6e311c-386d-5c0c-af38-7adfed853ab5",
@@ -2478,7 +2535,8 @@
       "evidenceRequired": false,
       "forms": [],
       "logSheets": [],
-      "libraryVersion": 1
+      "libraryVersion": 1,
+      "clauseRefs": []
     },
     {
       "id": "55c74256-7dab-5fa2-adf1-cd9cdb2911e5",
@@ -2506,7 +2564,8 @@
       "evidenceRequired": false,
       "forms": [],
       "logSheets": [],
-      "libraryVersion": 1
+      "libraryVersion": 1,
+      "clauseRefs": []
     },
     {
       "id": "c2c93b57-6447-5a1b-8468-b43646f95a9a",
@@ -2534,7 +2593,8 @@
       "evidenceRequired": false,
       "forms": [],
       "logSheets": [],
-      "libraryVersion": 1
+      "libraryVersion": 1,
+      "clauseRefs": []
     },
     {
       "id": "ab575d3b-d1fb-5989-bc33-6b078bff159b",
@@ -2562,7 +2622,8 @@
       "evidenceRequired": false,
       "forms": [],
       "logSheets": [],
-      "libraryVersion": 1
+      "libraryVersion": 1,
+      "clauseRefs": []
     },
     {
       "id": "9625c9cd-e7fd-5f75-9c6d-9fa275c195a8",
@@ -2596,7 +2657,8 @@
           "templateFileId": null
         }
       ],
-      "libraryVersion": 1
+      "libraryVersion": 1,
+      "clauseRefs": []
     },
     {
       "id": "56f64e20-128c-5e21-bcfe-27d21d5e8876",
@@ -2630,7 +2692,8 @@
           "templateFileId": null
         }
       ],
-      "libraryVersion": 1
+      "libraryVersion": 1,
+      "clauseRefs": []
     },
     {
       "id": "1416ec79-bc95-5052-a0f0-5da3513e608b",
@@ -2664,7 +2727,8 @@
           "templateFileId": null
         }
       ],
-      "libraryVersion": 1
+      "libraryVersion": 1,
+      "clauseRefs": []
     },
     {
       "id": "192e92ff-f581-5ac2-a21d-a013f3b7c590",
@@ -2698,7 +2762,8 @@
           "templateFileId": null
         }
       ],
-      "libraryVersion": 1
+      "libraryVersion": 1,
+      "clauseRefs": []
     },
     {
       "id": "879246f3-1e1d-5f95-8563-ce33217f07a3",
@@ -2732,7 +2797,8 @@
           "templateFileId": null
         }
       ],
-      "libraryVersion": 1
+      "libraryVersion": 1,
+      "clauseRefs": []
     },
     {
       "id": "978931c9-b709-523d-a6ec-b5a9fac11c4c",
@@ -2766,7 +2832,8 @@
         }
       ],
       "logSheets": [],
-      "libraryVersion": 1
+      "libraryVersion": 1,
+      "clauseRefs": []
     },
     {
       "id": "82b2ec76-a3b3-51d0-b947-9c18f9107659",
@@ -2794,7 +2861,8 @@
       "evidenceRequired": false,
       "forms": [],
       "logSheets": [],
-      "libraryVersion": 1
+      "libraryVersion": 1,
+      "clauseRefs": []
     },
     {
       "id": "c6cf311f-e44e-570e-9594-5ce3053af289",
@@ -2822,7 +2890,8 @@
       "evidenceRequired": false,
       "forms": [],
       "logSheets": [],
-      "libraryVersion": 1
+      "libraryVersion": 1,
+      "clauseRefs": []
     },
     {
       "id": "56f7b609-c76f-5697-a672-fdaa2ea6571d",
@@ -2850,7 +2919,8 @@
       "evidenceRequired": false,
       "forms": [],
       "logSheets": [],
-      "libraryVersion": 1
+      "libraryVersion": 1,
+      "clauseRefs": []
     },
     {
       "id": "24f305f1-7a7e-544a-842d-41e9a0847471",
@@ -2878,7 +2948,8 @@
       "evidenceRequired": false,
       "forms": [],
       "logSheets": [],
-      "libraryVersion": 1
+      "libraryVersion": 1,
+      "clauseRefs": []
     },
     {
       "id": "ed678b70-016b-5652-9dce-cb2a29b3e910",
@@ -2912,7 +2983,8 @@
           "templateFileId": null
         }
       ],
-      "libraryVersion": 1
+      "libraryVersion": 1,
+      "clauseRefs": []
     },
     {
       "id": "b3925e2b-5519-54bd-a03b-1ae2b0a22f17",
@@ -2952,7 +3024,8 @@
           "templateFileId": null
         }
       ],
-      "libraryVersion": 1
+      "libraryVersion": 1,
+      "clauseRefs": []
     },
     {
       "id": "9d1c8942-d51b-5ded-b71c-18a9211e8a2d",
@@ -2986,7 +3059,8 @@
           "templateFileId": null
         }
       ],
-      "libraryVersion": 1
+      "libraryVersion": 1,
+      "clauseRefs": []
     },
     {
       "id": "3fdf2085-e589-5139-a287-e660e622e5e8",
@@ -3014,7 +3088,8 @@
       "evidenceRequired": false,
       "forms": [],
       "logSheets": [],
-      "libraryVersion": 1
+      "libraryVersion": 1,
+      "clauseRefs": []
     },
     {
       "id": "3c4b21b0-6cae-530c-9cd0-2701218b79b9",
@@ -3048,7 +3123,8 @@
           "templateFileId": null
         }
       ],
-      "libraryVersion": 1
+      "libraryVersion": 1,
+      "clauseRefs": []
     },
     {
       "id": "8b3dc611-2643-5036-aa75-0991461e1f5e",
@@ -3076,7 +3152,8 @@
       "evidenceRequired": false,
       "forms": [],
       "logSheets": [],
-      "libraryVersion": 1
+      "libraryVersion": 1,
+      "clauseRefs": []
     },
     {
       "id": "7bff9ae1-d2a6-544a-bb93-697996716f93",
@@ -3113,7 +3190,8 @@
       "evidenceRequired": false,
       "forms": [],
       "logSheets": [],
-      "libraryVersion": 1
+      "libraryVersion": 1,
+      "clauseRefs": []
     },
     {
       "id": "91712a67-ed6f-55a9-af62-362f22f40418",
@@ -3147,7 +3225,8 @@
           "templateFileId": null
         }
       ],
-      "libraryVersion": 1
+      "libraryVersion": 1,
+      "clauseRefs": []
     },
     {
       "id": "15b98c49-dc77-5fad-bbad-1b67fc5b9f82",
@@ -3175,7 +3254,8 @@
       "evidenceRequired": false,
       "forms": [],
       "logSheets": [],
-      "libraryVersion": 1
+      "libraryVersion": 1,
+      "clauseRefs": []
     },
     {
       "id": "3fa22b4d-20b6-5d88-ba75-e55e75d8edd2",
@@ -3210,7 +3290,8 @@
         }
       ],
       "logSheets": [],
-      "libraryVersion": 1
+      "libraryVersion": 1,
+      "clauseRefs": []
     },
     {
       "id": "e73bf436-e63d-5cc4-a8b2-71c3d4f58614",
@@ -3238,7 +3319,8 @@
       "evidenceRequired": false,
       "forms": [],
       "logSheets": [],
-      "libraryVersion": 1
+      "libraryVersion": 1,
+      "clauseRefs": []
     },
     {
       "id": "982d9e90-0064-5459-8ae7-af1ab8456781",
@@ -3266,7 +3348,8 @@
       "evidenceRequired": false,
       "forms": [],
       "logSheets": [],
-      "libraryVersion": 1
+      "libraryVersion": 1,
+      "clauseRefs": []
     },
     {
       "id": "819978af-9e87-5a8c-91b0-4cecb1176890",
@@ -3294,7 +3377,8 @@
       "evidenceRequired": false,
       "forms": [],
       "logSheets": [],
-      "libraryVersion": 1
+      "libraryVersion": 1,
+      "clauseRefs": []
     },
     {
       "id": "a5502e7e-f3da-58e7-853c-71bbbf9a2606",
@@ -3328,7 +3412,8 @@
           "templateFileId": null
         }
       ],
-      "libraryVersion": 1
+      "libraryVersion": 1,
+      "clauseRefs": []
     },
     {
       "id": "994c436b-f527-5d1b-91e2-c2e4607811c8",
@@ -3362,7 +3447,8 @@
           "templateFileId": null
         }
       ],
-      "libraryVersion": 1
+      "libraryVersion": 1,
+      "clauseRefs": []
     },
     {
       "id": "473d96bb-7b6d-5173-9fa5-77f936def1c8",
@@ -3390,7 +3476,8 @@
       "evidenceRequired": false,
       "forms": [],
       "logSheets": [],
-      "libraryVersion": 1
+      "libraryVersion": 1,
+      "clauseRefs": []
     },
     {
       "id": "7945940d-03f6-5cea-ba2b-53a7666cc9ee",
@@ -3418,7 +3505,8 @@
       "evidenceRequired": false,
       "forms": [],
       "logSheets": [],
-      "libraryVersion": 1
+      "libraryVersion": 1,
+      "clauseRefs": []
     },
     {
       "id": "a8137fd0-018a-5ccc-a45b-63a1aa3af20e",
@@ -3446,7 +3534,8 @@
       "evidenceRequired": false,
       "forms": [],
       "logSheets": [],
-      "libraryVersion": 1
+      "libraryVersion": 1,
+      "clauseRefs": []
     },
     {
       "id": "713d2f9b-48af-53b8-8858-12b4df16d68b",
@@ -3480,7 +3569,8 @@
           "templateFileId": null
         }
       ],
-      "libraryVersion": 1
+      "libraryVersion": 1,
+      "clauseRefs": []
     },
     {
       "id": "1bec2bd4-b8fb-5bbf-a8f2-6f8657ebbbdb",
@@ -3508,7 +3598,8 @@
       "evidenceRequired": false,
       "forms": [],
       "logSheets": [],
-      "libraryVersion": 1
+      "libraryVersion": 1,
+      "clauseRefs": []
     },
     {
       "id": "1c427ec8-b669-502a-9ac8-0de5d20a26aa",
@@ -3536,7 +3627,8 @@
       "evidenceRequired": false,
       "forms": [],
       "logSheets": [],
-      "libraryVersion": 1
+      "libraryVersion": 1,
+      "clauseRefs": []
     },
     {
       "id": "2f597447-6b12-5086-bb70-34bad84960f9",
@@ -3576,7 +3668,8 @@
           "templateFileId": null
         }
       ],
-      "libraryVersion": 1
+      "libraryVersion": 1,
+      "clauseRefs": []
     },
     {
       "id": "761879d5-f2b5-5e38-9a30-ef912e528893",
@@ -3604,7 +3697,8 @@
       "evidenceRequired": false,
       "forms": [],
       "logSheets": [],
-      "libraryVersion": 1
+      "libraryVersion": 1,
+      "clauseRefs": []
     },
     {
       "id": "a264efa1-b31a-5770-b3c9-3d94f0a5b30f",
@@ -3632,7 +3726,8 @@
       "evidenceRequired": false,
       "forms": [],
       "logSheets": [],
-      "libraryVersion": 1
+      "libraryVersion": 1,
+      "clauseRefs": []
     },
     {
       "id": "3a5d4f57-49db-5162-a189-791f4a235f31",
@@ -3660,7 +3755,8 @@
       "evidenceRequired": false,
       "forms": [],
       "logSheets": [],
-      "libraryVersion": 1
+      "libraryVersion": 1,
+      "clauseRefs": []
     },
     {
       "id": "6baa2914-6a57-50a2-a6fe-df8636dc35e7",
@@ -3688,7 +3784,8 @@
       "evidenceRequired": false,
       "forms": [],
       "logSheets": [],
-      "libraryVersion": 1
+      "libraryVersion": 1,
+      "clauseRefs": []
     },
     {
       "id": "c9a432bd-37d7-5924-a575-c18521e10dac",
@@ -3722,7 +3819,8 @@
           "templateFileId": null
         }
       ],
-      "libraryVersion": 1
+      "libraryVersion": 1,
+      "clauseRefs": []
     },
     {
       "id": "44f84e68-d816-5087-a6c4-b3d70ec98647",
@@ -3756,7 +3854,8 @@
           "templateFileId": null
         }
       ],
-      "libraryVersion": 1
+      "libraryVersion": 1,
+      "clauseRefs": []
     },
     {
       "id": "2f2e1271-14b1-510d-99a2-95e40dcfb36a",
@@ -3784,7 +3883,8 @@
       "evidenceRequired": false,
       "forms": [],
       "logSheets": [],
-      "libraryVersion": 1
+      "libraryVersion": 1,
+      "clauseRefs": []
     },
     {
       "id": "b8583062-dab1-5dac-b5b1-e2d57e1004cd",
@@ -3818,7 +3918,8 @@
           "templateFileId": null
         }
       ],
-      "libraryVersion": 1
+      "libraryVersion": 1,
+      "clauseRefs": []
     },
     {
       "id": "6ddb431d-6810-5306-9d9d-fc2970b4c7c7",
@@ -3846,7 +3947,8 @@
       "evidenceRequired": false,
       "forms": [],
       "logSheets": [],
-      "libraryVersion": 1
+      "libraryVersion": 1,
+      "clauseRefs": []
     },
     {
       "id": "744fe47d-1a27-54ef-95f0-18cfc5fd29ca",
@@ -3880,7 +3982,8 @@
           "templateFileId": null
         }
       ],
-      "libraryVersion": 1
+      "libraryVersion": 1,
+      "clauseRefs": []
     },
     {
       "id": "6711edcf-48b0-54cc-b13b-07516653e83b",
@@ -3908,7 +4011,8 @@
       "evidenceRequired": false,
       "forms": [],
       "logSheets": [],
-      "libraryVersion": 1
+      "libraryVersion": 1,
+      "clauseRefs": []
     },
     {
       "id": "029ac205-2e1f-5cc2-ad96-ea583a6d9880",
@@ -3942,7 +4046,8 @@
           "templateFileId": null
         }
       ],
-      "libraryVersion": 1
+      "libraryVersion": 1,
+      "clauseRefs": []
     },
     {
       "id": "db4c58bc-1d04-5035-9888-b6154b162d98",
@@ -3970,7 +4075,8 @@
       "evidenceRequired": false,
       "forms": [],
       "logSheets": [],
-      "libraryVersion": 1
+      "libraryVersion": 1,
+      "clauseRefs": []
     },
     {
       "id": "f86c3d51-f1f0-564d-8257-0e0f56e0df6f",
@@ -3998,7 +4104,8 @@
       "evidenceRequired": false,
       "forms": [],
       "logSheets": [],
-      "libraryVersion": 1
+      "libraryVersion": 1,
+      "clauseRefs": []
     },
     {
       "id": "7adec10e-23d1-5bf1-9443-085395c36369",
@@ -4035,7 +4142,8 @@
       "evidenceRequired": false,
       "forms": [],
       "logSheets": [],
-      "libraryVersion": 1
+      "libraryVersion": 1,
+      "clauseRefs": []
     },
     {
       "id": "2ec141f7-22d6-5c21-be00-95fad94bbd2e",
@@ -4069,7 +4177,8 @@
           "templateFileId": null
         }
       ],
-      "libraryVersion": 1
+      "libraryVersion": 1,
+      "clauseRefs": []
     },
     {
       "id": "e8737922-cc6a-5d93-9e72-d86f155aa13f",
@@ -4097,7 +4206,8 @@
       "evidenceRequired": false,
       "forms": [],
       "logSheets": [],
-      "libraryVersion": 1
+      "libraryVersion": 1,
+      "clauseRefs": []
     },
     {
       "id": "5e5c5da2-a08d-533d-a96a-bbe76086a050",
@@ -4131,7 +4241,8 @@
         }
       ],
       "logSheets": [],
-      "libraryVersion": 1
+      "libraryVersion": 1,
+      "clauseRefs": []
     },
     {
       "id": "f5d223e9-d4e0-5624-bb93-b3f686e41d4e",
@@ -4159,7 +4270,8 @@
       "evidenceRequired": false,
       "forms": [],
       "logSheets": [],
-      "libraryVersion": 1
+      "libraryVersion": 1,
+      "clauseRefs": []
     },
     {
       "id": "cbc124ce-6374-52b6-af7a-670b8051aedf",
@@ -4193,7 +4305,8 @@
           "templateFileId": null
         }
       ],
-      "libraryVersion": 1
+      "libraryVersion": 1,
+      "clauseRefs": []
     },
     {
       "id": "f919b3c7-c1bc-5048-b1f2-956b2cdb688d",
@@ -4227,7 +4340,8 @@
           "templateFileId": null
         }
       ],
-      "libraryVersion": 1
+      "libraryVersion": 1,
+      "clauseRefs": []
     },
     {
       "id": "8695b15e-5690-5da1-b7a2-4b160ecc2def",
@@ -4255,7 +4369,8 @@
       "evidenceRequired": false,
       "forms": [],
       "logSheets": [],
-      "libraryVersion": 1
+      "libraryVersion": 1,
+      "clauseRefs": []
     },
     {
       "id": "55ad59e5-7d0a-5150-bfcf-5f0258309861",
@@ -4283,7 +4398,8 @@
       "evidenceRequired": false,
       "forms": [],
       "logSheets": [],
-      "libraryVersion": 1
+      "libraryVersion": 1,
+      "clauseRefs": []
     },
     {
       "id": "e7be531f-535c-5a54-8f57-378d99c9149a",
@@ -4311,7 +4427,8 @@
       "evidenceRequired": false,
       "forms": [],
       "logSheets": [],
-      "libraryVersion": 1
+      "libraryVersion": 1,
+      "clauseRefs": []
     },
     {
       "id": "b0a81cd8-514e-5f8e-880f-672ac8d7b553",
@@ -4354,7 +4471,8 @@
         }
       ],
       "logSheets": [],
-      "libraryVersion": 1
+      "libraryVersion": 1,
+      "clauseRefs": []
     },
     {
       "id": "d6178a13-bd48-52ff-91b3-4aebbc567ebd",
@@ -4388,7 +4506,8 @@
           "templateFileId": null
         }
       ],
-      "libraryVersion": 1
+      "libraryVersion": 1,
+      "clauseRefs": []
     },
     {
       "id": "e9e26404-4646-5533-ae49-a53f30458b13",
@@ -4422,7 +4541,8 @@
           "templateFileId": null
         }
       ],
-      "libraryVersion": 1
+      "libraryVersion": 1,
+      "clauseRefs": []
     },
     {
       "id": "c969668d-e389-5acd-94d5-9bec4931d22a",
@@ -4456,7 +4576,8 @@
           "templateFileId": null
         }
       ],
-      "libraryVersion": 1
+      "libraryVersion": 1,
+      "clauseRefs": []
     },
     {
       "id": "7e479120-2d00-54dc-80c8-5386ff26eaa4",
@@ -4490,7 +4611,8 @@
           "templateFileId": null
         }
       ],
-      "libraryVersion": 1
+      "libraryVersion": 1,
+      "clauseRefs": []
     },
     {
       "id": "1e087d5c-3d98-56ca-92b3-e1151b754cd8",
@@ -4518,7 +4640,8 @@
       "evidenceRequired": false,
       "forms": [],
       "logSheets": [],
-      "libraryVersion": 1
+      "libraryVersion": 1,
+      "clauseRefs": []
     },
     {
       "id": "2b36eede-f5bf-5b19-ae8e-530159e9322a",
@@ -4552,7 +4675,8 @@
           "templateFileId": null
         }
       ],
-      "libraryVersion": 1
+      "libraryVersion": 1,
+      "clauseRefs": []
     },
     {
       "id": "5e221bcd-2e06-502d-8534-6e72c344ef26",
@@ -4580,7 +4704,8 @@
       "evidenceRequired": false,
       "forms": [],
       "logSheets": [],
-      "libraryVersion": 1
+      "libraryVersion": 1,
+      "clauseRefs": []
     },
     {
       "id": "f9da7527-c044-5bd1-b15c-cbd320b0cbe0",
@@ -4608,7 +4733,8 @@
       "evidenceRequired": false,
       "forms": [],
       "logSheets": [],
-      "libraryVersion": 1
+      "libraryVersion": 1,
+      "clauseRefs": []
     },
     {
       "id": "f17db5c2-87b4-5b5f-bc97-7606fab30ba2",
@@ -4651,7 +4777,8 @@
         }
       ],
       "logSheets": [],
-      "libraryVersion": 1
+      "libraryVersion": 1,
+      "clauseRefs": []
     },
     {
       "id": "67c94bc6-402c-533b-8470-f130bc8ecdd9",
@@ -4684,7 +4811,8 @@
       "evidenceRequired": false,
       "forms": [],
       "logSheets": [],
-      "libraryVersion": 1
+      "libraryVersion": 1,
+      "clauseRefs": []
     },
     {
       "id": "5f804170-e7ec-5aa7-9479-e6155224036a",
@@ -4717,7 +4845,8 @@
       "evidenceRequired": false,
       "forms": [],
       "logSheets": [],
-      "libraryVersion": 1
+      "libraryVersion": 1,
+      "clauseRefs": []
     },
     {
       "id": "91890376-d9c6-551a-9efc-71f372065f20",
@@ -4756,7 +4885,8 @@
           "templateFileId": null
         }
       ],
-      "libraryVersion": 1
+      "libraryVersion": 1,
+      "clauseRefs": []
     },
     {
       "id": "e05f32b9-0796-5ead-a5b4-76441e588e3e",
@@ -4789,7 +4919,8 @@
       "evidenceRequired": false,
       "forms": [],
       "logSheets": [],
-      "libraryVersion": 1
+      "libraryVersion": 1,
+      "clauseRefs": []
     },
     {
       "id": "91dcc192-f6c2-5d89-9a34-47aae412e747",
@@ -4824,7 +4955,8 @@
         }
       ],
       "logSheets": [],
-      "libraryVersion": 1
+      "libraryVersion": 1,
+      "clauseRefs": []
     },
     {
       "id": "1b090a2a-cf94-52e9-8527-815b39e00333",
@@ -4859,7 +4991,8 @@
           "templateFileId": null
         }
       ],
-      "libraryVersion": 1
+      "libraryVersion": 1,
+      "clauseRefs": []
     },
     {
       "id": "e14a8834-fee4-5b81-8647-7ce76ea4b8e4",
@@ -4892,7 +5025,8 @@
       "evidenceRequired": false,
       "forms": [],
       "logSheets": [],
-      "libraryVersion": 1
+      "libraryVersion": 1,
+      "clauseRefs": []
     },
     {
       "id": "f1ff4fa2-1718-5d70-8321-bbbf2da97704",
@@ -4927,7 +5061,8 @@
         }
       ],
       "logSheets": [],
-      "libraryVersion": 1
+      "libraryVersion": 1,
+      "clauseRefs": []
     },
     {
       "id": "335b5670-14a2-5e9d-9de8-a3e810f2b171",
@@ -4960,7 +5095,8 @@
       "evidenceRequired": false,
       "forms": [],
       "logSheets": [],
-      "libraryVersion": 1
+      "libraryVersion": 1,
+      "clauseRefs": []
     },
     {
       "id": "b6e8ff14-c5df-55bc-9f5b-7dc7d2bee75c",
@@ -4995,7 +5131,8 @@
         }
       ],
       "logSheets": [],
-      "libraryVersion": 1
+      "libraryVersion": 1,
+      "clauseRefs": []
     },
     {
       "id": "ea11cf90-7c78-5494-9744-4a1e8846f606",
@@ -5024,7 +5161,8 @@
       "evidenceRequired": false,
       "forms": [],
       "logSheets": [],
-      "libraryVersion": 1
+      "libraryVersion": 1,
+      "clauseRefs": []
     },
     {
       "id": "2e9a8760-def1-5d26-8390-9876dd839a6d",
@@ -5053,7 +5191,8 @@
       "evidenceRequired": false,
       "forms": [],
       "logSheets": [],
-      "libraryVersion": 1
+      "libraryVersion": 1,
+      "clauseRefs": []
     },
     {
       "id": "73c03ebd-4d96-5c04-9e43-8bf779dddc68",
@@ -5088,7 +5227,8 @@
         }
       ],
       "logSheets": [],
-      "libraryVersion": 1
+      "libraryVersion": 1,
+      "clauseRefs": []
     },
     {
       "id": "d3648cc3-bf92-5892-84a9-35b024f99adf",
@@ -5123,7 +5263,8 @@
         }
       ],
       "logSheets": [],
-      "libraryVersion": 1
+      "libraryVersion": 1,
+      "clauseRefs": []
     },
     {
       "id": "6cedd840-3eff-576a-ba16-a5677df22ea7",
@@ -5158,7 +5299,8 @@
         }
       ],
       "logSheets": [],
-      "libraryVersion": 1
+      "libraryVersion": 1,
+      "clauseRefs": []
     },
     {
       "id": "3682f592-a7f3-521c-af63-bf7e91058c84",
@@ -5193,7 +5335,8 @@
         }
       ],
       "logSheets": [],
-      "libraryVersion": 1
+      "libraryVersion": 1,
+      "clauseRefs": []
     },
     {
       "id": "dff9a1b3-89b1-5e6a-a321-644b9a7ddcb5",
@@ -5228,7 +5371,8 @@
         }
       ],
       "logSheets": [],
-      "libraryVersion": 1
+      "libraryVersion": 1,
+      "clauseRefs": []
     },
     {
       "id": "5d933af9-f12a-5a4a-b441-4e4555566b36",
@@ -5263,7 +5407,8 @@
         }
       ],
       "logSheets": [],
-      "libraryVersion": 1
+      "libraryVersion": 1,
+      "clauseRefs": []
     },
     {
       "id": "e3623db4-8402-5ef4-a2a7-c3a38976b81c",
@@ -5298,7 +5443,8 @@
         }
       ],
       "logSheets": [],
-      "libraryVersion": 1
+      "libraryVersion": 1,
+      "clauseRefs": []
     },
     {
       "id": "8542bc61-60a4-5071-b1c0-92a42b63d50c",
@@ -5333,7 +5479,8 @@
         }
       ],
       "logSheets": [],
-      "libraryVersion": 1
+      "libraryVersion": 1,
+      "clauseRefs": []
     },
     {
       "id": "a7d0fb3c-7d1e-525d-a3d6-1ac4dbcb42b9",
@@ -5368,7 +5515,8 @@
         }
       ],
       "logSheets": [],
-      "libraryVersion": 1
+      "libraryVersion": 1,
+      "clauseRefs": []
     },
     {
       "id": "33e4bbd4-90b6-50d2-b1ef-f8c374306604",
@@ -5403,7 +5551,8 @@
         }
       ],
       "logSheets": [],
-      "libraryVersion": 1
+      "libraryVersion": 1,
+      "clauseRefs": []
     },
     {
       "id": "aaa5879d-6350-508e-af7f-643f678386a5",
@@ -5438,7 +5587,8 @@
         }
       ],
       "logSheets": [],
-      "libraryVersion": 1
+      "libraryVersion": 1,
+      "clauseRefs": []
     },
     {
       "id": "b14aefee-7e16-5dd5-92f5-56f5e34c06c6",
@@ -5473,7 +5623,8 @@
         }
       ],
       "logSheets": [],
-      "libraryVersion": 1
+      "libraryVersion": 1,
+      "clauseRefs": []
     },
     {
       "id": "5b3034d1-7eef-5efd-ab82-821aa15be021",
@@ -5508,7 +5659,8 @@
         }
       ],
       "logSheets": [],
-      "libraryVersion": 1
+      "libraryVersion": 1,
+      "clauseRefs": []
     }
   ],
   "assignments": [
