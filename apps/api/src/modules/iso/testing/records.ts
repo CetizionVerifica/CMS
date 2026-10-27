@@ -10,11 +10,14 @@ import {
 } from '@canopy/contracts';
 import {
   acts,
+  assignments,
   auditFindings,
   auditProgrammes,
   categories,
   clients,
   companies,
+  departments,
+  instances,
   internalAudits,
   isoActions,
   locations,
@@ -22,6 +25,8 @@ import {
   managementSystems,
   nonconformities,
   obligations,
+  people,
+  memberships,
   riskItems,
   units,
 } from '@canopy/db';
@@ -76,6 +81,78 @@ export async function seedObligation(
     });
     if (options.archived) await obligations.archive(tx, obligation.id, obligation.version);
     return obligation.id;
+  });
+}
+
+/** An OPEN register instance on `unitId` of a statutory obligation, or of a STANDARD act's activity. */
+export async function seedInstance(
+  h: Harness,
+  unitId: string,
+  options: { standard?: boolean } = {},
+): Promise<string> {
+  const obligationId = await seedObligation(h, options);
+  return h.asSystem(async (tx) => {
+    const department = await departments.create(tx, {
+      clientId: h.f.clientId,
+      name: `Safety ${Math.random().toString(36).slice(2, 8)}`,
+      aliases: [],
+    });
+    const assignment = await assignments.create(tx, {
+      clientId: h.f.clientId,
+      unitId,
+      obligationId,
+      departmentId: department.id,
+      defaultOwnerId: h.f.people.owner,
+      defaultApproverId: h.f.people.approver,
+      applicability: 'APPLICABLE',
+      naReason: null,
+      activeFrom: day('2026-04-01'),
+      activeTo: null,
+    });
+    const instance = await instances.create(tx, {
+      clientId: h.f.clientId,
+      unitId,
+      assignmentId: assignment.id,
+      periodStart: '2026-10-12',
+      periodEnd: '2026-10-12',
+      dueDate: '2026-10-12',
+      workflowState: 'OPEN',
+      pendingKind: null,
+      completedOn: null,
+      naReason: null,
+      ownerId: h.f.people.owner,
+      approverId: h.f.people.approver,
+      submittedAt: null,
+      approvedAt: null,
+      dueDateOverridden: false,
+    } as unknown as Parameters<typeof instances.create>[1]);
+    return instance.id;
+  });
+}
+
+/** A consultant of the fixture client (or of no client the actor serves), optionally DISABLED or archived. */
+export async function seedConsultant(
+  h: Harness,
+  options: { status?: 'ACTIVE' | 'DISABLED'; archived?: boolean; clientIds?: string[] } = {},
+): Promise<string> {
+  return h.asSystem(async (tx) => {
+    const name = `Northwind Consultant ${Math.random().toString(36).slice(2, 8)}`;
+    const person = await people.create(tx, {
+      displayName: name,
+      nameNormalized: name.toLowerCase(),
+      email: `${name.toLowerCase().replace(/[^a-z0-9]+/g, '.')}@example.test`,
+      status: options.status ?? 'ACTIVE',
+    });
+    await memberships.create(tx, {
+      personId: person.id,
+      role: 'CONSULTANT',
+      clientId: null,
+      consultantClientIds: options.clientIds ?? [h.f.clientId],
+      unitIds: null,
+      expiresAt: null,
+    });
+    if (options.archived) await people.archive(tx, person.id, person.version);
+    return person.id;
   });
 }
 

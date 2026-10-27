@@ -96,7 +96,10 @@ describe('adding files', () => {
       [['otherOwner', 'POST', '/files/upload-url', ticket(row())], 404],
       [['viewer', 'POST', '/files/upload-url', ticket(row())], 403],
       [['approver', 'POST', '/files/upload-url', ticket(row())], 403],
-      [['owner', 'POST', '/files/upload-url', ticket({ type: 'nonconformity', id: rowId })], 400],
+      [
+        ['owner', 'POST', '/files/upload-url', ticket({ type: 'management_review', id: rowId })],
+        400,
+      ],
       [['owner', 'POST', '/files/upload-url', ticket({ type: 'certification', id: rowId })], 404],
       [
         ['owner', 'POST', '/files/upload-url', ticket(row(), { sizeBytes: 10 ** 12 })],

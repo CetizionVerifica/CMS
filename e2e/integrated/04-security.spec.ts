@@ -39,7 +39,7 @@ type Endpoint = {
 };
 const endpoints = Object.entries(ENDPOINTS as Record<string, Endpoint>);
 
-/** The ISO add-on endpoints M16 serves so far (ISO-8a, ISO-8b); the rest of the add-on stays on UNMOUNTED until it ships. */
+/** The ISO add-on endpoints M16 serves so far (ISO-8a, ISO-8b, ISO-8c part 1); the rest of the add-on stays on UNMOUNTED until it ships. */
 const ISO_SERVED: ReadonlySet<string> = new Set(ISO_SERVED_ENDPOINTS);
 
 /**
@@ -303,6 +303,39 @@ const BODIES: Record<string, (ids: Ids) => unknown> = {
   completeIsoAction: ({ v }) => ({ version: v.actions, doneOn: '2023-04-01' }),
   cancelIsoAction: ({ v }) => ({ version: v.actions, reason: PROBE }),
   reopenIsoAction: ({ v }) => ({ version: v.actions, reason: PROBE }),
+  raiseIsoNonconformity: ({ id }) => ({
+    managementSystemId: id.systems,
+    source: 'PROCESS',
+    severity: 'MINOR',
+    standards: ['ISO_9001'],
+    description: PROBE,
+    ownerId: id.people,
+    approverId: id.otherPerson,
+    dueOn: '2099-03-31',
+  }),
+  updateIsoNonconformity: ({ v }) => ({ version: v.nonconformities, rootCause: PROBE }),
+  reassignIsoNonconformity: ({ v }) => ({
+    version: v.nonconformities,
+    dueOn: '2099-04-30',
+    reason: PROBE,
+  }),
+  addIsoNcRootCause: ({ v }) => ({ version: v.nonconformities, rootCause: PROBE }),
+  planIsoNcActions: ({ v }) => ({ version: v.nonconformities, effectivenessDueOn: '2099-03-31' }),
+  submitIsoNcNoAction: ({ v }) => ({
+    version: v.nonconformities,
+    noActionReason: PROBE,
+    riskReview: PROBE,
+    systemChange: PROBE,
+  }),
+  submitIsoNc: ({ v }) => ({ version: v.nonconformities }),
+  verifyIsoNcEffective: ({ v }) => ({ version: v.nonconformities, effectivenessNote: PROBE }),
+  verifyIsoNcNotEffective: ({ v }) => ({
+    version: v.nonconformities,
+    reason: PROBE,
+    backTo: 'OPEN',
+  }),
+  cancelIsoNc: ({ v }) => ({ version: v.nonconformities, reason: PROBE }),
+  reopenIsoNc: ({ v }) => ({ version: v.nonconformities, reason: PROBE, backTo: 'OPEN' }),
   // Names firm A's person and client in the body rather than the path.
   createInvite: ({ id }) => ({
     personId: id.people,
@@ -453,7 +486,8 @@ async function isoOff(): Promise<void> {
 /**
  * Firm A's ISO records, made through the API as its consultant: a management system on the catalogue's first standard,
  * its first checklist row, a context item, a document and its draft revision, a certificate, an external audit, a risk
- * item with a control and an action, and an objective with a reading (the file routes stay unmounted until ISO-15).
+ * item with a control and an action, an objective with a reading, and a nonconformity (the file routes stay unmounted
+ * until ISO-15).
  * Keyed by the path segment before each id, as `fill` reads them.
  */
 async function isoRecordsOf(
@@ -547,6 +581,16 @@ async function isoRecordsOf(
       periodStart: '2023-04-01',
       periodEnd: '2023-04-30',
       value: 95,
+    }),
+    nonconformities: await made('/nonconformities', {
+      managementSystemId: system.id,
+      source: 'PROCESS',
+      severity: 'MINOR',
+      standards: [(standard as Rec & { code: string }).code],
+      description: 'Calibration record missing',
+      ownerId: people.owner,
+      approverId: people.approver,
+      dueOn: '2099-03-31',
     }),
   };
 }

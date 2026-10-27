@@ -295,6 +295,24 @@ describe('reading and listing risk items', () => {
 });
 
 describe('updateIsoRisk', () => {
+  it('moves the unit only for a writer who covers the new unit too', async () => {
+    const item = await risk({ managementSystemId: group, unitId: h.f.unitA });
+    const moved = await h.send('owner', 'PATCH', `/risks/${item.id}`, {
+      version: item.version,
+      unitId: h.f.unitB,
+    });
+    expect((moved.body.error as { code?: string }).code).toBe('FORBIDDEN');
+    // A client admin may move it; the owner must still cover the new unit.
+    const asAdmin = await h.send('clientAdmin', 'PATCH', `/risks/${item.id}`, {
+      version: item.version,
+      unitId: h.f.unitB,
+      ownerId: h.f.people.otherOwner,
+      reason: 'Moved to Highmoor',
+    });
+    expect(asAdmin.status, JSON.stringify(asAdmin.body)).toBe(200);
+    expect(asAdmin.body).toMatchObject({ unitId: h.f.unitB, ownerId: h.f.people.otherOwner });
+  });
+
   it('re-rates and recomputes the stored results, audited as UPDATE without a source action', async () => {
     const item = await risk();
     const reply = await h.send('owner', 'PATCH', `/risks/${item.id}`, {

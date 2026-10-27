@@ -14,6 +14,7 @@ import {
   externalAudits,
   isoActions,
   managementSystems,
+  nonconformities,
   objectiveReadings,
   objectives,
   riskItems,
@@ -33,6 +34,7 @@ import {
 } from './access.js';
 import { actionReach, actionSubject, checkIncidentDownload } from './db-actions.js';
 import { liveIn, type Core } from './db-context.js';
+import { ncReach } from './db-nonconformities.js';
 import { invalid, invalidTransition, notFound } from './errors.js';
 import type { IsoFileCaller, IsoFiles } from './ports.js';
 import type { IsoHandlers } from './types.js';
@@ -69,7 +71,7 @@ const lockedIn = (states: readonly string[], entity: IsoEntityType, state: strin
 
 /**
  * The subjects M16 serves files on so far: checklist rows, document revisions, external audits and certificates
- * (ISO-8a), and risk items, objective readings and actions (ISO-8b).
+ * (ISO-8a), risk items, objective readings and actions (ISO-8b), and nonconformities (ISO-8c).
  */
 const SUBJECTS: Partial<Record<IsoFileSubjectType, Resolve>> = {
   async clause_assessment(tx, clientId, id) {
@@ -176,6 +178,24 @@ const SUBJECTS: Partial<Record<IsoFileSubjectType, Resolve>> = {
         resource: (ctx) => isoResource(ctx, 'objective', reach, { ownerId: objective.ownerId }),
       },
       lock: objective.closedOn === null ? null : { entity: 'objective', from: 'CLOSED' },
+    };
+  },
+  async nonconformity(tx, clientId, id) {
+    const nc = liveIn(await nonconformities.get(tx, id), clientId);
+    const reach = ncReach(await managementSystems.require(tx, nc.managementSystemId), nc);
+    return {
+      type: 'nonconformity',
+      id,
+      clientId,
+      reach,
+      clientWide: false,
+      // CA, or OW as its owner: FA and CO read an NC's files but do not add or remove them (iso-mock.md).
+      write: {
+        action: 'isoNc.work',
+        resource: (ctx) => isoResource(ctx, 'nonconformity', reach, { ownerId: nc.ownerId }),
+      },
+      lock: lockedIn(['CLOSED', 'CANCELLED'], 'nonconformity', nc.state),
+      download: (ctx) => checkIncidentDownload(ctx, nc),
     };
   },
   async iso_action(tx, clientId, id) {

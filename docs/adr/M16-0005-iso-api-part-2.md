@@ -24,8 +24,9 @@ None changes a contract shape.
    `controlledDocuments.list`'s `q`, so `q` on `GET .../iso/documents` now matches what the mock matches. The route did
    not change.
 
-3. **How the three new lists page.** Risk items sort by rating, highest first, and the risk, objective and action lists
-   filter `q` on text M3 does not search. M16 reads every row the SQL filters return (unit scope, `ids`, system, kind,
+3. **How the three new lists page.** Risk items sort by rating, highest first. The risk and objective lists filter `q`
+   on text M3 does not search; the action list reads `q` itself, although M3 searches the action's text (ISO-2j), so
+   that it also matches `resources`, as the mock does. M16 reads every row the SQL filters return (unit scope, `ids`, system, kind,
    owner, state and the rest, a page of 200 at a time), applies `q` (and, for actions, `overdue`, which is the
    engine's), sorts, and then pages with its own cursor. `ids` is therefore applied in SQL after the unit scope and
    before paging, and an id the reader cannot see, of another client or archived drops out with no error. A client's

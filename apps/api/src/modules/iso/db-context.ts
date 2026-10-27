@@ -62,6 +62,8 @@ export interface IsoAuditEvent {
 export interface Step {
   action: string;
   actorId: string | null;
+  /** When it was taken (the event's `at`). */
+  at: string;
 }
 
 /** Roles that may be named on an ISO record (model §1.5): VIEWER never counts. */
@@ -192,7 +194,7 @@ export function createCore(options: IsoRouteOptions) {
         .reverse()
         .flatMap((e) =>
           typeof e.after?.action === 'string'
-            ? [{ action: e.after.action, actorId: e.actorId }]
+            ? [{ action: e.after.action, actorId: e.actorId, at: e.at }]
             : [],
         );
     },
