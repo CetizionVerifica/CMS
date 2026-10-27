@@ -57,7 +57,10 @@ README decisions 42-51. M4 owns every formula marked "stand-in".
   are the system's listed units. Uncovered clauses are ordered by standard, then number. Counts of planned, reported
   and cancelled audits include only audits the caller can see; the uncovered lists use all of them.
 - **Overview**: the 12-month window is (as-of − 12 months, as-of]. NC overdue = past `dueOn`, not CLOSED or
-  CANCELLED; effectiveness overdue likewise on `effectivenessDueOn`. Certificates expiring = `expiresOn` within
+  CANCELLED, even once submitted and whatever its actions; effectiveness overdue likewise on `effectivenessDueOn`.
+  Since 1.8.6 the contract defines NC overdue as the NC's own status OVERDUE (**NC status** below), as the NC list's
+  `overdue` filter reads it; the mock moves to that in a later patch together with M17's demo snapshot
+  (`iso-data.json`, README decision 56). Certificates expiring = `expiresOn` within
   [as-of, as-of + 90 days]. A finding counts for whoever can see its audit (an external one: its system), never by
   its own unit, as the finding lists do. Incidents leave out cancelled NCs and list every type and outcome, zeros included. The
   POLICY gate accepts a link to clause 5.2 or a 5.2.x sub-clause. Objectives without a plan ignore CANCELLED actions.
@@ -72,8 +75,8 @@ README decisions 42-51. M4 owns every formula marked "stand-in".
   carries each stored input's key, source, window and values, with no ids, and the engine version. The fixture JSON
   holds no figures: the mock stores those of the fixtures' held reviews when it loads, as of their `heldOn`, at their
   `updatedAt`, in that order (ties by id), each counting as earlier only the reviews stored before it, so two held on
-  one day get the same figures on every load. The mock works as M3 and M4 will (ISO-1a3): it gathers each input's
-  `ReviewFigureData` from the store and its audit trail, as ISO-2h's gather will, then computes the figures from that
+  one day get the same figures on every load. The mock works as M3 and M4 do (ISO-1a3): it gathers each input's
+  `ReviewFigureData` from the store and its audit trail, as ISO-2h's gather does, then computes the figures from that
   data and the window alone, typed as `TypedReviewInputFigures`, as ISO-3b's engine does.
   - **Window.** `since` is worked out per standard of the input: the later of the system's creation day and the
     `heldOn` of the last other HELD or CLOSED review of the system that covers the standard with `heldOn` on or

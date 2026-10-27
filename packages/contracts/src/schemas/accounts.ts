@@ -73,8 +73,8 @@ export type Plan = z.infer<typeof Plan>;
  * Per-account changes on top of the plan. A key that is absent keeps the plan's value. `features` adds flags and
  * `removedFeatures` takes flags away even when the plan has them, so the console's add-on switch can turn one off for
  * one account (ADR M16-0001 decision 2). M3 stores `removedFeatures` on every override and the console always sends
- * it, but it stays optional, missing meaning none: this is also the type M3's store and M15's tests build overrides
- * with, some without it (README decision 56).
+ * it, but it stays optional, missing meaning none: this shape is only the body of `PUT /accounts/{id}/override`, and
+ * no response carries it (README decision 56).
  */
 export const AccountOverride = z
   .strictObject({
@@ -128,8 +128,8 @@ export const AccountSummary = z.strictObject({
   /**
    * The account's features (`Entitlements.features`), so the app shows add-ons such as `isoManagement` only when the
    * account has them (ADR M16-0001). `Me.account` always carries it. It stays optional, a missing list read as empty,
-   * because `AccountView` (`GET /account`) spreads this shape and carries the features in `entitlements` only (plan
-   * §5.1; README decision 56).
+   * because `AccountView` (`GET /account`) spreads this shape and M3 sends the features there in `entitlements` only
+   * (README decision 56).
    */
   features: z.array(FeatureFlag).optional(),
 });
@@ -267,7 +267,8 @@ export const Account = z.strictObject({
   libraryCopiedAt: Instant.nullable(),
   /**
    * When the ISO catalogue was copied in (docs/iso/plan.md §4.3); null while an account with `isoManagement` waits for
-   * it, and for accounts that never had the add-on. Optional until M15 sends it: a reader treats a missing value as null.
+   * it, and for accounts that never had the add-on. M15 sends it on every account; it stays optional, a missing value
+   * read as null, because the console's test fake builds accounts without it.
    */
   isoCatalogueCopiedAt: Instant.nullable().optional(),
   onboardedAt: Instant.nullable(),

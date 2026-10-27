@@ -1441,6 +1441,8 @@ describe('mock server', () => {
       status: 'ACTIVE',
       entitlements: { planCode: 'CONSULTANCY' },
     });
+    // As M3 sends it: the features only in `entitlements`, not beside them.
+    expect(account).not.toHaveProperty('features');
     await fails(app, 'getAccount', { as: PERSON.kabir }, 'FORBIDDEN', 403);
     await fails(app, 'getAccount', { as: PERSON.arjun }, 'FORBIDDEN', 403);
     const me = await ok<{ account?: unknown }>(app, 'getMe');

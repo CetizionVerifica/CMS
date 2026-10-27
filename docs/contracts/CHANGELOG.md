@@ -303,10 +303,14 @@ now and the table each review figure key names. This is a patch: an optional que
 
 ## 1.8.6 · 2026-10-27
 ISO-1c: `IsoEngineApi.reviewInputFigures` is `TypedReviewInputFigures` (README decision 56), now that ISO-3b's engine
-implements it; a call through `IsoEngineApi` must pass the data of the source it names. `Act.kind`,
-`Obligation.clauseRefs` and `AccountOverride.removedFeatures` stay optional: M3 stores and returns all three, but M3,
-M6 and M8 build records from these types without them, and tests in eight modules do too. `AccountSummary.features`
-stays optional because `GET /account` does not send it. The mock's `createAct` now stores and returns `kind:
-'STATUTE'` and its `createObligation` `clauseRefs: []`, and the fixtures carry both on all 40 acts and 134
-obligations, as Postgres does. events.md describes an ISO reminder's `notification.sent`: an ISO `kind`, `instanceId`
-and `sourceEventId` null, and `isoSubjectType` and `isoSubjectId` naming the record. This is a patch.
+implements it; a call through `IsoEngineApi` must pass the data of the source it names. `Act.kind` and
+`Obligation.clauseRefs` stay optional: M3 stores and returns both, but M6 and M8 build records from these types
+without them, and tests in M3, M6, M7, M8, M9, M10 and M16 do too. `AccountOverride.removedFeatures` stays optional
+because `AccountOverride` is only a request body, where a missing list turns nothing off. `AccountSummary.features`
+stays optional because `GET /account` does not send it, and the mock's `getAccount` no longer sends it either. The
+mock's `createAct` now stores and returns `kind: 'STATUTE'` and its `createObligation` `clauseRefs: []`, and the
+fixtures carry both on all 40 acts and 134 obligations, as Postgres does. events.md describes an ISO reminder's
+`notification.sent`: an ISO `kind`, `instanceId` and `sourceEventId` null, and `isoSubjectType` and `isoSubjectId`
+naming the record. `IsoSystemOverview.nonconformities.overdue` is defined as the open nonconformities whose
+`nonconformityStatus` is OVERDUE on as-of, as the nonconformity list's `overdue` filter reads it; the mock's overview
+keeps its old count until a later patch moves it together with M17's demo snapshot. This is a patch.

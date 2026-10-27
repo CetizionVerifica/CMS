@@ -107,7 +107,7 @@ export const accountHandlers: PartialHandlers<
       kind: d.firm.kind ?? 'CONSULTANCY',
       status: d.firm.status ?? 'ACTIVE',
       trialEndsOn: d.firm.trialEndsOn ?? null,
-      features: [...actor.features],
+      // The features only in `entitlements`, as M3's `account.get` sends them (README decision 56).
       entitlements: {
         planCode: d.firm.planCode ?? 'CONSULTANCY',
         limits: { companies: null, units: null, users: null, storageBytes: null },

@@ -175,11 +175,11 @@ Recurring ISO activities (calibration, emergency drills, management review input
 Act, one per standard, so instances, reminders, evidence and maker-checker work as for laws (ADR M16-0001 decision 4,
 `docs/iso/plan.md` §3). `clauseRefs` names a standard and a clause number (`ClauseNumber`: one to four dot-separated
 numbers), never a bare number, because 9001 8.2 and 14001 8.2 are different clauses; the standard's own text is never
-stored. Contracts 1.7.0 typed it as bare numbers; 1.8.0 reshapes it (README decision 43). M3 already stores the
-object form and, until ISO-2c, leaves the column out of reads and refuses a non-empty value on writes, so nothing
-stored changes. `kind` and `clauseRefs` stay optional: a missing `kind` reads as STATUTE, a missing `clauseRefs` as
-empty (plan §5.1). M3 sends both on every row, but other modules still build acts and obligations without them
-(README decision 56).
+stored. Contracts 1.7.0 typed it as bare numbers; 1.8.0 reshapes it (README decision 43). M3 stored the object form
+before 1.8.0, so nothing stored changed, and since ISO-2c (#273) it reads `clauseRefs` back on every row (`[]` when
+none) and accepts non-empty ones. `kind` and `clauseRefs` stay optional all the same: a missing `kind` reads as
+STATUTE, a missing `clauseRefs` as empty (plan §5.1). M3 sends both on every row, but other modules still build acts
+and obligations without them (README decision 56).
 
 ### RecurrenceRule (owned by M4 semantics, shape fixed here)
 
