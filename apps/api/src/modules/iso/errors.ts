@@ -72,6 +72,11 @@ const GUARD_MESSAGES: Readonly<Record<string, string>> = {
   REPORTED_ON_NOT_FUTURE: 'The report date is after today',
   NCS_PAST_OPEN: 'Every nonconformity the audit raised leaves OPEN first',
   NO_NC_FINDING: 'Its findings raised nonconformities: record the response first',
+  HELD_ON_NOT_FUTURE: 'The review date is after today',
+  ATTENDEES: 'Name the people who attended',
+  INPUT_NOTES: 'Add notes to every input first',
+  OUTPUT_DECISIONS: 'Record a decision on every output first',
+  REVIEW_ACTIONS_SETTLED: 'Every review action is DONE or CANCELLED first',
 };
 
 /**

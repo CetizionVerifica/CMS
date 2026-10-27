@@ -39,7 +39,7 @@ type Endpoint = {
 };
 const endpoints = Object.entries(ENDPOINTS as Record<string, Endpoint>);
 
-/** The ISO add-on endpoints M16 serves so far (ISO-8a, ISO-8b, ISO-8c parts 1 and 2); the rest of the add-on stays on UNMOUNTED until it ships. */
+/** The ISO add-on endpoints M16 serves (ISO-8a, ISO-8b, ISO-8c); any other add-on endpoint stays on UNMOUNTED until it ships. */
 const ISO_SERVED: ReadonlySet<string> = new Set(ISO_SERVED_ENDPOINTS);
 
 /**
@@ -51,7 +51,7 @@ const UNMOUNTED: Record<string, string> = Object.fromEntries(
     .filter(([name, e]) => 'feature' in e && !ISO_SERVED.has(name))
     .map(([name, e]) => [
       name,
-      `${String(e.feature)} add-on: M16 mounts its remaining routes in ISO-8c (docs/iso/plan.md ISO-8)`,
+      `${String(e.feature)} add-on: not served yet (docs/iso/plan.md ISO-8)`,
     ]),
 );
 
@@ -362,11 +362,38 @@ const BODIES: Record<string, (ids: Ids) => unknown> = {
     description: PROBE,
   }),
   createIsoExternalFinding: () => ({ type: 'OFI', description: PROBE }),
-  updateIsoExternalFinding: ({ v }) => ({ version: v.findings, description: PROBE }),
+  updateIsoExternalFinding: ({ v }) => ({
+    version: v['external-audits/findings'],
+    description: PROBE,
+  }),
   recordIsoExternalAuditResponse: ({ v }) => ({ version: v['external-audits'] }),
   closeIsoExternalAudit: ({ v }) => ({
     version: v['external-audits'],
     recommendation: 'RECOMMENDED',
+  }),
+  // ISO-8c part 3: firm A's management review with its input and output rows.
+  planIsoManagementReview: ({ id }) => ({
+    managementSystemId: id.systems,
+    standards: ['ISO_9001'],
+    plannedOn: '2099-02-10',
+    chairId: id.people,
+  }),
+  updateIsoManagementReview: ({ v }) => ({ version: v['management-reviews'], minutes: PROBE }),
+  replanIsoManagementReview: ({ v }) => ({
+    version: v['management-reviews'],
+    plannedOn: '2099-02-11',
+    reason: PROBE,
+  }),
+  cancelIsoManagementReview: ({ v }) => ({ version: v['management-reviews'], reason: PROBE }),
+  recordIsoManagementReviewHeld: ({ v }) => ({
+    version: v['management-reviews'],
+    heldOn: '2023-04-10',
+  }),
+  closeIsoManagementReview: ({ v }) => ({ version: v['management-reviews'] }),
+  updateIsoReviewInput: ({ v }) => ({ version: v['management-reviews/inputs'], notes: PROBE }),
+  updateIsoReviewOutput: ({ v }) => ({
+    version: v['management-reviews/outputs'],
+    decision: PROBE,
   }),
   // Names firm A's person and client in the body rather than the path.
   createInvite: ({ id }) => ({
@@ -503,6 +530,34 @@ async function isoOn(): Promise<void> {
   await db.close();
 }
 
+/** A clean report file on firm A's external audit, as an upload the scan job passed would leave it. */
+async function reportFileOf(clientId: string, externalAuditId: string, uploadedById: string) {
+  const owner = new pg.Client({
+    connectionString: databaseUrl(process.env.DATABASE_URL!, E2E_DATABASE),
+  });
+  await owner.connect();
+  // In firm A's system context, as withTenant sets it, so the row passes the table's tenant policy.
+  await owner.query('BEGIN');
+  for (const [name, value] of Object.entries(tenantSettings(systemContext(FIRM_A, 'e2e-iso')))) {
+    await owner.query('SELECT set_config($1, $2, true)', [name, value]);
+  }
+  await owner.query(
+    `INSERT INTO iso_file (firm_id, client_id, external_audit_id, file_name, mime_type, size_bytes, sha256,
+       storage_key, scan_status, uploaded_by_id)
+     VALUES ($1, $2, $3, 'stage-1-report.pdf', 'application/pdf', 2048, $4, $5, 'CLEAN', $6)`,
+    [
+      FIRM_A,
+      clientId,
+      externalAuditId,
+      SHA,
+      `evidence/${FIRM_A}/${clientId}/iso/${externalAuditId}/stage-1-report.pdf`,
+      uploadedById,
+    ],
+  );
+  await owner.query('COMMIT');
+  await owner.end();
+}
+
 async function isoOff(): Promise<void> {
   if (isoAdded.length === 0) return;
   const owner = new pg.Client({
@@ -519,10 +574,12 @@ async function isoOff(): Promise<void> {
  * Firm A's ISO records, made through the API as its consultant: a management system on the catalogue's first standard,
  * its first checklist row, a context item, a document and its draft revision, a certificate, an external audit, a risk
  * item with a control and an action, an objective with a reading, a nonconformity, and an audit programme with an
- * internal audit in progress, its checklist row and a finding (the file routes stay unmounted until ISO-15).
+ * internal audit in progress, its checklist row and a finding, and a management review with its first input and
+ * output row.
  * Keyed by the path segment before each id, or by `<parent>/<segment>` where two parents share a segment, as `fill`
- * reads them. An external finding needs a HELD visit, which needs the body's report file, so the external finding
- * routes name firm A's internal finding (`findings`), still a record of firm A.
+ * reads them. The external audit is HELD with an OFI finding of its own: RECORD_HELD needs the body's report file, and
+ * the integrated app serves no file routes until ISO-14b gives it an `IsoFiles`, so `reportFileOf` writes a clean one
+ * straight to the database, as the scan job would leave it.
  */
 async function isoRecordsOf(
   admin: ApiSession,
@@ -605,6 +662,27 @@ async function isoRecordsOf(
     type: 'OFI',
     description: 'Revision history could be clearer',
   });
+  const plannedVisit = await made('/external-audits', {
+    managementSystemId: system.id,
+    standardIds: [standard.id],
+    type: 'STAGE_1',
+    body: 'Northfield Certification',
+    startOn: '2023-04-10',
+    endOn: '2023-04-11',
+  });
+  await reportFileOf(clientId, plannedVisit.id, people.owner);
+  const visit = await made(
+    `/external-audits/${plannedVisit.id}/held`,
+    { version: plannedVisit.version, startOn: '2023-04-10', endOn: '2023-04-11' },
+    200,
+  );
+  const review = await made('/management-reviews', {
+    managementSystemId: system.id,
+    standards: [(standard as Rec & { code: string }).code],
+    plannedOn: '2099-02-10',
+    chairId: people.owner,
+    attendeeIds: [people.approver],
+  });
   return {
     standards: standard,
     systems: system,
@@ -617,7 +695,9 @@ async function isoRecordsOf(
       question: 'Is every procedure under revision control?',
     }),
     'internal-audits/findings': finding,
-    findings: finding,
+    'management-reviews': review,
+    'management-reviews/inputs': await listed(`/management-reviews/${review.id}/inputs`),
+    'management-reviews/outputs': await listed(`/management-reviews/${review.id}/outputs`),
     context: await made(`/systems/${system.id}/context`, {
       kind: 'EXTERNAL_ISSUE',
       text: 'Supplier lead times',
@@ -625,13 +705,10 @@ async function isoRecordsOf(
     documents: document,
     revisions: await made(`/documents/${document.id}/revisions`, { revision: 'A' }),
     certifications: certificate,
-    'external-audits': await made('/external-audits', {
-      managementSystemId: system.id,
-      standardIds: [standard.id],
-      type: 'STAGE_1',
-      body: 'Northfield Certification',
-      startOn: '2099-01-10',
-      endOn: '2099-01-11',
+    'external-audits': visit,
+    'external-audits/findings': await made(`/external-audits/${visit.id}/findings`, {
+      type: 'OFI',
+      description: 'Supplier evaluation records could be clearer',
     }),
     risks: risk,
     controls: await made(`/risks/${risk.id}/controls`, { text: 'Two weeks of carton stock' }),

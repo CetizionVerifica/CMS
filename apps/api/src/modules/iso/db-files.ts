@@ -16,6 +16,7 @@ import {
   externalAudits,
   internalAudits,
   isoActions,
+  managementReviews,
   managementSystems,
   nonconformities,
   objectiveReadings,
@@ -31,6 +32,7 @@ import {
   documentReach,
   isoResource,
   objectiveReach,
+  reviewReach,
   riskReach,
   selfResource,
   systemReach,
@@ -40,7 +42,7 @@ import { actionReach, actionSubject, checkIncidentDownload } from './db-actions.
 import { auditTeam, internalAuditReach } from './db-audits.js';
 import { liveIn, type Core } from './db-context.js';
 import { ncReach } from './db-nonconformities.js';
-import { invalid, invalidTransition, notFound } from './errors.js';
+import { invalidTransition, notFound } from './errors.js';
 import type { IsoFileCaller, IsoFiles } from './ports.js';
 import type { IsoHandlers } from './types.js';
 
@@ -48,7 +50,7 @@ import type { IsoHandlers } from './types.js';
  * ISO file routes (docs/iso/model.md §6) through the `IsoFiles` port. M16 resolves the subject (404 when the actor
  * cannot see it), checks the subject's own write action, then `isoFile.write` with the actor as owner and approver
  * (plan §3.2), then the lock rule (409); reads follow the subject's unit scope, and the current revision's file of an
- * active document is read by every member. ISO-8c adds its subjects to `SUBJECTS`.
+ * active document is read by every member. Every file subject has its rules in `SUBJECTS`.
  */
 
 type Ids =
@@ -77,6 +79,7 @@ const lockedIn = (states: readonly string[], entity: IsoEntityType, state: strin
 /** REPORTED, CLOSED and CANCELLED internal audits lock their files and their findings' (model §6). */
 const INTERNAL_AUDIT_LOCKED: readonly string[] = ['REPORTED', 'CLOSED', 'CANCELLED'];
 const EXTERNAL_AUDIT_LOCKED: readonly string[] = ['CLOSED', 'CANCELLED'];
+const REVIEW_LOCKED: readonly string[] = ['CLOSED', 'CANCELLED'];
 
 /** An internal audit's file rules, for itself and its findings: the audit team writes them (`isoAudit.conduct`). */
 async function internalAuditSubject(
@@ -105,11 +108,11 @@ async function internalAuditSubject(
 }
 
 /**
- * The subjects M16 serves files on so far: checklist rows, document revisions, external audits and certificates
- * (ISO-8a), risk items, objective readings and actions (ISO-8b), and nonconformities, internal audits and findings
- * (ISO-8c).
+ * The subjects M16 serves files on: checklist rows, document revisions, external audits and certificates
+ * (ISO-8a), risk items, objective readings and actions (ISO-8b), and nonconformities, internal audits, findings and
+ * management reviews (ISO-8c).
  */
-const SUBJECTS: Partial<Record<IsoFileSubjectType, Resolve>> = {
+const SUBJECTS: Record<IsoFileSubjectType, Resolve> = {
   async clause_assessment(tx, clientId, id) {
     const row = liveIn(await clauseAssessments.get(tx, id), clientId);
     const system = await managementSystems.require(tx, row.managementSystemId);
@@ -185,6 +188,26 @@ const SUBJECTS: Partial<Record<IsoFileSubjectType, Resolve>> = {
         resource: (ctx) => isoResource(ctx, 'audit_finding', reach),
       },
       lock: lockedIn(EXTERNAL_AUDIT_LOCKED, 'external_audit', audit.state),
+    };
+  },
+  async management_review(tx, clientId, id) {
+    const review = liveIn(await managementReviews.get(tx, id), clientId);
+    const reach = reviewReach(
+      await managementSystems.require(tx, review.managementSystemId),
+      review,
+    );
+    return {
+      type: 'management_review',
+      id,
+      clientId,
+      reach,
+      clientWide: false,
+      // The chair is "own" (plan §3.2); an attendee reads the files but does not change them.
+      write: {
+        action: 'isoReview.write',
+        resource: (ctx) => selfResource(ctx, 'management_review', reach, [review.chairId]),
+      },
+      lock: lockedIn(REVIEW_LOCKED, 'management_review', review.state),
     };
   },
   async certification(tx, clientId, id) {
@@ -295,10 +318,7 @@ export function filesHandlers(core: Core, files: IsoFiles): IsoHandlers<Ids> {
     clientId: string,
     ref: IsoFileSubject,
   ): Promise<Subject> {
-    const resolver = SUBJECTS[ref.type];
-    if (resolver === undefined)
-      invalid('subject', 'Files cannot be added to this kind of record yet');
-    const subject = await resolver(tx, clientId, ref.id);
+    const subject = await SUBJECTS[ref.type](tx, clientId, ref.id);
     if (!canSee(ctx, subject.reach) && !subject.clientWide) notFound();
     return subject;
   }

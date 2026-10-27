@@ -39,6 +39,8 @@ interface GateCase {
   port?: string;
   /** A request refused by role after the record is loaded, which must write nothing. */
   refused?: Request & { status: number };
+  /** More about what the change wrote, run after it. */
+  check?: () => Promise<void>;
 }
 
 const get = (who: Who, path: string): Request => ({ who, method: 'GET', path });
@@ -358,6 +360,62 @@ const fileTicket = (rowId: string) => ({
   mimeType: 'application/pdf',
   sizeBytes: 2048,
 });
+
+/** A system on 9001 and 14001 over unit A, created before the test's day so a review held on it stores figures. */
+async function reviewSystem(): Promise<string> {
+  const s = await h.ok('clientAdmin', 'POST', '/systems', {
+    name: `Gate review ${Math.random().toString(36).slice(2, 8)}`,
+    standardIds: [h.f.std9001, h.f.std14001],
+    unitIds: [h.f.unitA],
+  });
+  await h.testDb.query('UPDATE management_system SET created_at = $2 WHERE id = $1', [
+    s.id,
+    '2026-01-05T06:00:00Z',
+  ]);
+  return s.id as string;
+}
+
+/** A PLANNED review of both standards chaired by the client admin (version 1), with its input and output rows. */
+async function review() {
+  const r = await h.ok('clientAdmin', 'POST', '/management-reviews', {
+    managementSystemId: await reviewSystem(),
+    standards: ['ISO_9001', 'ISO_14001'],
+    plannedOn: '2026-10-20',
+    chairId: h.f.people.clientAdmin,
+    attendeeIds: [h.f.people.approver],
+  });
+  const path = `/management-reviews/${r.id}`;
+  const rows = async (kind: 'inputs' | 'outputs') =>
+    ((await h.ok('clientAdmin', 'GET', `${path}/${kind}`)).items as { id: string }[]).map(
+      (i) => i.id,
+    );
+  return { path, inputIds: await rows('inputs'), outputIds: await rows('outputs') };
+}
+
+/** Notes on every input, ready to be recorded held. */
+async function reviewReady() {
+  const r = await review();
+  for (const id of r.inputIds) {
+    await h.ok('clientAdmin', 'PATCH', `${r.path}/inputs/${id}`, {
+      version: 1,
+      notes: 'Discussed',
+    });
+  }
+  return r;
+}
+
+/** HELD on the test's day, with a decision on every output (version 2). */
+async function reviewHeld() {
+  const r = await reviewReady();
+  await h.ok('clientAdmin', 'POST', `${r.path}/held`, { version: 1, heldOn: '2026-10-20' });
+  for (const id of r.outputIds) {
+    await h.ok('clientAdmin', 'PATCH', `${r.path}/outputs/${id}`, {
+      version: 1,
+      decision: 'Keep as is',
+    });
+  }
+  return r;
+}
 
 const GATE: Record<string, () => Promise<GateCase>> = {
   'GET /catalogue/standards': async () => ({
@@ -1263,6 +1321,131 @@ const GATE: Record<string, () => Promise<GateCase>> = {
       refused: no(post('approver', `${path}/reopen`, body), 403),
     };
   },
+  'GET /management-reviews': async () => ({
+    change: get('viewer', '/management-reviews'),
+    audit: [],
+  }),
+  'POST /management-reviews': async () => {
+    const body = {
+      managementSystemId: await reviewSystem(),
+      standards: ['ISO_9001'],
+      plannedOn: '2026-11-20',
+      chairId: h.f.people.clientAdmin,
+    };
+    return {
+      change: post('clientAdmin', '/management-reviews', body),
+      audit: ['CREATE'],
+      refused: no(post('owner', '/management-reviews', body), 403),
+    };
+  },
+  'GET /management-reviews/:id': async () => {
+    const r = await review();
+    return {
+      change: get('viewer', r.path),
+      audit: [],
+      refused: no(get('otherOwner', r.path), 404),
+    };
+  },
+  'PATCH /management-reviews/:id': async () => {
+    const r = await review();
+    const body = { version: 1, minutes: 'Agenda circulated' };
+    return {
+      change: patch('clientAdmin', r.path, body),
+      audit: ['UPDATE'],
+      refused: no(patch('viewer', r.path, body), 403),
+    };
+  },
+  'POST /management-reviews/:id/replan': async () => {
+    const r = await review();
+    const body = { version: 1, plannedOn: '2026-11-27', reason: 'Plant shutdown week' };
+    return {
+      change: post('consultant', `${r.path}/replan`, body),
+      audit: ['DUE_DATE_CHANGE'],
+      refused: no(post('owner', `${r.path}/replan`, body), 403),
+    };
+  },
+  'POST /management-reviews/:id/cancel': async () => {
+    const r = await review();
+    const body = { version: 1, reason: 'Merged with the next review' };
+    return {
+      change: post('clientAdmin', `${r.path}/cancel`, body),
+      audit: ['TRANSITION'],
+      refused: no(post('owner', `${r.path}/cancel`, body), 403),
+    };
+  },
+  'POST /management-reviews/:id/held': async () => {
+    const r = await reviewReady();
+    const body = { version: 1, heldOn: '2026-10-20' };
+    return {
+      change: post('clientAdmin', `${r.path}/held`, body),
+      audit: ['TRANSITION'],
+      refused: no(post('viewer', `${r.path}/held`, body), 403),
+      // Model §8: the stored values, keyed by input, with no ids, and the engine version.
+      async check() {
+        const [event] = (await h.testDb.query(
+          "SELECT after FROM audit_event WHERE entity_id = $1 AND action = 'TRANSITION'",
+          [r.path.split('/').at(-1)],
+        )) as { after: Record<string, unknown> }[];
+        expect(event!.after).toMatchObject({
+          action: 'RECORD_HELD',
+          heldOn: '2026-10-20',
+          engineVersion: expect.any(String),
+          figures: [
+            {
+              key: 'PREVIOUS_ACTIONS',
+              source: 'PREVIOUS_ACTIONS',
+              since: '2026-01-05',
+              asOf: '2026-10-20',
+              values: { actionsOpen: 0, actionsOverdue: 0, actionsDone: 0, actionsCancelled: 0 },
+            },
+          ],
+        });
+        expect(JSON.stringify(event!.after)).not.toContain('"ids"');
+      },
+    };
+  },
+  'POST /management-reviews/:id/close': async () => {
+    const r = await reviewHeld();
+    const body = { version: 2 };
+    return {
+      change: post('clientAdmin', `${r.path}/close`, body),
+      audit: ['TRANSITION'],
+      refused: no(post('viewer', `${r.path}/close`, body), 403),
+    };
+  },
+  'GET /management-reviews/:id/inputs': async () => {
+    const r = await review();
+    return { change: get('viewer', `${r.path}/inputs`), audit: [] };
+  },
+  'PATCH /management-reviews/:id/inputs/:inputId': async () => {
+    const r = await review();
+    const path = `${r.path}/inputs/${r.inputIds[0]}`;
+    const body = { version: 1, notes: 'Discussed' };
+    return {
+      change: patch('clientAdmin', path, body),
+      audit: ['UPDATE'],
+      refused: no(patch('viewer', path, body), 403),
+    };
+  },
+  'GET /management-reviews/:id/outputs': async () => {
+    const r = await review();
+    return { change: get('viewer', `${r.path}/outputs`), audit: [] };
+  },
+  'PATCH /management-reviews/:id/outputs/:outputId': async () => {
+    const r = await review();
+    const path = `${r.path}/outputs/${r.outputIds[0]}`;
+    const body = { version: 1, decision: 'Keep as is' };
+    return {
+      change: patch('clientAdmin', path, body),
+      audit: ['UPDATE'],
+      refused: no(patch('viewer', path, body), 403),
+    };
+  },
+  'GET /overview': async () => ({
+    change: get('viewer', '/overview?asOf=2026-10-01'),
+    audit: [],
+    refused: no(get('owner', '/overview?asOf=2026-10-01'), 403),
+  }),
   'POST /files/upload-url': async () => {
     const r = await rowFile();
     return {
@@ -1383,6 +1566,7 @@ describe('every M16 route writes exactly its AuditEvents and outbox events', () 
     expect(change.audit).toEqual([...gate.audit].sort());
     expect(change.outbox).toEqual([]);
     expect(change.port).toEqual(gate.port === undefined ? [] : [gate.port]);
+    await gate.check?.();
 
     // With the add-on off, the same request is refused before anything runs.
     const off = await featureOff(() => writtenBy(gate.change));

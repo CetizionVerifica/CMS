@@ -8,6 +8,8 @@ import { documentsHandlers } from './db-documents.js';
 import { filesHandlers } from './db-files.js';
 import { nonconformitiesHandlers } from './db-nonconformities.js';
 import { objectivesHandlers } from './db-objectives.js';
+import { overviewHandlers } from './db-overview.js';
+import { reviewsHandlers } from './db-reviews.js';
 import { risksHandlers } from './db-risks.js';
 import { systemsHandlers } from './db-systems.js';
 import { parseInput } from './errors.js';
@@ -34,6 +36,8 @@ export function registerIsoRoutes(app: FastifyInstance, options: IsoRouteOptions
     ...actionsHandlers(core),
     ...nonconformitiesHandlers(core),
     ...auditsHandlers(core),
+    ...reviewsHandlers(core),
+    ...overviewHandlers(core),
     ...(options.files === undefined ? {} : filesHandlers(core, options.files)),
   } as Partial<Record<IsoEndpointId, AnyHandler>>;
 

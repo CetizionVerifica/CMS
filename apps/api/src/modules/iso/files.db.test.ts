@@ -98,7 +98,7 @@ describe('adding files', () => {
       [['approver', 'POST', '/files/upload-url', ticket(row())], 403],
       [
         ['owner', 'POST', '/files/upload-url', ticket({ type: 'management_review', id: rowId })],
-        400,
+        404,
       ],
       [['owner', 'POST', '/files/upload-url', ticket({ type: 'certification', id: rowId })], 404],
       [

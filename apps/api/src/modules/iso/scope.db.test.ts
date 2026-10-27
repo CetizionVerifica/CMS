@@ -27,6 +27,7 @@ const all = {
   actions: [] as string[],
   nonconformities: [] as string[],
   internalAudits: [] as string[],
+  reviews: [] as string[],
 };
 /** Audit programmes, one per system (they take its units, so they have no kind of their own). */
 const programmes: string[] = [];
@@ -136,6 +137,15 @@ async function seedSystem(units: string[], recordOwner: Who = 'clientAdmin') {
     });
     all.internalAudits.push(audit.id as string);
   }
+  // A management review chaired by the client admin, attended by the record owner.
+  const review = await h.ok('clientAdmin', 'POST', '/management-reviews', {
+    managementSystemId: id,
+    standards: ['ISO_9001'],
+    plannedOn: '2026-11-20',
+    chairId: h.f.people.clientAdmin,
+    attendeeIds: recordOwner === 'clientAdmin' ? [] : [h.f.people[recordOwner]],
+  });
+  all.reviews.push(review.id as string);
   return id;
 }
 
@@ -188,6 +198,7 @@ async function allowed(who: Who, kind: keyof typeof all, id: string): Promise<bo
     actions: `/actions/${id}`,
     nonconformities: `/nonconformities/${id}`,
     internalAudits: `/internal-audits/${id}`,
+    reviews: `/management-reviews/${id}`,
   }[kind];
   const reply = await h.send(who, 'GET', path);
   expect([200, 404]).toContain(reply.status);
@@ -220,6 +231,8 @@ async function listed(who: Who, kind: keyof typeof all): Promise<string[]> {
       return ids(who, '/nonconformities');
     case 'internalAudits':
       return ids(who, '/internal-audits');
+    case 'reviews':
+      return ids(who, '/management-reviews');
   }
 }
 
@@ -288,7 +301,7 @@ describe('the catalogue copy not yet recorded', () => {
     );
     await probe.ready();
     await probe.close();
-    expect(routes.length).toBe(106);
+    expect(routes.length).toBe(119);
 
     h.auth.store.isoCataloguePending.add(h.f.firmId);
     try {

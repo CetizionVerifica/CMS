@@ -4,6 +4,7 @@ import type {
   ClauseAssessment,
   ControlledDocument,
   IsoEntityType,
+  ManagementReview,
   ManagementSystem,
   Objective,
   RequestContext,
@@ -76,6 +77,15 @@ export const objectiveReach = (
 ): Reach => ({
   ...systemReach(system),
   people: [objective.ownerId],
+});
+
+/** A management review takes its system's units; its chair and attendees always see it. */
+export const reviewReach = (
+  system: ManagementSystem,
+  review: Pick<ManagementReview, 'chairId' | 'attendeeIds'>,
+): Reach => ({
+  ...systemReach(system),
+  people: [review.chairId, ...review.attendeeIds],
 });
 
 /** Roles that see every unit of a client they can see. */
