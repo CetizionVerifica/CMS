@@ -39,7 +39,7 @@ type Endpoint = {
 };
 const endpoints = Object.entries(ENDPOINTS as Record<string, Endpoint>);
 
-/** The ISO add-on endpoints M16 serves so far (ISO-8a, ISO-8b, ISO-8c part 1); the rest of the add-on stays on UNMOUNTED until it ships. */
+/** The ISO add-on endpoints M16 serves so far (ISO-8a, ISO-8b, ISO-8c parts 1 and 2); the rest of the add-on stays on UNMOUNTED until it ships. */
 const ISO_SERVED: ReadonlySet<string> = new Set(ISO_SERVED_ENDPOINTS);
 
 /**
@@ -336,6 +336,38 @@ const BODIES: Record<string, (ids: Ids) => unknown> = {
   }),
   cancelIsoNc: ({ v }) => ({ version: v.nonconformities, reason: PROBE }),
   reopenIsoNc: ({ v }) => ({ version: v.nonconformities, reason: PROBE, backTo: 'OPEN' }),
+  // ISO-8c part 2: firm A's audit programme, its internal audit with a checklist row and a finding.
+  createIsoAuditProgramme: ({ id }) => ({ managementSystemId: id.systems, fy: '2097-98' }),
+  updateIsoAuditProgramme: ({ v }) => ({ version: v['audit-programmes'], notes: PROBE }),
+  createIsoInternalAudit: ({ id }) => ({
+    programmeId: id['audit-programmes'],
+    title: PROBE,
+    plannedStart: '2099-02-01',
+    plannedEnd: '2099-02-02',
+    leadAuditorId: id.people,
+  }),
+  updateIsoInternalAudit: ({ v }) => ({ version: v['internal-audits'], title: PROBE }),
+  startIsoInternalAudit: ({ v }) => ({ version: v['internal-audits'] }),
+  reportIsoInternalAudit: ({ v }) => ({ version: v['internal-audits'], summary: PROBE }),
+  closeIsoInternalAudit: ({ v }) => ({ version: v['internal-audits'] }),
+  cancelIsoInternalAudit: ({ v }) => ({ version: v['internal-audits'], reason: PROBE }),
+  createIsoAuditChecklistItem: ({ id }) => ({ clauseId: id.clauses, question: PROBE }),
+  updateIsoAuditChecklistItem: ({ v }) => ({
+    version: v['internal-audits/checklist'],
+    auditorNote: PROBE,
+  }),
+  createIsoInternalFinding: () => ({ type: 'OFI', description: PROBE }),
+  updateIsoInternalFinding: ({ v }) => ({
+    version: v['internal-audits/findings'],
+    description: PROBE,
+  }),
+  createIsoExternalFinding: () => ({ type: 'OFI', description: PROBE }),
+  updateIsoExternalFinding: ({ v }) => ({ version: v.findings, description: PROBE }),
+  recordIsoExternalAuditResponse: ({ v }) => ({ version: v['external-audits'] }),
+  closeIsoExternalAudit: ({ v }) => ({
+    version: v['external-audits'],
+    recommendation: 'RECOMMENDED',
+  }),
   // Names firm A's person and client in the body rather than the path.
   createInvite: ({ id }) => ({
     personId: id.people,
@@ -486,9 +518,11 @@ async function isoOff(): Promise<void> {
 /**
  * Firm A's ISO records, made through the API as its consultant: a management system on the catalogue's first standard,
  * its first checklist row, a context item, a document and its draft revision, a certificate, an external audit, a risk
- * item with a control and an action, an objective with a reading, and a nonconformity (the file routes stay unmounted
- * until ISO-15).
- * Keyed by the path segment before each id, as `fill` reads them.
+ * item with a control and an action, an objective with a reading, a nonconformity, and an audit programme with an
+ * internal audit in progress, its checklist row and a finding (the file routes stay unmounted until ISO-15).
+ * Keyed by the path segment before each id, or by `<parent>/<segment>` where two parents share a segment, as `fill`
+ * reads them. An external finding needs a HELD visit, which needs the body's report file, so the external finding
+ * routes name firm A's internal finding (`findings`), still a record of firm A.
  */
 async function isoRecordsOf(
   admin: ApiSession,
@@ -549,10 +583,41 @@ async function isoRecordsOf(
     ownerId: people.owner,
     dueOn: '2099-03-31',
   });
+  const row = (await listed(`/systems/${system.id}/checklist`)) as Rec & { clauseId: string };
+  const programme = await made('/audit-programmes', {
+    managementSystemId: system.id,
+    fy: '2098-99',
+  });
+  const planned = await made('/internal-audits', {
+    programmeId: programme.id,
+    title: 'Document control audit',
+    plannedStart: '2099-01-20',
+    plannedEnd: '2099-01-21',
+    clauseIds: [row.clauseId],
+    leadAuditorId: people.owner,
+  });
+  const audit = await made(
+    `/internal-audits/${planned.id}/start`,
+    { version: planned.version },
+    200,
+  );
+  const finding = await made(`/internal-audits/${audit.id}/findings`, {
+    type: 'OFI',
+    description: 'Revision history could be clearer',
+  });
   return {
     standards: standard,
     systems: system,
-    checklist: await listed(`/systems/${system.id}/checklist`),
+    checklist: row,
+    clauses: { id: row.clauseId, version: 0 },
+    'audit-programmes': programme,
+    'internal-audits': audit,
+    'internal-audits/checklist': await made(`/internal-audits/${audit.id}/checklist`, {
+      clauseId: row.clauseId,
+      question: 'Is every procedure under revision control?',
+    }),
+    'internal-audits/findings': finding,
+    findings: finding,
     context: await made(`/systems/${system.id}/context`, {
       kind: 'EXTERNAL_ISSUE',
       text: 'Supplier lead times',
@@ -627,20 +692,35 @@ async function evidenceOf(
   return (confirmed.body as { id: string }).id;
 }
 
-/** The path with every parameter filled from `ids` (by the segment before it). Throws on a kind it has no id for. */
+/**
+ * The path with every parameter filled from `ids`: by `<parent>/<segment>` (the record segment before the previous
+ * parameter, then the one before this), else by the segment before it. Throws on a kind it has no id for.
+ */
 function fill(path: string, ids: Record<string, string>): string {
-  return path.replace(/([\w-]+)\/\{(\w+)\}/g, (_m, segment: string, param: string) => {
-    if (param === 'groupKey') return `${segment}/RULE_LOW_CONFIDENCE-0`;
-    const id = ids[param === 'clientId' ? 'clientId' : segment];
-    if (!id) throw new Error(`no id for {${param}} in ${path}: add the record kind to firmAIds`);
-    return `${segment}/${id}`;
-  });
+  const parts = path.split('/');
+  let parent = '';
+  return parts
+    .map((part, i) => {
+      const param = /^\{(\w+)\}$/.exec(part)?.[1];
+      if (param === undefined) return part;
+      const segment = parts[i - 1]!;
+      if (param === 'groupKey') return 'RULE_LOW_CONFIDENCE-0';
+      const id =
+        param === 'clientId' ? ids.clientId : (ids[`${parent}/${segment}`] ?? ids[segment]);
+      if (!id) throw new Error(`no id for {${param}} in ${path}: add the record kind to firmAIds`);
+      parent = segment;
+      return id;
+    })
+    .join('/');
 }
 
 const SAFE_DENIALS = [403, 404];
 const UNKNOWN = '01920000-0000-7000-8000-0000000dead0';
 /** Ids no firm has, for every record kind `fill` can name. */
 const NOBODY = new Proxy({} as Record<string, string>, { get: () => UNKNOWN });
+
+/** Endpoints swept from one address: at most two calls each, well under the API's 300 a minute. */
+const SWEEP_CHUNK = 60;
 
 async function call(api: ApiSession, method: string, path: string, body: unknown = {}) {
   if (method === 'GET') return api.get(path);
@@ -667,10 +747,16 @@ test.describe('tenant isolation', () => {
   test('firm B’s admins reach none of firm A’s records through any endpoint', async () => {
     const ids = await firmAIds();
     const kestrelNames = ['Kestrel', 'Person Mike', 'challan.pdf'];
+    const swept = endpoints.filter(([name, e]) => sweepable(name, e) && !(name in UNMOUNTED));
     for (const key of ['ospreyFirmAdmin', 'ospreyAdmin'] as const) {
-      const api = await apiAs(key);
-      for (const [name, e] of endpoints) {
-        if (!sweepable(name, e) || name in UNMOUNTED) continue;
+      // Up to two calls an endpoint: a fresh address every SWEEP_CHUNK endpoints keeps each under the API's per-IP
+      // limit (300 a minute), which 05-shell-load.spec.ts checks on its own.
+      let api = await apiAs(key, 1);
+      for (const [index, [name, e]] of swept.entries()) {
+        if (index > 0 && index % SWEEP_CHUNK === 0) {
+          await api.dispose();
+          api = await apiAs(key, 1 + index / SWEEP_CHUNK);
+        }
         let res: { status: number; body: unknown };
         let label: string;
         if (e.method === 'GET' && !e.path.includes('{')) {

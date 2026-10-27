@@ -1019,7 +1019,8 @@ export type NcRaise = Pick<
 /**
  * RAISE through the engine, in the caller's transaction (model §4.1): the unit, standards and people checked, the
  * client-local `reportedOn`, the database's number (its trigger takes `max + 1` after its lock, at READ COMMITTED),
- * and the CREATE event with `after.action` RAISE and no free text. A finding's raise passes `auditFindingId`.
+ * and the CREATE event with `after.action` RAISE and no free text. A finding's raise (`fromFinding`) writes no event:
+ * the finding is stored after its nonconformity, and `auditRaised` then names it.
  */
 export async function raiseNonconformity(
   core: Core,
@@ -1027,11 +1028,11 @@ export async function raiseNonconformity(
   ctx: RequestContext,
   system: ManagementSystem,
   fields: NcRaise,
-  options: { auditFindingId?: string } = {},
+  options: { fromFinding?: boolean } = {},
 ): Promise<Nonconformity> {
   const clientId = system.clientId;
   const reportedOn = await core.today(tx, clientId);
-  const fromFinding = options.auditFindingId !== undefined;
+  const fromFinding = options.fromFinding === true;
   const result = isoTransition('NONCONFORMITY', ISO_NEW_STATE, 'RAISE', {
     ...fields,
     reportedOn,
@@ -1089,14 +1090,22 @@ export async function raiseNonconformity(
   } as Nonconformity;
   await ncChecks(core).checkChanges(tx, system, blank, draft);
   const nc = await nonconformities.create(tx, stored as never);
-  await core.audit(tx, ctx, clientId, {
+  if (!fromFinding) await auditRaised(core, tx, ctx, nc);
+  return nc;
+}
+
+/** The RAISE event of a nonconformity; one a finding raised names it (`auditFindingId`). */
+export async function auditRaised(
+  core: Core,
+  tx: TenantTx,
+  ctx: RequestContext,
+  nc: Nonconformity,
+  auditFindingId?: string,
+): Promise<void> {
+  await core.audit(tx, ctx, nc.clientId, {
     action: 'CREATE',
     entityType: 'nonconformity',
     entityId: nc.id,
-    after: {
-      ...raised(nc),
-      ...(options.auditFindingId === undefined ? {} : { auditFindingId: options.auditFindingId }),
-    },
+    after: { ...raised(nc), ...(auditFindingId === undefined ? {} : { auditFindingId }) },
   });
-  return nc;
 }

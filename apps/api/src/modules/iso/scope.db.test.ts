@@ -26,7 +26,10 @@ const all = {
   objectives: [] as string[],
   actions: [] as string[],
   nonconformities: [] as string[],
+  internalAudits: [] as string[],
 };
+/** Audit programmes, one per system (they take its units, so they have no kind of their own). */
+const programmes: string[] = [];
 
 let codes = 0;
 async function seedSystem(units: string[], recordOwner: Who = 'clientAdmin') {
@@ -115,6 +118,24 @@ async function seedSystem(units: string[], recordOwner: Who = 'clientAdmin') {
     });
     all.nonconformities.push(nc.id as string);
   }
+  // An internal audit over the system's units (auditing the record owner) and one over its first unit.
+  const programme = await h.ok('clientAdmin', 'POST', '/audit-programmes', {
+    managementSystemId: id,
+    fy: '2026-27',
+  });
+  programmes.push(programme.id as string);
+  for (const unitIds of [[], units.slice(0, 1)]) {
+    const audit = await h.ok('clientAdmin', 'POST', '/internal-audits', {
+      programmeId: programme.id,
+      title: 'Scope audit',
+      plannedStart: '2026-11-10',
+      plannedEnd: '2026-11-11',
+      unitIds,
+      leadAuditorId: h.f.people.clientAdmin,
+      auditeeIds: unitIds.length === 0 && recordOwner === 'owner' ? [h.f.people.owner] : [],
+    });
+    all.internalAudits.push(audit.id as string);
+  }
   return id;
 }
 
@@ -166,6 +187,7 @@ async function allowed(who: Who, kind: keyof typeof all, id: string): Promise<bo
     objectives: `/objectives/${id}`,
     actions: `/actions/${id}`,
     nonconformities: `/nonconformities/${id}`,
+    internalAudits: `/internal-audits/${id}`,
   }[kind];
   const reply = await h.send(who, 'GET', path);
   expect([200, 404]).toContain(reply.status);
@@ -196,6 +218,8 @@ async function listed(who: Who, kind: keyof typeof all): Promise<string[]> {
       return ids(who, '/actions');
     case 'nonconformities':
       return ids(who, '/nonconformities');
+    case 'internalAudits':
+      return ids(who, '/internal-audits');
   }
 }
 
@@ -237,6 +261,13 @@ describe('can() allows exactly what the lists return (plan §3.3)', () => {
     );
     expect(await ids('owner', '/nonconformities')).not.toContain(bUnit2);
     expect(await ids('otherOwner', '/nonconformities')).not.toContain(aNone);
+    // Unit B's system-wide audit has the unit A owner as auditee; a programme takes its system's units.
+    const [, , bAll, bOnB] = all.internalAudits;
+    expect(await ids('owner', '/internal-audits')).toContain(bAll);
+    expect(await ids('owner', '/internal-audits')).not.toContain(bOnB);
+    expect((await ids('owner', '/audit-programmes')).sort()).toEqual(
+      [programmes[0], programmes[2]].sort(),
+    );
   });
 });
 
@@ -257,7 +288,7 @@ describe('the catalogue copy not yet recorded', () => {
     );
     await probe.ready();
     await probe.close();
-    expect(routes.length).toBe(84);
+    expect(routes.length).toBe(106);
 
     h.auth.store.isoCataloguePending.add(h.f.firmId);
     try {

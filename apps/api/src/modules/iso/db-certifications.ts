@@ -7,10 +7,13 @@ import type {
   RequestContext,
 } from '@canopy/contracts';
 import {
+  auditFindings,
   certifications,
   externalAudits,
+  isoCatalogue,
   isoFiles,
   managementSystems,
+  nonconformities,
   type TenantTx,
 } from '@canopy/db';
 import { certificationCycle, isoTransition } from '@canopy/engine';
@@ -25,14 +28,15 @@ import {
   systemReach,
 } from './access.js';
 import { definedOf, liveIn, type Core } from './db-context.js';
+import { checkClauses, editFinding, recordFinding, standardsOf } from './db-findings.js';
 import { checkVersion, invalid, invalidTransition, notFound, stepTo } from './errors.js';
 import { pageOf } from './paging.js';
 import type { IsoCall, IsoHandlers } from './types.js';
 
 /**
- * Certificates and external audit visits (docs/iso/model.md §3.8, §4.4). ISO-8a takes an external audit through
- * RECORD_HELD and CANCEL; RECORD_RESPONSE, CLOSE and findings are ISO-8c's. The mock's picks
- * (docs/contracts/iso-mock.md "Certifications") hold here.
+ * Certificates, external audit visits and their findings (docs/iso/model.md §3.8, §3.9, §4.4): every arrow of the
+ * EXTERNAL_AUDIT machine through the engine (ISO-8a RECORD_HELD and CANCEL, ISO-8c RECORD_RESPONSE and CLOSE). The
+ * mock's picks (docs/contracts/iso-mock.md "Certifications") hold here.
  */
 
 type Ids =
@@ -44,7 +48,12 @@ type Ids =
   | 'getIsoExternalAudit'
   | 'updateIsoExternalAudit'
   | 'recordIsoExternalAuditHeld'
-  | 'cancelIsoExternalAudit';
+  | 'recordIsoExternalAuditResponse'
+  | 'closeIsoExternalAudit'
+  | 'cancelIsoExternalAudit'
+  | 'listIsoExternalFindings'
+  | 'createIsoExternalFinding'
+  | 'updateIsoExternalFinding';
 
 /** States in which an external audit's fields may change; CLOSED and CANCELLED lock it (model §6). */
 const EDITABLE: readonly string[] = ['PLANNED', 'HELD', 'RESPONDED'];
@@ -112,21 +121,44 @@ export function certificationsHandlers(core: Core): IsoHandlers<Ids> {
     };
   }
 
-  /** The steps the actor may take now (model §4.4): RECORD_HELD and CANCEL while PLANNED, for a writer of its units. */
-  function auditView(
+  /** How many of the audit's findings raised a nonconformity, and how many of those are still OPEN. */
+  async function raisedOf(tx: TenantTx, audit: ExternalAudit) {
+    let ncFindingCount = 0;
+    let openNcCount = 0;
+    for (const f of await auditFindings.forAudit(tx, { externalAuditId: audit.id })) {
+      if (f.nonconformityId === null) continue;
+      ncFindingCount += 1;
+      if ((await nonconformities.get(tx, f.nonconformityId))?.state === 'OPEN') openNcCount += 1;
+    }
+    return { ncFindingCount, openNcCount };
+  }
+
+  /**
+   * The steps the actor may take now (model §4.4, ADR M16-0004 decision 3), for a writer of its units: RECORD_HELD and
+   * CANCEL while PLANNED; RECORD_RESPONSE once HELD, and CLOSE straight from HELD only when no finding raised a
+   * nonconformity; CLOSE once RESPONDED.
+   */
+  async function auditView(
+    tx: TenantTx,
     ctx: RequestContext,
     system: ManagementSystem,
     audit: ExternalAudit,
-  ): ExternalAuditView {
+  ): Promise<ExternalAuditView> {
     const writes = may(
       ctx,
       'isoCertification.write',
       isoResource(ctx, 'external_audit', systemReach(system)),
     );
-    return {
-      ...audit,
-      allowedActions: writes && audit.state === 'PLANNED' ? ['RECORD_HELD', 'CANCEL'] : [],
-    };
+    const allowedActions: ExternalAuditView['allowedActions'] = [];
+    if (writes) {
+      if (audit.state === 'PLANNED') allowedActions.push('RECORD_HELD', 'CANCEL');
+      if (audit.state === 'HELD') {
+        allowedActions.push('RECORD_RESPONSE');
+        if ((await raisedOf(tx, audit)).ncFindingCount === 0) allowedActions.push('CLOSE');
+      }
+      if (audit.state === 'RESPONDED') allowedActions.push('CLOSE');
+    }
+    return { ...audit, allowedActions };
   }
 
   async function loadCertificate(tx: TenantTx, ctx: RequestContext, clientId: string, id: string) {
@@ -148,9 +180,15 @@ export function certificationsHandlers(core: Core): IsoHandlers<Ids> {
    * One arrow of the external-audit machine through the engine, audited as a TRANSITION naming the action. The
    * client admin takes these steps; an account admin or consultant takes them as delegate.
    */
-  async function auditStep<K extends 'recordIsoExternalAuditHeld' | 'cancelIsoExternalAudit'>(
+  async function auditStep<
+    K extends
+      | 'recordIsoExternalAuditHeld'
+      | 'recordIsoExternalAuditResponse'
+      | 'closeIsoExternalAudit'
+      | 'cancelIsoExternalAudit',
+  >(
     call: IsoCall<K>,
-    action: 'RECORD_HELD' | 'CANCEL',
+    action: ExternalAuditView['allowedActions'][number],
     facts: (tx: TenantTx, audit: ExternalAudit) => Promise<Record<string, unknown>>,
     change: (audit: ExternalAudit) => Partial<ExternalAudit>,
   ): Promise<ExternalAuditView> {
@@ -181,8 +219,29 @@ export function certificationsHandlers(core: Core): IsoHandlers<Ids> {
         reason: 'reason' in body ? body.reason : null,
         delegated: !holdsRole(ctx, audit.clientId, ['CLIENT_ADMIN']),
       });
-      return auditView(ctx, system, updated);
+      return auditView(tx, ctx, system, updated);
     });
+  }
+
+  /** A live finding of `audit`, or 404 (another audit's finding included). */
+  async function loadFinding(tx: TenantTx, audit: ExternalAudit, id: string) {
+    const finding = liveIn(await auditFindings.get(tx, id), audit.clientId);
+    if (finding.externalAuditId !== audit.id) notFound();
+    return finding;
+  }
+
+  /** Findings are recorded and changed while the visit is HELD. */
+  function requireHeld(audit: ExternalAudit): void {
+    if (audit.state !== 'HELD') invalidTransition('external_audit', audit.state, 'UPDATE');
+  }
+
+  /** A finding's unit is one of the audit's units (its system's). */
+  async function checkFindingUnit(
+    tx: TenantTx,
+    system: ManagementSystem,
+    unitId: string | null | undefined,
+  ): Promise<void> {
+    if (unitId != null) await core.checkSystemUnits(tx, system, [unitId], 'unitId');
   }
 
   return {
@@ -302,7 +361,12 @@ export function certificationsHandlers(core: Core): IsoHandlers<Ids> {
         const items: ExternalAuditView[] = [];
         for (const audit of page.items) {
           items.push(
-            auditView(ctx, await managementSystems.require(tx, audit.managementSystemId), audit),
+            await auditView(
+              tx,
+              ctx,
+              await managementSystems.require(tx, audit.managementSystemId),
+              audit,
+            ),
           );
         }
         return { ...page, items };
@@ -334,7 +398,7 @@ export function certificationsHandlers(core: Core): IsoHandlers<Ids> {
           entityId: audit.id,
           after: { ...body, recommendation: null, state: 'PLANNED', cancelReason: null },
         });
-        return auditView(ctx, system, audit);
+        return auditView(tx, ctx, system, audit);
       });
     },
 
@@ -346,7 +410,7 @@ export function certificationsHandlers(core: Core): IsoHandlers<Ids> {
           'isoCertification.read',
           isoResource(ctx, 'external_audit', systemReach(system)),
         );
-        return auditView(ctx, system, audit);
+        return auditView(tx, ctx, system, audit);
       });
     },
 
@@ -367,8 +431,18 @@ export function certificationsHandlers(core: Core): IsoHandlers<Ids> {
         if (!EDITABLE.includes(audit.state))
           invalidTransition('external_audit', audit.state, 'UPDATE');
         const merged: ExternalAudit = { ...audit, ...definedOf(fields) };
-        if (fields.standardIds !== undefined)
+        if (fields.standardIds !== undefined) {
           checkStandards(system, fields.standardIds, 'standardIds');
+          // A standard a finding of the audit names a clause of stays on the audit.
+          for (const f of await auditFindings.forAudit(tx, { externalAuditId: audit.id })) {
+            for (const id of f.clauseIds) {
+              const clause = await isoCatalogue.clause(tx, id);
+              if (clause !== null && !fields.standardIds.includes(clause.standardId)) {
+                invalid('standardIds', 'A finding of this audit names a clause of that standard');
+              }
+            }
+          }
+        }
         checkVisit(merged);
         if (audit.state === 'PLANNED') {
           if (merged.recommendation !== null) {
@@ -386,7 +460,7 @@ export function certificationsHandlers(core: Core): IsoHandlers<Ids> {
           (changes) => externalAudits.update(tx, audit.id, version, changes),
           { split: { responseDueOn: 'DUE_DATE_CHANGE' }, reason: reason ?? null },
         );
-        return auditView(ctx, system, updated);
+        return auditView(tx, ctx, system, updated);
       });
     },
 
@@ -417,6 +491,33 @@ export function certificationsHandlers(core: Core): IsoHandlers<Ids> {
       );
     },
 
+    /** RECORD_RESPONSE: HELD → RESPONDED once every nonconformity its findings raised has left OPEN. */
+    recordIsoExternalAuditResponse: (call) =>
+      auditStep(
+        call,
+        'RECORD_RESPONSE',
+        async (tx, audit) => ({ openNcCount: (await raisedOf(tx, audit)).openNcCount }),
+        () => ({}),
+      ),
+
+    /**
+     * CLOSE: RESPONDED → CLOSED, or HELD → CLOSED when no finding raised a nonconformity; the body's recommendation
+     * is recorded here or before.
+     */
+    closeIsoExternalAudit: (call) => {
+      const recommendation = (audit: ExternalAudit) =>
+        call.body.recommendation ?? audit.recommendation;
+      return auditStep(
+        call,
+        'CLOSE',
+        async (tx, audit) => ({
+          recommendation: recommendation(audit),
+          ncFindingCount: (await raisedOf(tx, audit)).ncFindingCount,
+        }),
+        (audit) => ({ recommendation: recommendation(audit) }),
+      );
+    },
+
     /** CANCEL: PLANNED → CANCELLED, with a reason. */
     cancelIsoExternalAudit: (call) =>
       auditStep(
@@ -425,5 +526,86 @@ export function certificationsHandlers(core: Core): IsoHandlers<Ids> {
         async () => ({ reason: call.body.reason }),
         () => ({ cancelReason: call.body.reason }),
       ),
+
+    /** In the order they were recorded. Whoever reads the audit reads its findings. */
+    async listIsoExternalFindings({ ctx, params }) {
+      return core.run(ctx, async (tx) => {
+        const { audit, system } = await loadAudit(tx, ctx, params.clientId!, params.id!);
+        authorize(
+          ctx,
+          'isoCertification.read',
+          isoResource(ctx, 'audit_finding', systemReach(system)),
+        );
+        return { items: await auditFindings.forAudit(tx, { externalAuditId: audit.id }) };
+      });
+    },
+
+    /**
+     * Records a finding of a HELD visit. A MAJOR_NC or MINOR_NC raises its nonconformity in the same step (model
+     * §3.9): source EXTERNAL_AUDIT, severity from the type, the finding's clauses and unit (or the system's single
+     * unit), standards from its clauses (else the audit's).
+     */
+    async createIsoExternalFinding({ ctx, params, body }) {
+      return core.run(ctx, async (tx) => {
+        const { audit, system } = await loadAudit(tx, ctx, params.clientId!, params.id!);
+        authorize(
+          ctx,
+          'isoCertification.write',
+          isoResource(ctx, 'audit_finding', systemReach(system)),
+        );
+        requireHeld(audit);
+        const { nonconformity, ...fields } = body;
+        await checkClauses(
+          tx,
+          audit.standardIds,
+          fields.clauseIds,
+          'clauseIds',
+          "Not a clause of the audit's standards",
+        );
+        await checkFindingUnit(tx, system, fields.unitId);
+        return recordFinding(core, tx, ctx, system, {
+          audit: { externalAuditId: audit.id },
+          ...fields,
+          ...(nonconformity === undefined
+            ? {}
+            : {
+                nc: {
+                  body: nonconformity,
+                  source: 'EXTERNAL_AUDIT',
+                  unitId:
+                    fields.unitId ?? (system.unitIds.length === 1 ? system.unitIds[0]! : null),
+                  standards: await standardsOf(tx, fields.clauseIds, audit.standardIds),
+                },
+              }),
+        });
+      });
+    },
+
+    /** Changes a finding while its visit is HELD (the type rules are `editFinding`'s). */
+    async updateIsoExternalFinding({ ctx, params, body }) {
+      return core.run(ctx, async (tx) => {
+        const { audit, system } = await loadAudit(tx, ctx, params.clientId!, params.id!);
+        const finding = await loadFinding(tx, audit, params.findingId!);
+        authorize(
+          ctx,
+          'isoCertification.write',
+          isoResource(ctx, 'audit_finding', systemReach(system)),
+        );
+        const { version, ...fields } = body;
+        checkVersion(finding, version);
+        requireHeld(audit);
+        if (fields.clauseIds !== undefined) {
+          await checkClauses(
+            tx,
+            audit.standardIds,
+            fields.clauseIds,
+            'clauseIds',
+            "Not a clause of the audit's standards",
+          );
+        }
+        await checkFindingUnit(tx, system, fields.unitId);
+        return editFinding(core, tx, ctx, finding, fields, version, 'isoCertification.write');
+      });
+    },
   };
 }

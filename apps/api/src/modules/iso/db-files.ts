@@ -7,11 +7,14 @@ import type {
   Resource,
 } from '@canopy/contracts';
 import {
+  auditFindings,
+  auditProgrammes,
   certifications,
   clauseAssessments,
   controlledDocuments,
   documentRevisions,
   externalAudits,
+  internalAudits,
   isoActions,
   managementSystems,
   nonconformities,
@@ -29,10 +32,12 @@ import {
   isoResource,
   objectiveReach,
   riskReach,
+  selfResource,
   systemReach,
   type Reach,
 } from './access.js';
 import { actionReach, actionSubject, checkIncidentDownload } from './db-actions.js';
+import { auditTeam, internalAuditReach } from './db-audits.js';
 import { liveIn, type Core } from './db-context.js';
 import { ncReach } from './db-nonconformities.js';
 import { invalid, invalidTransition, notFound } from './errors.js';
@@ -69,9 +74,40 @@ type Resolve = (tx: TenantTx, clientId: string, id: string) => Promise<Subject>;
 const lockedIn = (states: readonly string[], entity: IsoEntityType, state: string) =>
   states.includes(state) ? { entity, from: state } : null;
 
+/** REPORTED, CLOSED and CANCELLED internal audits lock their files and their findings' (model §6). */
+const INTERNAL_AUDIT_LOCKED: readonly string[] = ['REPORTED', 'CLOSED', 'CANCELLED'];
+const EXTERNAL_AUDIT_LOCKED: readonly string[] = ['CLOSED', 'CANCELLED'];
+
+/** An internal audit's file rules, for itself and its findings: the audit team writes them (`isoAudit.conduct`). */
+async function internalAuditSubject(
+  tx: TenantTx,
+  clientId: string,
+  auditId: string,
+  ref: IsoFileSubject,
+): Promise<Subject> {
+  const audit = liveIn(await internalAudits.get(tx, auditId), clientId);
+  const programme = await auditProgrammes.require(tx, audit.programmeId);
+  const reach = internalAuditReach(
+    await managementSystems.require(tx, programme.managementSystemId),
+    audit,
+  );
+  return {
+    ...ref,
+    clientId,
+    reach,
+    clientWide: false,
+    write: {
+      action: 'isoAudit.conduct',
+      resource: (ctx) => selfResource(ctx, ref.type, reach, auditTeam(audit)),
+    },
+    lock: lockedIn(INTERNAL_AUDIT_LOCKED, 'internal_audit', audit.state),
+  };
+}
+
 /**
  * The subjects M16 serves files on so far: checklist rows, document revisions, external audits and certificates
- * (ISO-8a), risk items, objective readings and actions (ISO-8b), and nonconformities (ISO-8c).
+ * (ISO-8a), risk items, objective readings and actions (ISO-8b), and nonconformities, internal audits and findings
+ * (ISO-8c).
  */
 const SUBJECTS: Partial<Record<IsoFileSubjectType, Resolve>> = {
   async clause_assessment(tx, clientId, id) {
@@ -126,7 +162,29 @@ const SUBJECTS: Partial<Record<IsoFileSubjectType, Resolve>> = {
         action: 'isoCertification.write',
         resource: (ctx) => isoResource(ctx, 'external_audit', reach),
       },
-      lock: lockedIn(['CLOSED', 'CANCELLED'], 'external_audit', audit.state),
+      lock: lockedIn(EXTERNAL_AUDIT_LOCKED, 'external_audit', audit.state),
+    };
+  },
+  internal_audit: (tx, clientId, id) =>
+    internalAuditSubject(tx, clientId, id, { type: 'internal_audit', id }),
+  async audit_finding(tx, clientId, id) {
+    const finding = liveIn(await auditFindings.get(tx, id), clientId);
+    const ref = { type: 'audit_finding' as const, id };
+    if (finding.internalAuditId !== null) {
+      return internalAuditSubject(tx, clientId, finding.internalAuditId, ref);
+    }
+    const audit = await externalAudits.require(tx, finding.externalAuditId!);
+    const reach = systemReach(await managementSystems.require(tx, audit.managementSystemId));
+    return {
+      ...ref,
+      clientId,
+      reach,
+      clientWide: false,
+      write: {
+        action: 'isoCertification.write',
+        resource: (ctx) => isoResource(ctx, 'audit_finding', reach),
+      },
+      lock: lockedIn(EXTERNAL_AUDIT_LOCKED, 'external_audit', audit.state),
     };
   },
   async certification(tx, clientId, id) {

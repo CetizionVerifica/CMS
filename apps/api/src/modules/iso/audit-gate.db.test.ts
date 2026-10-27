@@ -158,6 +158,63 @@ async function visit(endOn = '2026-10-13') {
   return { id: v.id as string, path: `/external-audits/${v.id}` };
 }
 
+async function held() {
+  const v = await visit();
+  await attach(h, 'clientAdmin', { type: 'external_audit', id: v.id }, 'report.pdf');
+  await h.ok('clientAdmin', 'POST', `${v.path}/held`, {
+    version: 1,
+    startOn: '2026-10-12',
+    endOn: '2026-10-13',
+  });
+  return v;
+}
+
+async function externalFinding() {
+  const v = await held();
+  const f = await h.ok('clientAdmin', 'POST', `${v.path}/findings`, {
+    type: 'OFI',
+    description: 'Labels could be clearer',
+  });
+  return { ...v, findingPath: `${v.path}/findings/${f.id}` };
+}
+
+async function programme() {
+  const p = await h.ok('clientAdmin', 'POST', '/audit-programmes', {
+    managementSystemId: await system(),
+    fy: '2026-27',
+  });
+  return { id: p.id as string, path: `/audit-programmes/${p.id}` };
+}
+
+const CLAUSE = () => h.f.clauses['9001:4.1']!;
+
+/** An internal audit of clause 4.1 led by the unit A owner, PLANNED (version 1), IN_PROGRESS (2) or REPORTED (3). */
+async function internalAudit(state: 'PLANNED' | 'IN_PROGRESS' | 'REPORTED' = 'PLANNED') {
+  const a = await h.ok('clientAdmin', 'POST', '/internal-audits', {
+    programmeId: (await programme()).id,
+    title: 'Gate audit',
+    plannedStart: '2026-10-12',
+    plannedEnd: '2026-10-13',
+    clauseIds: [CLAUSE()],
+    leadAuditorId: h.f.people.owner,
+    reportedToIds: [h.f.people.clientAdmin],
+  });
+  const path = `/internal-audits/${a.id}`;
+  if (state !== 'PLANNED') await h.ok('owner', 'POST', `${path}/start`, { version: 1 });
+  if (state === 'REPORTED') {
+    const item = await h.ok('owner', 'POST', `${path}/checklist`, {
+      clauseId: CLAUSE(),
+      question: 'Is the context recorded?',
+    });
+    await h.ok('owner', 'PATCH', `${path}/checklist/${item.id}`, {
+      version: 1,
+      result: 'CONFORMS',
+    });
+    await h.ok('owner', 'POST', `${path}/report`, { version: 2, summary: 'Conforms' });
+  }
+  return { id: a.id as string, path };
+}
+
 async function rowFile() {
   const r = await row();
   await h.ok('clientAdmin', 'PATCH', r.path, {
@@ -633,6 +690,225 @@ const GATE: Record<string, () => Promise<GateCase>> = {
       change: post('clientAdmin', `${v.path}/cancel`, body),
       audit: ['TRANSITION'],
       refused: no(post('owner', `${v.path}/cancel`, body), 403),
+    };
+  },
+  'POST /external-audits/:id/response': async () => {
+    const v = await held();
+    return {
+      change: post('clientAdmin', `${v.path}/response`, { version: 2 }),
+      audit: ['TRANSITION'],
+      refused: no(post('owner', `${v.path}/response`, { version: 2 }), 403),
+    };
+  },
+  'POST /external-audits/:id/close': async () => {
+    const v = await held();
+    const body = { version: 2, recommendation: 'RECOMMENDED' };
+    return {
+      change: post('clientAdmin', `${v.path}/close`, body),
+      audit: ['TRANSITION'],
+      refused: no(post('owner', `${v.path}/close`, body), 403),
+    };
+  },
+  'GET /external-audits/:id/findings': async () => {
+    const v = await externalFinding();
+    return {
+      change: get('owner', `${v.path}/findings`),
+      audit: [],
+      refused: no(get('otherOwner', `${v.path}/findings`), 404),
+    };
+  },
+  'POST /external-audits/:id/findings': async () => {
+    const v = await held();
+    const body = {
+      type: 'MINOR_NC',
+      clauseIds: [CLAUSE()],
+      description: 'Labels faded',
+      nonconformity: {
+        ownerId: h.f.people.owner,
+        approverId: h.f.people.approver,
+        dueOn: '2026-11-30',
+      },
+    };
+    return {
+      // The nonconformity's RAISE, then the finding.
+      change: post('clientAdmin', `${v.path}/findings`, body),
+      audit: ['CREATE', 'CREATE'],
+      refused: no(post('owner', `${v.path}/findings`, body), 403),
+    };
+  },
+  'PATCH /external-audits/:id/findings/:findingId': async () => {
+    const v = await externalFinding();
+    return {
+      change: patch('clientAdmin', v.findingPath, { version: 1, type: 'OBSERVATION' }),
+      audit: ['UPDATE'],
+      refused: no(patch('owner', v.findingPath, { version: 1, type: 'OBSERVATION' }), 403),
+    };
+  },
+  'GET /audit-programmes': async () => {
+    await programme();
+    return { change: get('owner', '/audit-programmes'), audit: [] };
+  },
+  'POST /audit-programmes': async () => {
+    const body = { managementSystemId: await system(), fy: '2026-27' };
+    return {
+      change: post('clientAdmin', '/audit-programmes', body),
+      audit: ['CREATE'],
+      refused: no(post('owner', '/audit-programmes', body), 403),
+    };
+  },
+  'PATCH /audit-programmes/:id': async () => {
+    const p = await programme();
+    return {
+      change: patch('clientAdmin', p.path, { version: 1, notes: 'Two audits a year' }),
+      audit: ['UPDATE'],
+      refused: no(patch('owner', p.path, { version: 1, notes: 'No' }), 403),
+    };
+  },
+  'GET /internal-audits': async () => {
+    await internalAudit();
+    return { change: get('owner', '/internal-audits'), audit: [] };
+  },
+  'POST /internal-audits': async () => {
+    const body = {
+      programmeId: (await programme()).id,
+      title: 'Gate audit',
+      plannedStart: '2026-11-10',
+      plannedEnd: '2026-11-11',
+      leadAuditorId: h.f.people.owner,
+    };
+    return {
+      change: post('clientAdmin', '/internal-audits', body),
+      audit: ['CREATE'],
+      refused: no(post('owner', '/internal-audits', body), 403),
+    };
+  },
+  'GET /internal-audits/:id': async () => {
+    const a = await internalAudit();
+    return {
+      change: get('owner', a.path),
+      audit: [],
+      refused: no(get('otherOwner', a.path), 404),
+    };
+  },
+  'PATCH /internal-audits/:id': async () => {
+    const a = await internalAudit();
+    return {
+      change: patch('clientAdmin', a.path, { version: 1, title: 'Gate audit, stores' }),
+      audit: ['UPDATE'],
+      // The lead auditor conducts the audit but does not plan it.
+      refused: no(patch('owner', a.path, { version: 1, title: 'No' }), 403),
+    };
+  },
+  'POST /internal-audits/:id/start': async () => {
+    const a = await internalAudit();
+    return {
+      change: post('owner', `${a.path}/start`, { version: 1 }),
+      audit: ['TRANSITION'],
+      refused: no(post('approver', `${a.path}/start`, { version: 1 }), 403),
+    };
+  },
+  'POST /internal-audits/:id/report': async () => {
+    const a = await internalAudit('IN_PROGRESS');
+    const item = await h.ok('owner', 'POST', `${a.path}/checklist`, {
+      clauseId: CLAUSE(),
+      question: 'Is the context recorded?',
+    });
+    await h.ok('owner', 'PATCH', `${a.path}/checklist/${item.id}`, {
+      version: 1,
+      result: 'CONFORMS',
+    });
+    const body = { version: 2, summary: 'Conforms' };
+    return {
+      change: post('owner', `${a.path}/report`, body),
+      audit: ['TRANSITION'],
+      refused: no(post('approver', `${a.path}/report`, body), 403),
+    };
+  },
+  'POST /internal-audits/:id/close': async () => {
+    const a = await internalAudit('REPORTED');
+    return {
+      change: post('owner', `${a.path}/close`, { version: 3 }),
+      audit: ['TRANSITION'],
+      refused: no(post('approver', `${a.path}/close`, { version: 3 }), 403),
+    };
+  },
+  'POST /internal-audits/:id/cancel': async () => {
+    const a = await internalAudit();
+    const body = { version: 1, reason: 'Moved to next quarter' };
+    return {
+      change: post('clientAdmin', `${a.path}/cancel`, body),
+      audit: ['TRANSITION'],
+      refused: no(post('owner', `${a.path}/cancel`, body), 403),
+    };
+  },
+  'GET /internal-audits/:id/checklist': async () => {
+    const a = await internalAudit();
+    return {
+      change: get('owner', `${a.path}/checklist`),
+      audit: [],
+      refused: no(get('otherOwner', `${a.path}/checklist`), 404),
+    };
+  },
+  'POST /internal-audits/:id/checklist': async () => {
+    const a = await internalAudit();
+    const body = { clauseId: CLAUSE(), question: 'Is the context recorded?' };
+    return {
+      change: post('owner', `${a.path}/checklist`, body),
+      audit: ['CREATE'],
+      refused: no(post('approver', `${a.path}/checklist`, body), 403),
+    };
+  },
+  'PATCH /internal-audits/:id/checklist/:itemId': async () => {
+    const a = await internalAudit();
+    const item = await h.ok('owner', 'POST', `${a.path}/checklist`, {
+      clauseId: CLAUSE(),
+      question: 'Is the context recorded?',
+    });
+    const path = `${a.path}/checklist/${item.id}`;
+    return {
+      change: patch('owner', path, { version: 1, result: 'CONFORMS' }),
+      audit: ['UPDATE'],
+      refused: no(patch('approver', path, { version: 1, result: 'CONFORMS' }), 403),
+    };
+  },
+  'GET /internal-audits/:id/findings': async () => {
+    const a = await internalAudit();
+    return {
+      change: get('owner', `${a.path}/findings`),
+      audit: [],
+      refused: no(get('otherOwner', `${a.path}/findings`), 404),
+    };
+  },
+  'POST /internal-audits/:id/findings': async () => {
+    const a = await internalAudit('IN_PROGRESS');
+    const body = {
+      type: 'MINOR_NC',
+      clauseIds: [CLAUSE()],
+      description: 'Labels faded',
+      nonconformity: {
+        ownerId: h.f.people.clientAdmin,
+        approverId: h.f.people.approver,
+        dueOn: '2026-11-30',
+      },
+    };
+    return {
+      // The nonconformity's RAISE, then the finding.
+      change: post('owner', `${a.path}/findings`, body),
+      audit: ['CREATE', 'CREATE'],
+      refused: no(post('approver', `${a.path}/findings`, body), 403),
+    };
+  },
+  'PATCH /internal-audits/:id/findings/:findingId': async () => {
+    const a = await internalAudit('IN_PROGRESS');
+    const f = await h.ok('owner', 'POST', `${a.path}/findings`, {
+      type: 'OFI',
+      description: 'Labels could be clearer',
+    });
+    const path = `${a.path}/findings/${f.id}`;
+    return {
+      change: patch('owner', path, { version: 1, type: 'OBSERVATION' }),
+      audit: ['UPDATE'],
+      refused: no(patch('approver', path, { version: 1, type: 'OBSERVATION' }), 403),
     };
   },
   'GET /risks': async () => ({ change: get('owner', '/risks'), audit: [] }),

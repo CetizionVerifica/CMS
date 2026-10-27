@@ -12,8 +12,10 @@ import { ApiError } from '../../auth/index.js';
  * field edit, list change, new child row or file change on a locked record), a missing reason 422 REASON_REQUIRED.
  */
 
-export function invalid(path: string, message: string): never {
-  throw new ApiError('VALIDATION', { issues: [{ path: [path], message }] }, message);
+/** 400 VALIDATION on `path`: a field, or the path to a nested one (`['nonconformity', 'ownerId']`). */
+export function invalid(path: string | readonly string[], message: string): never {
+  const at = typeof path === 'string' ? [path] : [...path];
+  throw new ApiError('VALIDATION', { issues: [{ path: at, message }] }, message);
 }
 
 export function invalidTransition(entity: IsoEntityType, from: string, action: string): never {
@@ -64,6 +66,12 @@ const GUARD_MESSAGES: Readonly<Record<string, string>> = {
     'An action added since the nonconformity was found not effective or reopened is DONE first',
   EFFECTIVENESS_DUE: 'Effectiveness is verified on or after its due date',
   EFFECTIVENESS_DUE_AFTER_TODAY: 'The new effectiveness check is due after today',
+  REPORTED_TO: 'Name who the results are reported to',
+  CHECKLIST_COMPLETE: 'Answer a checklist row for every clause of the audit',
+  NOT_AUDITED_REASON: 'A NOT_AUDITED row has a reason',
+  REPORTED_ON_NOT_FUTURE: 'The report date is after today',
+  NCS_PAST_OPEN: 'Every nonconformity the audit raised leaves OPEN first',
+  NO_NC_FINDING: 'Its findings raised nonconformities: record the response first',
 };
 
 /**
