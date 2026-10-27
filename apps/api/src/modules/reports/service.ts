@@ -5,7 +5,9 @@ import {
   type ExportJob,
   type ExportKind,
   type InstanceRow,
+  ISO_EXPORT_FILTERS,
   ISO_EXPORT_KINDS,
+  type IsoExportKind,
   LocalDate,
   type RequestContext,
   type ScoreResult,
@@ -26,6 +28,7 @@ import {
   scoreInput,
   sourceKinds,
   STATUTORY,
+  unitScope,
   type LoadedRows,
   type Period,
 } from '../dashboard/scope.js';
@@ -39,6 +42,14 @@ import {
 import { clientArchive, type ArchiveInstance } from './archive.js';
 import { certificatePdf } from './certificate-pdf.js';
 import type { ExportFiles } from './files.js';
+import {
+  filterWords,
+  ncLogRows,
+  ncLogWorkbook,
+  riskRegisterRows,
+  riskRegisterWorkbook,
+  type IsoHeading,
+} from './iso-registers.js';
 import { registerWorkbook } from './register-xlsx.js';
 import { breakdownWorkbook, overdueWorkbook, type ReportHeading } from './report-xlsx.js';
 
@@ -182,8 +193,9 @@ const PERIOD_KINDS: ReadonlySet<ExportKind> = new Set([
 ]);
 
 /**
- * The kinds this module builds. A kind that joins `ExportKind` before M10 builds it (the staged ISO kinds, ISO-1b
- * before ISO-11d) is refused at create, and `buildFile`'s default branch fails any such job already queued.
+ * The kinds this module builds. A kind that joins `ExportKind` before M10 builds it (the ISO PDFs until ISO-11d's
+ * later parts) is refused at create, after the add-on check, and `buildFile`'s default branch fails any such job
+ * already queued.
  */
 const BUILT_KINDS: ReadonlySet<ExportKind> = new Set([
   'REGISTER_XLSX',
@@ -192,11 +204,16 @@ const BUILT_KINDS: ReadonlySet<ExportKind> = new Set([
   'OVERDUE_REPORT_XLSX',
   'CERTIFICATE_PDF',
   'CLIENT_ARCHIVE_ZIP',
+  'ISO_NC_LOG_XLSX',
+  'ISO_RISK_REGISTER_XLSX',
 ]);
 
 /** The ISO export kinds are ISO data (docs/iso/plan.md §4.4). */
 const isIsoKind = (kind: ExportKind): boolean =>
   (ISO_EXPORT_KINDS as readonly string[]).includes(kind);
+
+const isIsoKindJob = (job: ExportJob): job is ExportJob & { kind: IsoExportKind } =>
+  isIsoKind(job.kind);
 
 const featureNotEnabled = () => new ApiError('FEATURE_NOT_ENABLED', { feature: ISO_FEATURE });
 
@@ -261,22 +278,32 @@ export async function createExport(
     }
   }
   const client = await requireClientInfo(deps.store, ctx, clientId);
-  const query = parseFilters(body.filters);
-  if (body.fy !== undefined && hasPeriod(query)) {
-    throw validation('fy', 'Use fy or a period in filters, not both');
-  }
-  const asOf = resolveAsOf(ctx, client, query.asOf, now, 'export.create');
-  const params: ExportParams = {
-    filters: body.filters,
-    unitId: body.unitId ?? null,
-    fy: body.fy ?? null,
-    asOf,
-  };
-  if (params.unitId !== null) await requireUnit(deps, ctx, clientId, params.unitId);
-  if (body.kind === 'CERTIFICATE_PDF') {
-    const unitId = certificateUnit(params, query);
-    if (unitId === null) throw validation('unitId', 'A certificate is for one unit');
-    await requireUnit(deps, ctx, clientId, unitId);
+  let params: ExportParams;
+  if (isIsoKind(body.kind)) {
+    // An ISO export takes its list's filters, units included, as of the client's today (docs/iso/model.md §9).
+    for (const key of ['unitId', 'fy'] as const) {
+      if (body[key] !== undefined) {
+        throw validation(key, `An ISO export takes its list's filters, not ${key}`);
+      }
+    }
+    if (!can(ctx, 'export.create', { type: 'client', clientId })) {
+      throw new ApiError('FORBIDDEN', { action: 'export.create' });
+    }
+    const asOf = resolveAsOf(ctx, client, undefined, now, 'export.create');
+    params = { filters: body.filters, unitId: null, fy: null, asOf };
+  } else {
+    const query = parseFilters(body.filters);
+    if (body.fy !== undefined && hasPeriod(query)) {
+      throw validation('fy', 'Use fy or a period in filters, not both');
+    }
+    const asOf = resolveAsOf(ctx, client, query.asOf, now, 'export.create');
+    params = { filters: body.filters, unitId: body.unitId ?? null, fy: body.fy ?? null, asOf };
+    if (params.unitId !== null) await requireUnit(deps, ctx, clientId, params.unitId);
+    if (body.kind === 'CERTIFICATE_PDF') {
+      const unitId = certificateUnit(params, query);
+      if (unitId === null) throw validation('unitId', 'A certificate is for one unit');
+      await requireUnit(deps, ctx, clientId, unitId);
+    }
   }
 
   const job = await deps.store.createExportJob(ctx, { clientId, kind: body.kind, params });
@@ -472,12 +499,101 @@ interface BuiltFile {
   contentType: string;
 }
 
+/** The requester's ISO unit scope (plan §3.3) as M3 takes it, or null for a reader who sees the whole client. */
+function isoScope(ctx: RequestContext, clientId: string) {
+  const unitIds = unitScope(ctx, clientId);
+  return unitIds === null ? null : { unitIds, personId: ctx.personId };
+}
+
+const personRef = (ctx: RequestContext, ref: string | undefined) =>
+  ref === 'me' ? ctx.personId : ref;
+
+/** An ISO export, read through M3 with the requester's unit scope when the job runs (docs/iso/model.md §9). */
+async function buildIsoFile(
+  deps: DashboardDeps,
+  ctx: RequestContext,
+  job: ExportJob & { kind: IsoExportKind },
+): Promise<BuiltFile> {
+  const params = ExportParams.parse(job.params);
+  const client = await requireClientInfo(deps.store, ctx, job.clientId);
+  if (!can(ctx, 'export.create', { type: 'client', clientId: client.id })) {
+    throw new ApiError('FORBIDDEN', { action: 'export.create' });
+  }
+  const settings = await deps.store.firmSettings(ctx);
+  const raw = Object.fromEntries(new URLSearchParams(params.filters));
+  const scope = isoScope(ctx, client.id);
+  const timeZone = client.settings.timeZone;
+  const heading = (title: string, filters: IsoHeading['filters']): IsoHeading => ({
+    title,
+    clientName: client.name,
+    asOf: params.asOf,
+    filters,
+    scoped: scope !== null,
+  });
+  switch (job.kind) {
+    case 'ISO_NC_LOG_XLSX': {
+      const query = ISO_EXPORT_FILTERS.ISO_NC_LOG_XLSX.parse(raw);
+      const book = await deps.store.isoNonconformities(ctx, client.id, {
+        managementSystemIds: query.managementSystemId,
+        unitIds: query.unitId,
+        state: query.state,
+        source: query.source,
+        severity: query.severity,
+        standards: query.standard,
+        ownerId: personRef(ctx, query.ownerId),
+        approverId: personRef(ctx, query.approverId),
+        scope,
+      });
+      const rows = ncLogRows(book, query, params.asOf, settings);
+      return {
+        bytes: await ncLogWorkbook(
+          heading('Nonconformity log', filterWords(query, book.names)),
+          rows,
+          book.names,
+          timeZone,
+        ),
+        fileName: `nc-log-${params.asOf}.xlsx`,
+        contentType: XLSX,
+      };
+    }
+    case 'ISO_RISK_REGISTER_XLSX': {
+      const query = ISO_EXPORT_FILTERS.ISO_RISK_REGISTER_XLSX.parse(raw);
+      const book = await deps.store.isoRiskItems(ctx, client.id, {
+        managementSystemIds: query.managementSystemId,
+        unitIds: query.unitId,
+        kind: query.kind,
+        significant: query.significant,
+        climateRelated: query.climateRelated,
+        ownerId: personRef(ctx, query.ownerId),
+        includeArchived: query.includeArchived,
+        scope,
+      });
+      return {
+        bytes: await riskRegisterWorkbook(
+          heading('Risk register', filterWords(query, book.names)),
+          settings.isoRisk,
+          riskRegisterRows(book, query.q),
+          book,
+          settings,
+          timeZone,
+        ),
+        fileName: `risk-register-${params.asOf}.xlsx`,
+        contentType: XLSX,
+      };
+    }
+    default:
+      // An ISO kind M10 does not build yet: the job ends FAILED.
+      throw new Error(`No file builder for ${String(job.kind)}`);
+  }
+}
+
 async function buildFile(
   deps: DashboardDeps,
   ctx: RequestContext,
   job: ExportJob,
   iso: boolean,
 ): Promise<BuiltFile> {
+  if (isIsoKindJob(job)) return buildIsoFile(deps, ctx, job);
   const scope = await exportScope(deps, ctx, job, iso);
   const { client, period, rows } = scope;
   const heading = (title: string): ReportHeading => ({

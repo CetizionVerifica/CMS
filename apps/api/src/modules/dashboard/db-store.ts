@@ -17,10 +17,15 @@ import {
   type TenantTx,
 } from '@canopy/db';
 import { ApiError } from '../../auth/index.js';
+import { isoNcBook, isoRiskBook } from '../reports/db-iso.js';
 import type {
   ArchiveEvidence,
   ClientInfo,
   ExportDetail,
+  IsoNcBook,
+  IsoNcFilter,
+  IsoRiskBook,
+  IsoRiskFilter,
   NewExportJob,
   ReportsStore,
   RowFilter,
@@ -230,5 +235,17 @@ export class PostgresReportsStore implements ReportsStore {
 
   exportStorageKey(ctx: RequestContext, id: string): Promise<string | null> {
     return this.run(ctx, (tx) => exportJobs.storageKey(tx, id));
+  }
+
+  isoNonconformities(
+    ctx: RequestContext,
+    clientId: string,
+    filter: IsoNcFilter,
+  ): Promise<IsoNcBook> {
+    return this.run(ctx, (tx) => isoNcBook(tx, clientId, filter));
+  }
+
+  isoRiskItems(ctx: RequestContext, clientId: string, filter: IsoRiskFilter): Promise<IsoRiskBook> {
+    return this.run(ctx, (tx) => isoRiskBook(tx, clientId, filter));
   }
 }
