@@ -1,4 +1,5 @@
 import {
+  DocumentStatus,
   ReviewInputKey,
   ReviewOutputKey,
   type IsoAction,
@@ -10,12 +11,18 @@ import {
   auditChecklistItems,
   auditFindings,
   auditProgrammes,
+  certifications,
+  clauseAssessments,
   contextItems,
+  controlledDocuments,
+  documentRevisions,
   externalAudits,
   instances,
   internalAudits,
   isoActions,
   isoCatalogue,
+  isoFiles,
+  isoFileSubject,
   isoVisibleIds,
   managementReviews,
   managementSystems,
@@ -37,11 +44,13 @@ import {
 } from '@canopy/db';
 import { localDateIn, reviewInputFigures } from '@canopy/engine';
 import type {
+  IsoArchive,
   IsoAuditBook,
   IsoFigureRef,
   IsoNames,
   IsoNcBook,
   IsoNcFilter,
+  IsoRecordSheet,
   IsoReviewBook,
   IsoRiskBook,
   IsoRiskFilter,
@@ -348,4 +357,123 @@ export async function isoFigureReferences(
     }
   }
   return { visible, labels };
+}
+
+/** Ids a row names (`ownerId`, `attendeeIds`, …): the candidates for its people's names. */
+function namedIds(rows: readonly Readonly<Record<string, unknown>>[]): Set<string> {
+  const out = new Set<string>();
+  for (const row of rows) {
+    for (const [key, value] of Object.entries(row)) {
+      if (key.endsWith('Id') && typeof value === 'string') out.add(value);
+      if (key.endsWith('Ids') && Array.isArray(value)) {
+        for (const id of value) if (typeof id === 'string') out.add(id);
+      }
+    }
+  }
+  return out;
+}
+
+/**
+ * The client archive's ISO records (docs/iso/model.md §9): every record of the client other than NCs and risk items,
+ * archived ones included where M3's list can include them, with no unit scope (only an account admin makes the
+ * archive); each review input with its stored figures, never computed; and the live files.
+ */
+export async function isoArchive(tx: TenantTx, clientId: string): Promise<IsoArchive> {
+  const page = { includeArchived: true, limit: MAX_LIMIT } as const;
+  const systems = await allPages((cursor) =>
+    managementSystems.list(tx, clientId, { ...page, cursor }),
+  );
+  const context = [];
+  const checklist = [];
+  const programmes = [];
+  for (const system of systems) {
+    context.push(...(await contextItems.list(tx, system.id, { includeArchived: true })));
+    checklist.push(...(await clauseAssessments.list(tx, system.id)));
+    programmes.push(...(await auditProgrammes.list(tx, system.id, { includeArchived: true })));
+  }
+  const documents = await allPages((cursor) =>
+    controlledDocuments.list(tx, clientId, {
+      ...page,
+      status: [...DocumentStatus.options],
+      cursor,
+    }),
+  );
+  const revisions = [];
+  for (const document of documents) {
+    revisions.push(...(await documentRevisions.forDocument(tx, document.id)));
+  }
+  const goals = await allPages((cursor) => objectives.list(tx, clientId, { ...page, cursor }));
+  const readings = [];
+  for (const goal of goals) readings.push(...(await objectiveReadings.forObjective(tx, goal.id)));
+  const audits = await allPages((cursor) => internalAudits.list(tx, clientId, { ...page, cursor }));
+  const auditRows = [];
+  for (const audit of audits) auditRows.push(...(await auditChecklistItems.forAudit(tx, audit.id)));
+  const reviews = await allPages((cursor) =>
+    managementReviews.list(tx, clientId, { ...page, cursor }),
+  );
+  const defs = await isoCatalogue.reviewDefs(tx);
+  const inputKeys = new Map(defs.inputs.map((d) => [d.id, d.key]));
+  const inputs = [];
+  const outputs = [];
+  for (const review of reviews) {
+    inputs.push(...(await reviewInputs.forReview(tx, review.id)));
+    outputs.push(...(await reviewOutputs.forReview(tx, review.id)));
+  }
+  const sheets: IsoRecordSheet[] = [
+    { name: 'Management systems', rows: systems },
+    { name: 'Context items', rows: context },
+    { name: 'Clause checklist', rows: checklist },
+    { name: 'Documents', rows: documents },
+    { name: 'Document revisions', rows: revisions },
+    {
+      name: 'Certifications',
+      rows: await allPages((cursor) => certifications.list(tx, clientId, { ...page, cursor })),
+    },
+    {
+      name: 'External audits',
+      rows: await allPages((cursor) => externalAudits.list(tx, clientId, { ...page, cursor })),
+    },
+    { name: 'Objectives', rows: goals },
+    { name: 'Objective readings', rows: readings },
+    { name: 'Audit programmes', rows: programmes },
+    { name: 'Internal audits', rows: audits },
+    { name: 'Audit checklists', rows: auditRows },
+    {
+      name: 'Audit findings',
+      rows: await allPages((cursor) => auditFindings.list(tx, clientId, { ...page, cursor })),
+    },
+    {
+      name: 'Actions',
+      rows: await allPages((cursor) => isoActions.list(tx, clientId, { ...page, cursor })),
+    },
+    { name: 'Management reviews', rows: reviews },
+    // The stored figures go on their own sheet, one row per figure and id.
+    { name: 'Review inputs', rows: inputs.map(({ sourceFigures: _, ...row }) => row) },
+    { name: 'Review outputs', rows: outputs },
+  ];
+  const names = await namesOf(tx, clientId, {
+    people: sheets.flatMap((sheet) => [...namedIds(sheet.rows)]),
+  });
+  const { clean, withheld } = await isoFiles.cleanForClient(tx, clientId);
+  return {
+    sheets,
+    reviewInputs: inputs.map((row) => ({ row, key: inputKeys.get(row.inputDefId) ?? null })),
+    names,
+    files: {
+      clean: clean.map((file) => {
+        const subject = isoFileSubject(file);
+        return {
+          id: file.id,
+          subjectType: subject.type,
+          subjectId: subject.id,
+          fileName: file.fileName,
+          sizeBytes: file.sizeBytes,
+          sha256: file.sha256,
+          uploadedAt: file.createdAt,
+          storageKey: file.storageKey,
+        };
+      }),
+      withheld,
+    },
+  };
 }

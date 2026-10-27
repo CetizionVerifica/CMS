@@ -581,6 +581,7 @@ export function addIsoReviews(world: World, records: ReturnType<typeof addIsoRec
     attendeeIds: [attendeeId],
     standards: ['ISO_9001', 'ISO_45001'],
     state: 'HELD',
+    plannedOn: d('2026-09-25'),
     heldOn: d('2026-09-30'),
     minutes: 'Reviewed the year; guarding needs money.',
   });

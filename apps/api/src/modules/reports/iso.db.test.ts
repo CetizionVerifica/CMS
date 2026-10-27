@@ -4,18 +4,27 @@ import {
   LocalDate,
   type RequestContext,
   type ReviewInputKey,
+  type IsoFileSubjectType,
   type ReviewInputSource,
 } from '@canopy/contracts';
 import {
   auditChecklistItems,
   auditFindings,
   auditProgrammes,
+  certifications,
+  contextItems,
+  controlledDocuments,
+  documentRevisions,
+  externalAudits,
   internalAudits,
   isoActions,
   isoCatalogue,
+  isoFiles,
   managementReviews,
   managementSystems,
   nonconformities,
+  objectiveReadings,
+  objectives,
   obligations,
   people,
   reviewInputs,
@@ -26,6 +35,7 @@ import {
   type TenantTx,
 } from '@canopy/db';
 import ExcelJS from 'exceljs';
+import JSZip from 'jszip';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { accountView, createTestAuth } from '../../auth/testing.js';
 import { buildServer } from '../../server.js';
@@ -815,5 +825,278 @@ describe('the management review pack on Postgres', () => {
     expect((await create(b, reviews.held.id, admin(b))).statusCode).toBe(404);
     const office = headers(a, 'APPROVER', a.people.viewer, [a.unit2]);
     expect(await pack(reviews.planned.id, office)).toContain('Draft');
+  });
+});
+
+describe("the client archive's ISO data on Postgres", () => {
+  const SHA = 'a'.repeat(64);
+  let extra: Awaited<ReturnType<typeof seedArchive>>;
+
+  /** The records only the archive reads, and ISO files: one clean, one pending, one clean but removed. */
+  async function seedArchive(world: FirmWorld) {
+    return t.db.withTenant(systemContext(world.firmId, 'm10-iso-archive'), async (tx: TenantTx) => {
+      const context = await contextItems.create(tx, {
+        clientId: world.clientId,
+        managementSystemId: seeded.plantSystem,
+        kind: 'INTERNAL_ISSUE',
+        text: 'Alloy prices',
+        needs: null,
+        climateRelated: false,
+        reviewedOn: null,
+      });
+      const doc = (code: string, title: string, status: 'ACTIVE' | 'OBSOLETE') =>
+        controlledDocuments.create(tx, {
+          clientId: world.clientId,
+          managementSystemId: seeded.plantSystem,
+          code,
+          title,
+          type: 'PROCEDURE',
+          clauseIds: [],
+          status,
+          currentRevisionId: null,
+          ownerId: world.people.owner,
+          approverId: world.people.approver,
+          reviewDueOn: null,
+          lastReviewedOn: null,
+          retention: null,
+          issuer: null,
+          externalRef: null,
+        });
+      const document = await doc('QP-07', 'Calibration procedure', 'ACTIVE');
+      // The document list reads ACTIVE ones unless asked: the archive asks for every status.
+      const obsolete = await doc('QP-01', 'Old calibration procedure', 'OBSOLETE');
+      const revision = await documentRevisions.create(tx, {
+        clientId: world.clientId,
+        documentId: document.id,
+        revision: 'A',
+        changeNote: 'First issue',
+        state: 'DRAFT',
+        preparedById: world.people.owner,
+        approvedById: null,
+        approvedAt: null,
+        sendBackReason: null,
+      });
+      const objective = await objectives.create(tx, {
+        clientId: world.clientId,
+        managementSystemId: seeded.plantSystem,
+        standards: ['ISO_9001'],
+        text: 'Cut customer complaints',
+        target: 10,
+        unitOfMeasure: 'complaints a year',
+        baseline: 24,
+        direction: 'DECREASE',
+        readingRule: { kind: 'MONTHLY', day: 5, offsetMonths: 1 },
+        riskItemIds: [],
+        ownerId: world.people.owner,
+        dueOn: d('2027-03-31'),
+        closedOn: null,
+        outcome: null,
+      });
+      const reading = await objectiveReadings.create(tx, {
+        clientId: world.clientId,
+        objectiveId: objective.id,
+        periodStart: d('2026-05-01'),
+        periodEnd: d('2026-05-31'),
+        value: 3,
+        note: null,
+        recordedById: world.people.owner,
+      });
+      const external = await externalAudits.create(tx, {
+        clientId: world.clientId,
+        managementSystemId: seeded.plantSystem,
+        standardIds: [seeded.iso9001],
+        type: 'SURVEILLANCE_1',
+        body: 'Osprey Certification',
+        leadAuditorName: null,
+        startOn: d('2026-07-01'),
+        endOn: d('2026-07-02'),
+        recommendation: null,
+        responseDueOn: null,
+        state: 'HELD',
+        cancelReason: null,
+      });
+      const certificate = await certifications.create(tx, {
+        clientId: world.clientId,
+        managementSystemId: seeded.plantSystem,
+        standardId: seeded.iso9001,
+        body: 'Osprey Certification',
+        certificateNumber: null,
+        issuedOn: null,
+        expiresOn: null,
+        scopeText: null,
+        unitIds: [],
+      });
+      const file = async (
+        subject: { type: IsoFileSubjectType; id: string },
+        fileName: string,
+        body: string | null,
+      ) => {
+        const made = await isoFiles.create(tx, {
+          clientId: world.clientId,
+          subject,
+          fileName,
+          mimeType: 'application/pdf',
+          sizeBytes: 10,
+          sha256: SHA,
+          storageKey: `evidence/${world.firmId}/${world.clientId}/iso/${subject.type}/${subject.id}/${fileName}`,
+          uploadedById: world.people.owner,
+        });
+        if (body !== null) {
+          await isoFiles.setScanStatus(tx, made.id, 'CLEAN');
+          files.files.set(made.storageKey, { bytes: Buffer.from(body), contentType: 'text/plain' });
+        }
+        return made;
+      };
+      const certificateFile = await file(
+        { type: 'certification', id: certificate.id },
+        'certificate.pdf',
+        'the certificate',
+      );
+      await file({ type: 'document_revision', id: revision.id }, 'draft.pdf', null);
+      const removed = await file(
+        { type: 'nonconformity', id: seeded.complaint.id },
+        'old.pdf',
+        'x',
+      );
+      await isoFiles.archive(tx, removed.id, 'Uploaded in error');
+      return {
+        context,
+        document,
+        obsolete,
+        revision,
+        objective,
+        reading,
+        external,
+        certificateFile,
+      };
+    });
+  }
+
+  beforeAll(async () => {
+    extra = await seedArchive(a);
+  });
+
+  async function archive(world: FirmWorld): Promise<JSZip> {
+    const as = admin(world);
+    const res = await app.inject({
+      method: 'POST',
+      url: `/api/v1/clients/${world.clientId}/exports`,
+      headers: as,
+      payload: { kind: 'CLIENT_ARCHIVE_ZIP' },
+    });
+    expect(res.statusCode, res.body).toBe(202);
+    const job = ExportJob.parse(res.json());
+    await runner.idle();
+    const read = await app.inject({ url: `/api/v1/exports/${job.id}`, headers: as });
+    expect(ExportJob.parse(read.json()).status).toBe('DONE');
+    const ctx = {
+      requestId: 'm10-iso-read',
+      firmId: world.firmId,
+      personId: job.requestedById,
+      memberships: [],
+      clientIds: [world.clientId],
+      mfaSatisfied: true,
+    } as unknown as RequestContext;
+    const key = await new PostgresReportsStore(t.db).exportStorageKey(ctx, job.id);
+    return JSZip.loadAsync(files.files.get(key!)!.bytes);
+  }
+
+  async function sheets(zip: JSZip): Promise<Map<string, Record<string, unknown>[]>> {
+    const book = new ExcelJS.Workbook();
+    await book.xlsx.load((await zip.file('iso/records.xlsx')!.async('arraybuffer')) as ArrayBuffer);
+    return new Map(
+      book.worksheets.map((sheet) => {
+        const [header, ...rows] = (sheet.getSheetValues() as unknown[][])
+          .filter(Boolean)
+          .map((row) => row.slice(1));
+        return [
+          sheet.name,
+          rows.map((row) => Object.fromEntries(header!.map((h, i) => [h, row[i] ?? '']))),
+        ];
+      }),
+    );
+  }
+
+  for (const on of [true, false]) {
+    it(`holds every kind of ISO record, the held review's figures and the clean files, add-on ${on ? 'on' : 'off'}`, async () => {
+      await t.setFeatures(a.firmId, on ? ['isoManagement'] : []);
+      const zip = await archive(a);
+      await t.setFeatures(a.firmId, ['isoManagement']);
+      const book = await sheets(zip);
+      const ids = (name: string) => book.get(name)!.map((row) => row.id);
+      expect(ids('Management systems')).toEqual(
+        expect.arrayContaining([seeded.plantSystem, seeded.officeSystem]),
+      );
+      expect(ids('Context items')).toContain(extra.context.id);
+      expect(ids('Documents')).toEqual(
+        expect.arrayContaining([extra.document.id, extra.obsolete.id]),
+      );
+      expect(ids('Document revisions')).toContain(extra.revision.id);
+      expect(ids('Certifications')).toHaveLength(1);
+      expect(ids('External audits')).toEqual([extra.external.id]);
+      expect(ids('Objectives')).toEqual([extra.objective.id]);
+      expect(ids('Objective readings')).toEqual([extra.reading.id]);
+      expect(ids('Internal audits')).toEqual(
+        expect.arrayContaining([seeded.reportedAudit.id, seeded.plannedAudit.id]),
+      );
+      expect(ids('Audit findings')).toContain(seeded.ncFinding.id);
+      expect(ids('Audit checklists').length).toBeGreaterThan(0);
+      expect(ids('Audit programmes').length).toBeGreaterThan(0);
+      expect(book.get('Clause checklist')).toBeDefined();
+      expect(ids('Actions')).toContain(seeded.riskAction.id);
+      expect(ids('Management reviews')).toEqual(
+        expect.arrayContaining([reviews.held.id, reviews.planned.id]),
+      );
+      expect(book.get('Review inputs')!.map((row) => row.notes)).toContain('Roller line injury');
+      expect(book.get('Review outputs')!.length).toBe(2);
+      expect(book.get('Names')).toContainEqual({
+        kind: 'Person',
+        id: seeded.officeOwner,
+        name: 'Office Owner',
+      });
+
+      // Only the held review's stored figures, as stored, with their window, recording time and engine version.
+      const figures = book.get('Review figures')!;
+      expect(new Set(figures.map((row) => row.managementReviewId))).toEqual(
+        new Set([reviews.held.id]),
+      );
+      const raised = figures.filter((row) => row.figure === 'raised');
+      expect(raised.map((row) => row.id)).toEqual([seeded.gauge.id, seeded.complaint.id]);
+      expect(raised[0]).toMatchObject({
+        inputKey: 'NONCONFORMITIES',
+        source: 'NONCONFORMITIES',
+        since: '2026-04-01',
+        asOf: '2026-09-30',
+        figuresEngineVersion: '1.2.0',
+        value: 2,
+      });
+      expect(String(raised[0]!.figuresStoredAt)).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+      expect(figures.find((row) => row.figure === 'statutoryScore')).toMatchObject({
+        value: 100,
+        id: '',
+      });
+
+      const clean = `iso/certification/${extra.certificateFile.certificationId}/certificate.pdf`;
+      expect(await zip.file(clean)!.async('string')).toBe('the certificate');
+      const isoFilesIn = Object.keys(zip.files).filter(
+        (n) =>
+          n.startsWith('iso/') && !n.endsWith('.xlsx') && !n.endsWith('.csv') && !zip.files[n]!.dir,
+      );
+      expect(isoFilesIn).toEqual([clean]);
+      const readme = await zip.file('README.txt')!.async('string');
+      expect(readme).toContain('ISO files included: 1.');
+      expect(readme).toContain('Left out: 1 ISO file(s)');
+      expect(zip.file('iso/nc-log.xlsx')).not.toBeNull();
+      expect(zip.file('iso/risk-register.xlsx')).not.toBeNull();
+    });
+  }
+
+  it("never reads another firm's ISO records or files", async () => {
+    const zip = await archive(b);
+    const book = await sheets(zip);
+    for (const [name, rows] of book) {
+      if (name !== 'Names') expect(rows, name).toEqual([]);
+    }
+    expect(await zip.file('README.txt')!.async('string')).toContain('ISO files included: 0.');
   });
 });

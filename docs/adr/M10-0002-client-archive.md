@@ -22,7 +22,8 @@ it to the database enum. Nothing built the file yet.
 5. **Contents.** `register.xlsx` (the REGISTER_XLSX build over all dates and units, so it re-imports), then
    `evidence/<due date> <obligation> <unit>/<file name>`, then `evidence/index.csv` (item, unit, due date, upload
    time, size, SHA-256) and `README.txt`. File names are made safe for any system; a repeated name gets a `2 `
-   prefix. CSV cells that would run as formulas are quoted with `'`.
+   prefix. CSV cells that would run as formulas are quoted with `'`. Since ISO-11d the archive also holds an `iso/`
+   folder, with the add-on on or off (ADR M10-0003 decisions 18-21).
 6. **Clean evidence only.** A file whose scan is PENDING, INFECTED or FAILED stays out and the README counts it.
    Archived evidence is left out, as in the vault. A file missing from storage is counted in the README, not fatal.
 7. **Streamed.** Evidence is read one file at a time into a zip stream, and the stream goes to S3 in 8 MiB parts

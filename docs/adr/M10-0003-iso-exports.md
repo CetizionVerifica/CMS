@@ -87,3 +87,32 @@ records part 1 and grows with the later parts.
     and its exceptions (chair, attendee, a person named on the incident) and 404 at create; Postgres covers the stored
     figures with a reference of each kind the test seeds, a unit-limited approver, an attendee, figures unchanged after a
     record is archived, a planned review computed through `gather`, and another firm.
+
+## Part 4: ISO data in the client archive
+
+18. **Always there, never computed.** `CLIENT_ARCHIVE_ZIP` writes an `iso/` folder with the add-on on or off, read
+    with no unit scope since only an account admin makes the archive (ADR M10-0002 decision 2). Nothing in it is
+    computed for the archive: a review's figures are the copy its inputs stored when it was held, and a planned or
+    cancelled review has none there.
+19. **The two workbooks.** `iso/nc-log.xlsx` is the NC log export with no filters (live NCs, as the log lists them:
+    M3's NC list has no archived option) and `iso/risk-register.xlsx` the risk register export with archived items,
+    both as of the client's today.
+20. **A register of the other records.** `iso/records.xlsx` has one sheet per kind of record, each row the record as
+    M3 holds it with one column per field (lists joined with "; ", nested values as JSON), archived rows included where
+    M3's list can include them: management systems, context items, the clause checklist, documents of every status and
+    their revisions, certifications, external audits, objectives and readings, audit programmes, internal audits,
+    their checklists, findings, actions, management reviews, review inputs (with their notes) and outputs. "Review
+    figures" holds each stored figure in full, one row per figure and id (so no list outgrows a cell): the review,
+    the input and its key, the source, `since`, `asOf`, `figuresStoredAt`, `figuresEngineVersion`, the figure's key,
+    value and id. "Names" gives the name of each person, unit, system and clause the ids refer to. A sheet keeps M3's
+    field names, so it reads back as the records it came from. No sheet holds an incident: NCs, with their incident
+    columns as the NC log prints them, are in the NC log only.
+21. **Files as evidence.** Live ISO files scanned CLEAN go under `iso/<subject type>/<subject id>/<file name>` (names
+    made safe and numbered on a clash as for evidence) and are listed in `iso/index.csv`; others are counted in the
+    README as "Left out", and a file missing from storage as "Not found", apart from the evidence counts (ADR
+    M10-0002 decisions 5-6). Removed files stay out.
+22. **Tests.** The memory store covers the folder with the add-on on and off, file paths, the index, the README
+    counts, the workbooks and the review figures sheet; Postgres covers every sheet with a record of each kind, the
+    held review's stored figures with window, recording time and engine version, a removed and a pending file, the
+    add-on off, and another firm's archive. The review pack's file name and PDF title now both name the day a review
+    was held (#337 audit Info).

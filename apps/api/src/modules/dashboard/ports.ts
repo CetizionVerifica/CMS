@@ -10,6 +10,7 @@ import type {
   FirmSettings,
   InternalAudit,
   IsoAction,
+  IsoFileSubjectType,
   IsoReviewInputDef,
   IsoReviewOutputDef,
   IsoStandardCode,
@@ -217,6 +218,36 @@ export interface IsoFigureRef {
   ids: readonly string[];
 }
 
+/** A clean ISO file the client archive copies, with the record it belongs to and where it is stored. */
+export interface IsoArchiveFile {
+  id: string;
+  subjectType: IsoFileSubjectType;
+  subjectId: string;
+  fileName: string;
+  sizeBytes: number;
+  sha256: string;
+  uploadedAt: string;
+  storageKey: string;
+}
+
+/** One sheet of the archive's register of ISO records: the rows as M3 holds them, archived ones included. */
+export interface IsoRecordSheet {
+  name: string;
+  rows: readonly Readonly<Record<string, unknown>>[];
+}
+
+/**
+ * The client's ISO records for the client archive (docs/iso/model.md §9), whole client, no unit scope: the records
+ * other than NCs and risk items (which go in their workbooks), each review input with its definition's key and its
+ * stored figures, the names their ids print, and the live files: `clean` ones oldest first, `withheld` how many others.
+ */
+export interface IsoArchive {
+  sheets: IsoRecordSheet[];
+  reviewInputs: readonly { row: ReviewInput; key: string | null }[];
+  names: IsoNames;
+  files: { clean: IsoArchiveFile[]; withheld: number };
+}
+
 export interface ReportsStore {
   firmSettings(ctx: RequestContext): Promise<FirmSettings>;
   /**
@@ -295,4 +326,6 @@ export interface ReportsStore {
     refs: readonly IsoFigureRef[],
     scope: UnitScope | null,
   ): Promise<{ visible: string[][]; labels: ReadonlyMap<string, string> }>;
+  /** The client's ISO records and files for the client archive; read with the add-on on or off. */
+  isoArchive(ctx: RequestContext, clientId: string): Promise<IsoArchive>;
 }
