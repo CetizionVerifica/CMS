@@ -95,6 +95,20 @@ describe('the internal audit report', () => {
     expect(text).toContain('No findings.');
   });
 
+  it('names an auditor who is also an auditee when no independence note was recorded', async () => {
+    const unchecked = auditRecord(w, {
+      programmeId: audits.reported.programmeId,
+      leadAuditorId: audits.leadId,
+      auditeeIds: [audits.leadId],
+    });
+    w.store.iso.audits.push(unchecked);
+    const { text } = await report(unchecked.id);
+    expect(text).toContain(
+      'No independence note is recorded, though these auditors are also auditees: Lead Auditor.',
+    );
+    expect(text).not.toContain(NO_SELF_AUDIT);
+  });
+
   it('prints why a cancelled audit was cancelled', async () => {
     const cancelled = auditRecord(w, {
       programmeId: audits.reported.programmeId,

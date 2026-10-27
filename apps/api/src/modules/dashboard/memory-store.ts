@@ -9,10 +9,13 @@ import {
   ExportJob,
   type FirmSettings,
   type IsoAction,
+  type LocalDate,
+  type ManagementReview,
   type Nonconformity,
   type ObligationDomain,
   type RequestContext,
   type RiskControl,
+  type ReviewInputFigures,
   type RiskItem,
 } from '@canopy/contracts';
 import type { RegisterRow, UnitScope } from '@canopy/db';
@@ -22,9 +25,13 @@ import type {
   ClientInfo,
   ExportDetail,
   IsoAuditBook,
+  IsoFigureRef,
   IsoNames,
   IsoNcBook,
   IsoNcFilter,
+  IsoReviewBook,
+  IsoReviewInputRow,
+  IsoReviewOutputRow,
   IsoRiskBook,
   IsoRiskFilter,
   NewExportJob,
@@ -93,6 +100,24 @@ export class MemoryReportsStore implements ReportsStore {
     audits: [] as InternalAudit[],
     checklist: [] as AuditChecklistItem[],
     findings: [] as AuditFinding[],
+    reviews: [] as ManagementReview[],
+    /** Input rows; `computed` stands in for M3's gather and the engine while the review is PLANNED. */
+    reviewInputs: [] as (Omit<IsoReviewInputRow, 'figures'> & {
+      computed: ReviewInputFigures | null;
+    })[],
+    reviewOutputs: [] as IsoReviewOutputRow[],
+    /** Records a review figure names, by id: their table, reference and what plan §3.3 reads them by. */
+    references: new Map<
+      string,
+      {
+        clientId: string;
+        table: string;
+        label: string;
+        managementSystemId: string;
+        unitId: string | null;
+        named: string[];
+      }
+    >(),
     names: {
       people: new Map<string, string>(),
       units: new Map<string, string>(),
@@ -303,6 +328,72 @@ export class MemoryReportsStore implements ReportsStore {
       actions: this.isoActionsOf(new Set(findings.map((f) => f.id))),
       names: this.iso.names,
     };
+  }
+
+  async isoManagementReview(
+    ctx: RequestContext,
+    clientId: string,
+    id: string,
+    scope: UnitScope | null,
+    day: { today: LocalDate; timeZone: string } | null,
+  ): Promise<IsoReviewBook | null> {
+    const review = this.iso.reviews.find(
+      (r) =>
+        r.id === id && r.firmId === ctx.firmId && r.clientId === clientId && r.archivedAt === null,
+    );
+    if (review === undefined) return null;
+    const named = [review.chairId, ...review.attendeeIds];
+    if (
+      !this.isoInScope(
+        scope,
+        { managementSystemId: review.managementSystemId, unitId: null },
+        named,
+      )
+    ) {
+      return null;
+    }
+    const inputs = this.iso.reviewInputs
+      .filter((i) => i.row.managementReviewId === review.id && i.row.archivedAt === null)
+      .map(({ computed, ...rest }) => {
+        let figures: ReviewInputFigures | null = null;
+        if (rest.def.source !== 'MANUAL' && review.state === 'PLANNED') {
+          figures = day === null ? null : computed;
+        } else if (rest.def.source !== 'MANUAL' && review.state !== 'CANCELLED') {
+          figures = rest.row.sourceFigures;
+        }
+        return { ...rest, figures };
+      });
+    return {
+      review,
+      inputs,
+      outputs: this.iso.reviewOutputs.filter(
+        (o) => o.row.managementReviewId === review.id && o.row.archivedAt === null,
+      ),
+      actions: this.isoActionsOf(new Set([review.id])),
+      names: this.iso.names,
+    };
+  }
+
+  async isoFigureReferences(
+    _ctx: RequestContext,
+    clientId: string,
+    refs: readonly IsoFigureRef[],
+    scope: UnitScope | null,
+  ): Promise<{ visible: string[][]; labels: ReadonlyMap<string, string> }> {
+    const labels = new Map<string, string>();
+    const visible = refs.map((ref) =>
+      ref.ids.filter((id) => {
+        const record = this.iso.references.get(id);
+        const shown =
+          record !== undefined &&
+          record.clientId === clientId &&
+          record.table === ref.table &&
+          this.isoInScope(scope, record, record.named);
+        if (shown) labels.set(id, record.label);
+        return shown;
+      }),
+    );
+    return { visible, labels };
   }
 
   private isoActionsOf(ids: ReadonlySet<string>): IsoAction[] {

@@ -9,12 +9,12 @@ import {
   type RequestContext,
 } from '@canopy/contracts';
 import ExcelJS from 'exceljs';
-import { afterAll, describe, expect, it, onTestFinished } from 'vitest';
+import { afterAll, describe, expect, it } from 'vitest';
 import { buildServer } from '../../server.js';
 import { createTestAuth, membership } from '../../auth/testing.js';
 import { createWorld, NOW } from '../dashboard/testing/world.js';
 import { REGISTER_HEADERS } from './register-xlsx.js';
-import { createExport, IdempotencyCache, runExport, type ReportsDeps } from './service.js';
+import { createExport, IdempotencyCache, type ReportsDeps } from './service.js';
 import { pdfText } from './testing/pdf-text.js';
 
 const w = createWorld();
@@ -455,8 +455,6 @@ describe('exports: kinds M10 does not build yet', () => {
     onExportError: ({ kind, error }) => errors.push({ kind, error }),
   };
 
-  const params = { filters: '', unitId: null, fy: null, asOf: LocalDate.parse('2026-10-12') };
-
   it('the kinds M10 builds still build with the same context', async () => {
     const job = await createExport(
       deps,
@@ -480,39 +478,6 @@ describe('exports: kinds M10 does not build yet', () => {
         statusCode: 403,
       });
       expect(w.store.jobs.size).toBe(jobs);
-    });
-  }
-
-  // ISO-11d builds the NC log, the risk register and the audit report first; the review pack follows.
-  for (const kind of ['ISO_REVIEW_PACK_PDF'] as const) {
-    it(`${kind}: a queued job fails in the build branch and nothing is stored`, async () => {
-      // With the add-on on the worker reaches the build, whose default branch fails the job.
-      w.store.features.set(w.firmId, ['isoManagement']);
-      onTestFinished(() => void w.store.features.delete(w.firmId));
-      // The memory store's jobs parse as today's `ExportJob`, so this one records statuses itself.
-      const statuses: ExportJob['status'][] = [];
-      const store = Object.assign(Object.create(w.store) as typeof w.store, {
-        setExportStatus: async (
-          _ctx: RequestContext,
-          _id: string,
-          patch: Pick<ExportJob, 'status'> & { fileName?: string | null },
-        ) => {
-          statuses.push(patch.status);
-          expect(patch.fileName ?? null).toBeNull();
-          return queued;
-        },
-      });
-      const real = await w.store.createExportJob(ctx, {
-        clientId: w.clientId,
-        kind: 'REGISTER_XLSX',
-        params,
-      });
-      const queued: ExportJob = { ...real, kind: kind as unknown as ExportKind };
-      const files = w.files.files.size;
-      await runExport({ ...deps, store }, ctx, queued);
-      expect(statuses).toEqual(['RUNNING', 'FAILED']);
-      expect(w.files.files.size).toBe(files);
-      expect(errors.at(-1)).toEqual({ kind, error: 'Error' });
     });
   }
 });

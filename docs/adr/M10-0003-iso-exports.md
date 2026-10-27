@@ -57,3 +57,33 @@ records part 1 and grows with the later parts.
     its reason. Records only: the PDF computes nothing.
 11. **Tests.** Content, the draft and cancelled headings, the independence note, 404 at create, unit scope and the
     named-person rule on the memory store; the same reads, another firm's audit and an archived lead's name on Postgres.
+
+## Part 3: the management review pack PDF
+
+12. **One review, checked at create.** `ISO_REVIEW_PACK_PDF` takes `managementReviewId` only. Create answers 404
+    `NOT_FOUND` for a review that is unknown, archived, another client's, or out of the requester's scope (plan §3.3:
+    the system's units, or its chair or an attendee, through M3's `managementReviews.list` scope), and computes no
+    figures. The worker reads it again with the requester's scope.
+13. **Figures by state (model §3.13 item 5).** HELD and CLOSED print the stored copy, never recomputed, headed "Figures
+    for <since> to <asOf>, recorded <figuresStoredAt in the client's time zone> (engine <figuresEngineVersion>)"; a row
+    without one is headed "No figures: held before the system was set up in the app". PLANNED computes each non-MANUAL
+    input through M3's `reviewFigures.gather` and the engine's `reviewInputFigures` as of the client's today when the
+    pack is made, with `localDateIn` in the client's time zone and no unit scope, headed "Draft: figures for <since>
+    to <asOf>". CANCELLED and MANUAL rows print notes only.
+14. **Values for everyone, references for the reader.** Each figure prints its value as the review has it, in the
+    words of `FIGURE_WORDS` (one entry per `REVIEW_FIGURE_KEYS` key, as the review screen words them; a key the
+    contract does not list prints by its key). Its ids go through M3's `isoVisibleIds` with the requester's unit scope
+    and person (none for a client-wide reader) when the job runs, and only those print, as short references: "NC 12",
+    an audit's title, an action's text, an obligation with its due date. Where fewer are readable the value says so,
+    as the screen does: "2 (1 you can open)".
+15. **Incidents withheld.** An INCIDENTS row whose ids the requester cannot all read prints "Figures and notes withheld:
+    they count incidents you may not open" with neither its figures nor its notes, unless the requester chairs or
+    attends the review (model §3.13 item 4). The test reads the row's ids, not the system's units.
+16. **The rest.** The pack prints the review's state, dates, chair, attendees and minutes, then inputs in key order
+    with their clause and notes, outputs with their decisions, and the review's actions. The audit report now names
+    any auditor who is also an auditee when no independence note was recorded, since only M16's save rule, not the
+    database, requires the note (#335 audit Info).
+17. **Tests.** Every figure key has words; the memory store covers each state's heading, cut references, withholding
+    and its exceptions (chair, attendee, a person named on the incident) and 404 at create; Postgres covers the stored
+    figures with a reference of each kind the test seeds, a unit-limited approver, an attendee, figures unchanged after a
+    record is archived, a planned review computed through `gather`, and another firm.

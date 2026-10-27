@@ -7,6 +7,12 @@ import {
   type AuditProgramme,
   type Incident,
   type InternalAudit,
+  type IsoReviewInputDef,
+  type IsoReviewOutputDef,
+  type ManagementReview,
+  type ReviewInput,
+  type ReviewInputFigures,
+  type ReviewInputSource,
   type IsoAction,
   type Nonconformity,
   type RiskControl,
@@ -440,4 +446,206 @@ export function addIsoAudits(world: World, records: ReturnType<typeof addIsoReco
     actionRecord(world, { type: 'AUDIT_FINDING', id: findings.ofi.id }, { text: 'Buy bin labels' }),
   );
   return { leadId, auditorId, officeLeadId, reported, planned, archived, findings };
+}
+
+export function reviewRecord(
+  world: Pick<Cast, 'firmId' | 'clientId'>,
+  fields: Partial<ManagementReview> &
+    Pick<ManagementReview, 'managementSystemId' | 'chairId' | 'state'>,
+): ManagementReview {
+  return {
+    ...record(world.firmId, world.clientId),
+    standards: ['ISO_9001'],
+    plannedOn: d('2026-09-30'),
+    heldOn: null,
+    attendeeIds: [],
+    minutes: null,
+    cancelReason: null,
+    ...fields,
+  };
+}
+
+/**
+ * Adds management reviews to `world` (after `addIsoRecords`): a "Site system" on both units, held on 2026-09-30 with
+ * stored figures (NCs 1 and 2, the incident NC 3 at Head Office), a MANUAL input, an output and an action; a planned
+ * review of the office system whose figures stand in for the computed ones; a closed review held before set-up; and a
+ * cancelled one. NC 1 is at Plant; NCs 2 and 3 at Head Office, NC 3 naming its investigator.
+ */
+export function addIsoReviews(world: World, records: ReturnType<typeof addIsoRecords>) {
+  const { store } = world;
+  const siteSystem = randomUUID();
+  const chairId = world.approverId;
+  const attendeeId = randomUUID();
+  store.iso.systems.set(siteSystem, {
+    firmId: world.firmId,
+    clientId: world.clientId,
+    unitIds: [world.unit1, world.unit2],
+  });
+  store.iso.names.systems.set(siteSystem, 'Site system');
+  store.iso.names.people.set(attendeeId, 'Review Attendee');
+  const standardId = randomUUID();
+  const base = () => ({
+    id: randomUUID(),
+    firmId: world.firmId,
+    createdAt: STAMP,
+    updatedAt: STAMP,
+    archivedAt: null,
+  });
+  const inputDef = (
+    key: IsoReviewInputDef['key'],
+    source: ReviewInputSource,
+    title: string,
+  ): IsoReviewInputDef => ({
+    ...base(),
+    standardId,
+    key,
+    clauseNumber: '9.3.2',
+    item: 'c',
+    title,
+    source,
+  });
+  const defs = {
+    ncs: inputDef('NONCONFORMITIES', 'NONCONFORMITIES', 'Nonconformities and corrective actions'),
+    incidents: inputDef('INCIDENTS', 'INCIDENTS', 'Incidents'),
+    customers: inputDef('CUSTOMER_SATISFACTION', 'MANUAL', 'Customer satisfaction'),
+  };
+  const outputDef: IsoReviewOutputDef = {
+    ...base(),
+    standardId,
+    key: 'IMPROVEMENT',
+    clauseNumber: '9.3.3',
+    item: null,
+    title: 'Opportunities for improvement',
+  };
+  const ncs = records.ncs;
+  const refs: [Nonconformity, string[]][] = [
+    [ncs.gauge, []],
+    [ncs.complaint, []],
+    [ncs.incident, [records.investigatorId]],
+  ];
+  for (const [nc, named] of refs) {
+    store.iso.references.set(nc.id, {
+      clientId: world.clientId,
+      table: 'nonconformity',
+      label: `NC ${nc.number}`,
+      managementSystemId: nc.managementSystemId,
+      unitId: nc.unitId,
+      named,
+    });
+  }
+  const figures = (
+    source: ReviewInputFigures['source'],
+    list: ReviewInputFigures['figures'],
+    since = '2026-04-01',
+    asOf = '2026-09-30',
+  ): ReviewInputFigures => ({ source, since: d(since), asOf: d(asOf), figures: list });
+  const stored = {
+    ncs: figures('NONCONFORMITIES', [
+      { key: 'raised', value: 2, ids: [ncs.gauge.id, ncs.complaint.id] },
+      { key: 'open', value: 1, ids: [ncs.gauge.id] },
+    ]),
+    incidents: figures('INCIDENTS', [
+      { key: 'incidents', value: 1, ids: [ncs.incident.id] },
+      { key: 'lostDays', value: 4, ids: [ncs.incident.id] },
+    ]),
+  };
+
+  const review = (fields: Parameters<typeof reviewRecord>[1]) => {
+    const made = reviewRecord(world, fields);
+    store.iso.reviews.push(made);
+    return made;
+  };
+  const input = (
+    reviewId: string,
+    def: IsoReviewInputDef,
+    fields: Partial<ReviewInput> = {},
+    computed: ReviewInputFigures | null = null,
+  ) => {
+    const row: ReviewInput = {
+      ...record(world.firmId, world.clientId),
+      managementReviewId: reviewId,
+      inputDefId: def.id,
+      notes: null,
+      sourceFigures: null,
+      figuresStoredAt: null,
+      figuresEngineVersion: null,
+      ...fields,
+    };
+    store.iso.reviewInputs.push({ row, def, clause: 'ISO 9001 9.3.2 c', computed });
+  };
+  const storedAt = { figuresStoredAt: '2026-09-30T12:30:00.000Z', figuresEngineVersion: '1.2.0' };
+
+  const held = review({
+    managementSystemId: siteSystem,
+    chairId,
+    attendeeIds: [attendeeId],
+    standards: ['ISO_9001', 'ISO_45001'],
+    state: 'HELD',
+    heldOn: d('2026-09-30'),
+    minutes: 'Reviewed the year; guarding needs money.',
+  });
+  input(held.id, defs.ncs, { notes: 'Two raised', sourceFigures: stored.ncs, ...storedAt });
+  input(held.id, defs.incidents, {
+    notes: 'One lost-time injury on the roller line',
+    sourceFigures: stored.incidents,
+    ...storedAt,
+  });
+  input(held.id, defs.customers, { notes: 'Survey score 4.2 of 5' });
+  store.iso.reviewOutputs.push({
+    row: {
+      ...record(world.firmId, world.clientId),
+      managementReviewId: held.id,
+      outputDefId: outputDef.id,
+      decision: 'Fit guards on every roller',
+    },
+    def: outputDef,
+    clause: 'ISO 9001 9.3.3',
+  });
+  store.iso.actions.push(
+    actionRecord(
+      world,
+      { type: 'MANAGEMENT_REVIEW', id: held.id },
+      {
+        text: 'Buy two light curtains',
+        outputKey: 'IMPROVEMENT',
+      },
+    ),
+  );
+
+  const planned = review({
+    managementSystemId: records.officeSystem,
+    chairId,
+    state: 'PLANNED',
+    plannedOn: d('2027-03-15'),
+  });
+  input(
+    planned.id,
+    defs.ncs,
+    {},
+    figures(
+      'NONCONFORMITIES',
+      [{ key: 'raised', value: 1, ids: [ncs.complaint.id] }],
+      '2026-09-30',
+      '2026-10-12',
+    ),
+  );
+
+  const beforeSetUp = review({
+    managementSystemId: siteSystem,
+    chairId,
+    state: 'CLOSED',
+    heldOn: d('2026-03-01'),
+    plannedOn: d('2026-03-01'),
+  });
+  input(beforeSetUp.id, defs.ncs, { notes: 'From the paper register' });
+
+  const cancelled = review({
+    managementSystemId: siteSystem,
+    chairId,
+    state: 'CANCELLED',
+    cancelReason: 'Merged into the March review',
+  });
+  input(cancelled.id, defs.incidents, {}, stored.incidents);
+
+  return { siteSystem, chairId, attendeeId, held, planned, beforeSetUp, cancelled, stored };
 }

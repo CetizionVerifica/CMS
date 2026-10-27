@@ -1,30 +1,52 @@
-import type { IsoAction, IsoActionSubjectType } from '@canopy/contracts';
 import {
+  ReviewInputKey,
+  ReviewOutputKey,
+  type IsoAction,
+  type IsoActionSubjectType,
+  type LocalDate,
+} from '@canopy/contracts';
+import {
+  assignments,
   auditChecklistItems,
   auditFindings,
   auditProgrammes,
+  contextItems,
+  externalAudits,
+  instances,
   internalAudits,
   isoActions,
   isoCatalogue,
+  isoVisibleIds,
+  managementReviews,
   managementSystems,
   MAX_LIMIT,
   nonconformities,
+  objectiveReadings,
+  objectives,
   obligations,
   people,
+  reviewFigures,
+  reviewInputs,
+  reviewOutputs,
   riskControls,
   riskItems,
   units,
+  type FigureRefs,
   type IsoPage,
   type TenantTx,
 } from '@canopy/db';
+import { localDateIn, reviewInputFigures } from '@canopy/engine';
 import type {
   IsoAuditBook,
+  IsoFigureRef,
   IsoNames,
   IsoNcBook,
   IsoNcFilter,
+  IsoReviewBook,
   IsoRiskBook,
   IsoRiskFilter,
 } from '../dashboard/ports.js';
+import { codeWords, findingTypeWords, shortText } from './iso-words.js';
 
 /**
  * ISO export reads over M3's repositories (docs/iso/model.md §9): every page of a list, in the caller's tenant
@@ -202,4 +224,128 @@ export async function isoAuditBook(
     ],
   });
   return { audit, programme, checklist, findings, ncNumbers, actions, names };
+}
+
+export async function isoReviewBook(
+  tx: TenantTx,
+  clientId: string,
+  id: string,
+  scope: IsoNcFilter['scope'],
+  day: { today: LocalDate; timeZone: string } | null,
+): Promise<IsoReviewBook | null> {
+  const review = await managementReviews.get(tx, id);
+  if (review === null || review.clientId !== clientId || review.archivedAt !== null) return null;
+  if (scope !== null) {
+    // M3's list applies plan §3.3 for reviews: the system's units, or the chair or an attendee.
+    const readable = await allPages((cursor) =>
+      managementReviews.list(tx, clientId, {
+        managementSystemIds: [review.managementSystemId],
+        scope: scopeOf(scope),
+        limit: MAX_LIMIT,
+        cursor,
+      }),
+    );
+    if (!readable.some((r) => r.id === review.id)) return null;
+  }
+  const standards = new Map(
+    (await isoCatalogue.standards(tx)).map((st) => [st.id, standardWords(st.code)]),
+  );
+  const defs = await isoCatalogue.reviewDefs(tx);
+  const inputDefs = new Map(defs.inputs.map((d) => [d.id, d]));
+  const outputDefs = new Map(defs.outputs.map((d) => [d.id, d]));
+  const clause = (d: { standardId: string; clauseNumber: string; item: string | null }) =>
+    `${standards.get(d.standardId)!} ${d.clauseNumber}${d.item === null ? '' : ` ${d.item}`}`;
+  const inputs = [];
+  for (const row of await reviewInputs.forReview(tx, review.id)) {
+    const def = inputDefs.get(row.inputDefId)!;
+    let figures = null;
+    if (def.source === 'MANUAL' || review.state === 'CANCELLED') {
+      figures = null;
+    } else if (review.state !== 'PLANNED') {
+      figures = row.sourceFigures;
+    } else if (day !== null) {
+      // The whole system, as of the pack's day (model §3.13 item 4, §5.4); M16's screen computes the same.
+      const gathered = await reviewFigures.gather(tx, review, def, day.today, (instant) =>
+        localDateIn(instant, day.timeZone),
+      );
+      figures = reviewInputFigures(
+        gathered.source,
+        gathered.data as never,
+        gathered.since,
+        day.today,
+      );
+    }
+    inputs.push({ row, def, clause: clause(def), figures });
+  }
+  const outputs = (await reviewOutputs.forReview(tx, review.id)).map((row) => {
+    const def = outputDefs.get(row.outputDefId)!;
+    return { row, def, clause: clause(def) };
+  });
+  const inputOrder: readonly string[] = ReviewInputKey.options;
+  const outputOrder: readonly string[] = ReviewOutputKey.options;
+  inputs.sort((a, b) => inputOrder.indexOf(a.def.key) - inputOrder.indexOf(b.def.key));
+  outputs.sort((a, b) => outputOrder.indexOf(a.def.key) - outputOrder.indexOf(b.def.key));
+  const actions = await actionsOf(tx, clientId, 'MANAGEMENT_REVIEW', new Set([review.id]));
+  const names = await namesOf(tx, clientId, {
+    people: [review.chairId, ...review.attendeeIds, ...actions.map((a) => a.ownerId)],
+  });
+  return { review, inputs, outputs, actions, names };
+}
+
+/**
+ * A short reference for one record of a figure's table. `isoVisibleIds` has just found it among the client's rows,
+ * archived ones included, so it exists.
+ */
+const LABELS: Record<string, (tx: TenantTx, id: string) => Promise<string>> = {
+  nonconformity: async (tx, id) => `NC ${(await nonconformities.require(tx, id)).number}`,
+  iso_action: async (tx, id) => shortText((await isoActions.require(tx, id)).text),
+  risk_item: async (tx, id) => {
+    const item = await riskItems.require(tx, id);
+    return shortText(`${item.activity}: ${item.description}`);
+  },
+  objective: async (tx, id) => shortText((await objectives.require(tx, id)).text),
+  objective_reading: async (tx, id) => {
+    const reading = await objectiveReadings.require(tx, id);
+    const objective = await objectives.require(tx, reading.objectiveId);
+    return shortText(`${objective.text}, reading to ${reading.periodEnd}`);
+  },
+  internal_audit: async (tx, id) => shortText((await internalAudits.require(tx, id)).title),
+  external_audit: async (tx, id) => {
+    const audit = await externalAudits.require(tx, id);
+    return shortText(`${audit.body} ${codeWords(audit.type)} ${audit.startOn}`);
+  },
+  audit_finding: async (tx, id) => {
+    const finding = await auditFindings.require(tx, id);
+    return shortText(`${findingTypeWords(finding.type)}: ${finding.description}`);
+  },
+  context_item: async (tx, id) => shortText((await contextItems.require(tx, id)).text),
+  management_system: async (tx, id) => (await managementSystems.require(tx, id)).name,
+  instance: async (tx, id) => {
+    const instance = await instances.require(tx, id);
+    const assignment = await assignments.require(tx, instance.assignmentId);
+    const obligation = await obligations.require(tx, assignment.obligationId);
+    return shortText(`${obligation.title}, due ${instance.dueDate}`);
+  },
+};
+
+export async function isoFigureReferences(
+  tx: TenantTx,
+  clientId: string,
+  refs: readonly IsoFigureRef[],
+  scope: IsoNcFilter['scope'],
+): Promise<{ visible: string[][]; labels: ReadonlyMap<string, string> }> {
+  const visible: string[][] = [];
+  // `isoVisibleIds` takes at most 100 refs a call.
+  for (let i = 0; i < refs.length; i += 100) {
+    const batch = refs.slice(i, i + 100).map((r) => ({ table: r.table, ids: [...r.ids] }));
+    const found = await isoVisibleIds(tx, clientId, batch as FigureRefs, scopeOf(scope));
+    visible.push(...found.map((f) => f.ids));
+  }
+  const labels = new Map<string, string>();
+  for (const [at, ref] of refs.entries()) {
+    for (const id of visible[at]!) {
+      if (!labels.has(id)) labels.set(id, await LABELS[ref.table]!(tx, id));
+    }
+  }
+  return { visible, labels };
 }
