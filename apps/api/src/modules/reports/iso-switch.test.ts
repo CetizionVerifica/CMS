@@ -120,8 +120,14 @@ const ISO_FILTERS: Record<string, string> = {
 };
 const isoBody = (kind: string) => ({ kind, filters: ISO_FILTERS[kind] ?? '' });
 
-/** The ISO kinds ISO-11d has built so far (the NC log and the risk register, part 1). */
-const BUILT_ISO: readonly ExportKind[] = ['ISO_NC_LOG_XLSX', 'ISO_RISK_REGISTER_XLSX'];
+/** The ISO kinds ISO-11d has built so far (the NC log and the risk register, then the audit report). */
+const BUILT_ISO: readonly ExportKind[] = [
+  'ISO_NC_LOG_XLSX',
+  'ISO_RISK_REGISTER_XLSX',
+  'ISO_AUDIT_REPORT_PDF',
+];
+/** Built kinds whose filters name one record: create looks it up, so an unknown id is NOT_FOUND. */
+const NAMES_A_RECORD: readonly ExportKind[] = ['ISO_AUDIT_REPORT_PDF'];
 
 describe('ISO export kinds while the add-on is off (endpoints.md §6)', () => {
   /** A finished job of `kind` requested by `personId`, as an earlier switch-on would have left it. */
@@ -161,7 +167,7 @@ describe('ISO export kinds while the add-on is off (endpoints.md §6)', () => {
       w.setIso(true);
       if (BUILT_ISO.includes(kind)) {
         const res = await startExport(admin(), isoBody(kind));
-        expect(res.statusCode).toBe(202);
+        expect(res.statusCode).toBe(NAMES_A_RECORD.includes(kind) ? 404 : 202);
         await w.runner.idle();
         return;
       }

@@ -1,5 +1,9 @@
-import { ExportJob, LocalDate, type RequestContext } from '@canopy/contracts';
+import { ExportJob, FyLabel, LocalDate, type RequestContext } from '@canopy/contracts';
 import {
+  auditChecklistItems,
+  auditFindings,
+  auditProgrammes,
+  internalAudits,
   isoActions,
   isoCatalogue,
   managementSystems,
@@ -25,8 +29,10 @@ import {
 import { MemoryExportFiles } from './files.js';
 import { NC_LOG_HEADERS, RISK_REGISTER_HEADERS } from './iso-registers.js';
 import { InProcessRunner } from './service.js';
+import { pdfText } from './testing/pdf-text.js';
 import {
   actionRecord,
+  auditRecord,
   controlRecord,
   incidentFields,
   ncRecord,
@@ -34,9 +40,9 @@ import {
 } from './testing/iso-records.js';
 
 /**
- * ISO-11d part 1 on Postgres (docs/iso/model.md §9, plan §3.3): the NC log and the risk register read through M3's
- * repositories, with M3's unit scope in SQL, every page of a list, and the names of archived people. Firm A has two
- * systems (Plant system on Plant, Office system on Head Office); firm B has none.
+ * ISO-11d on Postgres (docs/iso/model.md §9, plan §3.3): the NC log, the risk register and the internal audit report
+ * read through M3's repositories, with M3's unit scope in SQL, every page of a list, and the names of archived people.
+ * Firm A has two systems (Plant system on Plant, Office system on Head Office); firm B has none.
  */
 
 const NOW = new Date('2026-10-12T06:00:00Z');
@@ -237,6 +243,80 @@ async function seedIso(world: FirmWorld) {
         ),
       ),
     );
+    // Internal audits: a reported audit of Plant with a finding that raised the gauge NC and one with an
+    // improvement action; and a planned audit of the office system's units, led by the office owner.
+    const lead = await person('Lead Auditor');
+    const programme = async (managementSystemId: string) =>
+      (
+        await auditProgrammes.create(tx, {
+          clientId: world.clientId,
+          managementSystemId,
+          fy: FyLabel.parse('2026-27'),
+          notes: null,
+        })
+      ).id;
+    const plantProgramme = await programme(plantSystem);
+    const reportedAudit = await internalAudits.create(
+      tx,
+      fields(
+        auditRecord(cast, {
+          programmeId: plantProgramme,
+          leadAuditorId: lead,
+          auditeeIds: [world.people.owner],
+          reportedToIds: [world.people.approver],
+          unitIds: [world.unit1],
+          clauseIds: [clause87!.id],
+          state: 'REPORTED',
+          summary: 'Calibration control is weak.',
+          reportedOn: d('2026-09-12'),
+        }),
+      ),
+    );
+    const ncFinding = await auditFindings.create(tx, {
+      clientId: world.clientId,
+      internalAuditId: reportedAudit.id,
+      externalAuditId: null,
+      type: 'MINOR_NC',
+      clauseIds: [clause87!.id],
+      unitId: world.unit1,
+      description: 'Gauge 14 out of calibration',
+      nonconformityId: gauge.id,
+    });
+    const ofi = await auditFindings.create(tx, {
+      clientId: world.clientId,
+      internalAuditId: reportedAudit.id,
+      externalAuditId: null,
+      type: 'OFI',
+      clauseIds: [],
+      unitId: null,
+      description: 'Label the scrap bins',
+      nonconformityId: null,
+    });
+    await auditChecklistItems.create(tx, {
+      clientId: world.clientId,
+      internalAuditId: reportedAudit.id,
+      clauseId: clause87!.id,
+      unitId: world.unit1,
+      question: 'Are gauges calibrated on schedule?',
+      auditorNote: null,
+      result: 'FINDING',
+      findingId: ncFinding.id,
+      notAuditedReason: null,
+    });
+    await isoActions.create(
+      tx,
+      fields(actionRecord(cast, { type: 'AUDIT_FINDING', id: ofi.id }, { text: 'Buy bin labels' })),
+    );
+    const plannedAudit = await internalAudits.create(
+      tx,
+      fields(
+        auditRecord(cast, {
+          programmeId: await programme(officeSystem),
+          title: 'Office safety audit',
+          leadAuditorId: officeOwner,
+        }),
+      ),
+    );
     // An archived owner keeps their name in the log.
     await people.archive(tx, officeOwner, 1);
     return {
@@ -248,6 +328,8 @@ async function seedIso(world: FirmWorld) {
       gauge,
       complaint,
       wide,
+      reportedAudit,
+      plannedAudit,
     };
   });
 }
@@ -432,5 +514,70 @@ describe('the risk register on Postgres', () => {
       'Scrap resale',
       'Roller line',
     ]);
+  });
+});
+
+describe('the internal audit report on Postgres', () => {
+  function create(world: FirmWorld, internalAuditId: string, as: Record<string, string>) {
+    return app.inject({
+      method: 'POST',
+      url: `/api/v1/clients/${world.clientId}/exports`,
+      headers: as,
+      payload: { kind: 'ISO_AUDIT_REPORT_PDF', filters: `internalAuditId=${internalAuditId}` },
+    });
+  }
+
+  async function report(internalAuditId: string, as: Record<string, string>): Promise<string> {
+    const res = await create(a, internalAuditId, as);
+    expect(res.statusCode).toBe(202);
+    const job = ExportJob.parse(res.json());
+    await runner.idle();
+    const read = await app.inject({ url: `/api/v1/exports/${job.id}`, headers: as });
+    expect(ExportJob.parse(read.json()).status).toBe('DONE');
+    const ctx = {
+      requestId: 'm10-iso-read',
+      firmId: a.firmId,
+      personId: job.requestedById,
+      memberships: [],
+      clientIds: [a.clientId],
+      mfaSatisfied: true,
+    } as unknown as RequestContext;
+    const key = await new PostgresReportsStore(t.db).exportStorageKey(ctx, job.id);
+    return pdfText(files.files.get(key!)!.bytes);
+  }
+
+  it('prints the audit, its people, checklist, findings with their NC numbers and actions', async () => {
+    const text = await report(seeded.reportedAudit.id, admin(a));
+    for (const words of [
+      'Kestrel Metals Group / Plant system / audit programme FY 2026-27',
+      'Units: Plant',
+      'Clauses: ISO 9001 8.7',
+      'Lead auditor: Lead Auditor',
+      'Auditees: Kestrel Owner',
+      'Reported to: Kestrel Approver',
+      'Calibration control is weak.',
+      'ISO 9001 8.7 · Plant · Finding',
+      '1. Minor nonconformity · Plant · raised NC 1',
+      '2. Opportunity for improvement · The whole system',
+      'Improvement action: Buy bin labels · Kestrel Owner',
+    ]) {
+      expect(text).toContain(words);
+    }
+    // The office audit's archived lead keeps their name.
+    expect(await report(seeded.plannedAudit.id, admin(a))).toContain('Lead auditor: Office Owner');
+  });
+
+  it("limits a unit-limited approver to their units' audits and those naming them", async () => {
+    const office = headers(a, 'APPROVER', a.people.viewer, [a.unit2]);
+    expect((await create(a, seeded.reportedAudit.id, office)).statusCode).toBe(404);
+    expect(await report(seeded.plannedAudit.id, office)).toContain('Office safety audit');
+    const plant = headers(a, 'APPROVER', a.people.viewer, [a.unit1]);
+    expect((await create(a, seeded.plannedAudit.id, plant)).statusCode).toBe(404);
+    const named = headers(a, 'APPROVER', a.people.approver, [a.unit2]);
+    expect(await report(seeded.reportedAudit.id, named)).toContain('Casthouse process audit');
+  });
+
+  it("never reads another firm's audit", async () => {
+    expect((await create(b, seeded.reportedAudit.id, admin(b))).statusCode).toBe(404);
   });
 });

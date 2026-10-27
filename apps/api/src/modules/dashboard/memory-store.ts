@@ -1,6 +1,10 @@
 import { randomUUID } from 'node:crypto';
 import {
   type ActKind,
+  type AuditChecklistItem,
+  type AuditFinding,
+  type AuditProgramme,
+  type InternalAudit,
   DEFAULT_FIRM_SETTINGS,
   ExportJob,
   type FirmSettings,
@@ -17,6 +21,7 @@ import type {
   ArchiveEvidence,
   ClientInfo,
   ExportDetail,
+  IsoAuditBook,
   IsoNames,
   IsoNcBook,
   IsoNcFilter,
@@ -84,6 +89,10 @@ export class MemoryReportsStore implements ReportsStore {
     riskItems: [] as RiskItem[],
     controls: [] as RiskControl[],
     actions: [] as IsoAction[],
+    programmes: [] as AuditProgramme[],
+    audits: [] as InternalAudit[],
+    checklist: [] as AuditChecklistItem[],
+    findings: [] as AuditFinding[],
     names: {
       people: new Map<string, string>(),
       units: new Map<string, string>(),
@@ -244,6 +253,56 @@ export class MemoryReportsStore implements ReportsStore {
     if (record.unitId !== null) return scope.unitIds.includes(record.unitId);
     const units = this.iso.systems.get(record.managementSystemId)?.unitIds ?? [];
     return units.length === 0 || units.some((id) => scope.unitIds.includes(id));
+  }
+
+  async isoInternalAudit(
+    ctx: RequestContext,
+    clientId: string,
+    id: string,
+    scope: UnitScope | null,
+  ): Promise<IsoAuditBook | null> {
+    const audit = this.iso.audits.find(
+      (a) =>
+        a.id === id && a.firmId === ctx.firmId && a.clientId === clientId && a.archivedAt === null,
+    );
+    if (audit === undefined) return null;
+    const programme = this.iso.programmes.find((p) => p.id === audit.programmeId)!;
+    const named = [
+      audit.leadAuditorId,
+      ...audit.auditorIds,
+      ...audit.auditeeIds,
+      ...audit.reportedToIds,
+    ];
+    const visible =
+      audit.unitIds.length === 0
+        ? this.isoInScope(
+            scope,
+            { managementSystemId: programme.managementSystemId, unitId: null },
+            named,
+          )
+        : scope === null ||
+          named.includes(scope.personId ?? '') ||
+          audit.unitIds.some((unit) => scope.unitIds.includes(unit));
+    if (!visible) return null;
+    const findings = this.iso.findings.filter(
+      (f) => f.internalAuditId === audit.id && f.archivedAt === null,
+    );
+    const ncNumbers = new Map(
+      this.iso.nonconformities
+        .filter((n) => findings.some((f) => f.nonconformityId === n.id))
+        .map((n) => [n.id, n.number]),
+    );
+    return {
+      audit,
+      programme,
+      checklist: this.iso.checklist.filter(
+        (c) => c.internalAuditId === audit.id && c.archivedAt === null,
+      ),
+      findings,
+      ncNumbers,
+      actions: this.isoActionsOf(new Set(findings.map((f) => f.id))),
+      names: this.iso.names,
+    };
   }
 
   private isoActionsOf(ids: ReadonlySet<string>): IsoAction[] {

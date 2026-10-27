@@ -1,4 +1,4 @@
-import type { ControlHierarchy, IsoStandardCode } from '@canopy/contracts';
+import type { ControlHierarchy, FindingType, IsoStandardCode } from '@canopy/contracts';
 
 /**
  * Words for ISO codes in exports (docs/iso/model.md §4.7): the code in sentence case with a space for each
@@ -26,4 +26,12 @@ export function controlHierarchyWords(value: ControlHierarchy): string {
 export function yesNo(value: boolean | null): string {
   if (value === null) return '';
   return value ? 'Yes' : 'No';
+}
+
+/** The model's words for finding types; the others follow the rule. */
+export function findingTypeWords(value: FindingType): string {
+  if (value === 'MAJOR_NC') return 'Major nonconformity';
+  if (value === 'MINOR_NC') return 'Minor nonconformity';
+  if (value === 'OFI') return 'Opportunity for improvement';
+  return codeWords(value);
 }

@@ -24,11 +24,11 @@ export interface CertificateData {
   overdue: readonly InstanceRow[];
 }
 
-const PAGE = { width: 595.28, height: 841.89 };
-const MARGIN = 50;
-const INK = rgb(0.11, 0.16, 0.13);
-const MUTED = rgb(0.38, 0.42, 0.4);
-const FOREST = rgb(0.09, 0.33, 0.22);
+export const PAGE = { width: 595.28, height: 841.89 };
+export const MARGIN = 50;
+export const INK = rgb(0.11, 0.16, 0.13);
+export const MUTED = rgb(0.38, 0.42, 0.4);
+export const FOREST = rgb(0.09, 0.33, 0.22);
 const LINE = rgb(0.82, 0.85, 0.83);
 
 /**
@@ -61,7 +61,8 @@ function percent(value: number | null): string {
   return value === null ? 'No items due' : `${value.toFixed(1)}%`;
 }
 
-class Writer {
+/** Lays text out top to bottom on A4 pages, with a footer on each. */
+export class Writer {
   page: PDFPage;
   y: number;
 

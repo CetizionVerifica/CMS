@@ -1,7 +1,12 @@
 import { randomUUID } from 'node:crypto';
 import {
+  FyLabel,
   LocalDate,
+  type AuditChecklistItem,
+  type AuditFinding,
+  type AuditProgramme,
   type Incident,
+  type InternalAudit,
   type IsoAction,
   type Nonconformity,
   type RiskControl,
@@ -318,4 +323,121 @@ export function addIsoRecords(world: World) {
     controlRecord(world, risks.hazard.id, { text: 'Gloves', hierarchy: 'PPE' }),
   );
   return { plantSystem, officeSystem, otherOwnerId, investigatorId, clause87, ncs, risks };
+}
+
+export function auditRecord(
+  world: Pick<Cast, 'firmId' | 'clientId'>,
+  fields: Partial<InternalAudit> & Pick<InternalAudit, 'programmeId' | 'leadAuditorId'>,
+): InternalAudit {
+  return {
+    ...record(world.firmId, world.clientId),
+    title: 'Casthouse process audit',
+    plannedStart: d('2026-09-08'),
+    plannedEnd: d('2026-09-09'),
+    clauseIds: [],
+    unitIds: [],
+    auditorIds: [],
+    auditeeIds: [],
+    reportedToIds: [],
+    independenceNote: null,
+    state: 'PLANNED',
+    summary: null,
+    reportedOn: null,
+    cancelReason: null,
+    ...fields,
+  };
+}
+
+/**
+ * Adds to `world` (after `addIsoRecords`) the FY 2026-27 programmes of both systems and their internal audits: a
+ * reported audit of Plant with a checklist, two findings (one raised NC 1) and an improvement action; a planned audit
+ * of the office system's units where the lead auditor is also an auditee; and an archived audit.
+ */
+export function addIsoAudits(world: World, records: ReturnType<typeof addIsoRecords>) {
+  const { store } = world;
+  const leadId = randomUUID();
+  const auditorId = randomUUID();
+  const officeLeadId = randomUUID();
+  const names = store.iso.names;
+  names.people.set(leadId, 'Lead Auditor');
+  names.people.set(auditorId, 'Second Auditor');
+  names.people.set(officeLeadId, 'Office Lead');
+  const programme = (managementSystemId: string): AuditProgramme => ({
+    ...record(world.firmId, world.clientId),
+    managementSystemId,
+    fy: FyLabel.parse('2026-27'),
+    notes: null,
+  });
+  const plantProgramme = programme(records.plantSystem);
+  const officeProgramme = programme(records.officeSystem);
+  store.iso.programmes.push(plantProgramme, officeProgramme);
+
+  const reported = auditRecord(world, {
+    programmeId: plantProgramme.id,
+    leadAuditorId: leadId,
+    auditorIds: [auditorId],
+    auditeeIds: [world.ownerId],
+    reportedToIds: [world.approverId],
+    unitIds: [world.unit1],
+    clauseIds: [records.clause87],
+    state: 'REPORTED',
+    summary: 'Calibration control is weak; housekeeping is good.',
+    reportedOn: d('2026-09-12'),
+  });
+  const planned = auditRecord(world, {
+    programmeId: officeProgramme.id,
+    title: 'Office safety audit',
+    plannedStart: d('2026-11-03'),
+    plannedEnd: d('2026-11-03'),
+    leadAuditorId: officeLeadId,
+    auditeeIds: [officeLeadId],
+    independenceNote: 'The lead audits the office they run; the plant manager reviews the report.',
+  });
+  const archived = {
+    ...auditRecord(world, { programmeId: plantProgramme.id, leadAuditorId: leadId }),
+    archivedAt: '2026-09-30T20:00:00.000Z',
+  };
+  store.iso.audits.push(reported, planned, archived);
+
+  const finding = (fields: Partial<AuditFinding> & Pick<AuditFinding, 'type'>): AuditFinding => ({
+    ...record(world.firmId, world.clientId),
+    internalAuditId: reported.id,
+    externalAuditId: null,
+    clauseIds: [records.clause87],
+    unitId: world.unit1,
+    description: 'Gauge 14 out of calibration',
+    nonconformityId: null,
+    ...fields,
+  });
+  const findings = {
+    nc: finding({ type: 'MINOR_NC', nonconformityId: records.ncs.gauge.id }),
+    ofi: finding({ type: 'OFI', description: 'Label the scrap bins', unitId: null }),
+  };
+  store.iso.findings.push(...Object.values(findings));
+
+  const row = (fields: Partial<AuditChecklistItem>): AuditChecklistItem => ({
+    ...record(world.firmId, world.clientId),
+    internalAuditId: reported.id,
+    clauseId: records.clause87,
+    unitId: world.unit1,
+    question: 'Are gauges calibrated on schedule?',
+    auditorNote: null,
+    result: null,
+    findingId: null,
+    notAuditedReason: null,
+    ...fields,
+  });
+  store.iso.checklist.push(
+    row({ result: 'FINDING', findingId: findings.nc.id, auditorNote: 'Gauge 14 overdue' }),
+    row({ question: 'Is scrap segregated?', result: 'CONFORMS' }),
+    row({
+      question: 'Is the furnace log kept?',
+      result: 'NOT_AUDITED',
+      notAuditedReason: 'Furnace down for relining',
+    }),
+  );
+  store.iso.actions.push(
+    actionRecord(world, { type: 'AUDIT_FINDING', id: findings.ofi.id }, { text: 'Buy bin labels' }),
+  );
+  return { leadId, auditorId, officeLeadId, reported, planned, archived, findings };
 }

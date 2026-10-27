@@ -41,3 +41,19 @@ records part 1 and grows with the later parts.
    are in it.
 8. **Tests.** The memory store applies the same filters and a model of M3's scope, for the route and worker tests;
    the Postgres tests check M3's scope, every page and the names of archived people on the real tables.
+
+## Part 2: the internal audit report PDF
+
+9. **One audit, checked at create.** `ISO_AUDIT_REPORT_PDF` takes `internalAuditId` only. Create reads the audit through
+   `internalAudits.list({ ids, scope })` with the requester's unit scope (plan §3.3: the audit's units, or its
+   programme's system's units when it names none, or a person it names) and answers 404 `NOT_FOUND` for an audit that
+   is unknown, archived, another client's or out of scope, so nothing is queued. The worker reads it again; if it has
+   been archived or left the requester's scope since, the job fails and nothing is stored.
+10. **What the report prints.** The audit's plan (state, planned days, reported day, units or "The system's units",
+    clauses), its people, the independence note (9.2.2) or, when no auditor is an auditee, a line saying so, the
+    summary, every checklist row (clause, unit, result, question, auditor's note, why it was not audited), and every
+    finding with its type in the model's words ("Minor nonconformity", "Opportunity for improvement"), the number of
+    the NC it raised and its improvement actions. An audit not yet reported is headed as a draft; a cancelled one gives
+    its reason. Records only: the PDF computes nothing.
+11. **Tests.** Content, the draft and cancelled headings, the independence note, 404 at create, unit scope and the
+    named-person rule on the memory store; the same reads, another firm's audit and an archived lead's name on Postgres.

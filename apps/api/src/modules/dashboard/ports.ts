@@ -1,10 +1,14 @@
 import type {
   ActKind,
+  AuditChecklistItem,
+  AuditFinding,
+  AuditProgramme,
   ClientSettings,
   Criticality,
   ExportJob,
   ExportKind,
   FirmSettings,
+  InternalAudit,
   IsoAction,
   IsoStandardCode,
   LocalDate,
@@ -154,6 +158,23 @@ export interface IsoRiskBook {
   names: IsoNames;
 }
 
+/**
+ * One internal audit for its report (docs/iso/model.md §3.7, §3.9): its programme, checklist, findings with the numbers
+ * of the NCs they raised, the findings' improvement actions and the names they print. Children take the audit's units
+ * (plan §3.3), so a reader who may read the audit reads them all.
+ */
+export interface IsoAuditBook {
+  audit: InternalAudit;
+  programme: AuditProgramme;
+  checklist: AuditChecklistItem[];
+  findings: AuditFinding[];
+  /** NC number by id, for the findings that raised one. */
+  ncNumbers: ReadonlyMap<string, number>;
+  /** The live actions of `findings`, any state. */
+  actions: IsoAction[];
+  names: IsoNames;
+}
+
 export interface ReportsStore {
   firmSettings(ctx: RequestContext): Promise<FirmSettings>;
   /**
@@ -203,4 +224,11 @@ export interface ReportsStore {
   ): Promise<IsoNcBook>;
   /** Every risk item of the client matching `filter` and its scope (live ones unless `includeArchived`). */
   isoRiskItems(ctx: RequestContext, clientId: string, filter: IsoRiskFilter): Promise<IsoRiskBook>;
+  /** A live internal audit of the client that `scope` may read, with its report's records; null otherwise. */
+  isoInternalAudit(
+    ctx: RequestContext,
+    clientId: string,
+    id: string,
+    scope: UnitScope | null,
+  ): Promise<IsoAuditBook | null>;
 }

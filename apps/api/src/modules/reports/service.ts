@@ -40,6 +40,7 @@ import {
   type DashboardQueryInput,
 } from '../dashboard/service.js';
 import { clientArchive, type ArchiveInstance } from './archive.js';
+import { auditReportPdf } from './audit-report-pdf.js';
 import { certificatePdf } from './certificate-pdf.js';
 import type { ExportFiles } from './files.js';
 import {
@@ -206,6 +207,7 @@ const BUILT_KINDS: ReadonlySet<ExportKind> = new Set([
   'CLIENT_ARCHIVE_ZIP',
   'ISO_NC_LOG_XLSX',
   'ISO_RISK_REGISTER_XLSX',
+  'ISO_AUDIT_REPORT_PDF',
 ]);
 
 /** The ISO export kinds are ISO data (docs/iso/plan.md §4.4). */
@@ -291,6 +293,19 @@ export async function createExport(
     }
     const asOf = resolveAsOf(ctx, client, undefined, now, 'export.create');
     params = { filters: body.filters, unitId: null, fy: null, asOf };
+    if (body.kind === 'ISO_AUDIT_REPORT_PDF') {
+      // NOT_FOUND unless the audit is the client's, live, and the requester may read it (plan §3.3).
+      const { internalAuditId } = ISO_EXPORT_FILTERS.ISO_AUDIT_REPORT_PDF.parse(
+        Object.fromEntries(new URLSearchParams(body.filters)),
+      );
+      const book = await deps.store.isoInternalAudit(
+        ctx,
+        clientId,
+        internalAuditId,
+        isoScope(ctx, clientId),
+      );
+      if (book === null) throw new ApiError('NOT_FOUND');
+    }
   } else {
     const query = parseFilters(body.filters);
     if (body.fy !== undefined && hasPeriod(query)) {
@@ -579,6 +594,22 @@ async function buildIsoFile(
         ),
         fileName: `risk-register-${params.asOf}.xlsx`,
         contentType: XLSX,
+      };
+    }
+    case 'ISO_AUDIT_REPORT_PDF': {
+      const { internalAuditId } = ISO_EXPORT_FILTERS.ISO_AUDIT_REPORT_PDF.parse(raw);
+      const book = await deps.store.isoInternalAudit(ctx, client.id, internalAuditId, scope);
+      // Archived, or out of the requester's scope, since the job was queued.
+      if (book === null) throw new ApiError('NOT_FOUND');
+      return {
+        bytes: await auditReportPdf({
+          clientName: client.name,
+          book,
+          generatedAt: deps.clock().toISOString(),
+          timeZone,
+        }),
+        fileName: `internal-audit-report-${book.audit.plannedStart}.pdf`,
+        contentType: 'application/pdf',
       };
     }
     default:

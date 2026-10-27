@@ -15,13 +15,15 @@ import {
   type RegisterFilter,
   type RegisterRow,
   type TenantTx,
+  type UnitScope,
 } from '@canopy/db';
 import { ApiError } from '../../auth/index.js';
-import { isoNcBook, isoRiskBook } from '../reports/db-iso.js';
+import { isoAuditBook, isoNcBook, isoRiskBook } from '../reports/db-iso.js';
 import type {
   ArchiveEvidence,
   ClientInfo,
   ExportDetail,
+  IsoAuditBook,
   IsoNcBook,
   IsoNcFilter,
   IsoRiskBook,
@@ -247,5 +249,14 @@ export class PostgresReportsStore implements ReportsStore {
 
   isoRiskItems(ctx: RequestContext, clientId: string, filter: IsoRiskFilter): Promise<IsoRiskBook> {
     return this.run(ctx, (tx) => isoRiskBook(tx, clientId, filter));
+  }
+
+  isoInternalAudit(
+    ctx: RequestContext,
+    clientId: string,
+    id: string,
+    scope: UnitScope | null,
+  ): Promise<IsoAuditBook | null> {
+    return this.run(ctx, (tx) => isoAuditBook(tx, clientId, id, scope));
   }
 }
