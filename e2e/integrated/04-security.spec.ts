@@ -1169,9 +1169,18 @@ test.describe('ISO files', () => {
         `files on ${s.key}`,
       ).toContain(s.file);
     }
-    // PENDING until M9's scan job (once a minute) passes it.
-    const early = await admin.get(`${iso}/files/${subjects[0]!.file}/download-url`);
-    expect(early).toMatchObject({ status: 422, body: { error: { code: 'EVIDENCE_NOT_READY' } } });
+    // PENDING until M9's scan job (once a minute) passes it. The job may pass the file before this request, so the
+    // refusal is required only when the file is still PENDING after the request: it was PENDING when asked.
+    const first = subjects[0]!;
+    const early = await admin.get(`${iso}/files/${first.file}/download-url`);
+    const stillPending = (await listed(first)).some(
+      (f) => f.id === first.file && f.scanStatus === 'PENDING',
+    );
+    if (stillPending) {
+      expect(early).toMatchObject({ status: 422, body: { error: { code: 'EVIDENCE_NOT_READY' } } });
+    } else {
+      expect([200, 422], JSON.stringify(early.body)).toContain(early.status);
+    }
     await expect
       .poll(
         async () => {

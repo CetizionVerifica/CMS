@@ -119,12 +119,15 @@ async function operatorSignIn(browser: Browser): Promise<void> {
   operator = await console_.newPage();
   await operator.goto('/accounts');
   await expect(operator).toHaveURL(/\/login/);
+  await bothWidths(operator);
   await operator.getByLabel('Email').fill(OPERATOR.email);
   await operator.getByLabel('Password').fill(OPERATOR.password);
   const secret = readFileSync(OPERATOR_TOTP_FILE, 'utf8');
   await operator.getByLabel('Authenticator code').fill(await nextUnusedCode('operator', secret));
   await operator.getByRole('button', { name: 'Sign in' }).click();
   await expect(operator).toHaveURL(/\/accounts$/);
+  await expect(operator.getByRole('link', { name: DEMO_ADVISORY })).toBeVisible();
+  await bothWidths(operator);
 }
 
 /** Firm A's account page in the console, with its Add-ons card. */
