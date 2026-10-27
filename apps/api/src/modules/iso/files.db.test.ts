@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { attach, createHarness, type Harness, type Reply } from './testing/fixture.js';
+import { seedNc, setNcState } from './testing/records.js';
 
 /**
  * ISO file routes through the `IsoFiles` port (model §6, plan §3.2-3.3, §7 item 2): the subject resolved and scoped
@@ -235,5 +236,158 @@ describe('locks and the revision in force (model §6)', () => {
       id: visit.id as string,
     });
     expect(report.subject).toEqual({ type: 'external_audit', id: visit.id });
+  });
+});
+
+describe('risk items, objective readings and actions (ISO-8b)', () => {
+  const lockOf = (reply: Reply) => [
+    reply.status,
+    (reply.body.error as { details?: unknown } | undefined)?.details,
+  ];
+
+  async function riskItem(ownerId = h.f.people.owner) {
+    return (
+      await h.ok('clientAdmin', 'POST', '/risks', {
+        managementSystemId: systemId,
+        kind: 'RISK',
+        activity: 'Packaging supply',
+        description: 'One supplier makes every carton',
+        likelihood: 2,
+        severity: 3,
+        ownerId,
+      })
+    ).id as string;
+  }
+
+  it('lets the item owner and managers add files to a risk item, in scope; an archived item answers 404', async () => {
+    const id = await riskItem();
+    const subject = { type: 'risk_item', id } as const;
+    await attach(h, 'owner', subject);
+    await attach(h, 'consultant', subject);
+    h.files.calls.length = 0;
+    expect((await h.send('approver', 'POST', '/files/upload-url', ticket(subject))).status).toBe(
+      403,
+    );
+    expect((await h.send('otherOwner', 'POST', '/files/upload-url', ticket(subject))).status).toBe(
+      404,
+    );
+    const theirs = { type: 'risk_item', id: await riskItem(h.f.people.clientAdmin) } as const;
+    expect((await h.send('owner', 'POST', '/files/upload-url', ticket(theirs))).status).toBe(403);
+    expect(h.files.calls).toEqual([]);
+    expect(
+      (
+        (await h.ok('viewer', 'GET', `/files?subjectType=risk_item&subjectId=${id}`))
+          .items as unknown[]
+      ).length,
+    ).toBe(2);
+    await h.ok('clientAdmin', 'POST', `/risks/${id}/archive`, { version: 1, reason: 'Duplicate' });
+    expect((await h.send('owner', 'POST', '/files/upload-url', ticket(subject))).status).toBe(404);
+  });
+
+  it('locks a reading’s files once its objective is closed', async () => {
+    const objective = await h.ok('clientAdmin', 'POST', '/objectives', {
+      managementSystemId: systemId,
+      standards: ['ISO_9001'],
+      text: 'On-time delivery',
+      target: 98,
+      unitOfMeasure: '%',
+      direction: 'INCREASE',
+      readingRule: { kind: 'MONTHLY', day: 'LAST', offsetMonths: 0 },
+      ownerId: h.f.people.owner,
+      dueOn: '2027-03-31',
+    });
+    await h.testDb.query('UPDATE objective SET created_at = $2 WHERE id = $1', [
+      objective.id,
+      NOW.toISOString(),
+    ]);
+    const reading = await h.ok('owner', 'POST', `/objectives/${objective.id}/readings`, {
+      periodStart: '2026-09-01',
+      periodEnd: '2026-09-30',
+      value: 95,
+    });
+    const subject = { type: 'objective_reading', id: reading.id as string } as const;
+    await attach(h, 'owner', subject);
+    expect((await h.send('approver', 'POST', '/files/upload-url', ticket(subject))).status).toBe(
+      403,
+    );
+    await h.ok('owner', 'POST', `/objectives/${objective.id}/close`, {
+      version: 1,
+      closedOn: '2026-10-20',
+      outcome: 'ACHIEVED',
+    });
+    expect(lockOf(await h.send('owner', 'POST', '/files/upload-url', ticket(subject)))).toEqual([
+      409,
+      { entity: 'objective', from: 'CLOSED', action: 'UPDATE' },
+    ]);
+  });
+
+  it('lets the subject’s owner or the action’s owner add files to an action until it is settled', async () => {
+    const item = await riskItem(h.f.people.clientAdmin);
+    const action = await h.ok('clientAdmin', 'POST', '/actions', {
+      subject: { type: 'RISK_ITEM', id: item },
+      text: 'Qualify a second supplier',
+      ownerId: h.f.people.owner,
+      dueOn: '2026-11-30',
+    });
+    const subject = { type: 'iso_action', id: action.id as string } as const;
+    await attach(h, 'owner', subject);
+    await attach(h, 'clientAdmin', subject);
+    expect((await h.send('approver', 'POST', '/files/upload-url', ticket(subject))).status).toBe(
+      403,
+    );
+    await h.ok('owner', 'POST', `/actions/${action.id}/complete`, {
+      version: 1,
+      doneOn: '2026-10-20',
+    });
+    expect(lockOf(await h.send('owner', 'POST', '/files/upload-url', ticket(subject)))).toEqual([
+      409,
+      { entity: 'iso_action', from: 'DONE', action: 'UPDATE' },
+    ]);
+  });
+
+  it('keeps an incident’s action files to its people and managers, and locks them once the NC closes', async () => {
+    const nc = await seedNc(h, systemId, {
+      source: 'INCIDENT',
+      unitId: h.f.unitA,
+      incident: {
+        occurredAt: '2026-10-12T09:30:00.000Z',
+        location: 'Dock 2',
+        type: 'INJURY',
+        outcome: 'FIRST_AID',
+        personCategory: 'EMPLOYEE',
+        lostDays: null,
+        reportable: false,
+        statutoryInstanceId: null,
+        investigatorIds: [h.f.people.approverB],
+        workerParticipation: true,
+      },
+    });
+    const action = await h.ok('clientAdmin', 'POST', '/actions', {
+      subject: { type: 'NONCONFORMITY', id: nc.id },
+      text: 'Mark the pedestrian lane',
+      ownerId: h.f.people.owner,
+      dueOn: '2026-11-30',
+    });
+    const file = await attach(h, 'owner', { type: 'iso_action', id: action.id as string });
+    await h.scan(file.id as string, 'CLEAN');
+    // The unit B approver investigates: named on the incident, they reach it outside their unit.
+    for (const who of ['owner', 'approver', 'approverB', 'clientAdmin', 'consultant'] as const) {
+      expect([who, (await h.send(who, 'GET', `/files/${file.id}/download-url`)).status]).toEqual([
+        who,
+        200,
+      ]);
+    }
+    expect((await h.send('viewer', 'GET', `/files/${file.id}/download-url`)).status).toBe(403);
+    await setNcState(h, nc, 'CLOSED');
+    const locked = await h.send(
+      'owner',
+      'POST',
+      '/files/upload-url',
+      ticket({ type: 'iso_action', id: action.id }),
+    );
+    expect(lockOf(locked)).toEqual([
+      409,
+      { entity: 'nonconformity', from: 'CLOSED', action: 'UPDATE' },
+    ]);
   });
 });

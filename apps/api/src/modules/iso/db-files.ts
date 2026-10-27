@@ -12,7 +12,11 @@ import {
   controlledDocuments,
   documentRevisions,
   externalAudits,
+  isoActions,
   managementSystems,
+  objectiveReadings,
+  objectives,
+  riskItems,
   type TenantTx,
 } from '@canopy/db';
 import {
@@ -22,9 +26,12 @@ import {
   checklistRowReach,
   documentReach,
   isoResource,
+  objectiveReach,
+  riskReach,
   systemReach,
   type Reach,
 } from './access.js';
+import { actionReach, actionSubject, checkIncidentDownload } from './db-actions.js';
 import { liveIn, type Core } from './db-context.js';
 import { invalid, invalidTransition, notFound } from './errors.js';
 import type { IsoFileCaller, IsoFiles } from './ports.js';
@@ -34,7 +41,7 @@ import type { IsoHandlers } from './types.js';
  * ISO file routes (docs/iso/model.md §6) through the `IsoFiles` port. M16 resolves the subject (404 when the actor
  * cannot see it), checks the subject's own write action, then `isoFile.write` with the actor as owner and approver
  * (plan §3.2), then the lock rule (409); reads follow the subject's unit scope, and the current revision's file of an
- * active document is read by every member. ISO-8b and ISO-8c add their subjects to `SUBJECTS`.
+ * active document is read by every member. ISO-8c adds its subjects to `SUBJECTS`.
  */
 
 type Ids =
@@ -61,8 +68,8 @@ const lockedIn = (states: readonly string[], entity: IsoEntityType, state: strin
   states.includes(state) ? { entity, from: state } : null;
 
 /**
- * The subjects M3 stores files on until ISO-2e's tables are served (ISO-15): checklist rows, document revisions,
- * external audits and certificates.
+ * The subjects M16 serves files on so far: checklist rows, document revisions, external audits and certificates
+ * (ISO-8a), and risk items, objective readings and actions (ISO-8b).
  */
 const SUBJECTS: Partial<Record<IsoFileSubjectType, Resolve>> = {
   async clause_assessment(tx, clientId, id) {
@@ -135,6 +142,69 @@ const SUBJECTS: Partial<Record<IsoFileSubjectType, Resolve>> = {
         resource: (ctx) => isoResource(ctx, 'certification', reach),
       },
       lock: null,
+    };
+  },
+  async risk_item(tx, clientId, id) {
+    const item = liveIn(await riskItems.get(tx, id), clientId);
+    const reach = riskReach(await managementSystems.require(tx, item.managementSystemId), item);
+    return {
+      type: 'risk_item',
+      id,
+      clientId,
+      reach,
+      clientWide: false,
+      write: {
+        action: 'isoRisk.write',
+        resource: (ctx) => isoResource(ctx, 'risk_item', reach, { ownerId: item.ownerId }),
+      },
+      lock: null,
+    };
+  },
+  async objective_reading(tx, clientId, id) {
+    const reading = liveIn(await objectiveReadings.get(tx, id), clientId);
+    const objective = liveIn(await objectives.get(tx, reading.objectiveId), clientId);
+    const system = await managementSystems.require(tx, objective.managementSystemId);
+    const reach = objectiveReach(system, objective);
+    return {
+      type: 'objective_reading',
+      id,
+      clientId,
+      reach,
+      clientWide: false,
+      write: {
+        action: 'isoObjective.write',
+        resource: (ctx) => isoResource(ctx, 'objective', reach, { ownerId: objective.ownerId }),
+      },
+      lock: objective.closedOn === null ? null : { entity: 'objective', from: 'CLOSED' },
+    };
+  },
+  async iso_action(tx, clientId, id) {
+    const action = liveIn(await isoActions.get(tx, id), clientId);
+    const subject = await actionSubject(tx, clientId, action.subject, false);
+    const reach = actionReach(subject, action);
+    // "own" is the subject's owner or the action's (plan §3.2).
+    const owners = [subject.ownerId, action.ownerId];
+    return {
+      type: 'iso_action',
+      id,
+      clientId,
+      reach,
+      clientWide: false,
+      write: {
+        action: 'isoAction.write',
+        resource: (ctx) =>
+          isoResource(ctx, 'iso_action', reach, {
+            ownerId: owners.includes(ctx.personId) ? ctx.personId : subject.ownerId,
+          }),
+      },
+      // Done or cancelled, its files are its record; on an open action, a closed nonconformity's lock (model §6).
+      lock:
+        action.state !== 'OPEN'
+          ? { entity: 'iso_action', from: action.state }
+          : subject.nc === undefined
+            ? null
+            : lockedIn(['CLOSED', 'CANCELLED'], 'nonconformity', subject.nc.state),
+      download: (ctx) => checkIncidentDownload(ctx, subject.nc),
     };
   },
 };

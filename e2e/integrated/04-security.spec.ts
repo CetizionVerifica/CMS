@@ -39,7 +39,7 @@ type Endpoint = {
 };
 const endpoints = Object.entries(ENDPOINTS as Record<string, Endpoint>);
 
-/** The ISO add-on endpoints M16 serves so far (ISO-8a); the rest of the add-on stays on UNMOUNTED until it ships. */
+/** The ISO add-on endpoints M16 serves so far (ISO-8a, ISO-8b); the rest of the add-on stays on UNMOUNTED until it ships. */
 const ISO_SERVED: ReadonlySet<string> = new Set(ISO_SERVED_ENDPOINTS);
 
 /**
@@ -51,7 +51,7 @@ const UNMOUNTED: Record<string, string> = Object.fromEntries(
     .filter(([name, e]) => 'feature' in e && !ISO_SERVED.has(name))
     .map(([name, e]) => [
       name,
-      `${String(e.feature)} add-on: M16 mounts its routes in ISO-8b and ISO-8c (docs/iso/plan.md ISO-8)`,
+      `${String(e.feature)} add-on: M16 mounts its remaining routes in ISO-8c (docs/iso/plan.md ISO-8)`,
     ]),
 );
 
@@ -253,6 +253,56 @@ const BODIES: Record<string, (ids: Ids) => unknown> = {
     endOn: '2099-01-11',
   }),
   cancelIsoExternalAudit: ({ v }) => ({ version: v['external-audits'], reason: PROBE }),
+  // ISO-8b: firm A's risk item and its control, objective and its reading, and an action on the risk item.
+  createIsoRisk: ({ id }) => ({
+    managementSystemId: id.systems,
+    kind: 'RISK',
+    activity: 'Probe activity',
+    description: PROBE,
+    likelihood: 2,
+    severity: 2,
+    ownerId: id.people,
+  }),
+  updateIsoRisk: ({ v }) => ({ version: v.risks, activity: 'Probe activity' }),
+  archiveIsoRisk: ({ v }) => ({ version: v.risks, reason: PROBE }),
+  reviewIsoRisk: ({ v }) => ({ version: v.risks, nextReviewDueOn: '2099-03-31' }),
+  setIsoRiskSignificance: ({ v }) => ({
+    version: v.risks,
+    significantOverride: null,
+    reason: PROBE,
+  }),
+  createIsoRiskControl: () => ({ text: PROBE }),
+  updateIsoRiskControl: ({ v }) => ({ version: v.controls, text: PROBE }),
+  archiveIsoRiskControl: ({ v }) => ({ version: v.controls, reason: PROBE }),
+  createIsoObjective: ({ id }) => ({
+    managementSystemId: id.systems,
+    standards: ['ISO_9001'],
+    text: PROBE,
+    target: 1,
+    unitOfMeasure: 'count',
+    direction: 'MAINTAIN',
+    readingRule: { kind: 'MONTHLY', day: 'LAST', offsetMonths: 0 },
+    ownerId: id.people,
+    dueOn: '2099-03-31',
+  }),
+  updateIsoObjective: ({ v }) => ({ version: v.objectives, text: PROBE }),
+  closeIsoObjective: ({ v }) => ({
+    version: v.objectives,
+    closedOn: '2023-04-01',
+    outcome: 'ACHIEVED',
+  }),
+  createIsoReading: () => ({ periodStart: '2023-04-01', periodEnd: '2023-04-30', value: 1 }),
+  updateIsoReading: ({ v }) => ({ version: v.readings, value: 1 }),
+  createIsoAction: ({ id }) => ({
+    subject: { type: 'RISK_ITEM', id: id.risks },
+    text: PROBE,
+    ownerId: id.people,
+    dueOn: '2099-03-31',
+  }),
+  updateIsoAction: ({ v }) => ({ version: v.actions, text: PROBE }),
+  completeIsoAction: ({ v }) => ({ version: v.actions, doneOn: '2023-04-01' }),
+  cancelIsoAction: ({ v }) => ({ version: v.actions, reason: PROBE }),
+  reopenIsoAction: ({ v }) => ({ version: v.actions, reason: PROBE }),
   // Names firm A's person and client in the body rather than the path.
   createInvite: ({ id }) => ({
     personId: id.people,
@@ -402,8 +452,9 @@ async function isoOff(): Promise<void> {
 
 /**
  * Firm A's ISO records, made through the API as its consultant: a management system on the catalogue's first standard,
- * its first checklist row, a context item, a document and its draft revision, a certificate, and an external audit
- * (the file routes stay unmounted until ISO-15). Keyed by the path segment before each id, as `fill` reads them.
+ * its first checklist row, a context item, a document and its draft revision, a certificate, an external audit, a risk
+ * item with a control and an action, and an objective with a reading (the file routes stay unmounted until ISO-15).
+ * Keyed by the path segment before each id, as `fill` reads them.
  */
 async function isoRecordsOf(
   admin: ApiSession,
@@ -444,6 +495,26 @@ async function isoRecordsOf(
     standardId: standard.id,
     body: 'Northfield Certification',
   });
+  const risk = await made('/risks', {
+    managementSystemId: system.id,
+    kind: 'RISK',
+    activity: 'Packaging supply',
+    description: 'One supplier makes every carton',
+    likelihood: 2,
+    severity: 3,
+    ownerId: people.owner,
+  });
+  const objective = await made('/objectives', {
+    managementSystemId: system.id,
+    standards: [(standard as Rec & { code: string }).code],
+    text: 'On-time delivery',
+    target: 98,
+    unitOfMeasure: '%',
+    direction: 'INCREASE',
+    readingRule: { kind: 'MONTHLY', day: 'LAST', offsetMonths: 0 },
+    ownerId: people.owner,
+    dueOn: '2099-03-31',
+  });
   return {
     standards: standard,
     systems: system,
@@ -462,6 +533,20 @@ async function isoRecordsOf(
       body: 'Northfield Certification',
       startOn: '2099-01-10',
       endOn: '2099-01-11',
+    }),
+    risks: risk,
+    controls: await made(`/risks/${risk.id}/controls`, { text: 'Two weeks of carton stock' }),
+    actions: await made('/actions', {
+      subject: { type: 'RISK_ITEM', id: risk.id },
+      text: 'Qualify a second carton supplier',
+      ownerId: people.owner,
+      dueOn: '2099-03-31',
+    }),
+    objectives: objective,
+    readings: await made(`/objectives/${objective.id}/readings`, {
+      periodStart: '2023-04-01',
+      periodEnd: '2023-04-30',
+      value: 95,
     }),
   };
 }

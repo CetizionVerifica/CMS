@@ -479,7 +479,9 @@ export function documentsHandlers(core: Core): IsoHandlers<Ids> {
       const clientId = params.clientId!;
       authorize(ctx, 'isoDocument.read', { type: 'controlled_document', clientId });
       const me = (ref: string | undefined) => (ref === 'me' ? ctx.personId : ref);
+      // `ids` is AND'd with the other filters in SQL and drops the ACTIVE-only default (contracts 1.8.5).
       const filter: DocumentFilter = definedOf({
+        ids: query.ids,
         managementSystemIds: query.managementSystemId,
         q: query.q,
         type: query.type,

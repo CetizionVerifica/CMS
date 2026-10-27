@@ -22,10 +22,13 @@ const all = {
   documents: [] as string[],
   certifications: [] as string[],
   externalAudits: [] as string[],
+  risks: [] as string[],
+  objectives: [] as string[],
+  actions: [] as string[],
 };
 
 let codes = 0;
-async function seedSystem(units: string[], documentOwner: Who = 'clientAdmin') {
+async function seedSystem(units: string[], recordOwner: Who = 'clientAdmin') {
   const system = await h.ok('clientAdmin', 'POST', '/systems', {
     name: `Scope ${units.length === 0 ? 'group' : units.join(',').slice(0, 8)}`,
     standardIds: [h.f.std9001],
@@ -43,7 +46,7 @@ async function seedSystem(units: string[], documentOwner: Who = 'clientAdmin') {
     code: `SC-${codes}`,
     title: 'Scope document',
     type: 'PROCEDURE',
-    ownerId: h.f.people[documentOwner],
+    ownerId: h.f.people[recordOwner],
     approverId: h.f.people.otherAdmin,
   });
   all.documents.push(doc.id as string);
@@ -62,13 +65,47 @@ async function seedSystem(units: string[], documentOwner: Who = 'clientAdmin') {
     endOn: '2026-11-03',
   });
   all.externalAudits.push(visit.id as string);
+  // A risk item on the system's units and one on its first unit, each with a treatment action; an objective.
+  for (const unitId of [null, units[0] ?? null]) {
+    const item = await h.ok('clientAdmin', 'POST', '/risks', {
+      managementSystemId: id,
+      kind: 'RISK',
+      unitId,
+      activity: 'Packaging supply',
+      description: 'One supplier makes every carton',
+      likelihood: 2,
+      severity: 3,
+      // An item on a unit is owned by someone of that unit.
+      ownerId: h.f.people[unitId === null ? recordOwner : 'clientAdmin'],
+    });
+    all.risks.push(item.id as string);
+    const action = await h.ok('clientAdmin', 'POST', '/actions', {
+      subject: { type: 'RISK_ITEM', id: item.id },
+      text: 'Qualify a second supplier',
+      ownerId: h.f.people.clientAdmin,
+      dueOn: '2026-11-30',
+    });
+    all.actions.push(action.id as string);
+  }
+  const objective = await h.ok('clientAdmin', 'POST', '/objectives', {
+    managementSystemId: id,
+    standards: ['ISO_9001'],
+    text: 'On-time delivery',
+    target: 98,
+    unitOfMeasure: '%',
+    direction: 'INCREASE',
+    readingRule: { kind: 'MONTHLY', day: 'LAST', offsetMonths: 0 },
+    ownerId: h.f.people[recordOwner],
+    dueOn: '2027-03-31',
+  });
+  all.objectives.push(objective.id as string);
   return id;
 }
 
 beforeAll(async () => {
   h = await createHarness('Scope', NOW);
   await seedSystem([h.f.unitA]);
-  // Unit B's system names the unit A owner on one document: the named-person exception.
+  // Unit B's system names the unit A owner on its document, a risk item and its objective: the named-person exception.
   await seedSystem([h.f.unitB], 'owner');
   const group = await seedSystem([]);
   // A certificate over unit A only, on the group system.
@@ -109,6 +146,9 @@ async function allowed(who: Who, kind: keyof typeof all, id: string): Promise<bo
     documents: `/documents/${id}`,
     certifications: `/files?subjectType=certification&subjectId=${id}`,
     externalAudits: `/external-audits/${id}`,
+    risks: `/risks/${id}`,
+    objectives: `/objectives/${id}`,
+    actions: `/actions/${id}`,
   }[kind];
   const reply = await h.send(who, 'GET', path);
   expect([200, 404]).toContain(reply.status);
@@ -131,6 +171,12 @@ async function listed(who: Who, kind: keyof typeof all): Promise<string[]> {
       return ids(who, '/certifications');
     case 'externalAudits':
       return ids(who, '/external-audits');
+    case 'risks':
+      return ids(who, '/risks');
+    case 'objectives':
+      return ids(who, '/objectives');
+    case 'actions':
+      return ids(who, '/actions');
   }
 }
 
@@ -155,6 +201,16 @@ describe('can() allows exactly what the lists return (plan §3.3)', () => {
     // The certificate over unit A on the group system is out of unit B's sight.
     expect(await ids('approverB', '/certifications')).not.toContain(all.certifications.at(-1));
     expect(await ids('owner', '/certifications')).toContain(all.certifications.at(-1));
+    // Unit B's system-wide risk item and objective name the unit A owner; actions take their items' units.
+    const [, , bGroup, bUnit] = all.risks;
+    expect(await ids('owner', '/risks')).toContain(bGroup);
+    expect(await ids('owner', '/risks')).not.toContain(bUnit);
+    expect(await ids('owner', '/objectives')).toContain(all.objectives[1]);
+    expect(await ids('owner', '/actions')).toContain(all.actions[2]);
+    expect(await ids('owner', '/actions')).not.toContain(all.actions[3]);
+    expect(await ids('otherOwner', '/actions')).toEqual(
+      expect.arrayContaining([all.actions[2], all.actions[3]]),
+    );
   });
 });
 
@@ -175,7 +231,7 @@ describe('the catalogue copy not yet recorded', () => {
     );
     await probe.ready();
     await probe.close();
-    expect(routes.length).toBe(45);
+    expect(routes.length).toBe(71);
 
     h.auth.store.isoCataloguePending.add(h.f.firmId);
     try {

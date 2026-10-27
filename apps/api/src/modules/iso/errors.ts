@@ -43,6 +43,7 @@ const GUARD_MESSAGES: Readonly<Record<string, string>> = {
   ENDED: 'The visit has not ended yet',
   REPORT_FILE: "Upload the certification body's report first",
   RESPONSE_DUE_AFTER_END: 'The response is due on or after the last day of the visit',
+  DONE_ON_NOT_FUTURE: 'doneOn is not in the future',
 };
 
 /**
