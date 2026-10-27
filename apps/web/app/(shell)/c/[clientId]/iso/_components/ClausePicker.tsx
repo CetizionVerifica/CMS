@@ -1,5 +1,6 @@
 'use client';
-// Picks the clauses a record answers to: type to find a clause of the system's standards, add it, remove it again.
+// Picks the clauses a record answers to: type to find a clause of the system's standards, add it, remove it again. The
+// same control picks other records by name (a nonconformity's risk items and changed documents), with its own words.
 import { Combobox, IconButton } from '@canopy/ui';
 import { X } from 'lucide-react';
 import { useState } from 'react';
@@ -13,6 +14,9 @@ export function ClausePicker({
   value,
   onChange,
   max = 50,
+  placeholder = 'Type a clause number or title',
+  emptyText = 'No clause matches',
+  unknown = 'A clause no longer listed',
 }: {
   label: string;
   helper?: string;
@@ -20,6 +24,10 @@ export function ClausePicker({
   value: readonly string[];
   onChange: (ids: string[]) => void;
   max?: number;
+  placeholder?: string;
+  emptyText?: string;
+  /** How a chosen id outside the options reads. */
+  unknown?: string;
 }) {
   const [key, setKey] = useState(0);
   const left = options.filter((o) => !value.includes(o.id));
@@ -32,8 +40,8 @@ export function ClausePicker({
           helper={helper}
           options={left.map((o) => ({ value: o.id, label: o.label }))}
           value={null}
-          placeholder="Type a clause number or title"
-          emptyText="No clause matches"
+          placeholder={placeholder}
+          emptyText={emptyText}
           onValueChange={(id) => {
             if (id) onChange([...value, id]);
             setKey((k) => k + 1);
@@ -45,7 +53,7 @@ export function ClausePicker({
       {value.length > 0 ? (
         <ul aria-label={`${label} chosen`} className="flex flex-wrap gap-2">
           {value.map((id) => {
-            const name = options.find((o) => o.id === id)?.label ?? 'A clause no longer listed';
+            const name = options.find((o) => o.id === id)?.label ?? unknown;
             return (
               <li
                 key={id}

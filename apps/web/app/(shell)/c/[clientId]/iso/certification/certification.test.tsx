@@ -371,7 +371,11 @@ describe('ExternalAudits', () => {
     audits(held.id);
     const drawer = screen.getByRole('dialog');
     expect(await within(drawer).findByText('Contract workers were not invited.')).toBeTruthy();
-    expect(within(drawer).getByText('Raised a nonconformity.')).toBeTruthy();
+    expect(
+      within(drawer)
+        .getByRole('link', { name: 'Open the nonconformity it raised' })
+        .getAttribute('href'),
+    ).toMatch(/^\/c\/c1\/iso\/nonconformities\//);
 
     await userEvent.click(within(drawer).getByRole('button', { name: 'Add finding' }));
     const add = screen.getByRole('dialog', { name: 'Add finding' });

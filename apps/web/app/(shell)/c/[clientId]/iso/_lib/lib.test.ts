@@ -2,7 +2,17 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { ApiError } from '../../../../../../lib/api/client';
 import { failureMessage } from './outcome';
-import { clientDate, clientToday, first, hrefWith, listParam, nameOf, namesOf } from './people';
+import {
+  clientDate,
+  clientTime,
+  clientToday,
+  first,
+  hrefWith,
+  instantAt,
+  listParam,
+  nameOf,
+  namesOf,
+} from './people';
 import { BEING_SET_UP, refusalFor } from './refusal';
 import { sha256Hex, storageHasNoHost, uploadIsoFile, type IsoUploadCalls } from './upload';
 
@@ -57,6 +67,14 @@ describe('people and URL helpers', () => {
     expect(clientToday('UTC', late)).toBe('2024-11-15');
     expect(clientDate('2026-10-26T20:00:00Z', 'Asia/Kolkata')).toBe('2026-10-27');
     expect(clientDate('2026-10-26T20:00:00Z', 'UTC')).toBe('2026-10-26');
+    expect(clientTime('2026-10-26T20:00:00Z', 'Asia/Kolkata')).toBe('01:30');
+    // A client-local date and time back to the instant, across a daylight-saving change too.
+    expect(instantAt('2026-10-27', '01:30', 'Asia/Kolkata')).toBe('2026-10-26T20:00:00Z');
+    expect(instantAt('2024-11-14', '09:05', 'UTC')).toBe('2024-11-14T09:05:00Z');
+    expect(instantAt('2026-03-29', '12:00', 'Europe/London')).toBe('2026-03-29T11:00:00Z');
+    expect(instantAt('2026-03-28', '12:00', 'Europe/London')).toBe('2026-03-28T12:00:00Z');
+    expect(instantAt('2026-10-27', '25:00', 'UTC')).toBeNull();
+    expect(instantAt('27 Oct', '10:00', 'UTC')).toBeNull();
   });
   it('builds hrefs and reads search params', () => {
     expect(hrefWith('/x', { a: '1', b: undefined, c: '' })).toBe('/x?a=1');

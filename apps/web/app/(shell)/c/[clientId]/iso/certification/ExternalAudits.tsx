@@ -21,6 +21,7 @@ import {
   Textarea,
   type DataTableProps,
 } from '@canopy/ui';
+import NextLink from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 
@@ -701,7 +702,13 @@ function Findings(props: ExternalAuditsProps & { audit: ExternalAuditView }) {
                 </span>
               ) : null}
               {f.nonconformityId ? (
-                <span className="text-meta text-muted">Raised a nonconformity.</span>
+                <NextLink
+                  href={`/c/${clientId}/iso/nonconformities/${f.nonconformityId}`}
+                  prefetch={false}
+                  className="text-meta text-forest underline"
+                >
+                  Open the nonconformity it raised
+                </NextLink>
               ) : null}
             </li>
           ))}

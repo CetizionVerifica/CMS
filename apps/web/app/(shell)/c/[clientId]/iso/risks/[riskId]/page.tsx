@@ -5,13 +5,14 @@ import { notFound } from 'next/navigation';
 
 import { serverApi } from '../../../../../../../lib/api/server';
 import { PageHeader } from '../../../../../../../lib/patterns';
-import { allPages, people, systems, units } from '../../_lib/data';
+import { allPages, clauses, people, standards, systems, units } from '../../_lib/data';
 import { isoGate, isoLoad, isoMetadata } from '../../_lib/gate';
 import { mayCall } from '../../_lib/may';
 import { clientToday } from '../../_lib/people';
 import { word } from '../../_lib/words';
 import { IsoRefusal } from '../../_components/IsoStates';
 import { isoPath } from '../../overview/overview-model';
+import { ncSystems } from '../../nonconformities/nc-model';
 import { RiskRecord } from './RiskRecord';
 
 type Props = { params: Promise<{ clientId: string; riskId: string }> };
@@ -40,31 +41,37 @@ export default async function IsoRiskPage({ params }: Props) {
   if (!gate.on) return null;
   if (!Id.safeParse(riskId).success) notFound();
   const api = await serverApi();
+  const mayRaise = mayCall('raiseIsoNonconformity', gate.roles);
   const loaded = await isoLoad(async () => {
-    const [risk, controls, actions, systemList, unitList, peopleList] = await Promise.all([
-      api.call('getIsoRisk', { params: { clientId, id: riskId } }).then((r) => r.data),
-      api
-        .call('listIsoRiskControls', { params: { clientId, id: riskId } })
-        .then((r) => r.data.items),
-      allPages(
-        async (query) =>
-          (
-            await api.call('listIsoActions', {
-              params: { clientId },
-              query: { subjectType: 'RISK_ITEM', subjectId: riskId, ...query },
-            })
-          ).data,
-      ),
-      systems(api, clientId),
-      units(api, clientId),
-      people(api, clientId),
-    ]);
-    return { risk, controls, actions, systemList, unitList, peopleList };
+    const [risk, controls, actions, systemList, unitList, peopleList, standardList, clauseList] =
+      await Promise.all([
+        api.call('getIsoRisk', { params: { clientId, id: riskId } }).then((r) => r.data),
+        api
+          .call('listIsoRiskControls', { params: { clientId, id: riskId } })
+          .then((r) => r.data.items),
+        allPages(
+          async (query) =>
+            (
+              await api.call('listIsoActions', {
+                params: { clientId },
+                query: { subjectType: 'RISK_ITEM', subjectId: riskId, ...query },
+              })
+            ).data,
+        ),
+        systems(api, clientId),
+        units(api, clientId),
+        people(api, clientId),
+        // What the raise form offers, read only for someone who may raise.
+        mayRaise ? standards(api, clientId) : [],
+        mayRaise ? clauses(api, clientId) : [],
+      ]);
+    return { risk, controls, actions, systemList, unitList, peopleList, standardList, clauseList };
   });
   if (!loaded.ok) {
     return <IsoRefusal refusal={loaded.refusal} title={TITLE} homeHref={gate.homeHref} />;
   }
-  const { risk, controls, actions, systemList, unitList, peopleList } = loaded.data;
+  const { risk, controls, actions, systemList, unitList, peopleList, standardList, clauseList } =
+    loaded.data;
   const system = systemList.find((s) => s.id === risk.managementSystemId);
   const owner = risk.ownerId === gate.personId;
   const unitOptions = unitList
@@ -107,6 +114,23 @@ export default async function IsoRiskPage({ params }: Props) {
         canAddAction={mayCall('createIsoAction', gate.roles, owner)}
         actionEditing={{ all: mayCall('updateIsoAction', gate.roles), personId: gate.personId }}
         today={clientToday(gate.client.timeZone)}
+        raise={
+          mayRaise && system && risk.archivedAt === null
+            ? {
+                clientId,
+                systems: ncSystems([system], standardList, clauseList, [risk]),
+                units: unitOptions,
+                people: peopleList,
+                today: clientToday(gate.client.timeZone),
+                timeZone: gate.client.timeZone,
+                preset: {
+                  managementSystemId: system.id,
+                  raisedFromRiskItemId: risk.id,
+                  unitId: risk.unitId,
+                },
+              }
+            : null
+        }
       />
     </>
   );

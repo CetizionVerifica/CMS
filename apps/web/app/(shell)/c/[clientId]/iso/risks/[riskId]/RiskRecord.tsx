@@ -18,6 +18,7 @@ import { word, WORDS } from '../../_lib/words';
 import { ActionsPanel, type ActionEditing } from '../../_components/ActionsPanel';
 import { FormDrawer, StepButton, useSave } from '../../_components/controls';
 import { IsoPill, TimingPill } from '../../_components/IsoStates';
+import { RaiseNc, type NcRaiseProps } from '../../nonconformities/NcRaiseForm';
 import { EditRisk } from '../RiskForm';
 import { kindDetails, ratingText, secondAxis } from '../risks-model';
 
@@ -40,6 +41,8 @@ export type RiskRecordProps = {
   canAddAction: boolean;
   actionEditing: ActionEditing;
   today: string;
+  /** Raising a nonconformity from this item, for someone who may raise one. */
+  raise: NcRaiseProps | null;
 };
 
 export function RiskRecord(props: RiskRecordProps) {
@@ -47,6 +50,7 @@ export function RiskRecord(props: RiskRecordProps) {
   const [editing, setEditing] = useState(false);
   const [reviewing, setReviewing] = useState(false);
   const [overriding, setOverriding] = useState(false);
+  const [raising, setRaising] = useState(false);
   const archived = risk.archivedAt !== null;
   const hazard = risk.kind === 'HAZARD';
 
@@ -60,30 +64,41 @@ export function RiskRecord(props: RiskRecordProps) {
           <h2 id="risk-details" className="text-card text-ink">
             Details
           </h2>
-          {canEdit && !archived ? (
+          {(canEdit || props.raise) && !archived ? (
             <div className="flex flex-wrap gap-2">
-              <Button size="sm" variant="primary" onClick={() => setReviewing(true)}>
-                Record review
-              </Button>
-              <Button size="sm" onClick={() => setEditing(true)}>
-                Edit or re-rate
-              </Button>
-              <StepButton
-                label="Archive"
-                title="Archive this item?"
-                body="It leaves the register. Its open actions can no longer be reopened."
-                reason={{ label: 'Why it is archived' }}
-                tone="danger"
-                done="The item is archived."
-                run={(reason) =>
-                  isoWrite(
-                    clientId,
-                    'archiveIsoRisk',
-                    { id: risk.id },
-                    { version: risk.version, reason: reason ?? '' },
-                  )
-                }
-              />
+              {canEdit ? (
+                <>
+                  <Button size="sm" variant="primary" onClick={() => setReviewing(true)}>
+                    Record review
+                  </Button>
+                  <Button size="sm" onClick={() => setEditing(true)}>
+                    Edit or re-rate
+                  </Button>
+                </>
+              ) : null}
+              {props.raise ? (
+                <Button size="sm" onClick={() => setRaising(true)}>
+                  Raise nonconformity
+                </Button>
+              ) : null}
+              {canEdit ? (
+                <StepButton
+                  label="Archive"
+                  title="Archive this item?"
+                  body="It leaves the register. Its open actions can no longer be reopened."
+                  reason={{ label: 'Why it is archived' }}
+                  tone="danger"
+                  done="The item is archived."
+                  run={(reason) =>
+                    isoWrite(
+                      clientId,
+                      'archiveIsoRisk',
+                      { id: risk.id },
+                      { version: risk.version, reason: reason ?? '' },
+                    )
+                  }
+                />
+              ) : null}
             </div>
           ) : null}
         </div>
@@ -195,6 +210,9 @@ export function RiskRecord(props: RiskRecordProps) {
       {editing ? <EditRisk {...props} onClose={() => setEditing(false)} /> : null}
       {reviewing ? <ReviewRisk {...props} onClose={() => setReviewing(false)} /> : null}
       {overriding ? <OverrideSignificance {...props} onClose={() => setOverriding(false)} /> : null}
+      {raising && props.raise ? (
+        <RaiseNc {...props.raise} onClose={() => setRaising(false)} />
+      ) : null}
     </div>
   );
 }

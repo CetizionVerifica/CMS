@@ -211,6 +211,10 @@ describe('isoWrite and isoRead', () => {
     expect(files.data.items.length).toBeGreaterThan(0);
     const link = await isoRead(CLIENT, 'isoFileDownloadUrl', { id: files.data.items[0]!.id });
     expect(link.ok).toBe(true);
+    // The instance picker's register search, the one other module's read.
+    const found = await isoRead(CLIENT, 'listInstances', {}, { q: 'drill', limit: '5' });
+    if (!found.ok) throw new Error(`expected instances: ${found.code}`);
+    expect(found.data.items.length).toBeGreaterThan(0);
     expect(revalidatePath).not.toHaveBeenCalled();
   });
 

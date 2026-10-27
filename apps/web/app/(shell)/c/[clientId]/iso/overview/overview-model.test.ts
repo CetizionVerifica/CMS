@@ -7,6 +7,7 @@ import {
   climateGapText,
   countGroups,
   gateRows,
+  incidentLinks,
   isoPath,
   MAX_LINK_IDS,
   readinessLinks,
@@ -16,6 +17,41 @@ import {
 const C = 'client-1';
 const view = ISO.overview.systems[0]!;
 const SYS = view.managementSystemId;
+
+describe('incidentLinks', () => {
+  it('links all incidents and each type with any to exactly its records', () => {
+    const links = incidentLinks(C, view);
+    expect(links[0]).toEqual({
+      label: 'All incidents',
+      count: view.incidents.total.count,
+      href: `/c/${C}/iso/nonconformities?ids=${view.incidents.total.ids.join('%2C')}`,
+    });
+    const typed = view.incidents.byType.filter((t) => t.count > 0);
+    expect(links.slice(1).map((l) => l.count)).toEqual(typed.map((t) => t.count));
+    expect(links.slice(1).every((l) => l.href.includes('?ids='))).toBe(true);
+  });
+
+  it("opens every incident of the system past the ids filter's limit, and says so", () => {
+    const many = Array.from({ length: MAX_LINK_IDS + 1 }, (_, i) => `n${i}`);
+    const [all, injury] = incidentLinks(C, {
+      ...view,
+      incidents: {
+        ...view.incidents,
+        total: { count: many.length, ids: many },
+        byType: view.incidents.byType.map((t) =>
+          t.type === 'INJURY'
+            ? { ...t, count: many.length, ids: many }
+            : { ...t, count: 0, ids: [] },
+        ),
+      },
+    });
+    for (const link of [all!, injury!]) {
+      expect(link.href).toBe(`/c/${C}/iso/nonconformities?managementSystemId=${SYS}&incident=true`);
+      expect(link.note).toMatch(/all of the system's records/);
+    }
+    expect(injury!.label).toBe('Injury');
+  });
+});
 
 describe('countGroups', () => {
   it('links each number to exactly the records it counts', () => {
@@ -35,7 +71,7 @@ describe('countGroups', () => {
       href: `/c/${C}/iso/documents?ids=${view.documents.inReview.ids.join('%2C')}`,
     });
     expect(groups[0]!.items[1]!.href).toBe(
-      `/c/${C}/iso/nonconformities?managementSystemId=${SYS}&overdue=true`,
+      `/c/${C}/iso/nonconformities?ids=${view.nonconformities.overdue.ids.join('%2C')}`,
     );
     expect(groups[1]!.items[0]!.href).toBe(
       `/c/${C}/iso/actions?managementSystemId=${SYS}&state=OPEN`,
@@ -66,6 +102,14 @@ describe('countGroups', () => {
     expect(docs.find((g) => g.title === 'Documents')!.items[1]!.href).toBe(
       `/c/${C}/iso/documents?managementSystemId=${SYS}&status=ACTIVE%2COBSOLETE`,
     );
+    // Past the limit the overdue nonconformities open on the log's own overdue filter, which is close but not exact.
+    const ncs = countGroups(C, {
+      ...view,
+      nonconformities: { ...view.nonconformities, overdue: { count: many.length, ids: many } },
+    });
+    const overdue = ncs.find((g) => g.title === 'Nonconformities')!.items[1]!;
+    expect(overdue.href).toBe(`/c/${C}/iso/nonconformities?managementSystemId=${SYS}&overdue=true`);
+    expect(overdue.note).toMatch(/by the nearest filter/);
   });
 });
 
