@@ -20,17 +20,33 @@ import {
   Nonconformity,
   Objective,
   ObjectiveReading,
+  REVIEW_FIGURE_KEYS,
   ReviewInput,
+  ReviewInputFigures,
+  ReviewInputKey,
   ReviewOutput,
+  ReviewOutputKey,
   RiskControl,
   RiskItem,
   RiskKind,
 } from '@canopy/contracts';
-import { and, asc, eq, ilike, inArray, isNotNull, isNull, or, sql, type SQL } from 'drizzle-orm';
-import type { PgColumn } from 'drizzle-orm/pg-core';
+import {
+  and,
+  asc,
+  eq,
+  getTableColumns,
+  ilike,
+  inArray,
+  isNotNull,
+  isNull,
+  or,
+  sql,
+  type SQL,
+} from 'drizzle-orm';
+import type { PgColumn, PgTable } from 'drizzle-orm/pg-core';
 import { z } from 'zod';
 import type { TenantTx } from '../database.js';
-import { rethrow, validate } from '../errors.js';
+import { DbError, rethrow, validate } from '../errors.js';
 import * as s from '../schema/index.js';
 import { containsPattern, entity, type NewEntity } from './crud.js';
 import {
@@ -55,7 +71,8 @@ import {
  * As in part 1 (iso.ts), M16 reads and writes them under the request's tenant context and checks roles, the feature
  * switch, state machines and people; list filters apply the unit scope of docs/iso/plan.md §3.3 in SQL when the
  * caller passes one. A child record (control, reading, checklist row, finding, action, review input or output) takes
- * its parent's scope: its by-parent reads take none, since M16 has checked the parent.
+ * its parent's scope: its by-parent reads take none, since M16 has checked the parent. The record entities are
+ * exported for iso-review-figures.ts; index.ts names what other modules may call.
  */
 
 /** A by-value filter: undefined is no filter, an empty list matches nothing. */
@@ -170,7 +187,7 @@ function actionScope(scope: UnitScope): SQL {
 
 // ---------- risk items and controls ----------
 
-const riskEntity = entity<RiskItem>({ table: s.riskItem, schema: RiskItem });
+export const riskEntity = entity<RiskItem>({ table: s.riskItem, schema: RiskItem });
 const controlEntity = entity<RiskControl>({ table: s.riskControl, schema: RiskControl });
 
 export const RiskItemFilter = z.strictObject({
@@ -264,7 +281,7 @@ const OBJECTIVE_RISK_ITEMS: Link = {
   max: 100,
 };
 
-const objectiveRecord = linkedRecord<
+export const objectiveRecord = linkedRecord<
   Objective,
   NewEntity<Objective>,
   Patch<Objective, 'managementSystemId'>
@@ -273,7 +290,7 @@ const objectiveRecord = linkedRecord<
   schema: Objective,
   links: { riskItemIds: OBJECTIVE_RISK_ITEMS },
 });
-const readingEntity = entity<ObjectiveReading>({
+export const readingEntity = entity<ObjectiveReading>({
   table: s.objectiveReading,
   schema: ObjectiveReading,
 });
@@ -365,7 +382,7 @@ const auditPeople = (role: 'AUDITOR' | 'AUDITEE' | 'REPORTED_TO', max: number): 
   max,
 });
 
-const internalAuditRecord = linkedRecord<
+export const internalAuditRecord = linkedRecord<
   InternalAudit,
   NewEntity<InternalAudit>,
   Patch<InternalAudit, 'programmeId'>
@@ -494,7 +511,7 @@ const checklistEntity = entity<AuditChecklistItem>({
   table: s.auditChecklistItem,
   schema: AuditChecklistItem,
 });
-const findingEntity = entity<AuditFinding>({ table: s.auditFinding, schema: AuditFinding });
+export const findingEntity = entity<AuditFinding>({ table: s.auditFinding, schema: AuditFinding });
 
 export const auditChecklistItems = {
   get: checklistEntity.get,
@@ -619,7 +636,7 @@ const NC_LINKS = {
 
 type NewNonconformity = Omit<NewEntity<Nonconformity>, 'number'>;
 
-const ncRecord = linkedRecord<
+export const ncRecord = linkedRecord<
   Nonconformity,
   NewNonconformity,
   Patch<Nonconformity, 'managementSystemId' | 'number'>
@@ -761,7 +778,7 @@ const ACTION_SUBJECTS = {
   MANAGEMENT_REVIEW: 'managementReviewId',
 } as const satisfies Record<IsoActionSubjectType, keyof typeof s.isoAction.$inferSelect>;
 
-const actionEntity = entity<IsoAction>({
+export const actionEntity = entity<IsoAction>({
   table: s.isoAction,
   schema: IsoAction,
   fromRow: (row) => {
@@ -890,7 +907,7 @@ export const isoActions = {
 
 // ---------- management reviews ----------
 
-const reviewRecord = linkedRecord<
+export const reviewRecord = linkedRecord<
   ManagementReview,
   NewEntity<ManagementReview>,
   Patch<ManagementReview, 'managementSystemId'>
@@ -987,6 +1004,92 @@ async function addReviewRows(
   return (rows as { id: string }[]).map((r) => r.id);
 }
 
+/** The keys a replan added and removed, each in key order (ISO-2h; model §3.13). */
+export interface ReviewRowChanges {
+  added: string[];
+  removed: string[];
+}
+
+/**
+ * Brings a PLANNED review's input or output rows in line with `standardIds` (model §3.13), as the mock's `syncRows`:
+ * one live row per key of these standards' definitions, each pointing at the key's definition of the lowest standard
+ * code (as `addReviewRows` picks it). A key no longer wanted has its row archived, its notes or decision kept on it; a
+ * kept row whose wanted definition changed is repointed; a missing key gets a new row. A review in any other state,
+ * or archived, is refused (VALIDATION, NOT_FOUND).
+ */
+async function syncReviewRows(
+  tx: TenantTx,
+  kind: 'input' | 'output',
+  review: { id: string; clientId: string },
+  standardIds: readonly string[],
+): Promise<ReviewRowChanges> {
+  const ids = validate(z.array(Id).min(1).max(3), [...standardIds]);
+  const [current] = await tx
+    .select({ state: s.managementReview.state, archivedAt: s.managementReview.archivedAt })
+    .from(s.managementReview)
+    .where(
+      and(eq(s.managementReview.id, review.id), eq(s.managementReview.clientId, review.clientId)),
+    )
+    .for('update')
+    .catch(rethrow);
+  if (!current || current.archivedAt !== null) throw new DbError('NOT_FOUND', 'Not found');
+  if (current.state !== 'PLANNED') {
+    throw new DbError('VALIDATION', 'Only a PLANNED review changes its rows');
+  }
+  const table = sql.identifier(`review_${kind}`);
+  const defs = sql.identifier(`iso_review_${kind}_def`);
+  const def = sql.identifier(`${kind}_def_id`);
+  const order: readonly string[] =
+    kind === 'input' ? ReviewInputKey.options : ReviewOutputKey.options;
+  const byKey = (a: { key: string }, b: { key: string }) =>
+    order.indexOf(a.key) - order.indexOf(b.key);
+  const { rows: wantedRows } = await tx
+    .execute(
+      sql`SELECT DISTINCT ON (d.key) d.key, d.id
+        FROM ${defs} d JOIN iso_standard st ON st.id = d.standard_id
+        WHERE d.standard_id = any(${uuids(ids)}) AND d.archived_at IS NULL
+        ORDER BY d.key, st.code, d.id`,
+    )
+    .catch(rethrow);
+  const wanted = new Map((wantedRows as { key: string; id: string }[]).map((r) => [r.key, r.id]));
+  const { rows: liveRows } = await tx
+    .execute(
+      sql`SELECT x.id, x.${def} AS def_id, d.key FROM ${table} x JOIN ${defs} d ON d.id = x.${def}
+        WHERE x.management_review_id = ${review.id}::uuid AND x.archived_at IS NULL`,
+    )
+    .catch(rethrow);
+  const live = (liveRows as { id: string; def_id: string; key: string }[]).sort(byKey);
+  const removed: string[] = [];
+  for (const row of live) {
+    const defId = wanted.get(row.key);
+    if (defId === undefined) {
+      await tx
+        .execute(
+          sql`UPDATE ${table} SET archived_at = now(), version = version + 1 WHERE id = ${row.id}::uuid`,
+        )
+        .catch(rethrow);
+      removed.push(row.key);
+    } else if (row.def_id !== defId) {
+      await tx
+        .execute(
+          sql`UPDATE ${table} SET ${def} = ${defId}::uuid, version = version + 1 WHERE id = ${row.id}::uuid`,
+        )
+        .catch(rethrow);
+    }
+  }
+  const have = new Set(live.map((r) => r.key));
+  const added = [...wanted.keys()]
+    .filter((key) => !have.has(key))
+    .sort((a, b) => order.indexOf(a) - order.indexOf(b));
+  if (added.length) await addReviewRows(tx, kind, review, ids);
+  return { added, removed };
+}
+
+const StoredFigures = z.strictObject({
+  figures: ReviewInputFigures,
+  engineVersion: z.string().min(1).max(40),
+});
+
 export const reviewInputs = {
   get: inputEntity.get,
   require: inputEntity.require,
@@ -1003,6 +1106,42 @@ export const reviewInputs = {
   },
   update: (tx: TenantTx, id: string, version: number, patch: { notes: string | null }) =>
     inputEntity.update(tx, id, version, patch),
+  /** A PLANNED review's input rows after a replan of its standards (`syncReviewRows`). */
+  syncForReview: (
+    tx: TenantTx,
+    review: { id: string; clientId: string },
+    standardIds: readonly string[],
+  ): Promise<ReviewRowChanges> => syncReviewRows(tx, 'input', review, standardIds),
+  /**
+   * Stores a live row's figures once (model §3.13, at RECORD_HELD): `figures` checked against `ReviewInputFigures`,
+   * `figures_stored_at` the transaction's `now()` and the engine version. Only the three columns change, so the
+   * row's version does not move and its notes stay editable with the version read before. A row that already has
+   * figures is refused as DUPLICATE, an archived or unknown one as NOT_FOUND.
+   */
+  async storeFigures(
+    tx: TenantTx,
+    id: string,
+    figures: ReviewInputFigures,
+    engineVersion: string,
+  ): Promise<ReviewInput> {
+    const rowId = validate(Id, id);
+    const f = validate(StoredFigures, { figures, engineVersion });
+    const i = s.reviewInput;
+    const [row] = await tx
+      .update(i)
+      .set({
+        sourceFigures: f.figures,
+        figuresStoredAt: sql`now()`,
+        figuresEngineVersion: f.engineVersion,
+      })
+      .where(and(eq(i.id, rowId), isNull(i.archivedAt), isNull(i.figuresStoredAt)))
+      .returning()
+      .catch(rethrow);
+    if (row) return inputEntity.parseWritten(row);
+    const current = await inputEntity.get(tx, rowId);
+    if (!current || current.archivedAt !== null) throw new DbError('NOT_FOUND', 'Not found');
+    throw new DbError('DUPLICATE', 'Figures are stored once');
+  },
 };
 
 export const reviewOutputs = {
@@ -1020,4 +1159,107 @@ export const reviewOutputs = {
   },
   update: (tx: TenantTx, id: string, version: number, patch: { decision: string | null }) =>
     outputEntity.update(tx, id, version, patch),
+  /** A PLANNED review's output rows after a replan of its standards (`syncReviewRows`). */
+  syncForReview: (
+    tx: TenantTx,
+    review: { id: string; clientId: string },
+    standardIds: readonly string[],
+  ): Promise<ReviewRowChanges> => syncReviewRows(tx, 'output', review, standardIds),
 };
+
+// ---------- ids a reader may open (review figures) ----------
+
+/** The tables a review figure's ids name: every entity type `REVIEW_FIGURE_KEYS` lists. */
+type FigureTable = NonNullable<
+  {
+    [
+      S in keyof typeof REVIEW_FIGURE_KEYS
+    ]: (typeof REVIEW_FIGURE_KEYS)[S][keyof (typeof REVIEW_FIGURE_KEYS)[S]] extends {
+      entityType: infer T;
+    }
+      ? T
+      : never;
+  }[keyof typeof REVIEW_FIGURE_KEYS]
+>;
+
+/**
+ * Each table's rows and its read rule with a unit scope: plan §3.3 for the ISO tables (a reading takes its
+ * objective's), and the register's unit-only rule for compliance instances, with no named-person exception.
+ */
+const FIGURE_TABLES = {
+  iso_action: { table: s.isoAction, scope: actionScope },
+  context_item: {
+    table: s.contextItem,
+    scope: (scope: UnitScope) => systemUnitsMatch(s.contextItem.managementSystemId, scope.unitIds),
+  },
+  management_system: {
+    table: s.managementSystem,
+    scope: (scope: UnitScope) => systemUnitsMatch(s.managementSystem.id, scope.unitIds),
+  },
+  risk_item: { table: s.riskItem, scope: riskScope },
+  objective: { table: s.objective, scope: objectiveScope },
+  objective_reading: {
+    table: s.objectiveReading,
+    scope: (scope: UnitScope) =>
+      sql`exists (select 1 from ${s.objective} where ${eq(s.objective.id, s.objectiveReading.objectiveId)} and ${objectiveScope(scope)})`,
+  },
+  nonconformity: { table: s.nonconformity, scope: nonconformityScope },
+  internal_audit: { table: s.internalAudit, scope: internalAuditScope },
+  external_audit: { table: s.externalAudit, scope: externalAuditScope },
+  audit_finding: { table: s.auditFinding, scope: findingScope },
+  instance: {
+    table: s.complianceInstance,
+    scope: (scope: UnitScope) => sql`${s.complianceInstance.unitId} = any(${uuids(scope.unitIds)})`,
+  },
+} satisfies Record<
+  FigureTable,
+  { table: PgTable & { id: PgColumn }; scope: (scope: UnitScope) => SQL }
+>;
+
+const FigureRefs = z
+  .array(
+    z.strictObject({
+      table: z.enum(Object.keys(FIGURE_TABLES) as [FigureTable, ...FigureTable[]]),
+      ids: z.array(Id).max(50_000),
+    }),
+  )
+  .max(100);
+export type FigureRefs = z.input<typeof FigureRefs>;
+
+/**
+ * The ids a reader may open among a review's figure ids (ISO-2h; model §3.13, plan §3.3), per `{ table, ids }` of
+ * `refs` with the table `REVIEW_FIGURE_KEYS` names: only rows of `clientId` in that table, archived ones included (a
+ * stored figure keeps the id of a record archived since), and with `scope` only those the scope may read. With no
+ * scope (a reader who sees the whole client) it still drops ids that are not the client's. Ids keep their order.
+ */
+export async function isoVisibleIds(
+  tx: TenantTx,
+  clientId: string,
+  refs: FigureRefs,
+  scope?: UnitScope,
+): Promise<{ table: FigureTable; ids: string[] }[]> {
+  const wanted = validate(FigureRefs, refs);
+  const sc = scope === undefined ? undefined : validate(UnitScope, scope);
+  const out: { table: FigureTable; ids: string[] }[] = [];
+  for (const ref of wanted) {
+    const { table, scope: rule } = FIGURE_TABLES[ref.table];
+    const cols = getTableColumns(table) as unknown as { id: PgColumn; clientId: PgColumn };
+    const found = new Set<string>();
+    if (ref.ids.length) {
+      const rows = (await tx
+        .select({ id: cols.id })
+        .from(table)
+        .where(
+          and(
+            eq(cols.clientId, clientId),
+            sql`${cols.id} = any(${uuids([...new Set(ref.ids)])})`,
+            sc && rule(sc),
+          ),
+        )
+        .catch(rethrow)) as { id: string }[];
+      for (const row of rows) found.add(row.id);
+    }
+    out.push({ table: ref.table, ids: ref.ids.filter((id) => found.has(id)) });
+  }
+  return out;
+}

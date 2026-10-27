@@ -6,6 +6,7 @@ import { activeConsumers, CONSUMERS, OutboxEventSchema } from './consumers.js';
 import { runConsultantDigest, CONSULTANT_DIGEST } from './digest.js';
 import { GENERATE_INSTANCES, runGenerateInstances } from './generate-instances.js';
 import { ISO_CATALOGUE_SWEEP, runIsoCatalogueSweep } from './iso-catalogue.js';
+import { ISO_REMINDERS, runIsoReminders } from './iso-reminders.js';
 import { RELAY_OUTBOX, runRelayOutbox } from './outbox-relay.js';
 import type { EventBus, JobDeps, JobReport } from './ports.js';
 import { REMINDERS, runReminders } from './reminders.js';
@@ -30,13 +31,13 @@ export interface JobDefinition {
 /**
  * The schedule. The account job runs nightly at 00:30 India time, ending lapsed trials and recording usage, so the
  * generation that follows skips an account it suspended. Generation runs nightly at 01:00 India time. Both catch up
- * once after downtime. Reminders and the digest run every 15 minutes in UTC and decide per client whether its local
- * send time has passed, so each client is served in its own time zone; missed slots are skipped because the next run
- * covers them. The trial and renewal reminders run daily at 10:00 India time and catch up once. The outbox relay
- * runs every minute, and so does the evidence scan; the ISO catalogue sweep runs every 10 minutes. Without a mailer
- * only the account job, generation, the relay, the scan and the sweep run (`sendsMail: false`); without a scanner the
- * scan does not. Generation, reminders, the digest and the sweep serve TRIAL and ACTIVE accounts only; the relay and
- * the scan serve every account, so a new account's owner invite still goes out.
+ * once after downtime. Reminders, the ISO reminders and the digest run every 15 minutes in UTC and decide per client
+ * whether its local send time has passed, so each client is served in its own time zone; missed slots are skipped
+ * because the next run covers them. The trial and renewal reminders run daily at 10:00 India time and catch up once.
+ * The outbox relay runs every minute, and so does the evidence scan; the ISO catalogue sweep runs every 10 minutes.
+ * Without a mailer only the account job, generation, the relay, the scan and the sweep run (`sendsMail: false`);
+ * without a scanner the scan does not. Generation, both reminder runs, the digest and the sweep serve TRIAL and ACTIVE
+ * accounts only; the relay and the scan serve every account, so a new account's owner invite still goes out.
  */
 export const JOBS: readonly JobDefinition[] = [
   {
@@ -56,6 +57,7 @@ export const JOBS: readonly JobDefinition[] = [
     run: runGenerateInstances,
   },
   { name: REMINDERS, cron: '*/15 * * * *', tz: 'UTC', sendsMail: true, run: runReminders },
+  { name: ISO_REMINDERS, cron: '*/15 * * * *', tz: 'UTC', sendsMail: true, run: runIsoReminders },
   {
     name: TRIAL_REMINDERS,
     cron: '0 10 * * *',

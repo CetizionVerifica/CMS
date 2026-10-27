@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { DEFAULT_CLIENT_SETTINGS, type LocalDate } from '@canopy/contracts';
 import {
+  accountJobs,
   acts,
   assignments,
   auditEvents,
@@ -8,8 +9,10 @@ import {
   clauseAssessments,
   clients,
   companies,
+  controlledDocuments,
   departments,
   instances,
+  isoActions,
   isoCatalogue,
   isoFiles,
   locations,
@@ -17,6 +20,7 @@ import {
   memberships,
   obligations,
   people,
+  riskItems,
   systemContext,
   units,
   type TenantTx,
@@ -24,6 +28,7 @@ import {
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { runGenerateInstances } from './generate-instances.js';
+import { runIsoReminders } from './iso-reminders.js';
 import type { JobDeps } from './ports.js';
 import { postgresJobStore } from './postgres-store.js';
 import { runReminders } from './reminders.js';
@@ -32,7 +37,7 @@ import { APP_URL } from './testing/builders.js';
 import { captureMailer } from './testing/memory-store.js';
 import { createJobTestDatabase, type JobTestDatabase } from './testing/postgres.js';
 
-// ISO-10b on M3's repositories and RLS, against Postgres 16 (CI `db` job); skipped without DATABASE_URL. One account
+// ISO-10b and ISO-10c on M3's repositories and RLS, against Postgres 16 (CI `db` job); skipped without DATABASE_URL. One account
 // holds a statutory and an ISO-standard assignment, each with an OPEN instance due today, and ISO files on a clause
 // assessment; a second account holds only statutory work. 2026-10-12 01:30Z is 07:00 in Asia/Kolkata.
 const url = process.env.DATABASE_URL;
@@ -52,6 +57,7 @@ describe.skipIf(!url)('jobs and the ISO add-on on the Postgres store', () => {
   let withIso: World;
   let lawOnly: World;
   let deps: JobDeps;
+  let iso: { systemId: string; subject: { type: 'clause_assessment'; id: string } };
 
   const inFirm = <T>(firmId: string, fn: (tx: TenantTx) => Promise<T>) =>
     t.db.withTenant(systemContext(firmId, 'iso-switch-db-test'), fn);
@@ -287,6 +293,7 @@ describe.skipIf(!url)('jobs and the ISO add-on on the Postgres store', () => {
       });
       const [row] = await clauseAssessments.addForStandards(tx, system, [standard.id]);
       const subject = { type: 'clause_assessment' as const, id: row!.id };
+      iso = { systemId: system.id, subject };
       const add = async (text: string) => {
         const storageKey = `evidence/${withIso.firmId}/${withIso.clientId}/iso/${randomUUID()}`;
         files.set(storageKey, text);
@@ -396,5 +403,153 @@ describe.skipIf(!url)('jobs and the ISO add-on on the Postgres store', () => {
         tx.recordIsoScan(clean.id, 'INFECTED'),
       ),
     ).toBe(false);
+  });
+
+  it('keeps the status of a file removed between the scan read and its write', async () => {
+    const file = await inFirm(withIso.firmId, (tx) =>
+      isoFiles.create(tx, {
+        clientId: withIso.clientId,
+        subject: iso.subject,
+        fileName: 'audit-plan.pdf',
+        mimeType: 'application/pdf',
+        sizeBytes: 8,
+        sha256: 'c'.repeat(64),
+        storageKey: `evidence/${withIso.firmId}/${withIso.clientId}/iso/${randomUUID()}`,
+        uploadedById: withIso.ownerId,
+      }),
+    );
+    // The remove holds the row while the scan's write runs, and commits after the write has read the file as PENDING.
+    let removing!: () => void;
+    const removed = new Promise<void>((resolve) => (removing = resolve));
+    let commit!: () => void;
+    const committed = new Promise<void>((resolve) => (commit = resolve));
+    const remove = inFirm(withIso.firmId, async (tx) => {
+      await isoFiles.archive(tx, file.id, 'Uploaded in error');
+      removing();
+      await committed;
+    });
+    await removed;
+    const write = deps.store.withFirm(withIso.firmId, 'req:iso', (tx) =>
+      tx.recordIsoScan(file.id, 'CLEAN'),
+    );
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    commit();
+    await remove;
+    expect(await write).toBe(false);
+    const kept = await inFirm(withIso.firmId, (tx) => isoFiles.require(tx, file.id));
+    expect(kept.scanStatus).toBe('PENDING');
+    expect(kept.archivedAt).not.toBeNull();
+  });
+
+  it('sends each ISO reminder once per subject from the send log, in the account only', async () => {
+    const TODAY = '2026-10-12' as LocalDate;
+    const subjects = await inFirm(withIso.firmId, async (tx) => {
+      // The catalogue copy is recorded: the add-on is served from here on.
+      expect(await accountJobs.markIsoCatalogueCopied(tx)).toBe(true);
+      const risk = await riskItems.create(tx, {
+        clientId: withIso.clientId,
+        managementSystemId: iso.systemId,
+        kind: 'RISK',
+        unitId: null,
+        activity: 'Casting',
+        description: 'A late alloy delivery stops the line',
+        impact: null,
+        lifeCycleStages: [],
+        controlType: null,
+        routine: null,
+        personsExposed: [],
+        condition: null,
+        assessedWith: null,
+        likelihood: 3,
+        severity: 4,
+        residualLikelihood: null,
+        residualSeverity: null,
+        rating: 12,
+        residualRating: null,
+        significant: true,
+        significantOverride: null,
+        significanceReason: null,
+        obligationIds: [],
+        climateRelated: false,
+        ownerId: withIso.ownerId,
+        reviewDueOn: TODAY,
+        lastReviewedOn: null,
+      });
+      const action = (text: string) =>
+        isoActions.create(tx, {
+          clientId: withIso.clientId,
+          subject: { type: 'RISK_ITEM', id: risk.id },
+          text,
+          resources: null,
+          ownerId: withIso.ownerId,
+          dueOn: TODAY,
+          doneOn: null,
+          state: 'OPEN',
+          effectivenessNote: null,
+          cancelReason: null,
+          controlHierarchy: null,
+          outputKey: null,
+        });
+      const first = await action('Qualify a second alloy supplier');
+      const second = await action('Hold two weeks of alloy stock');
+      const document = await controlledDocuments.create(tx, {
+        clientId: withIso.clientId,
+        managementSystemId: iso.systemId,
+        code: 'QP-07',
+        title: 'Calibration procedure',
+        type: 'PROCEDURE',
+        clauseIds: [],
+        status: 'ACTIVE',
+        currentRevisionId: null,
+        ownerId: withIso.ownerId,
+        approverId: withIso.ownerId,
+        reviewDueOn: TODAY,
+        lastReviewedOn: null,
+        retention: null,
+        issuer: null,
+        externalRef: null,
+      });
+      return [risk.id, first.id, second.id, document.id];
+    });
+    const mailer = captureMailer();
+    const run = { ...deps, mailer };
+    expect(await runIsoReminders(run, 'job:iso:remind:1')).toMatchObject({ firms: 1, sent: 4 });
+    expect(mailer.sent.map((m) => m.subject).sort()).toEqual([
+      'Due today: Hold two weeks of alloy stock',
+      'Due today: Qualify a second alloy supplier',
+      'Review due today: Casting',
+      'Review due today: QP-07 Calibration procedure',
+    ]);
+    expect(await runIsoReminders(run, 'job:iso:remind:2')).toMatchObject({
+      sent: 0,
+      alreadySent: 4,
+    });
+    expect(mailer.sent).toHaveLength(4);
+    expect(
+      await t.count(withIso.firmId, 'notification_send', 'iso_subject_id = ANY($1::uuid[])', [
+        subjects,
+      ]),
+    ).toBe(4);
+    expect(
+      await t.count(
+        withIso.firmId,
+        'domain_event',
+        `type = 'notification.sent' AND data ? 'isoSubjectId'`,
+      ),
+    ).toBe(4);
+    const done = await deps.store.withFirm(withIso.firmId, 'req:iso', (tx) =>
+      tx.listDoneIsoSends(withIso.clientId, TODAY),
+    );
+    expect(done.map((k) => k.isoSubjectId).sort()).toEqual([...subjects].sort());
+    // The statutory done set leaves ISO rows out, and another account sees none of them.
+    const statutory = await deps.store.withFirm(withIso.firmId, 'req:iso', (tx) =>
+      tx.listDoneSends(withIso.clientId, TODAY),
+    );
+    expect(statutory.every((k) => k.instanceId !== null)).toBe(true);
+    expect(
+      await deps.store.withFirm(lawOnly.firmId, 'req:iso', (tx) =>
+        tx.listDoneIsoSends(withIso.clientId, TODAY),
+      ),
+    ).toEqual([]);
   });
 });

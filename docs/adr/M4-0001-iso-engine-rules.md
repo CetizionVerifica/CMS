@@ -1,4 +1,4 @@
-# M4-0001. ISO engine rules (ENGINE_VERSION 1.1.0)
+# M4-0001. ISO engine rules (ENGINE_VERSION 1.1.0, amended in 1.2.0)
 
 - Status: accepted
 - Date: 2026-10-25
@@ -129,13 +129,28 @@ statutory scores stay comparable.
     on an offset day or, with `repeatEveryDays`, every that many days after the last offset; an item marked not open,
     or with no rule for its kind and subject type, gets nothing. One notification per distinct recipient per item, so
     two subjects due the same day for one person are two sends.
-18. **Review input figures.** `reviewInputFigures(source, data, since, asOf)` counts, both days included, the records
-    the caller passes for that source (already narrowed to the reader's unit scope and the input's standards, with
-    timestamps turned into client-local dates): the figure keys and readings are the mock's (`docs/contracts/
-    iso-mock.md`, "Management review figures"). `since` is the last HELD or CLOSED review covering the input's
-    standards, else the system's `createdOn`; a `since` after `asOf` is a `RangeError`. COMPLIANCE_EVALUATION scores
-    the STATUTE instances due in the window with `computeScore`; MANUAL has no figures. `readingsRecorded` counts
-    the readings recorded in the window, whatever their period; on-track reads only readings whose period has ended.
+18. **Review input figures** (amended in 1.2.0, ISO-3b). `reviewInputFigures` is typed as the contract's
+    `TypedReviewInputFigures` and takes `ReviewFigureData[source]`; the engine's own per-source types are gone. The
+    caller (M3's `reviewFigures.gather`) passes the system's records for the input's standards, archived ones
+    included, with no unit scope (plan §3.3 exception), every timestamp a client-local day. The engine counts them
+    between `since` and `asOf`, both days included (a `since` after `asOf` is a `RangeError`), reading each record as it
+    is now except where model §5.4 gives a day: a record counts from its creation day (an NC from the later of
+    `createdOn` and `reportedOn`) until its archive day; an NC with `closedOn` after `asOf` is open; an action is OPEN
+    on `asOf` until its settled day (the later of `doneOn` and `settledOn` when DONE, `settledOn` when CANCELLED), and
+    PREVIOUS_ACTIONS counts done and cancelled ones only when that day is in the window; an objective is open until
+    the later of `closedOn` and `closeStepOn`; an internal audit is placed by the later of `reportedOn` and
+    `reportStepOn`, an external one by the later of `endOn` and `heldStepOn`, and a finding by the later of its audit's
+    day and its own `createdOn`, whether or not its audit counts; `climateDecided` counts from the first decision on
+    or before `asOf` (`climateRelevant` as it is now, once decided), `climateDecidedInPeriod` when one falls in the
+    window; an incident is placed by its NC's counting day and grouped by type and outcome as `incidentCounts` groups
+    them (`incidentCounts` keeps the overview's `occurredAt` rule); `readingsRecorded` counts readings created in the
+    window whatever their period, and on-track reads readings created by `asOf` whose period has ended; re-rated,
+    changed and not-effective counts come from the event-day lists; `correctiveActionsOverdue` counts only actions of
+    NCs open on `asOf`; `significant<Kind>` keys exist only for the kinds in RISKS `kinds`. Every key emitted is in
+    `REVIEW_FIGURE_KEYS`. COMPLIANCE_EVALUATION scores the STATUTE instances due in the window with `computeScore`;
+    MANUAL has no figures. No history is rebuilt: a held review stores its figures once, at RECORD_HELD (ADR M16-0003),
+    and those name the engine version that produced them, so this change bumps `ENGINE_VERSION` to 1.2.0. These are
+    the mock's reads (`packages/contracts/src/mock/handlers/iso/reviews.ts`, ISO-1a3), kept.
 
 ### The overview's stand-ins
 19. Kept as the mock reads them: the overview's 12-month window is the gate window of rule 4; a certificate is

@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { createApiClient } from './client';
 import { MOCK_CLIENTS, MOCK_COMPANY_EMAIL, MOCK_MFA_CODE, MOCK_PASSWORD, mockFetch } from './mock';
-import { CLIENT_MAP, delegateToM0 } from './mock-delegate';
+import { CLIENT_MAP, delegateToM0, PERSON_MAP } from './mock-delegate';
 
 const api = (cookie?: string) =>
   createApiClient({ baseUrl: 'http://api.test', fetch: mockFetch, cookie });
@@ -70,6 +70,42 @@ describe('routes the shell mock does not answer go to M0’s mock server', () =>
     const text = JSON.stringify(data);
     expect(text).not.toContain('Harbour Retail Group');
     expect(text).not.toContain(CLIENT_MAP[1]!.theirs);
+  });
+
+  it('translates the signed-in person’s own id both ways, so “mine” matches what /me says', async () => {
+    const owner = await sessionFor('owner@demo.test');
+    const me = (await api(owner).me()).data.person.id;
+    const theirs = PERSON_MAP['owner@demo.test']!;
+    const list = async (ownerId: string) =>
+      (
+        await api(owner).call('listIsoRisks', {
+          params: { clientId: MOCK_CLIENTS.demoMetals },
+          query: { ownerId },
+        })
+      ).data;
+    // The shell's own id reaches M0 as the firm B person: the same rows as `ownerId=me`.
+    const mine = await list(me);
+    expect(mine.items.length).toBeGreaterThan(0);
+    expect(mine.items.map((r) => r.id)).toEqual((await list('me')).items.map((r) => r.id));
+    // And M0's answers come back under the shell's id, never firm B's.
+    for (const risk of mine.items) expect(risk.ownerId).toBe(me);
+    expect(JSON.stringify(mine)).not.toContain(theirs);
+
+    // An owner-only form names the signed-in person with the shell's id; M0 accepts it as the firm B person.
+    const { data: created } = await api(owner).call('createIsoRisk', {
+      params: { clientId: MOCK_CLIENTS.demoMetals },
+      body: {
+        managementSystemId: mine.items[0]!.managementSystemId,
+        kind: 'RISK',
+        activity: 'Night shift handover',
+        description: 'A missed handover note delays a statutory inspection.',
+        likelihood: 2,
+        severity: 3,
+        ownerId: me,
+      },
+    });
+    expect(created.ownerId).toBe(me);
+    expect((await list('me')).items.map((r) => r.id)).toContain(created.id);
   });
 
   it('keeps each person to their own client, and has no data for an unmapped client', async () => {

@@ -256,7 +256,7 @@ export const managementSystems = {
 
 // ---------- context ----------
 
-const contextEntity = entity<ContextItem>({ table: s.contextItem, schema: ContextItem });
+export const contextEntity = entity<ContextItem>({ table: s.contextItem, schema: ContextItem });
 
 export const ContextItemFilter = z.strictObject({
   kind: z.array(ContextItemKind).optional(),
@@ -615,7 +615,7 @@ export const certifications = {
   },
 };
 
-const externalAuditEntity = entity<ExternalAudit>({
+export const externalAuditEntity = entity<ExternalAudit>({
   table: s.externalAudit,
   schema: ExternalAudit,
 });

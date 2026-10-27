@@ -175,6 +175,14 @@ Decisions and their reasons: `docs/adr/0003-m3-tenant-isolation-in-postgres.md`.
   including memberships the context cannot read (a firm admin's or consultant's, for a client role). It calls `canopy_person_holds_role` (migration 0044), owned by
   `canopy_lookup` with a firm-limited `role_lookup` policy on `membership` and column grants; false for a client the
   context may not see.
+- Review figures (ISO-2h, model §3.13 and §5.4): `reviewFigures.gather(tx, review, inputDef, asOf, localDay)` returns
+  one input row's `{ source, since, data }` (`data` is the contract's `ReviewFigureData[source]`), as the contracts
+  mock's `gather` reads it: the system's records with no unit scope, archived ones included, and the step and event
+  days from `audit_event`. `localDay` is the caller's `localDateIn` with the client's time zone, since this package
+  does not import the engine. `reviewInputs.storeFigures` writes the three figure columns once (DUPLICATE after that;
+  the version does not move). `isoVisibleIds(tx, clientId, refs, scope?)` cuts a figure's ids to the client's rows a
+  scope may read (plan §3.3; instances by unit only). `reviewInputs|reviewOutputs.syncForReview` bring a PLANNED
+  review's rows in line with its standards and return the keys added and removed.
 - In a single-table select, Drizzle leaves columns unqualified, so a correlated subquery inside `sql` binds them to
   the inner table. Use a join or two queries instead.
 - Imports (M8): `importBatches.create` takes an optional `id` (a UUIDv7 from `uuidv7()`, exported here) so an upload

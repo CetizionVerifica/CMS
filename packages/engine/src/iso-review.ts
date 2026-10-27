@@ -1,128 +1,76 @@
 import {
   FindingType,
+  IncidentOutcome,
+  IncidentType,
   NcSeverity,
   NcSource,
-  type ContextItem,
-  type EngineCalendar,
-  type ExternalAudit,
-  type FirmSettings,
   type Id,
-  type InternalAudit,
-  type IsoAction,
   type LocalDate,
-  type ManagementSystem,
-  type Nonconformity,
-  type Objective,
-  type ObjectiveReading,
   type ReviewFigure,
-  type ReviewInputFigures,
+  type ReviewFigureAction,
+  type ReviewFigureData,
+  type ReviewFigureDays,
   type ReviewInputSource,
-  type RiskItem,
-  type ScoreInput,
-  type WorkflowState,
+  type TypedReviewInputFigures,
 } from '@canopy/contracts';
 import { compareDates } from './dates.js';
-import { incidentCounts, objectiveProgress } from './iso-score.js';
+import { objectiveProgress } from './iso-score.js';
 import { computeScore } from './score.js';
 
 /**
- * Management review input figures (docs/iso/model.md §5.4; ADR M4-0001). The caller passes, per source, the records of
- * the review's system that the source reads, already narrowed to what the reader may see and to the input's
- * standards, with every timestamp turned into a client-local date by `localDateIn`. The engine counts them between
- * `since` and `asOf`, both days included.
+ * Management review input figures (docs/iso/model.md §5.4; ADR M4-0001 rule 18). The caller (M3's
+ * `reviewFigures.gather`) passes, per source, the review's system's records for the input's standards as
+ * `ReviewFigureData[source]`: archived ones included, with no unit scope (plan §3.3 exception; who may read a stored
+ * figure's ids is M16's), every timestamp a client-local day. The engine counts them between `since` and `asOf`, both
+ * days included, reading each record as it is now except where one of its days gives its state on `asOf`: its creation
+ * and archive days, an NC's counting day, the days that place an entered date (`settledOn`, `closeStepOn`,
+ * `reportStepOn`, `heldStepOn`), the climate decisions' days and the event-day lists. It rebuilds no history: a held
+ * review stores its figures once, at RECORD_HELD (ADR M16-0003).
  */
 
 type Day = LocalDate;
-
-/** PREVIOUS_ACTIONS: the actions of earlier held reviews of the input's standards. */
-export type PreviousActionsData = {
-  actions: Pick<IsoAction, 'id' | 'state' | 'dueOn'>[];
-};
-
-/** CONTEXT: the system's context items, archived ones included, and its climate decision. */
-export type ContextData = {
-  contextItems: (Pick<ContextItem, 'id' | 'kind'> & {
-    createdOn: Day;
-    updatedOn: Day;
-    archivedOn: Day | null;
-  })[];
-  system: Pick<ManagementSystem, 'id' | 'climateChangeRelevant' | 'climateDecidedOn'>;
-};
-
-/** RISKS: live risk items, the days a rating field changed (from the audit trail), and treatment actions. */
-export type RisksData = {
-  riskItems: (Pick<RiskItem, 'id' | 'kind' | 'significant'> & { createdOn: Day })[];
-  ratingChanges: { riskItemId: Id; on: Day }[];
-  treatmentActions: Pick<IsoAction, 'id' | 'state' | 'doneOn'>[];
-};
-
-/** OBJECTIVES: the input standards' objectives with their readings. */
-export type ObjectivesData = {
-  objectives: (Pick<
-    Objective,
-    'id' | 'target' | 'baseline' | 'direction' | 'readingRule' | 'dueOn' | 'closedOn' | 'outcome'
-  > & {
-    createdOn: Day;
-    readings: (Pick<ObjectiveReading, 'id' | 'periodStart' | 'periodEnd' | 'value'> & {
-      recordedOn: Day;
-    })[];
-  })[];
-  calendar?: Pick<EngineCalendar, 'fyStartMonth'>;
-};
-
-/** NONCONFORMITIES: the input standards' NCs, their VERIFY_NOT_EFFECTIVE steps and their corrective actions. */
-export type NonconformitiesData = {
-  nonconformities: Pick<
-    Nonconformity,
-    'id' | 'state' | 'severity' | 'source' | 'reportedOn' | 'closedOn'
-  >[];
-  notEffectiveSteps: { nonconformityId: Id; on: Day }[];
-  correctiveActions: Pick<IsoAction, 'id' | 'state' | 'dueOn'>[];
-};
-
-/** INCIDENTS: the input standards' incident NCs (not cancelled) and the client's time zone. */
-export type IncidentsData = {
-  nonconformities: Pick<Nonconformity, 'id' | 'incident'>[];
-  timeZone: string;
-};
-
-/** AUDIT_RESULTS: the system's internal and external audits and their findings. */
-export type AuditResultsData = {
-  internalAudits: Pick<InternalAudit, 'id' | 'state' | 'reportedOn'>[];
-  externalAudits: Pick<ExternalAudit, 'id' | 'state' | 'endOn'>[];
-  findings: { id: Id; auditId: Id; type: FindingType }[];
-};
-
-/** COMPLIANCE_EVALUATION: the evaluation activity's instances on the system's units, and its STATUTE instances. */
-export type ComplianceEvaluationData = {
-  evaluations: {
-    id: Id;
-    dueDate: Day;
-    workflowState: WorkflowState;
-    completedOn: Day | null;
-  }[];
-  statutoryItems: ScoreInput[];
-  settings: FirmSettings;
-};
-
-export type ReviewFigureData =
-  | PreviousActionsData
-  | ContextData
-  | RisksData
-  | ObjectivesData
-  | NonconformitiesData
-  | IncidentsData
-  | AuditResultsData
-  | ComplianceEvaluationData
-  | Record<string, never>;
+type FigureSource = Exclude<ReviewInputSource, 'MANUAL'>;
 
 interface Window {
   since: Day;
   asOf: Day;
 }
 
-const within = (w: Window, date: Day | null): boolean =>
-  date !== null && compareDates(date, w.since) >= 0 && compareDates(date, w.asOf) <= 0;
+const within = (w: Window, day: Day | null): boolean =>
+  day !== null && compareDates(day, w.since) >= 0 && compareDates(day, w.asOf) <= 0;
+
+/** On or before as-of. */
+const byAsOf = (w: Window, day: Day | null): boolean =>
+  day !== null && compareDates(day, w.asOf) <= 0;
+
+/** The later of two days; a missing one never wins. */
+const later = (a: Day | null, b: Day | null): Day | null =>
+  a === null || (b !== null && compareDates(b, a) > 0) ? b : a;
+
+/** Live on as-of: created by then and not archived by then (one archived on a later day still counts). */
+const liveOn = (w: Window, row: ReviewFigureDays): boolean =>
+  byAsOf(w, row.createdOn) && !byAsOf(w, row.archivedOn);
+
+/** An action's settled day: the later of `doneOn` and its step when DONE, its step when CANCELLED, none while OPEN. */
+const settledDay = (a: ReviewFigureAction): Day | null =>
+  a.state === 'OPEN' ? null : later(a.state === 'DONE' ? a.doneOn : null, a.settledOn);
+
+/** An action's state on as-of: OPEN until its settled day. */
+const stateOn = (w: Window, a: ReviewFigureAction): ReviewFigureAction['state'] =>
+  byAsOf(w, settledDay(a)) ? a.state : 'OPEN';
+
+const overdueOn = (w: Window, a: ReviewFigureAction): boolean =>
+  stateOn(w, a) === 'OPEN' && compareDates(a.dueOn, w.asOf) < 0;
+
+const settledIn = (
+  w: Window,
+  actions: readonly ReviewFigureAction[],
+  state: ReviewFigureAction['state'],
+) => actions.filter((a) => a.state === state && within(w, settledDay(a)));
+
+/** An NC's counting day: the later of its creation day and `reportedOn`, which may be backdated. */
+const countingDay = (n: { createdOn: Day; reportedOn: Day }): Day =>
+  later(n.createdOn, n.reportedOn) as Day;
 
 const figure = (key: string, ids: readonly Id[]): ReviewFigure => ({
   key,
@@ -142,208 +90,240 @@ export function figureKey(prefix: string, value: string): string {
   );
 }
 
-function previousActions(d: PreviousActionsData, w: Window): ReviewFigure[] {
-  const open = d.actions.filter((a) => a.state === 'OPEN');
-  return [
-    figure('actionsOpen', ids(open)),
-    figure('actionsOverdue', ids(open.filter((a) => compareDates(a.dueOn, w.asOf) < 0))),
-    figure('actionsDone', ids(d.actions.filter((a) => a.state === 'DONE'))),
-    figure('actionsCancelled', ids(d.actions.filter((a) => a.state === 'CANCELLED'))),
-  ];
-}
-
-function context(d: ContextData, w: Window): ReviewFigure[] {
-  const live = d.contextItems.filter((c) => c.archivedOn === null);
-  const added = live.filter((c) => within(w, c.createdOn));
-  const changed = live.filter((c) => !added.includes(c) && within(w, c.updatedOn));
-  const party = (c: { kind: string }) => c.kind === 'INTERESTED_PARTY';
-  const { system } = d;
-  return [
-    figure('issuesAdded', ids(added.filter((c) => !party(c)))),
-    figure('issuesChanged', ids(changed.filter((c) => !party(c)))),
-    figure('interestedPartiesAdded', ids(added.filter(party))),
-    figure('interestedPartiesChanged', ids(changed.filter(party))),
-    figure('contextItemsRemoved', ids(d.contextItems.filter((c) => within(w, c.archivedOn)))),
-    figure('climateDecided', system.climateChangeRelevant === null ? [] : [system.id]),
-    figure('climateRelevant', system.climateChangeRelevant === true ? [system.id] : []),
-    figure('climateDecidedInPeriod', within(w, system.climateDecidedOn) ? [system.id] : []),
-  ];
-}
-
-function risks(d: RisksData, w: Window): ReviewFigure[] {
-  const added = d.riskItems.filter((i) => within(w, i.createdOn));
-  const rerated = new Set(d.ratingChanges.filter((c) => within(w, c.on)).map((c) => c.riskItemId));
-  const significant = d.riskItems.filter((i) => i.significant);
-  return [
-    figure('itemsAdded', ids(added)),
-    figure('itemsRerated', ids(d.riskItems.filter((i) => !added.includes(i) && rerated.has(i.id)))),
-    ...(['RISK', 'OPPORTUNITY', 'ASPECT', 'HAZARD'] as const).map((kind) =>
-      figure(figureKey('significant', kind), ids(significant.filter((i) => i.kind === kind))),
-    ),
-    figure(
-      'treatmentActionsDone',
-      ids(d.treatmentActions.filter((a) => a.state === 'DONE' && within(w, a.doneOn))),
-    ),
-    figure('treatmentActionsOpen', ids(d.treatmentActions.filter((a) => a.state === 'OPEN'))),
-  ];
-}
-
-function objectives(d: ObjectivesData, w: Window): ReviewFigure[] {
-  const open = d.objectives.filter((o) => o.closedOn === null);
-  const track = new Map(
-    open.map((o) => [o.id, objectiveProgress(o.readings, o, w.asOf, d.calendar).onTrack]),
-  );
-  const closed = d.objectives.filter((o) => within(w, o.closedOn));
-  const recorded = d.objectives.flatMap((o) => o.readings.filter((r) => within(w, r.recordedOn)));
-  return [
-    figure('objectivesOpen', ids(open)),
-    figure('onTrack', ids(open.filter((o) => track.get(o.id) === true))),
-    figure('offTrack', ids(open.filter((o) => track.get(o.id) === false))),
-    figure('withoutReading', ids(open.filter((o) => track.get(o.id) === null))),
-    figure('achieved', ids(closed.filter((o) => o.outcome === 'ACHIEVED'))),
-    figure('notAchieved', ids(closed.filter((o) => o.outcome === 'NOT_ACHIEVED'))),
-    figure('readingsRecorded', ids(recorded)),
-  ];
-}
-
-function nonconformities(d: NonconformitiesData, w: Window): ReviewFigure[] {
-  const raised = d.nonconformities.filter((n) => within(w, n.reportedOn));
-  const closed = d.nonconformities.filter((n) => within(w, n.closedOn));
-  const notEffective = d.notEffectiveSteps.filter((s) => within(w, s.on));
-  const by = (prefix: string, rows: typeof raised) => [
-    ...NcSeverity.options.map((s) =>
-      figure(figureKey(prefix, s), ids(rows.filter((n) => n.severity === s))),
-    ),
-    ...NcSource.options.map((s) =>
-      figure(figureKey(prefix, s), ids(rows.filter((n) => n.source === s))),
-    ),
-  ];
-  return [
-    figure('raised', ids(raised)),
-    figure('closed', ids(closed)),
-    ...by('raised', raised),
-    ...by('closed', closed),
-    {
-      key: 'verifiedNotEffective',
-      value: notEffective.length,
-      ids: [...new Set(notEffective.map((s) => s.nonconformityId))],
-    },
-    figure(
-      'open',
-      ids(d.nonconformities.filter((n) => n.state !== 'CLOSED' && n.state !== 'CANCELLED')),
-    ),
-    figure(
-      'correctiveActionsOverdue',
-      ids(
-        d.correctiveActions.filter((a) => a.state === 'OPEN' && compareDates(a.dueOn, w.asOf) < 0),
-      ),
-    ),
-  ];
-}
-
-function incidents(d: IncidentsData, w: Window): ReviewFigure[] {
-  const counts = incidentCounts(d.nonconformities, { from: w.since, to: w.asOf }, d.timeZone);
-  const counted = new Set(counts.total.ids);
-  const lostTime = d.nonconformities.filter(
-    (n) => counted.has(n.id) && n.incident?.lostDays != null,
-  );
-  return [
-    { key: 'incidents', value: counts.total.count, ids: counts.total.ids },
-    ...counts.byType.map((t) => ({
-      key: figureKey('type', t.type),
-      value: t.count,
-      ids: t.ids,
-    })),
-    ...counts.byOutcome.map((o) => ({
-      key: figureKey('outcome', o.outcome),
-      value: o.count,
-      ids: o.ids,
-    })),
-    {
-      key: 'lostDays',
-      value: lostTime.reduce((sum, n) => sum + n.incident!.lostDays!, 0),
-      ids: ids(lostTime),
-    },
-  ];
-}
-
+const REPORTED: readonly string[] = ['REPORTED', 'CLOSED'];
 const TOOK_PLACE: readonly string[] = ['HELD', 'RESPONDED', 'CLOSED'];
 
-function auditResults(d: AuditResultsData, w: Window): ReviewFigure[] {
-  const internal = d.internalAudits.filter(
-    (a) => (a.state === 'REPORTED' || a.state === 'CLOSED') && within(w, a.reportedOn),
-  );
-  const external = d.externalAudits.filter(
-    (a) => TOOK_PLACE.includes(a.state) && within(w, a.endOn),
-  );
-  const auditIds = new Set([...ids(internal), ...ids(external)]);
-  const findings = d.findings.filter((f) => auditIds.has(f.auditId));
-  return [
-    figure('internalAuditsReported', ids(internal)),
-    figure('externalAuditsHeld', ids(external)),
-    ...FindingType.options.map((t) =>
-      figure(figureKey('findings', t), ids(findings.filter((f) => f.type === t))),
-    ),
-  ];
-}
+const SOURCES: { [S in FigureSource]: (d: ReviewFigureData[S], w: Window) => ReviewFigure[] } = {
+  /** Open on as-of and overdue then, whichever review raised them; done and cancelled by their settled day. */
+  PREVIOUS_ACTIONS: (d, w) => {
+    const actions = d.actions.filter((a) => liveOn(w, a));
+    return [
+      figure('actionsOpen', ids(actions.filter((a) => stateOn(w, a) === 'OPEN'))),
+      figure('actionsOverdue', ids(actions.filter((a) => overdueOn(w, a)))),
+      figure('actionsDone', ids(settledIn(w, actions, 'DONE'))),
+      figure('actionsCancelled', ids(settledIn(w, actions, 'CANCELLED'))),
+    ];
+  },
 
-function complianceEvaluation(d: ComplianceEvaluationData, w: Window): ReviewFigure[] {
-  const latest = d.evaluations
-    .filter((i) => compareDates(i.dueDate, w.asOf) <= 0)
-    .sort((a, b) => compareDates(b.dueDate, a.dueDate))[0];
-  const statutory = d.statutoryItems.filter((i) => within(w, i.dueDate));
-  const { score } = computeScore(statutory, w.asOf, d.settings);
-  return [
-    figure('evaluationsDue', ids(d.evaluations.filter((i) => within(w, i.dueDate)))),
-    figure(
-      'evaluationsDone',
-      ids(d.evaluations.filter((i) => i.workflowState === 'APPROVED' && within(w, i.completedOn))),
-    ),
-    figure('latestEvaluation', latest === undefined ? [] : [latest.id]),
-    figure(
-      'statutoryInstancesDue',
-      statutory.map((i) => i.instanceId),
-    ),
-    ...(score === null ? [] : [{ key: 'statutoryScore', value: score, ids: [] }]),
-  ];
-}
+  /**
+   * Issues and interested parties added, changed (an UPDATE in the window) or removed in the window; the climate
+   * decision from its first decision by as-of (it never returns to undecided), relevant as it is now once decided, and
+   * decided in the period when any decision falls in the window.
+   */
+  CONTEXT: (d, w) => {
+    const live = d.contextItems.filter((c) => liveOn(w, c));
+    const added = live.filter((c) => within(w, c.createdOn));
+    const updated = new Set(d.contextChanges.filter((c) => within(w, c.on)).map((c) => c.entityId));
+    const changed = live.filter((c) => !added.includes(c) && updated.has(c.id));
+    const party = (c: { kind: string }) => c.kind === 'INTERESTED_PARTY';
+    const { system } = d;
+    const days = d.climateDecisions.map((c) => c.on);
+    const decided = days.some((day) => byAsOf(w, day)) ? [system.id] : [];
+    return [
+      figure('issuesAdded', ids(added.filter((c) => !party(c)))),
+      figure('issuesChanged', ids(changed.filter((c) => !party(c)))),
+      figure('interestedPartiesAdded', ids(added.filter(party))),
+      figure('interestedPartiesChanged', ids(changed.filter(party))),
+      figure(
+        'contextItemsRemoved',
+        ids(d.contextItems.filter((c) => byAsOf(w, c.createdOn) && within(w, c.archivedOn))),
+      ),
+      figure('climateDecided', decided),
+      figure('climateRelevant', system.climateChangeRelevant === true ? decided : []),
+      figure('climateDecidedInPeriod', days.some((day) => within(w, day)) ? [system.id] : []),
+    ];
+  },
 
-function figuresOf(source: ReviewInputSource, data: ReviewFigureData, w: Window): ReviewFigure[] {
-  switch (source) {
-    case 'PREVIOUS_ACTIONS':
-      return previousActions(data as PreviousActionsData, w);
-    case 'CONTEXT':
-      return context(data as ContextData, w);
-    case 'RISKS':
-      return risks(data as RisksData, w);
-    case 'OBJECTIVES':
-      return objectives(data as ObjectivesData, w);
-    case 'NONCONFORMITIES':
-      return nonconformities(data as NonconformitiesData, w);
-    case 'INCIDENTS':
-      return incidents(data as IncidentsData, w);
-    case 'AUDIT_RESULTS':
-      return auditResults(data as AuditResultsData, w);
-    case 'COMPLIANCE_EVALUATION':
-      return complianceEvaluation(data as ComplianceEvaluationData, w);
-    case 'MANUAL':
-      return [];
-  }
-}
+  /**
+   * Items added or re-rated in the window, items significant (as stored now) for each kind in `kinds` only, and the
+   * treatment actions of the items live on as-of: done in the window by their settled day, and open on as-of.
+   */
+  RISKS: (d, w) => {
+    const items = d.riskItems.filter((i) => liveOn(w, i));
+    const added = items.filter((i) => within(w, i.createdOn));
+    const rerated = new Set(d.ratingChanges.filter((c) => within(w, c.on)).map((c) => c.entityId));
+    const itemIds = new Set(ids(items));
+    const treatments = d.treatmentActions.filter((a) => liveOn(w, a) && itemIds.has(a.subject.id));
+    const significant = items.filter((i) => i.significant);
+    return [
+      figure('itemsAdded', ids(added)),
+      figure('itemsRerated', ids(items.filter((i) => !added.includes(i) && rerated.has(i.id)))),
+      ...d.kinds.map((kind) =>
+        figure(figureKey('significant', kind), ids(significant.filter((i) => i.kind === kind))),
+      ),
+      figure('treatmentActionsDone', ids(settledIn(w, treatments, 'DONE'))),
+      figure('treatmentActionsOpen', ids(treatments.filter((a) => stateOn(w, a) === 'OPEN'))),
+    ];
+  },
+
+  /**
+   * `objectiveProgress` of the objectives open on as-of over the readings created by then (for periods ended by then),
+   * those closed in the window by outcome, and the readings created in the window, whatever their period. A closed
+   * objective is placed by the later of `closedOn` and its CLOSE step, and is open on as-of until then.
+   */
+  OBJECTIVES: (d, w) => {
+    const objectives = d.objectives.filter((o) => liveOn(w, o));
+    const closedDay = (o: (typeof objectives)[number]) =>
+      o.closedOn === null ? null : later(o.closedOn, o.closeStepOn);
+    const readingsOf = (o: (typeof objectives)[number]) => o.readings.filter((r) => liveOn(w, r));
+    const open = objectives.filter((o) => !byAsOf(w, closedDay(o)));
+    const track = new Map(
+      open.map((o) => [o.id, objectiveProgress(readingsOf(o), o, w.asOf, d.calendar).onTrack]),
+    );
+    const closed = objectives.filter((o) => within(w, closedDay(o)));
+    const recorded = objectives.flatMap(readingsOf).filter((r) => within(w, r.createdOn));
+    return [
+      figure('objectivesOpen', ids(open)),
+      figure('onTrack', ids(open.filter((o) => track.get(o.id) === true))),
+      figure('offTrack', ids(open.filter((o) => track.get(o.id) === false))),
+      figure('withoutReading', ids(open.filter((o) => track.get(o.id) === null))),
+      figure('achieved', ids(closed.filter((o) => o.outcome === 'ACHIEVED'))),
+      figure('notAchieved', ids(closed.filter((o) => o.outcome === 'NOT_ACHIEVED'))),
+      figure('readingsRecorded', ids(recorded)),
+    ];
+  },
+
+  /**
+   * Raised (by the counting day) and closed in the window, by severity and source; the VERIFY_NOT_EFFECTIVE steps in
+   * the window (the number of steps, with the NCs behind them); the NCs open on as-of (not CANCELLED as it is now, and
+   * not closed by then) and those NCs' corrective actions overdue on as-of.
+   */
+  NONCONFORMITIES: (d, w) => {
+    const ncs = d.nonconformities.filter(
+      (n) => byAsOf(w, countingDay(n)) && !byAsOf(w, n.archivedOn),
+    );
+    const raised = ncs.filter((n) => within(w, countingDay(n)));
+    const closed = ncs.filter((n) => within(w, n.closedOn));
+    const ncIds = new Set(ids(ncs));
+    const notEffective = d.notEffectiveSteps.filter(
+      (s) => ncIds.has(s.entityId) && within(w, s.on),
+    );
+    const open = ncs.filter((n) => n.state !== 'CANCELLED' && !byAsOf(w, n.closedOn));
+    const openIds = new Set(ids(open));
+    const overdue = d.correctiveActions.filter(
+      (a) => liveOn(w, a) && openIds.has(a.subject.id) && overdueOn(w, a),
+    );
+    const by = (prefix: string, rows: typeof ncs) => [
+      ...NcSeverity.options.map((s) =>
+        figure(figureKey(prefix, s), ids(rows.filter((n) => n.severity === s))),
+      ),
+      ...NcSource.options.map((s) =>
+        figure(figureKey(prefix, s), ids(rows.filter((n) => n.source === s))),
+      ),
+    ];
+    return [
+      figure('raised', ids(raised)),
+      figure('closed', ids(closed)),
+      ...by('raised', raised),
+      ...by('closed', closed),
+      {
+        key: 'verifiedNotEffective',
+        value: notEffective.length,
+        ids: [...new Set(notEffective.map((s) => s.entityId))],
+      },
+      figure('open', ids(open)),
+      figure('correctiveActionsOverdue', ids(overdue)),
+    ];
+  },
+
+  /**
+   * Incidents placed in the window by their NC's counting day (their `occurredAt` day is never later), cancelled ones
+   * left out, then grouped by type and outcome as `incidentCounts` groups them, with the lost days. `incidentCounts`
+   * itself keeps the overview's `occurredAt` rule.
+   */
+  INCIDENTS: (d, w) => {
+    const incidents = d.nonconformities.flatMap((n) =>
+      n.incident !== null &&
+      n.state !== 'CANCELLED' &&
+      !byAsOf(w, n.archivedOn) &&
+      within(w, countingDay(n))
+        ? [{ id: n.id, incident: n.incident }]
+        : [],
+    );
+    const lostTime = incidents.flatMap((n) =>
+      n.incident.lostDays === null ? [] : [{ id: n.id, lostDays: n.incident.lostDays }],
+    );
+    return [
+      figure('incidents', ids(incidents)),
+      ...IncidentType.options.map((t) =>
+        figure(figureKey('type', t), ids(incidents.filter((n) => n.incident.type === t))),
+      ),
+      ...IncidentOutcome.options.map((o) =>
+        figure(figureKey('outcome', o), ids(incidents.filter((n) => n.incident.outcome === o))),
+      ),
+      {
+        key: 'lostDays',
+        value: lostTime.reduce((sum, n) => sum + n.lostDays, 0),
+        ids: ids(lostTime),
+      },
+    ];
+  },
+
+  /**
+   * Internal audits reported, placed by the later of `reportedOn` and their REPORT step, and external audits held,
+   * placed by the later of `endOn` and the step that set it, in the window; and the findings of those audits by type,
+   * each placed by the later of its audit's day and its own creation day, whether or not its audit counts in the window.
+   */
+  AUDIT_RESULTS: (d, w) => {
+    const day = new Map<Id, Day>();
+    const internal = d.internalAudits.filter((a) => liveOn(w, a) && REPORTED.includes(a.state));
+    for (const a of internal) day.set(a.id, later(a.reportedOn, a.reportStepOn) as Day);
+    const external = d.externalAudits.filter((e) => liveOn(w, e) && TOOK_PLACE.includes(e.state));
+    for (const e of external) day.set(e.id, later(e.endOn, e.heldStepOn) as Day);
+    const findings = d.findings.filter((x) => {
+      const auditDay = day.get(x.auditId);
+      return liveOn(w, x) && auditDay !== undefined && within(w, later(auditDay, x.createdOn));
+    });
+    return [
+      figure('internalAuditsReported', ids(internal.filter((a) => within(w, day.get(a.id)!)))),
+      figure('externalAuditsHeld', ids(external.filter((e) => within(w, day.get(e.id)!)))),
+      ...FindingType.options.map((t) =>
+        figure(figureKey('findings', t), ids(findings.filter((x) => x.type === t))),
+      ),
+    ];
+  },
+
+  /**
+   * The evaluation activity's instances (due and done in the window, and the latest due by as-of) and the STATUTE-only
+   * `computeScore` of the instances due in the window (a score has no ids), their workflow read as it is now, as the
+   * core score's as-of is.
+   */
+  COMPLIANCE_EVALUATION: (d, w) => {
+    const evaluations = d.evaluations.filter((i) => liveOn(w, i));
+    const latest = evaluations
+      .filter((i) => byAsOf(w, i.dueDate))
+      .sort((a, b) => compareDates(b.dueDate, a.dueDate))[0];
+    const statutory = d.statutoryItems.filter((i) => liveOn(w, i) && within(w, i.dueDate));
+    const { score } = computeScore(statutory, w.asOf, d.settings);
+    return [
+      figure('evaluationsDue', ids(evaluations.filter((i) => within(w, i.dueDate)))),
+      figure(
+        'evaluationsDone',
+        ids(evaluations.filter((i) => i.workflowState === 'APPROVED' && within(w, i.completedOn))),
+      ),
+      figure('latestEvaluation', latest === undefined ? [] : [latest.id]),
+      figure(
+        'statutoryInstancesDue',
+        statutory.map((i) => i.instanceId),
+      ),
+      ...(score === null ? [] : [{ key: 'statutoryScore', value: score, ids: [] }]),
+    ];
+  },
+};
 
 /**
- * `reviewInputFigures`: one input source's figures between `since` (the last held review covering the input's
- * standards, or the system's `createdOn`) and `asOf`. `data` has the shape named for the source above; MANUAL has
- * none and gets no figures.
+ * `reviewInputFigures`: one input source's figures between `since` (set by the caller, model §5.4) and `asOf`, from
+ * that source's `ReviewFigureData`. MANUAL gets no figures. A `since` after `asOf` is a RangeError.
  */
-export function reviewInputFigures(
-  source: ReviewInputSource,
-  data: ReviewFigureData,
-  since: LocalDate,
-  asOf: LocalDate,
-): ReviewInputFigures {
+export const reviewInputFigures: TypedReviewInputFigures = (source, data, since, asOf) => {
   if (compareDates(since, asOf) > 0) {
     throw new RangeError(`since is after asOf: ${since} > ${asOf}`);
   }
-  return { source, since, asOf, figures: figuresOf(source, data, { since, asOf }) };
-}
+  const w = { since, asOf };
+  // `source` and `data` arrive as one pair (`ReviewFigureData[S]`); the table holds each source's function.
+  const figures =
+    source === 'MANUAL'
+      ? []
+      : (SOURCES[source as FigureSource] as (d: typeof data, w: Window) => ReviewFigure[])(data, w);
+  return { source, since, asOf, figures };
+};

@@ -15,12 +15,15 @@ import {
 } from '@canopy/contracts';
 import { compareDates, localDateIn } from '@canopy/engine';
 import type {
+  AnySendKey,
   ClaimResult,
   ClientRef,
   ConsultantRef,
   FirmTx,
   GenerationTarget,
   InviteNotice,
+  IsoReminderData,
+  IsoSendKey,
   JobAuditEvent,
   JobDomainEvent,
   JobStore,
@@ -102,10 +105,26 @@ export interface MemoryIsoFile extends PendingIsoFile {
   createdAt: string;
 }
 
-export interface MemorySend extends SendKey {
+export type MemorySend = AnySendKey & {
   id: Id;
   sentAt: string | null;
   failureCode: SendFailureCode | null;
+};
+
+/** No ISO records: the start of a client's `MemoryFirm.iso` entry. */
+export function emptyIsoData(): IsoReminderData {
+  return {
+    clientAdminIds: [],
+    actions: [],
+    documents: [],
+    risks: [],
+    internalAudits: [],
+    systems: [],
+    certifications: [],
+    externalAudits: [],
+    reviews: [],
+    nonconformities: [],
+  };
 }
 
 /** An event any module wrote, as the outbox stores it. */
@@ -146,6 +165,8 @@ export interface MemoryFirm {
   invites: MemoryInvite[];
   evidence: MemoryEvidence[];
   isoFiles: MemoryIsoFile[];
+  /** Each client's ISO records, already in the reminders' shapes (the Postgres adapter maps M3's rows). */
+  iso: Record<Id, IsoReminderData>;
   sends: MemorySend[];
   audits: JobAuditEvent[];
   events: MemoryOutboxEvent[];
@@ -170,6 +191,7 @@ export function memoryFirm(id: Id = randomUUID()): MemoryFirm {
     invites: [],
     evidence: [],
     isoFiles: [],
+    iso: {},
     sends: [],
     audits: [],
     events: [],
@@ -187,17 +209,28 @@ export function memoryClient(name: string, settings: Partial<ClientSettings> = {
 const inRange = (d: LocalDate, r: { from: LocalDate; to: LocalDate }) =>
   compareDates(d, r.from) >= 0 && compareDates(d, r.to) <= 0;
 
+const isoSubject = (k: AnySendKey) =>
+  'isoSubjectId' in k && k.isoSubjectId ? `${k.isoSubjectType}:${k.isoSubjectId}` : null;
+
 /**
  * The send-log dedupe key: instance, kind, send date and recipient (contracts NOTIFICATION_DEDUPE_KEY) for scheduled
- * sends; event and recipient for event-driven ones, as M3's partial unique indexes.
+ * sends, plus the ISO subject for an ISO reminder (ISO_NOTIFICATION_DEDUPE_KEY); event and recipient for event-driven
+ * ones, as M3's partial unique indexes.
  */
-const sameKey = (a: SendKey, b: SendKey) =>
+const sameKey = (a: AnySendKey, b: AnySendKey) =>
   a.eventId || b.eventId
     ? a.eventId === b.eventId && a.recipientId === b.recipientId
     : a.kind === b.kind &&
       a.sendDate === b.sendDate &&
       a.recipientId === b.recipientId &&
-      a.instanceId === b.instanceId;
+      a.instanceId === b.instanceId &&
+      isoSubject(a) === isoSubject(b);
+
+const done = (s: MemorySend, clientId: Id, sendDate: LocalDate) =>
+  !s.eventId &&
+  s.clientId === clientId &&
+  s.sendDate === sendDate &&
+  (s.sentAt !== null || s.failureCode !== null);
 
 function firmTx(firm: MemoryFirm, hooks: MemoryStoreHooks): FirmTx {
   const assignment = (id: Id) => firm.assignments.find((a) => a.assignmentId === id)!;
@@ -389,18 +422,18 @@ function firmTx(firm: MemoryFirm, hooks: MemoryStoreHooks): FirmTx {
       };
     },
     listDoneSends: async (clientId, sendDate) =>
+      firm.sends.filter((s) => done(s, clientId, sendDate) && isoSubject(s) === null) as SendKey[],
+    listDoneIsoSends: async (clientId, sendDate) =>
       firm.sends.filter(
-        (s) =>
-          !s.eventId &&
-          s.clientId === clientId &&
-          s.sendDate === sendDate &&
-          (s.sentAt !== null || s.failureCode !== null),
-      ),
+        (s) => done(s, clientId, sendDate) && isoSubject(s) !== null,
+      ) as IsoSendKey[],
+    isoReminderData: async (clientId) => structuredClone(firm.iso[clientId] ?? emptyIsoData()),
     listDoneDigests: async (sendDate) =>
       firm.sends
         .filter(
           (s) =>
             !s.eventId &&
+            isoSubject(s) === null &&
             s.kind === 'CONSULTANT_DIGEST' &&
             s.sendDate === sendDate &&
             (s.sentAt !== null || s.failureCode !== null),

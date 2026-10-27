@@ -6,8 +6,10 @@
 // on. M0's store holds the synthetic firm B fixture instead, so ids are translated at this boundary: our client ids
 // become firm B's in the request and come back as ours in the response, with the client names to match, and the
 // signed-in demo account acts as a firm B person with the same kind of access (`x-mock-person`), with its own account's
-// add-ons (`x-mock-features`), so `/me` and every delegated route agree on them. Ids that exist only
-// in M0's data (units, instances, people) pass through unchanged, so a page can follow them in later requests.
+// add-ons (`x-mock-features`), so `/me` and every delegated route agree on them. The signed-in person's own id is
+// translated too, so a form that names them (an owner picking themselves) reaches M0 as that firm B person, and M0's
+// "is this yours" answers come back under the id the shell's `/me` gave. Other ids that exist only in M0's data
+// (units, instances, other people) pass through unchanged, so a page can follow them in later requests.
 // From the fixtures entry, not `/mock`: a value import from `/mock` would load Fastify on every server render.
 import { FIRM_B_AS_OF } from '@canopy/contracts/fixtures';
 
@@ -78,9 +80,10 @@ const toOurs = CLIENT_MAP.flatMap(
 );
 
 /**
- * Answers one request from M0's mock server, as `email` (a demo account) whose account has `features`, translating
- * ids both ways. Firm B has the ISO add-on, so without the header every demo user would get ISO data; with it, the
- * company admin's account (no add-ons) gets 403 FEATURE_NOT_ENABLED on `/iso` routes and no STANDARD instances.
+ * Answers one request from M0's mock server, as `email` (a demo account, whose shell person id is `personId`) whose
+ * account has `features`, translating ids both ways. Firm B has the ISO add-on, so without the header every demo user
+ * would get ISO data; with it, the company admin's account (no add-ons) gets 403 FEATURE_NOT_ENABLED on `/iso` routes
+ * and no STANDARD instances.
  */
 export async function delegateToM0(
   email: string,
@@ -88,12 +91,17 @@ export async function delegateToM0(
   method: string,
   url: URL,
   body: string | undefined,
+  personId?: string,
 ): Promise<Response> {
   const person = PERSON_MAP[email];
+  // Only the signed-in person maps back: firm users share one firm B person, so a fixed reverse map would be ambiguous.
+  const self: [string, string] | undefined = person && personId ? [personId, person] : undefined;
+  const requestPairs = self ? [...toTheirs, self] : toTheirs;
+  const responsePairs = self ? [...toOurs, [self[1], self[0]] as [string, string]] : toOurs;
   const app = await (shared.__ppMockServer ??= startServer());
   const res = await app.inject({
     method: method as 'GET',
-    url: replaceAll(`${url.pathname}${url.search}`, toTheirs),
+    url: replaceAll(`${url.pathname}${url.search}`, requestPairs),
     headers: {
       accept: 'application/json',
       ...(body === undefined ? {} : { 'content-type': 'application/json' }),
@@ -101,13 +109,13 @@ export async function delegateToM0(
       // Always sent: empty means no add-ons, where leaving it out would mean firm B's.
       'x-mock-features': features.join(','),
     },
-    ...(body === undefined ? {} : { payload: replaceAll(body, toTheirs) }),
+    ...(body === undefined ? {} : { payload: replaceAll(body, requestPairs) }),
   });
   const headers = new Headers({ 'x-request-id': 'mock' });
   const type = res.headers['content-type'];
   if (typeof type === 'string') headers.set('content-type', type);
   // 204 and 304 carry no body.
   const text =
-    res.statusCode === 204 || res.statusCode === 304 ? null : replaceAll(res.body, toOurs);
+    res.statusCode === 204 || res.statusCode === 304 ? null : replaceAll(res.body, responsePairs);
   return new Response(text, { status: res.statusCode, headers });
 }

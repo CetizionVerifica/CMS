@@ -83,4 +83,28 @@ describe('deliver', () => {
       `CONSULTANT_DIGEST:${key.recipientId}:${key.recipientId}:2026-10-12`,
     );
   });
+
+  it('gives two ISO keys that differ only in their subject two strings', () => {
+    const iso = {
+      clientId: key.clientId,
+      instanceId: null,
+      recipientId: key.recipientId,
+      kind: 'ISO_ACTION_DUE' as const,
+      sendDate: key.sendDate,
+      isoSubjectType: 'iso_action' as const,
+    };
+    const first = sendKeyString({ ...iso, isoSubjectId: '0190a000-0000-7000-8000-00000000000a' });
+    const second = sendKeyString({ ...iso, isoSubjectId: '0190a000-0000-7000-8000-00000000000b' });
+    expect(first).not.toBe(second);
+    expect(first).toBe(
+      `ISO_ACTION_DUE:${key.recipientId}:${key.recipientId}:2026-10-12:iso_action:0190a000-0000-7000-8000-00000000000a`,
+    );
+    expect(
+      sendKeyString({
+        ...iso,
+        isoSubjectType: 'risk_item',
+        isoSubjectId: '0190a000-0000-7000-8000-00000000000a',
+      }),
+    ).not.toBe(first);
+  });
 });
