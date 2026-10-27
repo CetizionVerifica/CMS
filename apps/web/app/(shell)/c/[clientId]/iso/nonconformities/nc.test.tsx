@@ -39,6 +39,9 @@ vi.mock('../_lib/export', () => exports);
 const { NcLogView } = await import('./NcLogView');
 const { NcRecord } = await import('./[ncId]/NcRecord');
 
+// The two raise journeys pick from eight menus each: a few seconds alone, but past 20 s on a loaded merge-queue
+// runner with coverage on, so they get their own limit.
+const JOURNEY_TIMEOUT = 60_000;
 const C = 'c1';
 const PATH = `/c/${C}/iso/nonconformities`;
 const ok = <T,>(data: T) => ({ ok: true as const, data });
@@ -126,135 +129,148 @@ describe('NcLogView', () => {
     vi.unstubAllGlobals();
   });
 
-  it('raises a nonconformity from a register activity and opens it', async () => {
-    actions.isoRead.mockResolvedValue(
-      ok({
-        items: [
-          { id: 'inst-1', title: 'Emergency drill', unitName: 'Line 2', dueDate: '2024-11-01' },
-        ],
-        nextCursor: null,
-      }),
-    );
-    log({}, true);
-    await user.click(screen.getByRole('button', { name: 'Raise a nonconformity' }));
-    const form = screen.getByRole('dialog', { name: 'Raise a nonconformity' });
-    const pick = async (label: string, option: string) => {
-      await user.click(within(form).getByRole('combobox', { name: label }));
-      await user.click(screen.getByRole('option', { name: option }));
-    };
-    await pick('Where it came from', 'Process');
-    await user.click(within(form).getByRole('radio', { name: 'Minor' }));
-    await user.click(within(form).getByRole('checkbox', { name: SYSTEM!.standards[0]!.title }));
-    await user.type(
-      within(form).getByRole('textbox', { name: 'What happened or was found' }),
-      'The drill took too long.',
-    );
-    const search = within(form).getByRole('textbox', { name: 'Search the register' });
-    await user.type(search, 'd');
-    await user.click(within(form).getByRole('button', { name: 'Search' }));
-    expect(within(form).getByText('Type at least two letters.')).toBeTruthy();
-    await user.type(search, 'rill{Enter}');
-    expect(actions.isoRead).toHaveBeenCalledWith(
-      C,
-      'listInstances',
-      {},
-      { q: 'drill', limit: '10' },
-    );
-    await user.click(within(form).getByRole('radio', { name: /^Emergency drill · Line 2/ }));
-    expect(within(form).getByText('Emergency drill · Line 2 · due 1 Nov 2024')).toBeTruthy();
-    await pick('Owner', 'Rohan Joshi');
-    await pick('Approver', 'Rohan Joshi');
-    await user.type(within(form).getByRole('textbox', { name: 'Due on' }), '15 Dec 2024');
-    await user.tab();
-    await user.click(within(form).getByRole('button', { name: 'Raise' }));
-    expect(actions.isoWrite).not.toHaveBeenCalled();
-    await pick('Approver', 'Nisha Patil');
-    await user.click(within(form).getByRole('button', { name: 'Raise' }));
-    await waitFor(() =>
-      expect(actions.isoWrite).toHaveBeenCalledWith(
-        C,
-        'raiseIsoNonconformity',
-        {},
-        {
-          managementSystemId: ISO.system.id,
-          source: 'PROCESS',
-          sourceInstanceId: 'inst-1',
-          raisedFromRiskItemId: null,
-          severity: 'MINOR',
-          standards: [SYSTEM!.standards[0]!.code],
-          clauseIds: [],
-          unitId: SYSTEM!.unitIds.length === 1 ? SYSTEM!.unitIds[0] : null,
-          description: 'The drill took too long.',
-          containment: null,
-          correction: null,
-          ownerId: ROHAN,
-          approverId: NISHA,
-          dueOn: '2024-12-15',
-          incident: null,
-        },
-      ),
-    );
-    await waitFor(() => expect(nav.push).toHaveBeenCalledWith(`${PATH}/new-nc`));
-  });
-
-  it('raises an incident with its time where the client is, its unit and its outcome', async () => {
-    log({}, true);
-    await user.click(screen.getByRole('button', { name: 'Raise a nonconformity' }));
-    const form = screen.getByRole('dialog', { name: 'Raise a nonconformity' });
-    const pick = async (label: string, option: string) => {
-      await user.click(within(form).getByRole('combobox', { name: label }));
-      await user.click(screen.getByRole('option', { name: option }));
-    };
-    await pick('Where it came from', 'Incident');
-    await user.click(within(form).getByRole('checkbox', { name: SYSTEM!.standards[0]!.title }));
-    expect(within(form).getAllByText(/Write no injured person’s name/).length).toBeGreaterThan(0);
-    await user.click(within(form).getByRole('radio', { name: 'Major' }));
-    await user.type(
-      within(form).getByRole('textbox', { name: 'What happened or was found' }),
-      'A hand was burnt on a tray.',
-    );
-    await pick('Unit', units[0]!.name);
-    await user.type(within(form).getByRole('textbox', { name: 'Date it happened' }), '14 Nov 2024');
-    await user.tab();
-    await user.type(within(form).getByRole('textbox', { name: 'Time (HH:MM)' }), '09:30');
-    await user.type(within(form).getByRole('textbox', { name: 'Where it happened' }), 'Oven bay');
-    await pick('Kind of incident', 'Injury');
-    await pick('Outcome', 'Lost time');
-    await user.click(within(form).getByRole('checkbox', { name: 'Reportable to the authorities' }));
-    expect(within(form).getByText(/A statutory accident notice is due/)).toBeTruthy();
-    await pick('Owner', 'Rohan Joshi');
-    await pick('Approver', 'Nisha Patil');
-    await user.type(within(form).getByRole('textbox', { name: 'Due on' }), '15 Dec 2024');
-    await user.tab();
-    expect(
-      within(form).getByRole('button', { name: 'Raise' }).getAttribute('aria-disabled') ??
-        within(form).getByRole('button', { name: 'Raise' }).hasAttribute('disabled'),
-    ).toBeTruthy();
-    await user.type(within(form).getByRole('textbox', { name: 'Days lost' }), '2');
-    await user.click(within(form).getByRole('button', { name: 'Raise' }));
-    await waitFor(() =>
-      expect(actions.isoWrite).toHaveBeenCalledWith(
-        C,
-        'raiseIsoNonconformity',
-        {},
-        expect.objectContaining({
-          source: 'INCIDENT',
-          severity: 'MAJOR',
-          unitId: units[0]!.id,
-          incident: {
-            occurredAt: '2024-11-14T04:00:00Z',
-            location: 'Oven bay',
-            type: 'INJURY',
-            outcome: 'LOST_TIME',
-            personCategory: null,
-            lostDays: 2,
-            reportable: true,
-            statutoryInstanceId: null,
-          },
+  it(
+    'raises a nonconformity from a register activity and opens it',
+    { timeout: JOURNEY_TIMEOUT },
+    async () => {
+      actions.isoRead.mockResolvedValue(
+        ok({
+          items: [
+            { id: 'inst-1', title: 'Emergency drill', unitName: 'Line 2', dueDate: '2024-11-01' },
+          ],
+          nextCursor: null,
         }),
-      ),
-    );
-  });
+      );
+      log({}, true);
+      await user.click(screen.getByRole('button', { name: 'Raise a nonconformity' }));
+      const form = screen.getByRole('dialog', { name: 'Raise a nonconformity' });
+      const pick = async (label: string, option: string) => {
+        await user.click(within(form).getByRole('combobox', { name: label }));
+        await user.click(screen.getByRole('option', { name: option }));
+      };
+      await pick('Where it came from', 'Process');
+      await user.click(within(form).getByRole('radio', { name: 'Minor' }));
+      await user.click(within(form).getByRole('checkbox', { name: SYSTEM!.standards[0]!.title }));
+      await user.type(
+        within(form).getByRole('textbox', { name: 'What happened or was found' }),
+        'The drill took too long.',
+      );
+      const search = within(form).getByRole('textbox', { name: 'Search the register' });
+      await user.type(search, 'd');
+      await user.click(within(form).getByRole('button', { name: 'Search' }));
+      expect(within(form).getByText('Type at least two letters.')).toBeTruthy();
+      await user.type(search, 'rill{Enter}');
+      expect(actions.isoRead).toHaveBeenCalledWith(
+        C,
+        'listInstances',
+        {},
+        { q: 'drill', limit: '10' },
+      );
+      await user.click(within(form).getByRole('radio', { name: /^Emergency drill · Line 2/ }));
+      expect(within(form).getByText('Emergency drill · Line 2 · due 1 Nov 2024')).toBeTruthy();
+      await pick('Owner', 'Rohan Joshi');
+      await pick('Approver', 'Rohan Joshi');
+      await user.type(within(form).getByRole('textbox', { name: 'Due on' }), '15 Dec 2024');
+      await user.tab();
+      await user.click(within(form).getByRole('button', { name: 'Raise' }));
+      expect(actions.isoWrite).not.toHaveBeenCalled();
+      await pick('Approver', 'Nisha Patil');
+      await user.click(within(form).getByRole('button', { name: 'Raise' }));
+      await waitFor(() =>
+        expect(actions.isoWrite).toHaveBeenCalledWith(
+          C,
+          'raiseIsoNonconformity',
+          {},
+          {
+            managementSystemId: ISO.system.id,
+            source: 'PROCESS',
+            sourceInstanceId: 'inst-1',
+            raisedFromRiskItemId: null,
+            severity: 'MINOR',
+            standards: [SYSTEM!.standards[0]!.code],
+            clauseIds: [],
+            unitId: SYSTEM!.unitIds.length === 1 ? SYSTEM!.unitIds[0] : null,
+            description: 'The drill took too long.',
+            containment: null,
+            correction: null,
+            ownerId: ROHAN,
+            approverId: NISHA,
+            dueOn: '2024-12-15',
+            incident: null,
+          },
+        ),
+      );
+      await waitFor(() => expect(nav.push).toHaveBeenCalledWith(`${PATH}/new-nc`));
+    },
+  );
+
+  it(
+    'raises an incident with its time where the client is, its unit and its outcome',
+    { timeout: JOURNEY_TIMEOUT },
+    async () => {
+      log({}, true);
+      await user.click(screen.getByRole('button', { name: 'Raise a nonconformity' }));
+      const form = screen.getByRole('dialog', { name: 'Raise a nonconformity' });
+      const pick = async (label: string, option: string) => {
+        await user.click(within(form).getByRole('combobox', { name: label }));
+        await user.click(screen.getByRole('option', { name: option }));
+      };
+      await pick('Where it came from', 'Incident');
+      await user.click(within(form).getByRole('checkbox', { name: SYSTEM!.standards[0]!.title }));
+      expect(within(form).getAllByText(/Write no injured person’s name/).length).toBeGreaterThan(0);
+      await user.click(within(form).getByRole('radio', { name: 'Major' }));
+      await user.type(
+        within(form).getByRole('textbox', { name: 'What happened or was found' }),
+        'A hand was burnt on a tray.',
+      );
+      await pick('Unit', units[0]!.name);
+      await user.type(
+        within(form).getByRole('textbox', { name: 'Date it happened' }),
+        '14 Nov 2024',
+      );
+      await user.tab();
+      await user.type(within(form).getByRole('textbox', { name: 'Time (HH:MM)' }), '09:30');
+      await user.type(within(form).getByRole('textbox', { name: 'Where it happened' }), 'Oven bay');
+      await pick('Kind of incident', 'Injury');
+      await pick('Outcome', 'Lost time');
+      await user.click(
+        within(form).getByRole('checkbox', { name: 'Reportable to the authorities' }),
+      );
+      expect(within(form).getByText(/A statutory accident notice is due/)).toBeTruthy();
+      await pick('Owner', 'Rohan Joshi');
+      await pick('Approver', 'Nisha Patil');
+      await user.type(within(form).getByRole('textbox', { name: 'Due on' }), '15 Dec 2024');
+      await user.tab();
+      expect(
+        within(form).getByRole('button', { name: 'Raise' }).getAttribute('aria-disabled') ??
+          within(form).getByRole('button', { name: 'Raise' }).hasAttribute('disabled'),
+      ).toBeTruthy();
+      await user.type(within(form).getByRole('textbox', { name: 'Days lost' }), '2');
+      await user.click(within(form).getByRole('button', { name: 'Raise' }));
+      await waitFor(() =>
+        expect(actions.isoWrite).toHaveBeenCalledWith(
+          C,
+          'raiseIsoNonconformity',
+          {},
+          expect.objectContaining({
+            source: 'INCIDENT',
+            severity: 'MAJOR',
+            unitId: units[0]!.id,
+            incident: {
+              occurredAt: '2024-11-14T04:00:00Z',
+              location: 'Oven bay',
+              type: 'INJURY',
+              outcome: 'LOST_TIME',
+              personCategory: null,
+              lostDays: 2,
+              reportable: true,
+              statutoryInstanceId: null,
+            },
+          }),
+        ),
+      );
+    },
+  );
 });
 
 function record(nc: NonconformityView, over: Partial<Parameters<typeof NcRecord>[0]> = {}) {
