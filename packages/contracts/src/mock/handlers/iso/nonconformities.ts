@@ -5,7 +5,6 @@ import { ENDPOINTS } from '../../../api/endpoints.js';
 import type { IsoActionView, NonconformityView } from '../../../api/iso.js';
 import type { Role } from '../../../enums.js';
 import { INCIDENT_SOURCES, Nonconformity } from '../../../schemas/iso.js';
-import type { NonconformityStatus } from '../../../schemas/iso-results.js';
 import {
   type Actor,
   authorize,
@@ -23,7 +22,6 @@ import {
   checkIsoVersion,
   checkSystemClauses,
   checkSystemUnits,
-  daysFrom,
   forbidden,
   invalid,
   invalidTransition,
@@ -40,7 +38,7 @@ import {
   standardOf,
   touchIso,
 } from '../../iso/common.js';
-import { clientDay, isoTiming } from '../../iso/derive.js';
+import { clientDay, isoTiming, ncStatus } from '../../iso/derive.js';
 import type { FirmState, AuditRecord, IsoRow } from '../../store.js';
 
 type Ids =
@@ -279,31 +277,6 @@ function checkStillNoAction(firm: FirmState, nc: Nc): void {
 }
 
 // ---------- nonconformities: derived values ----------
-
-/**
- * `nonconformityStatus` (model §5.2) as the mock reads it: CLOSED once CLOSED or CANCELLED. Otherwise the earliest of
- * `dueOn` (until the owner submits it) and the due dates of its OPEN actions decides ON_TIME, DUE_SOON or OVERDUE, and
- * the effectiveness check is overdue the day after `effectivenessDueOn`.
- */
-function ncStatus(
-  nc: Nc,
-  actions: readonly Action[],
-  today: string,
-  dueSoonDays: number,
-): z.input<typeof NonconformityStatus> {
-  if (LOCKED_NC.includes(nc.state)) {
-    return { timing: 'CLOSED', overdueDays: null, effectivenessOverdueDays: null };
-  }
-  const dates = actions.filter((a) => a.state === 'OPEN').map((a) => a.dueOn);
-  if (nc.state !== 'AWAITING_VERIFICATION') dates.push(nc.dueOn);
-  const earliest = dates.sort()[0] ?? null;
-  const effectivenessLate =
-    nc.effectivenessDueOn === null ? 0 : daysFrom(nc.effectivenessDueOn, today);
-  return {
-    ...isoTiming(earliest, false, today, dueSoonDays),
-    effectivenessOverdueDays: effectivenessLate > 0 ? effectivenessLate : null,
-  };
-}
 
 /**
  * The §4.1 steps the actor may take now: the state, the plan §3.2 roles, the fixed refusals of SUBMIT_NO_ACTION, the

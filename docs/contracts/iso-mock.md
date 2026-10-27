@@ -56,12 +56,10 @@ README decisions 42-51. M4 owns every formula marked "stand-in".
   audit lists the unit. Clauses needing coverage are the system's assessable clauses without an approved N/A; units
   are the system's listed units. Uncovered clauses are ordered by standard, then number. Counts of planned, reported
   and cancelled audits include only audits the caller can see; the uncovered lists use all of them.
-- **Overview**: the 12-month window is (as-of − 12 months, as-of]. NC overdue = past `dueOn`, not CLOSED or
-  CANCELLED, even once submitted and whatever its actions; effectiveness overdue likewise on `effectivenessDueOn`.
-  Since 1.8.6 the contract defines NC overdue as the NC's own status OVERDUE (**NC status** below), as the NC list's
-  `overdue` filter reads it; the mock moves to that in a later patch together with M17's demo snapshot
-  (`iso-data.json`, README decision 56). Certificates expiring = `expiresOn` within
-  [as-of, as-of + 90 days]. A finding counts for whoever can see its audit (an external one: its system), never by
+- **Overview**: the 12-month window is (as-of − 12 months, as-of]. NC overdue = the NC's own status on as-of is
+  OVERDUE (**NC status** below, from all its actions), the same function the NC list's `overdue` filter reads, as
+  1.8.6 defines it (the mock since 1.8.7; before, it counted any open NC past `dueOn`); effectiveness overdue = that
+  status has `effectivenessOverdueDays`. Certificates expiring = `expiresOn` within [as-of, as-of + 90 days]. A finding counts for whoever can see its audit (an external one: its system), never by
   its own unit, as the finding lists do. Incidents leave out cancelled NCs and list every type and outcome, zeros included. The
   POLICY gate accepts a link to clause 5.2 or a 5.2.x sub-clause. Objectives without a plan ignore CANCELLED actions.
 - **NC status** is OVERDUE when the earliest of `dueOn` (before AWAITING_VERIFICATION) and its OPEN actions' due

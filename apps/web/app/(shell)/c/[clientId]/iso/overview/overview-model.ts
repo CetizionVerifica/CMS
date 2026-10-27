@@ -29,12 +29,11 @@ const ids = (c: IdCount) => c.ids.join(',');
 /** The most ids a list's `ids` filter takes (contracts, ISO-1a4). */
 export const MAX_LINK_IDS = 200;
 
-/** What a count's link opens past the `ids` limit: every record, a close filter, or exactly its records by filter. */
-type Fallback = 'all' | 'near' | 'exact';
+/** What a count's link opens past the `ids` limit: every record, or exactly its records by filter. */
+type Fallback = 'all' | 'exact';
 
 const FALLBACK_NOTES: Record<Exclude<Fallback, 'exact'>, string> = {
   all: "Too many to list on their own: the link shows all of the system's records.",
-  near: "Too many to list on their own: the link shows the system's records by the nearest filter.",
 };
 
 /**
@@ -128,15 +127,7 @@ export function countGroups(clientId: string, s: IsoSystemOverview): CountGroup[
         {
           label: 'Overdue',
           count: s.nonconformities.overdue.count,
-          // The overview counts an open one past its due date, also once submitted; the log's `overdue` filter is the
-          // record's timing, which a submitted one leaves to its approver. So the link names the ids.
-          ...idsLink(
-            (q) => at('nonconformities', q),
-            sys,
-            s.nonconformities.overdue,
-            { overdue: 'true' },
-            'near',
-          ),
+          href: at('nonconformities', { managementSystemId: sys, overdue: 'true' }),
         },
         {
           label: 'Awaiting verification',

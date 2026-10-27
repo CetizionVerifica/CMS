@@ -314,3 +314,11 @@ fixtures carry both on all 40 acts and 134 obligations, as Postgres does. events
 naming the record. `IsoSystemOverview.nonconformities.overdue` is defined as the open nonconformities whose
 `nonconformityStatus` is OVERDUE on as-of, as the nonconformity list's `overdue` filter reads it; the mock's overview
 keeps its old count until a later patch moves it together with M17's demo snapshot. This is a patch.
+
+## 1.8.7 · 2026-10-27
+ISO-1c2: the mock's ISO overview counts `nonconformities.overdue` as 1.8.6 defines it: the open nonconformities whose
+`nonconformityStatus` is OVERDUE on as-of, from the same function as the NC list's `overdue` filter (README decision
+57). A submitted nonconformity past `dueOn` is no longer counted, and one with a late OPEN action is, so firm B's demo
+client counts 1 overdue nonconformity where it counted 2. `effectivenessOverdue` reads the same status and is
+unchanged. M17's demo snapshot is regenerated, and the overview's NC "Overdue" link opens the log's `overdue=true`
+filter again. This is a patch.
