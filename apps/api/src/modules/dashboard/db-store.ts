@@ -19,6 +19,7 @@ import {
 } from '@canopy/db';
 import { ApiError } from '../../auth/index.js';
 import {
+  isoArchive,
   isoAuditBook,
   isoFigureReferences,
   isoNcBook,
@@ -29,6 +30,7 @@ import type {
   ArchiveEvidence,
   ClientInfo,
   ExportDetail,
+  IsoArchive,
   IsoAuditBook,
   IsoFigureRef,
   IsoNcBook,
@@ -285,5 +287,9 @@ export class PostgresReportsStore implements ReportsStore {
     scope: UnitScope | null,
   ): Promise<{ visible: string[][]; labels: ReadonlyMap<string, string> }> {
     return this.run(ctx, (tx) => isoFigureReferences(tx, clientId, refs, scope));
+  }
+
+  isoArchive(ctx: RequestContext, clientId: string): Promise<IsoArchive> {
+    return this.run(ctx, (tx) => isoArchive(tx, clientId));
   }
 }

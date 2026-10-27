@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { ExportJob, REVIEW_FIGURE_KEYS, type RequestContext } from '@canopy/contracts';
+import { PDFDocument } from 'pdf-lib';
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { createWorld } from '../dashboard/testing/world.js';
 import { FIGURE_WORDS } from './iso-words.js';
@@ -46,7 +47,8 @@ async function pack(managementReviewId: string, headers = admin()) {
   const done = await w.store.getExportJob(ctx, job.id);
   expect(done?.status).toBe('DONE');
   const bytes = w.files.files.get((await w.store.exportStorageKey(ctx, job.id))!)!.bytes;
-  return { text: pdfText(bytes), fileName: done!.fileName };
+  const title = (await PDFDocument.load(bytes)).getTitle();
+  return { text: pdfText(bytes), fileName: done!.fileName, title };
 }
 
 const STORED_HEADING =
@@ -54,8 +56,10 @@ const STORED_HEADING =
 
 describe('the management review pack', () => {
   it('prints a held review: its stored figures with their heading, notes, outputs and actions', async () => {
-    const { text, fileName } = await pack(reviews.held.id);
+    const { text, fileName, title } = await pack(reviews.held.id);
+    // Planned for 2026-09-25 and held on 2026-09-30: the file and its title name the day it was held.
     expect(fileName).toBe('management-review-pack-2026-09-30.pdf');
+    expect(title).toBe('Management review pack · 2026-09-30');
     for (const words of [
       'Management review pack',
       'Beta Group / Site system / ISO 9001, ISO 45001',

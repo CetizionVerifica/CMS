@@ -39,10 +39,11 @@ import {
   type DashboardDeps,
   type DashboardQueryInput,
 } from '../dashboard/service.js';
-import { clientArchive, type ArchiveInstance } from './archive.js';
+import { clientArchive, type ArchiveInstance, type ClientArchiveInput } from './archive.js';
 import { auditReportPdf } from './audit-report-pdf.js';
 import { certificatePdf } from './certificate-pdf.js';
 import { packInputs, reviewFigureRefs, reviewPackPdf } from './review-pack-pdf.js';
+import { isoRecordsWorkbook } from './iso-archive.js';
 import type { ExportFiles } from './files.js';
 import {
   filterWords,
@@ -741,7 +742,54 @@ async function buildFile(
 
 const ZIP = 'application/zip';
 
-/** The client archive: the whole register and the clean evidence, streamed into storage (ADR M10-0002). */
+/**
+ * The archive's ISO data, read with the add-on on or off and with no unit scope, since only an account admin makes it
+ * (docs/iso/model.md §9): the NC log and risk register workbooks over the whole client, the other records, and the
+ * clean files.
+ */
+async function archiveIso(
+  deps: ReportsDeps,
+  ctx: RequestContext,
+  client: ClientInfo,
+): Promise<ClientArchiveInput['iso']> {
+  const settings = await deps.store.firmSettings(ctx);
+  const timeZone = client.settings.timeZone;
+  const asOf = localDateIn(deps.clock().toISOString(), timeZone);
+  const heading = (title: string): IsoHeading => ({
+    title,
+    clientName: client.name,
+    asOf,
+    filters: [],
+    scoped: false,
+  });
+  const ncs = await deps.store.isoNonconformities(ctx, client.id, { scope: null });
+  const risks = await deps.store.isoRiskItems(ctx, client.id, {
+    includeArchived: true,
+    scope: null,
+  });
+  const records = await deps.store.isoArchive(ctx, client.id);
+  return {
+    ncLog: await ncLogWorkbook(
+      heading('Nonconformity log'),
+      ncLogRows(ncs, {}, asOf, settings),
+      ncs.names,
+      timeZone,
+    ),
+    riskRegister: await riskRegisterWorkbook(
+      heading('Risk register'),
+      settings.isoRisk,
+      riskRegisterRows(risks, undefined),
+      risks,
+      settings,
+      timeZone,
+    ),
+    records: await isoRecordsWorkbook(records),
+    files: records.files.clean,
+    withheld: records.files.withheld,
+  };
+}
+
+/** The client archive: the whole register, the clean evidence and the ISO data, streamed into storage (ADR M10-0002). */
 async function storeArchive(
   deps: ReportsDeps,
   ctx: RequestContext,
@@ -764,6 +812,7 @@ async function storeArchive(
     }),
   );
   const { clean, withheld } = await deps.store.archiveEvidence(ctx, client.id);
+  const iso = await archiveIso(deps, ctx, client);
   const instances = new Map<string, ArchiveInstance>(
     rows.map((r) => [r.id, { dueDate: r.dueDate, title: r.title, unitName: r.unitName }]),
   );
@@ -775,6 +824,7 @@ async function storeArchive(
     evidence: clean,
     withheld,
     instances,
+    iso,
     open: (key) => deps.files.open(key),
     generatedAt,
   });

@@ -24,6 +24,8 @@ import type {
   ArchiveEvidence,
   ClientInfo,
   ExportDetail,
+  IsoArchive,
+  IsoArchiveFile,
   IsoAuditBook,
   IsoFigureRef,
   IsoNames,
@@ -106,6 +108,13 @@ export class MemoryReportsStore implements ReportsStore {
       computed: ReviewInputFigures | null;
     })[],
     reviewOutputs: [] as IsoReviewOutputRow[],
+    /** ISO files as `iso_file` holds them, for the client archive. */
+    files: [] as (IsoArchiveFile & {
+      firmId: string;
+      clientId: string;
+      scanStatus: 'PENDING' | 'CLEAN' | 'INFECTED' | 'FAILED';
+      archived?: boolean;
+    })[],
     /** Records a review figure names, by id: their table, reference and what plan §3.3 reads them by. */
     references: new Map<
       string,
@@ -394,6 +403,34 @@ export class MemoryReportsStore implements ReportsStore {
       }),
     );
     return { visible, labels };
+  }
+
+  async isoArchive(ctx: RequestContext, clientId: string): Promise<IsoArchive> {
+    const mine = <T extends { firmId: string; clientId: string }>(rows: readonly T[]) =>
+      rows.filter((r) => r.firmId === ctx.firmId && r.clientId === clientId);
+    const inputs = mine(this.iso.reviewInputs.map((i) => ({ ...i.row, key: i.def.key })));
+    const live = mine(this.iso.files).filter((f) => !f.archived);
+    return {
+      sheets: [
+        { name: 'Audit programmes', rows: mine(this.iso.programmes) },
+        { name: 'Internal audits', rows: mine(this.iso.audits) },
+        { name: 'Audit checklists', rows: mine(this.iso.checklist) },
+        { name: 'Audit findings', rows: mine(this.iso.findings) },
+        { name: 'Actions', rows: mine(this.iso.actions) },
+        { name: 'Management reviews', rows: mine(this.iso.reviews) },
+        { name: 'Review inputs', rows: inputs.map(({ sourceFigures: _, key: __, ...row }) => row) },
+        { name: 'Review outputs', rows: mine(this.iso.reviewOutputs.map((o) => o.row)) },
+      ],
+      reviewInputs: inputs.map(({ key, ...row }) => ({ row, key })),
+      names: this.iso.names,
+      files: {
+        clean: live
+          .filter((f) => f.scanStatus === 'CLEAN')
+          .sort((a, b) => a.uploadedAt.localeCompare(b.uploadedAt) || a.id.localeCompare(b.id))
+          .map((f) => without(f, ['firmId', 'clientId', 'scanStatus', 'archived'])),
+        withheld: live.filter((f) => f.scanStatus !== 'CLEAN').length,
+      },
+    };
   }
 
   private isoActionsOf(ids: ReadonlySet<string>): IsoAction[] {

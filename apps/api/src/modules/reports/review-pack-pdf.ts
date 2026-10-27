@@ -142,7 +142,7 @@ export async function reviewPackPdf(data: ReviewPackData): Promise<Uint8Array> {
   const { review, names } = book;
   const doc = await PDFDocument.create();
   const generated = new Date(data.generatedAt);
-  doc.setTitle(pdfSafe(`Management review pack · ${review.plannedOn}`));
+  doc.setTitle(pdfSafe(`Management review pack · ${review.heldOn ?? review.plannedOn}`));
   doc.setAuthor('PlanetPulse Compliance');
   doc.setCreator('PlanetPulse Compliance');
   doc.setProducer('PlanetPulse Compliance');

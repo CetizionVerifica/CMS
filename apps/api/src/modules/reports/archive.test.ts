@@ -16,6 +16,13 @@ afterEach(() => vi.restoreAllMocks());
 
 const ctx = { firmId: w.firmId } as Parameters<typeof w.store.exportStorageKey>[0];
 const sha = (text: string) => createHash('sha256').update(text).digest('hex');
+const NO_ISO = {
+  ncLog: new Uint8Array([1]),
+  riskRegister: new Uint8Array([1]),
+  records: new Uint8Array([1]),
+  files: [],
+  withheld: 0,
+};
 
 /** Stores an evidence row and (unless `stored` is false) its file under `evidence/`. */
 function evidence(
@@ -214,6 +221,7 @@ describe('archive parts', () => {
       register: new Uint8Array([1]),
       evidence: [file('orphan.pdf', 'o'), known],
       withheld: 0,
+      iso: NO_ISO,
       instances: new Map([
         [
           known.instanceId,
@@ -254,6 +262,7 @@ describe('archive parts', () => {
         },
       ],
       withheld: 0,
+      iso: NO_ISO,
       instances: new Map(),
       open: async () => {
         throw new Error('storage down');
@@ -283,6 +292,7 @@ describe('archive parts', () => {
         },
       ],
       withheld: 0,
+      iso: NO_ISO,
       instances: new Map(),
       open: async () => {
         throw 'storage down';
