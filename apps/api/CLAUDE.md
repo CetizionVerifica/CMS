@@ -6,9 +6,9 @@ Fastify + Zod, REST, OpenAPI generated from the Zod schemas. Root `CLAUDE.md` ap
 ```
 src/
   modules/<area>/        routes.ts, schemas.ts, service.ts, service.test.ts
-    clients, entities, people, library, assignments, instances, evidence, approvals, imports, reports, dashboard, audit
+    clients, entities, people, library, assignments, instances, evidence, approvals, imports, reports, dashboard, audit, iso
   auth/                  sessions, magic links, MFA, permission checks
-  jobs/                  pg-boss workers: generate-instances, reminders, exports, virus-scan
+  jobs/                  pg-boss workers: generate-instances, reminders, iso-reminders, exports, virus-scan
   lib/                   tenant context, errors, pagination, logger
 ```
 Routes are thin: validate, authorise, call the service. Services own transactions. Compliance maths comes from `packages/engine`.
@@ -40,10 +40,17 @@ APPROVED|NOT_APPLICABLE ──reopen(client admin or consultant, reason)──�
 - Tenant comes from the session, never from the URL or body. Client id in the URL is checked against the session's memberships.
 - Evidence upload: API issues a short-lived presigned PUT; file is unavailable until the virus-scan job marks it clean. Downloads via 5-minute signed URLs, every download audited.
 - Dashboard endpoints return engine results with the underlying instance ids.
+- ISO add-on (`modules/iso`, M16): every route sits under `/clients/{clientId}/iso`, behind the `isoManagement` feature
+  (ADR M16-0001), and `modules/iso/served.ts` lists the endpoints it serves. Its file routes go through the `IsoFiles`
+  port; `server.ts` builds M7's `createIsoFiles` over `evidenceStorage`, so they are served exactly when the evidence
+  routes are, with the same upload, scan and 5-minute download rules. M16 resolves the subject, its scope and its lock
+  before the port is called.
 
 ## Jobs
 - `generate-instances`: nightly and on assignment change; generates the current and next FY; idempotent on `(assignment_id, period_start)`.
 - `reminders`: daily 07:00 client time; uses `engine.planNotifications`; dedupes sends.
+- `iso-reminders`: every 15 minutes, for clients whose send time has come and whose account has `isoManagement`; uses
+  `engine.planIsoNotifications`; dedupes sends like `reminders`.
 - `exports`: Excel register and PDF certificate generated off-request, stored, link emailed.
 - ISO catalogue copy: the `account.features_changed` consumer and the `iso-catalogue-sweep` job (every 10 minutes, TRIAL
   and ACTIVE accounts with `isoManagement` not yet copied) call M6's `copyIsoCatalogue`, which `wiring.ts` binds to the

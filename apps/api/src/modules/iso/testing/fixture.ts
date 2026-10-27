@@ -23,7 +23,7 @@ import {
 import type { FastifyInstance } from 'fastify';
 import pg from 'pg';
 import { accountView, createTestAuth } from '../../../auth/testing.js';
-import { buildServer } from '../../../server.js';
+import { buildServer, type ServerOptions } from '../../../server.js';
 import { createFakeIsoFiles, type FakeIsoFiles } from './fake-files.js';
 
 /**
@@ -287,6 +287,7 @@ export interface Harness {
   testDb: TestDb;
   f: Fixture;
   app: FastifyInstance;
+  /** The fake `IsoFiles` the server uses, unless `createHarness` was given another `files` option. */
   files: FakeIsoFiles;
   auth: ReturnType<typeof createTestAuth>;
   headers: Record<Who, Record<string, string>>;
@@ -312,8 +313,20 @@ export interface Harness {
   close(): Promise<void>;
 }
 
+/**
+ * How the harness serves ISO files: the fake port (the default), M7's real service over the given evidence storage,
+ * as the integrated app is wired, or no file routes at all.
+ */
+export type HarnessFiles =
+  'fake' | 'none' | { storage: NonNullable<ServerOptions['evidenceStorage']> };
+
 /** The fixture, a server over it with the add-on on, and the cast signed in. */
-export async function createHarness(label: string, now: Date): Promise<Harness> {
+export async function createHarness(
+  label: string,
+  now: Date,
+  options: { files?: HarnessFiles } = {},
+): Promise<Harness> {
+  const served = options.files ?? 'fake';
   const testDb = await createTestDb();
   const firmId = await testDb.createFirm(`${label} firm`);
   const f = await seedFixture(testDb.db, firmId, label);
@@ -341,7 +354,8 @@ export async function createHarness(label: string, now: Date): Promise<Harness> 
   const app = buildServer({
     authStore: auth.store,
     database: testDb.db,
-    isoFiles: files,
+    ...(served === 'fake' ? { isoFiles: files } : {}),
+    ...(typeof served === 'object' ? { evidenceStorage: served.storage } : {}),
     clock: () => now,
     rateLimit: { max: 100_000, timeWindow: '1 minute' },
   });

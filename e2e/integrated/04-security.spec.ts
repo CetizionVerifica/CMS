@@ -1,12 +1,12 @@
 import { createHash } from 'node:crypto';
 
-import { ENDPOINTS } from '@canopy/contracts';
+import { ENDPOINTS, IsoFileSubjectType } from '@canopy/contracts';
 import { createDatabase, systemContext, tenantSettings } from '@canopy/db';
 import { expect, request, test } from '@playwright/test';
 import pg from 'pg';
 
 // By path, not through `@canopy/api`: Playwright does not compile TypeScript it reaches through node_modules.
-import { ISO_SERVED_ENDPOINTS } from '../../apps/api/src/modules/iso/served.js';
+import { ISO_FILE_ENDPOINTS, ISO_SERVED_ENDPOINTS } from '../../apps/api/src/modules/iso/served.js';
 import { copyIsoCatalogue } from '../../apps/api/src/modules/library/db-iso-catalogue-copy.js';
 import { anonymousApi, apiAs, itemsOf, type ApiSession } from './api.js';
 import { seeded } from './helpers.js';
@@ -39,8 +39,11 @@ type Endpoint = {
 };
 const endpoints = Object.entries(ENDPOINTS as Record<string, Endpoint>);
 
-/** The ISO add-on endpoints M16 serves (ISO-8a, ISO-8b, ISO-8c); any other add-on endpoint stays on UNMOUNTED until it ships. */
-const ISO_SERVED: ReadonlySet<string> = new Set(ISO_SERVED_ENDPOINTS);
+/**
+ * The ISO add-on endpoints M16 serves (ISO-8a, ISO-8b, ISO-8c), with its file routes, which the app serves with its S3
+ * evidence storage (ISO-14b); any other add-on endpoint stays on UNMOUNTED until it ships.
+ */
+const ISO_SERVED: ReadonlySet<string> = new Set([...ISO_SERVED_ENDPOINTS, ...ISO_FILE_ENDPOINTS]);
 
 /**
  * Contract endpoints the API does not serve yet, with why. Every check below expects them to answer 404 (no route) and
@@ -122,6 +125,7 @@ const BODIES: Record<string, (ids: Ids) => unknown> = {
   evidenceUploadUrl: () => ({ fileName: 'probe.pdf', mimeType: 'application/pdf', sizeBytes: 10 }),
   confirmEvidence: () => ({ uploadId: UNKNOWN, fileName: 'probe.pdf', sha256: SHA }),
   removeEvidence: () => ({ reason: PROBE }),
+  removeIsoFile: () => ({ reason: PROBE }),
   createExport: () => ({ kind: 'REGISTER_XLSX', filters: '' }),
   createImport: () => ({ fileName: 'probe.xlsx', sizeBytes: 10 }),
   updateClient: ({ v }) => ({ version: v.clientId, name: 'Probe Group' }),
@@ -530,32 +534,63 @@ async function isoOn(): Promise<void> {
   await db.close();
 }
 
-/** A clean report file on firm A's external audit, as an upload the scan job passed would leave it. */
-async function reportFileOf(clientId: string, externalAuditId: string, uploadedById: string) {
-  const owner = new pg.Client({
-    connectionString: databaseUrl(process.env.DATABASE_URL!, E2E_DATABASE),
+/**
+ * Firm A's record keys (as `isoRecordsOf` keys them) for every ISO file subject type, so the file probes name a real
+ * record of each: a finding on an internal audit and one on an external audit. `isoRecordsOf` throws on a type with no
+ * record, so a new subject type has to be added here.
+ */
+const FILE_SUBJECTS: Record<IsoFileSubjectType, readonly string[]> = {
+  clause_assessment: ['checklist'],
+  document_revision: ['revisions'],
+  risk_item: ['risks'],
+  objective_reading: ['readings'],
+  internal_audit: ['internal-audits'],
+  audit_finding: ['internal-audits/findings', 'external-audits/findings'],
+  external_audit: ['external-audits'],
+  certification: ['certifications'],
+  nonconformity: ['nonconformities'],
+  iso_action: ['actions'],
+  management_review: ['management-reviews'],
+};
+/** Where `isoRecordsOf` keeps the file firm A uploaded on the record at `key`. */
+const fileKey = (key: string) => `files@${key}`;
+
+/**
+ * Uploads a small PDF to an ISO record, the way the screens do (upload URL, PUT to storage, confirm); the file, PENDING
+ * until the scan job runs. `api` must be allowed to write the record: the client admin may write every subject type
+ * (a nonconformity's files are the client admin's or its owner's, not firm staff's).
+ */
+async function isoFileOf(
+  api: ApiSession,
+  clientId: string,
+  subject: { type: IsoFileSubjectType; id: string },
+  fileName = 'record.pdf',
+): Promise<{ id: string; version: number }> {
+  const iso = `/clients/${clientId}/iso`;
+  const ticket = await api.post(`${iso}/files/upload-url`, {
+    subject,
+    fileName,
+    mimeType: 'application/pdf',
+    sizeBytes: PDF.length,
   });
-  await owner.connect();
-  // In firm A's system context, as withTenant sets it, so the row passes the table's tenant policy.
-  await owner.query('BEGIN');
-  for (const [name, value] of Object.entries(tenantSettings(systemContext(FIRM_A, 'e2e-iso')))) {
-    await owner.query('SELECT set_config($1, $2, true)', [name, value]);
-  }
-  await owner.query(
-    `INSERT INTO iso_file (firm_id, client_id, external_audit_id, file_name, mime_type, size_bytes, sha256,
-       storage_key, scan_status, uploaded_by_id)
-     VALUES ($1, $2, $3, 'stage-1-report.pdf', 'application/pdf', 2048, $4, $5, 'CLEAN', $6)`,
-    [
-      FIRM_A,
-      clientId,
-      externalAuditId,
-      SHA,
-      `evidence/${FIRM_A}/${clientId}/iso/${externalAuditId}/stage-1-report.pdf`,
-      uploadedById,
-    ],
+  expect(ticket.status, `upload URL on ${subject.type}: ${JSON.stringify(ticket.body)}`).toBe(200);
+  const { uploadId, url, headers } = ticket.body as {
+    uploadId: string;
+    url: string;
+    headers: Record<string, string>;
+  };
+  const put = await api.http.put(url, { headers, data: PDF });
+  expect(put.status(), `PUT on ${subject.type}`).toBe(200);
+  const confirmed = await api.post(`${iso}/files`, {
+    subject,
+    uploadId,
+    fileName,
+    sha256: createHash('sha256').update(PDF).digest('hex'),
+  });
+  expect(confirmed.status, `confirm on ${subject.type}: ${JSON.stringify(confirmed.body)}`).toBe(
+    201,
   );
-  await owner.query('COMMIT');
-  await owner.end();
+  return { id: (confirmed.body as { id: string }).id, version: 0 };
 }
 
 async function isoOff(): Promise<void> {
@@ -577,9 +612,10 @@ async function isoOff(): Promise<void> {
  * internal audit in progress, its checklist row and a finding, and a management review with its first input and
  * output row.
  * Keyed by the path segment before each id, or by `<parent>/<segment>` where two parents share a segment, as `fill`
- * reads them. The external audit is HELD with an OFI finding of its own: RECORD_HELD needs the body's report file, and
- * the integrated app serves no file routes until ISO-14b gives it an `IsoFiles`, so `reportFileOf` writes a clean one
- * straight to the database, as the scan job would leave it.
+ * reads them. The external audit is HELD with an OFI finding of its own: RECORD_HELD needs the body's report file, which
+ * is uploaded through the API first (PENDING counts as a report). Then every record `FILE_SUBJECTS` names gets a file
+ * of its own, kept under `fileKey(key)`, and `files` is the report, for the probes that name one file. The files are
+ * the client admin's uploads, since firm staff may not add files to a nonconformity.
  */
 async function isoRecordsOf(
   admin: ApiSession,
@@ -670,7 +706,13 @@ async function isoRecordsOf(
     startOn: '2023-04-10',
     endOn: '2023-04-11',
   });
-  await reportFileOf(clientId, plannedVisit.id, people.owner);
+  const uploader = await apiAs('clientAdmin');
+  const report = await isoFileOf(
+    uploader,
+    clientId,
+    { type: 'external_audit', id: plannedVisit.id },
+    'stage-1-report.pdf',
+  );
   const visit = await made(
     `/external-audits/${plannedVisit.id}/held`,
     { version: plannedVisit.version, startOn: '2023-04-10', endOn: '2023-04-11' },
@@ -683,7 +725,7 @@ async function isoRecordsOf(
     chairId: people.owner,
     attendeeIds: [people.approver],
   });
-  return {
+  const records: Record<string, Rec> = {
     standards: standard,
     systems: system,
     checklist: row,
@@ -735,6 +777,19 @@ async function isoRecordsOf(
       dueOn: '2099-03-31',
     }),
   };
+  const files: Record<string, Rec> = { files: report };
+  for (const [type, keys] of Object.entries(FILE_SUBJECTS) as [IsoFileSubjectType, string[]][]) {
+    for (const key of keys) {
+      const record = records[key];
+      if (!record) throw new Error(`firm A has no ISO record at ${key} for files on ${type}`);
+      files[fileKey(key)] =
+        key === 'external-audits'
+          ? report
+          : await isoFileOf(uploader, clientId, { type, id: record.id });
+    }
+  }
+  await uploader.dispose();
+  return { ...records, ...files };
 }
 
 test.afterAll(isoOff);
@@ -799,6 +854,78 @@ const NOBODY = new Proxy({} as Record<string, string>, { get: () => UNKNOWN });
 /** Endpoints swept from one address: at most two calls each, well under the API's 300 a minute. */
 const SWEEP_CHUNK = 60;
 
+/** One call of the isolation sweep with firm A's ids, and the same call naming ids nobody has (writes only). */
+type Probe = {
+  name: string;
+  method: string;
+  path: string;
+  /** Whether BODIES (or FILE_BODIES) builds this write's body; a write with none is sent an empty one. */
+  built: boolean;
+  /** The body built from firm A's records (undefined for a write the contract gives no body). */
+  body?: unknown;
+  nobodyPath: string;
+  nobodyBody?: unknown;
+};
+
+/** ISO file bodies for a subject, from the contract's shapes: an upload of a small PDF, a confirm nobody uploaded. */
+const FILE_BODIES: Record<string, (subject: { type: string; id: string }) => unknown> = {
+  isoFileUploadUrl: (subject) => ({
+    subject,
+    fileName: 'probe.pdf',
+    mimeType: 'application/pdf',
+    sizeBytes: 10,
+  }),
+  confirmIsoFile: (subject) => ({ subject, uploadId: UNKNOWN, fileName: 'probe.pdf', sha256: SHA }),
+};
+
+/**
+ * The sweep's calls for one endpoint. The ISO file routes name their subject in the body or query, or a file in the
+ * path, so they get one probe for each record `FILE_SUBJECTS` names, or for each of those records' files; every other
+ * endpoint gets one.
+ */
+function probesOf(name: string, e: Endpoint, ids: Ids): Probe[] {
+  const subjects = (Object.entries(FILE_SUBJECTS) as [string, readonly string[]][]).flatMap(
+    ([type, keys]) => keys.map((key) => ({ type, key, id: ids.id[key]! })),
+  );
+  const fileBody = FILE_BODIES[name];
+  if (fileBody) {
+    return subjects.map(({ type, id }) => ({
+      name: `${name} on ${type}`,
+      method: e.method,
+      path: fill(e.path, ids.id),
+      built: true,
+      body: fileBody({ type, id }),
+      nobodyPath: fill(e.path, NOBODY),
+      nobodyBody: fileBody({ type, id: UNKNOWN }),
+    }));
+  }
+  if (name === 'listIsoFiles') {
+    return subjects.map(({ type, id }) => ({
+      name: `${name} on ${type}`,
+      method: e.method,
+      path: `${fill(e.path, ids.id)}?subjectType=${type}&subjectId=${id}`,
+      built: false,
+      nobodyPath: `${fill(e.path, NOBODY)}?subjectType=${type}&subjectId=${UNKNOWN}`,
+    }));
+  }
+  const build = BODIES[name];
+  const probe = (label: string, id: Record<string, string>): Probe => ({
+    name: label,
+    method: e.method,
+    path: fill(e.path, id),
+    built: build !== undefined,
+    body: build ? build({ id, v: ids.v }) : {},
+    nobodyPath: fill(e.path, NOBODY),
+    nobodyBody: build ? build({ id: NOBODY, v: ids.v }) : {},
+  });
+  if (name === 'isoFileDownloadUrl' || name === 'removeIsoFile') {
+    return subjects.map(({ type, key }) =>
+      probe(`${name} of a file on ${type}`, { ...ids.id, files: ids.id[fileKey(key)]! }),
+    );
+  }
+  return [probe(name, ids.id)];
+}
+
 async function call(api: ApiSession, method: string, path: string, body: unknown = {}) {
   if (method === 'GET') return api.get(path);
   const res = await api.http.fetch(`/api/v1${path}`, {
@@ -811,8 +938,18 @@ async function call(api: ApiSession, method: string, path: string, body: unknown
 
 test.describe('tenant isolation', () => {
   test('every endpoint is either swept or listed with a reason', () => {
-    for (const name of [...Object.keys(UNMOUNTED), ...Object.keys(BODIES)])
+    for (const name of [
+      ...Object.keys(UNMOUNTED),
+      ...Object.keys(BODIES),
+      ...Object.keys(FILE_BODIES),
+    ])
       expect(ENDPOINTS, name).toHaveProperty(name);
+    // A file probe on a record of every subject type the contract has.
+    for (const type of IsoFileSubjectType.options)
+      expect(
+        FILE_SUBJECTS[type]?.length ?? 0,
+        `files on ${type}: add a record to FILE_SUBJECTS`,
+      ).toBeGreaterThan(0);
     for (const [name, e] of endpoints) {
       expect(
         sweepable(name, e) !== name in NOT_SWEPT || name in UNMOUNTED,
@@ -824,42 +961,40 @@ test.describe('tenant isolation', () => {
   test('firm B’s admins reach none of firm A’s records through any endpoint', async () => {
     const ids = await firmAIds();
     const kestrelNames = ['Kestrel', 'Person Mike', 'challan.pdf'];
-    const swept = endpoints.filter(([name, e]) => sweepable(name, e) && !(name in UNMOUNTED));
+    const probes = endpoints
+      .filter(([name, e]) => sweepable(name, e) && !(name in UNMOUNTED))
+      .flatMap(([name, e]) => probesOf(name, e, ids).map((probe) => ({ probe, e })));
     for (const key of ['ospreyFirmAdmin', 'ospreyAdmin'] as const) {
-      // Up to two calls an endpoint: a fresh address every SWEEP_CHUNK endpoints keeps each under the API's per-IP
-      // limit (300 a minute), which 05-shell-load.spec.ts checks on its own.
+      // Up to two calls a probe: a fresh address every SWEEP_CHUNK probes keeps each under the API's per-IP limit
+      // (300 a minute), which 05-shell-load.spec.ts checks on its own.
       let api = await apiAs(key, 1);
-      for (const [index, [name, e]] of swept.entries()) {
+      for (const [index, { probe, e }] of probes.entries()) {
         if (index > 0 && index % SWEEP_CHUNK === 0) {
           await api.dispose();
           api = await apiAs(key, 1 + index / SWEEP_CHUNK);
         }
+        const { name, path } = probe;
         let res: { status: number; body: unknown };
         let label: string;
         if (e.method === 'GET' && !e.path.includes('{')) {
           // A firm-wide list holds firm B's records only.
-          res = await api.get(e.path);
-          label = `${key} GET ${e.path} (${name}) -> ${res.status}`;
+          res = await api.get(path);
+          label = `${key} GET ${path} (${name}) -> ${res.status}`;
           expect([200, 403], label).toContain(res.status);
         } else if (e.method === 'GET') {
-          const path = fill(e.path, ids.id);
           res = await api.get(path);
           label = `${key} GET ${path} (${name}) -> ${res.status}`;
           // A record in another firm is never shown: not found, or forbidden for the role.
           expect(SAFE_DENIALS, label).toContain(res.status);
         } else {
-          const path = fill(e.path, ids.id);
-          const build = BODIES[name];
-          const body = build ? build(ids) : {};
-          const nobodyBody = build ? build({ id: NOBODY, v: ids.v }) : {};
-          if (build && body !== undefined) e.body!.parse(body);
-          res = await call(api, e.method, path, body);
+          if (probe.built && probe.body !== undefined) e.body!.parse(probe.body);
+          res = await call(api, e.method, path, probe.body);
           label = `${key} ${e.method} ${path} (${name}) -> ${res.status}`;
           // Never changed, and no existence oracle: firm A's id gets the same answer as an id nobody has. With a
           // valid body that answer is a denial; an empty body may fail validation first, the same way for both.
-          if (build) expect(SAFE_DENIALS, label).toContain(res.status);
+          if (probe.built) expect(SAFE_DENIALS, label).toContain(res.status);
           else expect(res.status, label).toBeGreaterThanOrEqual(400);
-          const nobody = await call(api, e.method, fill(e.path, NOBODY), nobodyBody);
+          const nobody = await call(api, e.method, probe.nobodyPath, probe.nobodyBody);
           expect(res.status, `${label}; unknown id -> ${nobody.status}`).toBe(nobody.status);
         }
         const text = typeof res.body === 'string' ? res.body : JSON.stringify(res.body);
@@ -1001,6 +1136,73 @@ test.describe('sessions', () => {
     expect(nobody.status()).toBe(401);
     expect(await wrong.json()).toMatchObject({ error: { code: (await nobody.json()).error.code } });
     await http.dispose();
+  });
+});
+
+test.describe('ISO files', () => {
+  test('firm A lists, downloads once clean, and removes its own file on every ISO subject', async () => {
+    test.setTimeout(240_000);
+    const { clients, people } = seeded();
+    const consultant = await apiAs('consultant');
+    const records = await isoRecordsOf(consultant, clients.kestrel, {
+      owner: people.owner,
+      approver: people.approver,
+    });
+    await consultant.dispose();
+    const admin = await apiAs('clientAdmin');
+    const iso = `/clients/${clients.kestrel}/iso`;
+    const subjects = (Object.entries(FILE_SUBJECTS) as [string, readonly string[]][]).flatMap(
+      ([type, keys]) =>
+        keys.map((key) => ({ type, key, id: records[key]!.id, file: records[fileKey(key)]!.id })),
+    );
+    type File = { id: string; scanStatus: string };
+    const listed = async (s: (typeof subjects)[number], removed = false) => {
+      const res = await admin.get(
+        `${iso}/files?subjectType=${s.type}&subjectId=${s.id}${removed ? '&includeRemoved=true' : ''}`,
+      );
+      expect(res.status, `list on ${s.key}: ${JSON.stringify(res.body)}`).toBe(200);
+      return itemsOf(res.body) as unknown as File[];
+    };
+    for (const s of subjects) {
+      expect(
+        (await listed(s)).map((f) => f.id),
+        `files on ${s.key}`,
+      ).toContain(s.file);
+    }
+    // PENDING until M9's scan job (once a minute) passes it.
+    const early = await admin.get(`${iso}/files/${subjects[0]!.file}/download-url`);
+    expect(early).toMatchObject({ status: 422, body: { error: { code: 'EVIDENCE_NOT_READY' } } });
+    await expect
+      .poll(
+        async () => {
+          const states = new Set<string>();
+          for (const s of subjects) {
+            for (const f of await listed(s)) if (f.id === s.file) states.add(f.scanStatus);
+          }
+          return [...states];
+        },
+        { timeout: 200_000, intervals: [5_000] },
+      )
+      .toEqual(['CLEAN']);
+    for (const s of subjects) {
+      const link = await admin.get(`${iso}/files/${s.file}/download-url`);
+      expect(link.status, `download on ${s.key}: ${JSON.stringify(link.body)}`).toBe(200);
+      const { url } = link.body as { url: string };
+      expect(new URL(url).searchParams.get('X-Amz-Expires')).toBe('300');
+      const download = await admin.http.get(url);
+      expect(download.status(), `stored file on ${s.key}`).toBe(200);
+      expect(Buffer.from(await download.body()).equals(PDF)).toBe(true);
+    }
+    for (const s of subjects) {
+      const removed = await admin.post(`${iso}/files/${s.file}/remove`, { reason: PROBE });
+      expect(removed.status, `remove on ${s.key}: ${JSON.stringify(removed.body)}`).toBe(200);
+      expect(
+        (await listed(s)).map((f) => f.id),
+        `files left on ${s.key}`,
+      ).not.toContain(s.file);
+      expect((await listed(s, true)).map((f) => f.id)).toContain(s.file);
+    }
+    await admin.dispose();
   });
 });
 
