@@ -132,6 +132,8 @@ async function seedIso(world: FirmWorld) {
         reportedOn: d('2026-08-01'),
         dueOn: d('2026-08-15'),
         ownerId: officeOwner,
+        disposition: 'CONCESSION',
+        dispositionAuthorisedById: world.people.firmAdmin,
       }),
     );
     const incident = await nc(
@@ -357,6 +359,7 @@ describe('the NC log on Postgres', () => {
     expect(gauge[nc('Owner')]).toBe('Kestrel Owner');
     expect(gauge[nc('Reported by')]).toBe('Kestrel Approver');
     expect(rows.find((r) => r[0] === 4)![nc('Unit')]).toBe('The whole system');
+    expect(rows[2]![nc('Disposition authorised by')]).toBe('Kestrel Firm Admin');
   });
 
   it("applies M3's filters in SQL and M10's after the read", async () => {

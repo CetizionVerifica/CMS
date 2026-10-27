@@ -69,33 +69,22 @@ async function namesOf(
   const laws = await byIds(ids.obligations ?? [], (list) =>
     obligations.query(tx, { where: { id: list }, includeArchived: true, limit: MAX_LIMIT }),
   );
-  const unitRows = [];
-  for (let after: { key: string; id: string } | null = null; ;) {
-    const { items } = await units.query(tx, {
-      where: { clientId },
-      includeArchived: true,
-      limit: MAX_LIMIT,
-      after,
-    });
-    unitRows.push(...items);
-    if (items.length < MAX_LIMIT) break;
-    const last = items.at(-1)!.id;
-    after = { key: last, id: last };
-  }
+  const unitRows = await allPages((cursor) =>
+    units.list(tx, clientId, { includeArchived: true, limit: MAX_LIMIT, cursor }),
+  );
   const systems = await allPages((cursor) =>
     managementSystems.list(tx, clientId, { includeArchived: true, limit: MAX_LIMIT, cursor }),
   );
   const standards = new Map(
     (await isoCatalogue.standards(tx)).map((st) => [st.id, standardWords(st.code)]),
   );
-  const clauses = await isoCatalogue.clauses(tx);
+  // The account's live standards' clauses: a record's clause of a standard archived since prints no name.
+  const clauses = await isoCatalogue.clauses(tx, { standardIds: [...standards.keys()] });
   return {
     people: new Map(persons.map((p) => [p.id, p.displayName])),
     units: new Map(unitRows.map((u) => [u.id, u.name])),
     systems: new Map(systems.map((m) => [m.id, m.name])),
-    clauses: new Map(
-      clauses.map((c) => [c.id, `${standards.get(c.standardId) ?? 'ISO'} ${c.number}`]),
-    ),
+    clauses: new Map(clauses.map((c) => [c.id, `${standards.get(c.standardId)!} ${c.number}`])),
     obligations: new Map(laws.map((o) => [o.id, o.title])),
   };
 }
