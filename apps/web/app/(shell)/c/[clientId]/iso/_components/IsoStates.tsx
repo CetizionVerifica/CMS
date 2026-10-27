@@ -87,6 +87,7 @@ const TONES: Partial<Record<WordsEnum, Partial<Record<string, Tone>>>> = {
   InternalAuditState: { IN_PROGRESS: 'warn', REPORTED: 'warn', CLOSED: 'ok' },
   ChecklistResult: { CONFORMS: 'ok', FINDING: 'warn' },
   ManagementSystemStatus: { CERTIFIED: 'ok', SUSPENDED: 'crit' },
+  ManagementReviewState: { HELD: 'warn', CLOSED: 'ok' },
 };
 
 /** One value of a contracts ISO enum as a pill, in its words. */

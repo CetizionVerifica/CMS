@@ -10842,5 +10842,1481 @@
     ],
     "29e9a394-b9c2-568c-8b67-3cb45cfd5d20": [],
     "39bddddd-4959-56ef-adb8-7a15b3242c72": []
+  },
+  "reviews": [
+    {
+      "id": "306e434f-ae36-50fc-87ea-5dd6002e324a",
+      "firmId": "520ce557-0294-5abf-ad6e-e46595f7a4f0",
+      "createdAt": "2024-09-23T05:30:00Z",
+      "updatedAt": "2024-10-30T05:30:00Z",
+      "archivedAt": null,
+      "version": 4,
+      "clientId": "00000000-0000-5000-8000-000000000101",
+      "managementSystemId": "860e2b33-5267-5b4e-92f6-710c448780f4",
+      "standards": ["ISO_9001", "ISO_14001", "ISO_45001"],
+      "plannedOn": "2024-10-28",
+      "heldOn": "2024-10-28",
+      "chairId": "4d453c8e-2f50-5852-b133-e9c26a46daf7",
+      "attendeeIds": [
+        "d72b00ba-c4e5-5faa-8ab9-ca40483f68e6",
+        "69aa9699-ea57-5f4d-9679-207b2b19b75c",
+        "487294a3-c71b-5708-9153-f15e95bc7c48",
+        "064f6cae-057f-53d7-a888-e72c5cad7b96"
+      ],
+      "minutes": "The first integrated review. Quality is certified; environment and health and safety are ready for stage 2 once the stage 1 findings are closed.",
+      "state": "HELD",
+      "cancelReason": null,
+      "allowedActions": ["CLOSE"]
+    }
+  ],
+  "reviewInputs": {
+    "306e434f-ae36-50fc-87ea-5dd6002e324a": [
+      {
+        "id": "0d1fa10d-d1e5-588a-98ff-42f804be78ec",
+        "firmId": "520ce557-0294-5abf-ad6e-e46595f7a4f0",
+        "createdAt": "2024-09-23T05:30:00Z",
+        "updatedAt": "2024-10-25T05:30:00Z",
+        "archivedAt": null,
+        "version": 2,
+        "clientId": "00000000-0000-5000-8000-000000000101",
+        "managementReviewId": "306e434f-ae36-50fc-87ea-5dd6002e324a",
+        "inputDefId": "405821c4-e4e2-544d-91b1-ae81a9bc8645",
+        "notes": "First review in the app: no earlier review actions.",
+        "sourceFigures": {
+          "source": "PREVIOUS_ACTIONS",
+          "since": "2024-04-10",
+          "asOf": "2024-10-28",
+          "figures": [
+            {
+              "key": "actionsOpen",
+              "value": 0,
+              "ids": []
+            },
+            {
+              "key": "actionsOverdue",
+              "value": 0,
+              "ids": []
+            },
+            {
+              "key": "actionsDone",
+              "value": 0,
+              "ids": []
+            },
+            {
+              "key": "actionsCancelled",
+              "value": 0,
+              "ids": []
+            }
+          ]
+        },
+        "figuresStoredAt": "2024-10-30T05:30:00Z",
+        "key": "PREVIOUS_ACTIONS",
+        "title": "Status of actions from earlier reviews",
+        "source": "PREVIOUS_ACTIONS",
+        "clauseRefs": [
+          {
+            "standard": "ISO_9001",
+            "clauseNumber": "9.3.2",
+            "item": "a"
+          },
+          {
+            "standard": "ISO_14001",
+            "clauseNumber": "9.3",
+            "item": "a"
+          },
+          {
+            "standard": "ISO_45001",
+            "clauseNumber": "9.3",
+            "item": "a"
+          }
+        ],
+        "figuresWithheld": false
+      },
+      {
+        "id": "2a32a601-c57d-5559-a7f7-7c09cd791c58",
+        "firmId": "520ce557-0294-5abf-ad6e-e46595f7a4f0",
+        "createdAt": "2024-09-23T05:30:00Z",
+        "updatedAt": "2024-10-25T05:30:00Z",
+        "archivedAt": null,
+        "version": 2,
+        "clientId": "00000000-0000-5000-8000-000000000101",
+        "managementReviewId": "306e434f-ae36-50fc-87ea-5dd6002e324a",
+        "inputDefId": "d96616a0-4956-58e4-98c4-2800d18f59e6",
+        "notes": "Climate added as an external issue; the line 2 ovens are now an internal issue.",
+        "sourceFigures": {
+          "source": "CONTEXT",
+          "since": "2024-04-10",
+          "asOf": "2024-10-28",
+          "figures": [
+            {
+              "key": "issuesAdded",
+              "value": 3,
+              "ids": [
+                "5d82ae8c-102e-51b0-a414-3c161613e2da",
+                "21b9fc1b-f8ae-5b22-9041-7eb3719724bc",
+                "1f719ac0-c042-5e77-8847-4908b95ffdd5"
+              ]
+            },
+            {
+              "key": "issuesChanged",
+              "value": 0,
+              "ids": []
+            },
+            {
+              "key": "interestedPartiesAdded",
+              "value": 3,
+              "ids": [
+                "fc79484a-4452-56c1-89e1-eb9600b66e3e",
+                "0a6ecce0-82c9-58f8-8f36-229af9c069dc",
+                "95164a1d-74f9-54be-9314-bded6be03e88"
+              ]
+            },
+            {
+              "key": "interestedPartiesChanged",
+              "value": 0,
+              "ids": []
+            },
+            {
+              "key": "contextItemsRemoved",
+              "value": 0,
+              "ids": []
+            },
+            {
+              "key": "climateDecided",
+              "value": 1,
+              "ids": ["860e2b33-5267-5b4e-92f6-710c448780f4"]
+            },
+            {
+              "key": "climateRelevant",
+              "value": 1,
+              "ids": ["860e2b33-5267-5b4e-92f6-710c448780f4"]
+            },
+            {
+              "key": "climateDecidedInPeriod",
+              "value": 1,
+              "ids": ["860e2b33-5267-5b4e-92f6-710c448780f4"]
+            }
+          ]
+        },
+        "figuresStoredAt": "2024-10-30T05:30:00Z",
+        "key": "CONTEXT_CHANGES",
+        "title": "Changes in external and internal issues",
+        "source": "CONTEXT",
+        "clauseRefs": [
+          {
+            "standard": "ISO_9001",
+            "clauseNumber": "9.3.2",
+            "item": "b"
+          },
+          {
+            "standard": "ISO_14001",
+            "clauseNumber": "9.3",
+            "item": "b1"
+          },
+          {
+            "standard": "ISO_45001",
+            "clauseNumber": "9.3",
+            "item": "b"
+          }
+        ],
+        "figuresWithheld": false
+      },
+      {
+        "id": "7c04327e-1114-5a0c-8429-14e62946dfdf",
+        "firmId": "520ce557-0294-5abf-ad6e-e46595f7a4f0",
+        "createdAt": "2024-09-23T05:30:00Z",
+        "updatedAt": "2024-10-25T05:30:00Z",
+        "archivedAt": null,
+        "version": 2,
+        "clientId": "00000000-0000-5000-8000-000000000101",
+        "managementReviewId": "306e434f-ae36-50fc-87ea-5dd6002e324a",
+        "inputDefId": "7a7cb192-e1de-5692-aae5-d7f1e107ee26",
+        "notes": "Retailers now ask for recyclable packaging; contract workers want a voice in the committee.",
+        "sourceFigures": {
+          "source": "CONTEXT",
+          "since": "2024-04-10",
+          "asOf": "2024-10-28",
+          "figures": [
+            {
+              "key": "issuesAdded",
+              "value": 3,
+              "ids": [
+                "5d82ae8c-102e-51b0-a414-3c161613e2da",
+                "21b9fc1b-f8ae-5b22-9041-7eb3719724bc",
+                "1f719ac0-c042-5e77-8847-4908b95ffdd5"
+              ]
+            },
+            {
+              "key": "issuesChanged",
+              "value": 0,
+              "ids": []
+            },
+            {
+              "key": "interestedPartiesAdded",
+              "value": 3,
+              "ids": [
+                "fc79484a-4452-56c1-89e1-eb9600b66e3e",
+                "0a6ecce0-82c9-58f8-8f36-229af9c069dc",
+                "95164a1d-74f9-54be-9314-bded6be03e88"
+              ]
+            },
+            {
+              "key": "interestedPartiesChanged",
+              "value": 0,
+              "ids": []
+            },
+            {
+              "key": "contextItemsRemoved",
+              "value": 0,
+              "ids": []
+            },
+            {
+              "key": "climateDecided",
+              "value": 1,
+              "ids": ["860e2b33-5267-5b4e-92f6-710c448780f4"]
+            },
+            {
+              "key": "climateRelevant",
+              "value": 1,
+              "ids": ["860e2b33-5267-5b4e-92f6-710c448780f4"]
+            },
+            {
+              "key": "climateDecidedInPeriod",
+              "value": 1,
+              "ids": ["860e2b33-5267-5b4e-92f6-710c448780f4"]
+            }
+          ]
+        },
+        "figuresStoredAt": "2024-10-30T05:30:00Z",
+        "key": "INTERESTED_PARTIES",
+        "title": "Changes in interested parties' needs, compliance obligations, legal and other requirements",
+        "source": "CONTEXT",
+        "clauseRefs": [
+          {
+            "standard": "ISO_14001",
+            "clauseNumber": "9.3",
+            "item": "b2"
+          },
+          {
+            "standard": "ISO_45001",
+            "clauseNumber": "9.3",
+            "item": "b1"
+          },
+          {
+            "standard": "ISO_45001",
+            "clauseNumber": "9.3",
+            "item": "b2"
+          }
+        ],
+        "figuresWithheld": false
+      },
+      {
+        "id": "0a0db6f7-8cdc-5dfd-8199-4994521f60e8",
+        "firmId": "520ce557-0294-5abf-ad6e-e46595f7a4f0",
+        "createdAt": "2024-09-23T05:30:00Z",
+        "updatedAt": "2024-10-25T05:30:00Z",
+        "archivedAt": null,
+        "version": 2,
+        "clientId": "00000000-0000-5000-8000-000000000101",
+        "managementReviewId": "306e434f-ae36-50fc-87ea-5dd6002e324a",
+        "inputDefId": "a0ca8a7c-bfa0-5d63-9481-f8c0a551372d",
+        "notes": "Effluent is significant by decision; packaging waste is not significant yet.",
+        "sourceFigures": {
+          "source": "RISKS",
+          "since": "2024-04-10",
+          "asOf": "2024-10-28",
+          "figures": [
+            {
+              "key": "itemsAdded",
+              "value": 2,
+              "ids": [
+                "a0e2e8ae-021d-553a-ad88-867b252dd119",
+                "0c4d1f13-a30d-595e-ac0b-f5e648a026fa"
+              ]
+            },
+            {
+              "key": "itemsRerated",
+              "value": 0,
+              "ids": []
+            },
+            {
+              "key": "significantAspect",
+              "value": 1,
+              "ids": ["a0e2e8ae-021d-553a-ad88-867b252dd119"]
+            },
+            {
+              "key": "treatmentActionsDone",
+              "value": 0,
+              "ids": []
+            },
+            {
+              "key": "treatmentActionsOpen",
+              "value": 0,
+              "ids": []
+            }
+          ]
+        },
+        "figuresStoredAt": "2024-10-30T05:30:00Z",
+        "key": "SIGNIFICANT_ASPECTS",
+        "title": "Changes in significant environmental aspects",
+        "source": "RISKS",
+        "clauseRefs": [
+          {
+            "standard": "ISO_14001",
+            "clauseNumber": "9.3",
+            "item": "b3"
+          }
+        ],
+        "figuresWithheld": false
+      },
+      {
+        "id": "3c5028a1-9375-5868-9877-b1b8f59b4cd5",
+        "firmId": "520ce557-0294-5abf-ad6e-e46595f7a4f0",
+        "createdAt": "2024-09-23T05:30:00Z",
+        "updatedAt": "2024-10-25T05:30:00Z",
+        "archivedAt": null,
+        "version": 2,
+        "clientId": "00000000-0000-5000-8000-000000000101",
+        "managementReviewId": "306e434f-ae36-50fc-87ea-5dd6002e324a",
+        "inputDefId": "e45e3f49-2914-53a1-a0b0-9f96e1f4eb18",
+        "notes": "Flour supply and oven burns are the significant items; solar is the main opportunity.",
+        "sourceFigures": {
+          "source": "RISKS",
+          "since": "2024-04-10",
+          "asOf": "2024-10-28",
+          "figures": [
+            {
+              "key": "itemsAdded",
+              "value": 5,
+              "ids": [
+                "740bfa9d-f7a1-5022-9df5-77e4317a7e62",
+                "1aad759f-a1d8-5985-8450-996ee3a48ae3",
+                "e5cceb82-50e8-5ad6-a5fc-82ba997bcc66",
+                "c12d28e3-1da7-55b0-9cca-3d1454dd4d04",
+                "27b2e46b-7511-5a34-838b-0e0809dacd4a"
+              ]
+            },
+            {
+              "key": "itemsRerated",
+              "value": 0,
+              "ids": []
+            },
+            {
+              "key": "significantRisk",
+              "value": 1,
+              "ids": ["740bfa9d-f7a1-5022-9df5-77e4317a7e62"]
+            },
+            {
+              "key": "significantOpportunity",
+              "value": 0,
+              "ids": []
+            },
+            {
+              "key": "significantHazard",
+              "value": 1,
+              "ids": ["c12d28e3-1da7-55b0-9cca-3d1454dd4d04"]
+            },
+            {
+              "key": "treatmentActionsDone",
+              "value": 1,
+              "ids": ["6ac110da-1a8b-506e-b207-62f490513086"]
+            },
+            {
+              "key": "treatmentActionsOpen",
+              "value": 2,
+              "ids": [
+                "284d2d9f-948f-5b19-be47-458be9129fed",
+                "a6272cbb-6cb0-5e00-99f2-44e636c88fb2"
+              ]
+            }
+          ]
+        },
+        "figuresStoredAt": "2024-10-30T05:30:00Z",
+        "key": "RISKS_AND_OPPORTUNITIES",
+        "title": "Changes in risks and opportunities",
+        "source": "RISKS",
+        "clauseRefs": [
+          {
+            "standard": "ISO_14001",
+            "clauseNumber": "9.3",
+            "item": "b4"
+          },
+          {
+            "standard": "ISO_45001",
+            "clauseNumber": "9.3",
+            "item": "b3"
+          },
+          {
+            "standard": "ISO_45001",
+            "clauseNumber": "9.3",
+            "item": "d6"
+          }
+        ],
+        "figuresWithheld": false
+      },
+      {
+        "id": "84756f5e-a43b-5ff0-ad47-15e9a5806d1e",
+        "firmId": "520ce557-0294-5abf-ad6e-e46595f7a4f0",
+        "createdAt": "2024-09-23T05:30:00Z",
+        "updatedAt": "2024-10-25T05:30:00Z",
+        "archivedAt": null,
+        "version": 2,
+        "clientId": "00000000-0000-5000-8000-000000000101",
+        "managementReviewId": "306e434f-ae36-50fc-87ea-5dd6002e324a",
+        "inputDefId": "53f34c51-3b86-56da-b815-54c3342d74be",
+        "notes": "Guard rails fitted; a second flour supplier is being qualified.",
+        "sourceFigures": {
+          "source": "RISKS",
+          "since": "2024-04-10",
+          "asOf": "2024-10-28",
+          "figures": [
+            {
+              "key": "itemsAdded",
+              "value": 3,
+              "ids": [
+                "740bfa9d-f7a1-5022-9df5-77e4317a7e62",
+                "1aad759f-a1d8-5985-8450-996ee3a48ae3",
+                "e5cceb82-50e8-5ad6-a5fc-82ba997bcc66"
+              ]
+            },
+            {
+              "key": "itemsRerated",
+              "value": 0,
+              "ids": []
+            },
+            {
+              "key": "significantRisk",
+              "value": 1,
+              "ids": ["740bfa9d-f7a1-5022-9df5-77e4317a7e62"]
+            },
+            {
+              "key": "significantOpportunity",
+              "value": 0,
+              "ids": []
+            },
+            {
+              "key": "treatmentActionsDone",
+              "value": 0,
+              "ids": []
+            },
+            {
+              "key": "treatmentActionsOpen",
+              "value": 1,
+              "ids": ["284d2d9f-948f-5b19-be47-458be9129fed"]
+            }
+          ]
+        },
+        "figuresStoredAt": "2024-10-30T05:30:00Z",
+        "key": "RISK_ACTIONS",
+        "title": "Effectiveness of actions on risks and opportunities",
+        "source": "RISKS",
+        "clauseRefs": [
+          {
+            "standard": "ISO_9001",
+            "clauseNumber": "9.3.2",
+            "item": "e"
+          }
+        ],
+        "figuresWithheld": false
+      },
+      {
+        "id": "0bd50b2f-bfc6-532d-a4f8-c14932ac8666",
+        "firmId": "520ce557-0294-5abf-ad6e-e46595f7a4f0",
+        "createdAt": "2024-09-23T05:30:00Z",
+        "updatedAt": "2024-10-25T05:30:00Z",
+        "archivedAt": null,
+        "version": 2,
+        "clientId": "00000000-0000-5000-8000-000000000101",
+        "managementReviewId": "306e434f-ae36-50fc-87ea-5dd6002e324a",
+        "inputDefId": "393607a1-f365-5de7-8a4a-e3be7b2d3464",
+        "notes": "Survey score steady; complaints rose in the second quarter.",
+        "sourceFigures": null,
+        "figuresStoredAt": null,
+        "key": "CUSTOMER_SATISFACTION",
+        "title": "Customer satisfaction and feedback",
+        "source": "MANUAL",
+        "clauseRefs": [
+          {
+            "standard": "ISO_9001",
+            "clauseNumber": "9.3.2",
+            "item": "c1"
+          }
+        ],
+        "figuresWithheld": false
+      },
+      {
+        "id": "ae9c4333-5264-568e-b5ee-d27a9452418c",
+        "firmId": "520ce557-0294-5abf-ad6e-e46595f7a4f0",
+        "createdAt": "2024-09-23T05:30:00Z",
+        "updatedAt": "2024-10-25T05:30:00Z",
+        "archivedAt": null,
+        "version": 2,
+        "clientId": "00000000-0000-5000-8000-000000000101",
+        "managementReviewId": "306e434f-ae36-50fc-87ea-5dd6002e324a",
+        "inputDefId": "4c8cb3a7-8870-566e-8738-1c83aaee1432",
+        "notes": "Energy on track, complaints off track, oven training achieved.",
+        "sourceFigures": {
+          "source": "OBJECTIVES",
+          "since": "2024-04-10",
+          "asOf": "2024-10-28",
+          "figures": [
+            {
+              "key": "objectivesOpen",
+              "value": 2,
+              "ids": [
+                "d285c0af-b005-5634-8d4f-a148abe2cdb1",
+                "faedcc6a-26f7-5f92-85cd-40785de95092"
+              ]
+            },
+            {
+              "key": "onTrack",
+              "value": 1,
+              "ids": ["d285c0af-b005-5634-8d4f-a148abe2cdb1"]
+            },
+            {
+              "key": "offTrack",
+              "value": 1,
+              "ids": ["faedcc6a-26f7-5f92-85cd-40785de95092"]
+            },
+            {
+              "key": "withoutReading",
+              "value": 0,
+              "ids": []
+            },
+            {
+              "key": "achieved",
+              "value": 1,
+              "ids": ["7553d8f9-782e-5ea7-a1e9-59cd71500c9f"]
+            },
+            {
+              "key": "notAchieved",
+              "value": 0,
+              "ids": []
+            },
+            {
+              "key": "readingsRecorded",
+              "value": 6,
+              "ids": [
+                "a4da8b2c-325c-5093-93d4-1c0defe01169",
+                "53c86eea-da88-5313-b37e-f38a0c3fe08e",
+                "5aa20259-c1fd-52e1-8948-349933681123",
+                "41071cd8-2d03-5352-9320-eeb096878e4c",
+                "eace9a19-0ea2-5452-9b56-658b8bd0f963",
+                "430d3f22-32d5-5d11-acea-3033840bffde"
+              ]
+            }
+          ]
+        },
+        "figuresStoredAt": "2024-10-30T05:30:00Z",
+        "key": "OBJECTIVES",
+        "title": "How far the policy and objectives were met",
+        "source": "OBJECTIVES",
+        "clauseRefs": [
+          {
+            "standard": "ISO_9001",
+            "clauseNumber": "9.3.2",
+            "item": "c2"
+          },
+          {
+            "standard": "ISO_14001",
+            "clauseNumber": "9.3",
+            "item": "c"
+          },
+          {
+            "standard": "ISO_45001",
+            "clauseNumber": "9.3",
+            "item": "c"
+          }
+        ],
+        "figuresWithheld": false
+      },
+      {
+        "id": "cbc25c0e-7903-5b43-9fdc-53f0068a98c8",
+        "firmId": "520ce557-0294-5abf-ad6e-e46595f7a4f0",
+        "createdAt": "2024-09-23T05:30:00Z",
+        "updatedAt": "2024-10-25T05:30:00Z",
+        "archivedAt": null,
+        "version": 2,
+        "clientId": "00000000-0000-5000-8000-000000000101",
+        "managementReviewId": "306e434f-ae36-50fc-87ea-5dd6002e324a",
+        "inputDefId": "656762af-e52a-534c-97ea-57a136080dbf",
+        "notes": "Line 1 efficiency up; line 2 limited by the ovens.",
+        "sourceFigures": null,
+        "figuresStoredAt": null,
+        "key": "PROCESS_PERFORMANCE",
+        "title": "Process performance and conformity of products and services",
+        "source": "MANUAL",
+        "clauseRefs": [
+          {
+            "standard": "ISO_9001",
+            "clauseNumber": "9.3.2",
+            "item": "c3"
+          }
+        ],
+        "figuresWithheld": false
+      },
+      {
+        "id": "5e4e65e6-0729-5100-bcf0-6d2124d64e52",
+        "firmId": "520ce557-0294-5abf-ad6e-e46595f7a4f0",
+        "createdAt": "2024-09-23T05:30:00Z",
+        "updatedAt": "2024-10-25T05:30:00Z",
+        "archivedAt": null,
+        "version": 2,
+        "clientId": "00000000-0000-5000-8000-000000000101",
+        "managementReviewId": "306e434f-ae36-50fc-87ea-5dd6002e324a",
+        "inputDefId": "a976de16-490b-55eb-bd7e-a6d94944077b",
+        "notes": "One external audit NC closed; the tray-change NC has actions under way.",
+        "sourceFigures": {
+          "source": "NONCONFORMITIES",
+          "since": "2024-04-10",
+          "asOf": "2024-10-28",
+          "figures": [
+            {
+              "key": "raised",
+              "value": 4,
+              "ids": [
+                "d9b53532-99e6-5fb5-836a-7fbacf70b3f7",
+                "4fe2918b-7f7f-5553-a25e-180bbd8743bb",
+                "ab0ef76f-f459-5aa1-89af-10260aef3325",
+                "065ab348-c2d6-5834-9895-2310c0882ce6"
+              ]
+            },
+            {
+              "key": "closed",
+              "value": 1,
+              "ids": ["d9b53532-99e6-5fb5-836a-7fbacf70b3f7"]
+            },
+            {
+              "key": "raisedMajor",
+              "value": 0,
+              "ids": []
+            },
+            {
+              "key": "raisedMinor",
+              "value": 4,
+              "ids": [
+                "d9b53532-99e6-5fb5-836a-7fbacf70b3f7",
+                "4fe2918b-7f7f-5553-a25e-180bbd8743bb",
+                "ab0ef76f-f459-5aa1-89af-10260aef3325",
+                "065ab348-c2d6-5834-9895-2310c0882ce6"
+              ]
+            },
+            {
+              "key": "raisedInternalAudit",
+              "value": 1,
+              "ids": ["ab0ef76f-f459-5aa1-89af-10260aef3325"]
+            },
+            {
+              "key": "raisedExternalAudit",
+              "value": 1,
+              "ids": ["d9b53532-99e6-5fb5-836a-7fbacf70b3f7"]
+            },
+            {
+              "key": "raisedIncident",
+              "value": 1,
+              "ids": ["4fe2918b-7f7f-5553-a25e-180bbd8743bb"]
+            },
+            {
+              "key": "raisedNearMiss",
+              "value": 0,
+              "ids": []
+            },
+            {
+              "key": "raisedComplaint",
+              "value": 0,
+              "ids": []
+            },
+            {
+              "key": "raisedProcess",
+              "value": 1,
+              "ids": ["065ab348-c2d6-5834-9895-2310c0882ce6"]
+            },
+            {
+              "key": "raisedLegal",
+              "value": 0,
+              "ids": []
+            },
+            {
+              "key": "raisedOther",
+              "value": 0,
+              "ids": []
+            },
+            {
+              "key": "closedMajor",
+              "value": 0,
+              "ids": []
+            },
+            {
+              "key": "closedMinor",
+              "value": 1,
+              "ids": ["d9b53532-99e6-5fb5-836a-7fbacf70b3f7"]
+            },
+            {
+              "key": "closedInternalAudit",
+              "value": 0,
+              "ids": []
+            },
+            {
+              "key": "closedExternalAudit",
+              "value": 1,
+              "ids": ["d9b53532-99e6-5fb5-836a-7fbacf70b3f7"]
+            },
+            {
+              "key": "closedIncident",
+              "value": 0,
+              "ids": []
+            },
+            {
+              "key": "closedNearMiss",
+              "value": 0,
+              "ids": []
+            },
+            {
+              "key": "closedComplaint",
+              "value": 0,
+              "ids": []
+            },
+            {
+              "key": "closedProcess",
+              "value": 0,
+              "ids": []
+            },
+            {
+              "key": "closedLegal",
+              "value": 0,
+              "ids": []
+            },
+            {
+              "key": "closedOther",
+              "value": 0,
+              "ids": []
+            },
+            {
+              "key": "verifiedNotEffective",
+              "value": 0,
+              "ids": []
+            },
+            {
+              "key": "open",
+              "value": 2,
+              "ids": [
+                "4fe2918b-7f7f-5553-a25e-180bbd8743bb",
+                "ab0ef76f-f459-5aa1-89af-10260aef3325"
+              ]
+            },
+            {
+              "key": "correctiveActionsOverdue",
+              "value": 0,
+              "ids": []
+            }
+          ]
+        },
+        "figuresStoredAt": "2024-10-30T05:30:00Z",
+        "key": "NONCONFORMITIES",
+        "title": "Nonconformities and corrective actions",
+        "source": "NONCONFORMITIES",
+        "clauseRefs": [
+          {
+            "standard": "ISO_9001",
+            "clauseNumber": "9.3.2",
+            "item": "c4"
+          },
+          {
+            "standard": "ISO_14001",
+            "clauseNumber": "9.3",
+            "item": "d1"
+          },
+          {
+            "standard": "ISO_45001",
+            "clauseNumber": "9.3",
+            "item": "d1"
+          }
+        ],
+        "figuresWithheld": false
+      },
+      {
+        "id": "6c059913-dc69-5f88-9135-4020895369b1",
+        "firmId": "520ce557-0294-5abf-ad6e-e46595f7a4f0",
+        "createdAt": "2024-09-23T05:30:00Z",
+        "updatedAt": "2024-10-25T05:30:00Z",
+        "archivedAt": null,
+        "version": 2,
+        "clientId": "00000000-0000-5000-8000-000000000101",
+        "managementReviewId": "306e434f-ae36-50fc-87ea-5dd6002e324a",
+        "inputDefId": "709bb82e-1279-503b-b120-2cff1313e6fe",
+        "notes": "One lost-time incident in August; investigation done with worker participation.",
+        "sourceFigures": {
+          "source": "INCIDENTS",
+          "since": "2024-04-10",
+          "asOf": "2024-10-28",
+          "figures": [
+            {
+              "key": "incidents",
+              "value": 1,
+              "ids": ["4fe2918b-7f7f-5553-a25e-180bbd8743bb"]
+            },
+            {
+              "key": "typeInjury",
+              "value": 1,
+              "ids": ["4fe2918b-7f7f-5553-a25e-180bbd8743bb"]
+            },
+            {
+              "key": "typeIllHealth",
+              "value": 0,
+              "ids": []
+            },
+            {
+              "key": "typeDangerousOccurrence",
+              "value": 0,
+              "ids": []
+            },
+            {
+              "key": "typeEnvironmentalRelease",
+              "value": 0,
+              "ids": []
+            },
+            {
+              "key": "typeFire",
+              "value": 0,
+              "ids": []
+            },
+            {
+              "key": "typePropertyDamage",
+              "value": 0,
+              "ids": []
+            },
+            {
+              "key": "typeNearMiss",
+              "value": 0,
+              "ids": []
+            },
+            {
+              "key": "outcomeNone",
+              "value": 0,
+              "ids": []
+            },
+            {
+              "key": "outcomeFirstAid",
+              "value": 0,
+              "ids": []
+            },
+            {
+              "key": "outcomeMedicalTreatment",
+              "value": 0,
+              "ids": []
+            },
+            {
+              "key": "outcomeRestrictedWork",
+              "value": 0,
+              "ids": []
+            },
+            {
+              "key": "outcomeLostTime",
+              "value": 1,
+              "ids": ["4fe2918b-7f7f-5553-a25e-180bbd8743bb"]
+            },
+            {
+              "key": "outcomeFatality",
+              "value": 0,
+              "ids": []
+            },
+            {
+              "key": "lostDays",
+              "value": 3,
+              "ids": ["4fe2918b-7f7f-5553-a25e-180bbd8743bb"]
+            }
+          ]
+        },
+        "figuresStoredAt": "2024-10-30T05:30:00Z",
+        "key": "INCIDENTS",
+        "title": "Incidents",
+        "source": "INCIDENTS",
+        "clauseRefs": [
+          {
+            "standard": "ISO_45001",
+            "clauseNumber": "9.3",
+            "item": "d1"
+          }
+        ],
+        "figuresWithheld": false
+      },
+      {
+        "id": "708ebf39-e324-5018-9932-2b053f234a3c",
+        "firmId": "520ce557-0294-5abf-ad6e-e46595f7a4f0",
+        "createdAt": "2024-09-23T05:30:00Z",
+        "updatedAt": "2024-10-25T05:30:00Z",
+        "archivedAt": null,
+        "version": 2,
+        "clientId": "00000000-0000-5000-8000-000000000101",
+        "managementReviewId": "306e434f-ae36-50fc-87ea-5dd6002e324a",
+        "inputDefId": "020997aa-7c17-5e45-b188-7d88dca54383",
+        "notes": "Effluent within limits every month; electricity per tonne falling.",
+        "sourceFigures": null,
+        "figuresStoredAt": null,
+        "key": "MONITORING_RESULTS",
+        "title": "Monitoring and measurement results",
+        "source": "MANUAL",
+        "clauseRefs": [
+          {
+            "standard": "ISO_9001",
+            "clauseNumber": "9.3.2",
+            "item": "c5"
+          },
+          {
+            "standard": "ISO_14001",
+            "clauseNumber": "9.3",
+            "item": "d2"
+          },
+          {
+            "standard": "ISO_45001",
+            "clauseNumber": "9.3",
+            "item": "d2"
+          }
+        ],
+        "figuresWithheld": false
+      },
+      {
+        "id": "01976d90-c08d-5834-8658-49709dce5db0",
+        "firmId": "520ce557-0294-5abf-ad6e-e46595f7a4f0",
+        "createdAt": "2024-09-23T05:30:00Z",
+        "updatedAt": "2024-10-25T05:30:00Z",
+        "archivedAt": null,
+        "version": 2,
+        "clientId": "00000000-0000-5000-8000-000000000101",
+        "managementReviewId": "306e434f-ae36-50fc-87ea-5dd6002e324a",
+        "inputDefId": "cbc4273a-416a-589e-a2e0-35d22c5dcc0d",
+        "notes": "Half-yearly evaluation done in September; no open legal gaps.",
+        "sourceFigures": {
+          "source": "COMPLIANCE_EVALUATION",
+          "since": "2024-04-10",
+          "asOf": "2024-10-28",
+          "figures": [
+            {
+              "key": "evaluationsDue",
+              "value": 0,
+              "ids": []
+            },
+            {
+              "key": "evaluationsDone",
+              "value": 0,
+              "ids": []
+            },
+            {
+              "key": "latestEvaluation",
+              "value": 0,
+              "ids": []
+            },
+            {
+              "key": "statutoryInstancesDue",
+              "value": 23,
+              "ids": [
+                "1e68f374-228b-5b7c-acdb-25eacfb466fd",
+                "8eab04c4-6316-5606-b393-b5317952af3e",
+                "a2340917-b552-5991-b112-a6ff1fffd550",
+                "33ec82c9-fe2c-57be-a483-1f53b8532ffa",
+                "516264b3-d52a-5f64-9487-6390a348ce64",
+                "15002461-e8d7-5ae3-b7ab-87b927957a9e",
+                "d0ae360d-984d-5938-ba63-b4bbd291811a",
+                "ddf2cfc3-5a5e-5b32-9811-22a0be9501bf",
+                "28078438-4dcb-56e7-88a9-192f41477003",
+                "09d26794-1463-5170-8204-03fef637f02b",
+                "e42f2c1f-b499-5bde-ae16-4f99b9004678",
+                "529f8497-14a6-595a-9515-6c6aeb5f2c4b",
+                "fd549e2d-24b3-5fca-9be8-b01383f36939",
+                "fcd8795a-db32-5bcf-8597-a883c8a1ef6a",
+                "deaa035a-e077-5af9-bd64-ad95c5d6caea",
+                "db4e29a3-d31d-5f30-ab13-bd3e16364501",
+                "134b9441-0cb0-5859-a1ed-d6617c00f668",
+                "d597a9cf-7d3c-512b-99da-de98bbe0c3a5",
+                "b12d220a-6a5b-52fc-bccc-44906e9bd205",
+                "44119b18-938a-581a-b20a-c94565d95964",
+                "9f4450a5-bd8d-595e-9c2c-19ffcbee925e",
+                "d5d8fa72-4fc8-50bd-9610-76846bbfe516",
+                "ccfb33f9-798c-5672-b539-a8e0bc5b252d"
+              ]
+            },
+            {
+              "key": "statutoryScore",
+              "value": 68.8,
+              "ids": []
+            }
+          ]
+        },
+        "figuresStoredAt": "2024-10-30T05:30:00Z",
+        "key": "COMPLIANCE_EVALUATION",
+        "title": "Fulfilment of compliance obligations, evaluation of compliance",
+        "source": "COMPLIANCE_EVALUATION",
+        "clauseRefs": [
+          {
+            "standard": "ISO_14001",
+            "clauseNumber": "9.3",
+            "item": "d3"
+          },
+          {
+            "standard": "ISO_45001",
+            "clauseNumber": "9.3",
+            "item": "d3"
+          }
+        ],
+        "figuresWithheld": false
+      },
+      {
+        "id": "f7db76e4-e46a-571d-bb74-a1b5bfd55c25",
+        "firmId": "520ce557-0294-5abf-ad6e-e46595f7a4f0",
+        "createdAt": "2024-09-23T05:30:00Z",
+        "updatedAt": "2024-10-25T05:30:00Z",
+        "archivedAt": null,
+        "version": 2,
+        "clientId": "00000000-0000-5000-8000-000000000101",
+        "managementReviewId": "306e434f-ae36-50fc-87ea-5dd6002e324a",
+        "inputDefId": "9174681a-7384-5b5c-9b1b-63e19f2553ee",
+        "notes": "Q1 and Q2 internal audits reported; stage 2 recommended the certificate.",
+        "sourceFigures": {
+          "source": "AUDIT_RESULTS",
+          "since": "2024-04-10",
+          "asOf": "2024-10-28",
+          "figures": [
+            {
+              "key": "internalAuditsReported",
+              "value": 2,
+              "ids": [
+                "ebe4e6b7-e3a9-5244-a459-5fde14472abc",
+                "47373213-8c0f-5cad-805c-be5c1cfbc306"
+              ]
+            },
+            {
+              "key": "externalAuditsHeld",
+              "value": 1,
+              "ids": ["eca477ac-229f-5b71-a58e-25bed2488aec"]
+            },
+            {
+              "key": "findingsMajorNc",
+              "value": 0,
+              "ids": []
+            },
+            {
+              "key": "findingsMinorNc",
+              "value": 2,
+              "ids": [
+                "43c9b39a-36e7-5876-b65c-42eacb67ec0c",
+                "709d412a-2346-5c65-a4ee-60650bbea454"
+              ]
+            },
+            {
+              "key": "findingsObservation",
+              "value": 1,
+              "ids": ["b4b8e031-1af4-5c30-9b64-3821902862d2"]
+            },
+            {
+              "key": "findingsOfi",
+              "value": 2,
+              "ids": [
+                "f371196a-3254-526c-827d-355daa93a7ef",
+                "d6039ecc-b32e-5a90-bb2d-2bcab91b219b"
+              ]
+            },
+            {
+              "key": "findingsGoodPractice",
+              "value": 1,
+              "ids": ["41392d5b-8a28-531e-b19c-59d8780ca369"]
+            }
+          ]
+        },
+        "figuresStoredAt": "2024-10-30T05:30:00Z",
+        "key": "AUDIT_RESULTS",
+        "title": "Audit results",
+        "source": "AUDIT_RESULTS",
+        "clauseRefs": [
+          {
+            "standard": "ISO_9001",
+            "clauseNumber": "9.3.2",
+            "item": "c6"
+          },
+          {
+            "standard": "ISO_14001",
+            "clauseNumber": "9.3",
+            "item": "d4"
+          },
+          {
+            "standard": "ISO_45001",
+            "clauseNumber": "9.3",
+            "item": "d4"
+          }
+        ],
+        "figuresWithheld": false
+      },
+      {
+        "id": "1f9d981e-503e-5188-b8fd-bcf9ac9bb434",
+        "firmId": "520ce557-0294-5abf-ad6e-e46595f7a4f0",
+        "createdAt": "2024-09-23T05:30:00Z",
+        "updatedAt": "2024-10-25T05:30:00Z",
+        "archivedAt": null,
+        "version": 2,
+        "clientId": "00000000-0000-5000-8000-000000000101",
+        "managementReviewId": "306e434f-ae36-50fc-87ea-5dd6002e324a",
+        "inputDefId": "78d8a27e-a31b-5a05-9141-8c65da29a402",
+        "notes": "Flour and packaging suppliers rated; one carton supplier on watch.",
+        "sourceFigures": null,
+        "figuresStoredAt": null,
+        "key": "EXTERNAL_PROVIDERS",
+        "title": "Performance of external providers",
+        "source": "MANUAL",
+        "clauseRefs": [
+          {
+            "standard": "ISO_9001",
+            "clauseNumber": "9.3.2",
+            "item": "c7"
+          }
+        ],
+        "figuresWithheld": false
+      },
+      {
+        "id": "86369f2c-bcff-56a4-b78a-0940d59ba5a7",
+        "firmId": "520ce557-0294-5abf-ad6e-e46595f7a4f0",
+        "createdAt": "2024-09-23T05:30:00Z",
+        "updatedAt": "2024-10-25T05:30:00Z",
+        "archivedAt": null,
+        "version": 2,
+        "clientId": "00000000-0000-5000-8000-000000000101",
+        "managementReviewId": "306e434f-ae36-50fc-87ea-5dd6002e324a",
+        "inputDefId": "e1943418-22fa-5136-a5e5-db8d81e7872a",
+        "notes": "Committee meets quarterly; contract workers to be invited.",
+        "sourceFigures": null,
+        "figuresStoredAt": null,
+        "key": "WORKER_CONSULTATION",
+        "title": "Consultation and participation of workers",
+        "source": "MANUAL",
+        "clauseRefs": [
+          {
+            "standard": "ISO_45001",
+            "clauseNumber": "9.3",
+            "item": "d5"
+          }
+        ],
+        "figuresWithheld": false
+      },
+      {
+        "id": "772fbba9-72df-5068-bdb0-50bad413e6f9",
+        "firmId": "520ce557-0294-5abf-ad6e-e46595f7a4f0",
+        "createdAt": "2024-09-23T05:30:00Z",
+        "updatedAt": "2024-10-25T05:30:00Z",
+        "archivedAt": null,
+        "version": 2,
+        "clientId": "00000000-0000-5000-8000-000000000101",
+        "managementReviewId": "306e434f-ae36-50fc-87ea-5dd6002e324a",
+        "inputDefId": "bcbbc473-b04b-5296-8d41-57d40601ff57",
+        "notes": "Solar capital approved; a second quality technician needed in 2025.",
+        "sourceFigures": null,
+        "figuresStoredAt": null,
+        "key": "RESOURCES",
+        "title": "Adequacy of resources",
+        "source": "MANUAL",
+        "clauseRefs": [
+          {
+            "standard": "ISO_9001",
+            "clauseNumber": "9.3.2",
+            "item": "d"
+          },
+          {
+            "standard": "ISO_14001",
+            "clauseNumber": "9.3",
+            "item": "e"
+          },
+          {
+            "standard": "ISO_45001",
+            "clauseNumber": "9.3",
+            "item": "e"
+          }
+        ],
+        "figuresWithheld": false
+      },
+      {
+        "id": "13d7f753-0fb0-5b07-95c5-ab7ed7e29cf6",
+        "firmId": "520ce557-0294-5abf-ad6e-e46595f7a4f0",
+        "createdAt": "2024-09-23T05:30:00Z",
+        "updatedAt": "2024-10-25T05:30:00Z",
+        "archivedAt": null,
+        "version": 2,
+        "clientId": "00000000-0000-5000-8000-000000000101",
+        "managementReviewId": "306e434f-ae36-50fc-87ea-5dd6002e324a",
+        "inputDefId": "525ed4d1-1590-5cd7-9fa8-aae6252d6b3c",
+        "notes": "Policy revision B shared at both units.",
+        "sourceFigures": null,
+        "figuresStoredAt": null,
+        "key": "COMMUNICATIONS",
+        "title": "Relevant communications from interested parties, complaints included",
+        "source": "MANUAL",
+        "clauseRefs": [
+          {
+            "standard": "ISO_14001",
+            "clauseNumber": "9.3",
+            "item": "f"
+          },
+          {
+            "standard": "ISO_45001",
+            "clauseNumber": "9.3",
+            "item": "f"
+          }
+        ],
+        "figuresWithheld": false
+      },
+      {
+        "id": "e76c1b4f-8437-5054-bfee-a151d09d318b",
+        "firmId": "520ce557-0294-5abf-ad6e-e46595f7a4f0",
+        "createdAt": "2024-09-23T05:30:00Z",
+        "updatedAt": "2024-10-25T05:30:00Z",
+        "archivedAt": null,
+        "version": 2,
+        "clientId": "00000000-0000-5000-8000-000000000101",
+        "managementReviewId": "306e434f-ae36-50fc-87ea-5dd6002e324a",
+        "inputDefId": "667bc598-4f61-5832-98dc-0080a9eb3b88",
+        "notes": "Water metering by line; complaint trending by product.",
+        "sourceFigures": null,
+        "figuresStoredAt": null,
+        "key": "IMPROVEMENT_OPPORTUNITIES",
+        "title": "Opportunities for improvement",
+        "source": "MANUAL",
+        "clauseRefs": [
+          {
+            "standard": "ISO_9001",
+            "clauseNumber": "9.3.2",
+            "item": "f"
+          },
+          {
+            "standard": "ISO_14001",
+            "clauseNumber": "9.3",
+            "item": "g"
+          },
+          {
+            "standard": "ISO_45001",
+            "clauseNumber": "9.3",
+            "item": "g"
+          }
+        ],
+        "figuresWithheld": false
+      }
+    ]
+  },
+  "reviewOutputs": {
+    "306e434f-ae36-50fc-87ea-5dd6002e324a": [
+      {
+        "id": "8785aaa3-8e5b-5941-87ca-ac2196e7aba7",
+        "firmId": "520ce557-0294-5abf-ad6e-e46595f7a4f0",
+        "createdAt": "2024-09-23T05:30:00Z",
+        "updatedAt": "2024-10-30T05:30:00Z",
+        "archivedAt": null,
+        "version": 2,
+        "clientId": "00000000-0000-5000-8000-000000000101",
+        "managementReviewId": "306e434f-ae36-50fc-87ea-5dd6002e324a",
+        "outputDefId": "8fa97b62-7534-5bdd-944f-a383be349b53",
+        "decision": "The system is suitable and effective for the current scope.",
+        "key": "SUITABILITY",
+        "title": "Conclusions on continuing suitability, adequacy and effectiveness",
+        "clauseRefs": [
+          {
+            "standard": "ISO_14001",
+            "clauseNumber": "9.3",
+            "item": null
+          },
+          {
+            "standard": "ISO_45001",
+            "clauseNumber": "9.3",
+            "item": null
+          }
+        ]
+      },
+      {
+        "id": "692ac7d3-4f9e-5dc8-adae-0515fc84465a",
+        "firmId": "520ce557-0294-5abf-ad6e-e46595f7a4f0",
+        "createdAt": "2024-09-23T05:30:00Z",
+        "updatedAt": "2024-10-30T05:30:00Z",
+        "archivedAt": null,
+        "version": 2,
+        "clientId": "00000000-0000-5000-8000-000000000101",
+        "managementReviewId": "306e434f-ae36-50fc-87ea-5dd6002e324a",
+        "outputDefId": "e4f6c06f-9644-5eea-bd4a-e5eb957c47c5",
+        "decision": "Meter water by line; trend complaints by product.",
+        "key": "IMPROVEMENT",
+        "title": "Decisions on improvement opportunities",
+        "clauseRefs": [
+          {
+            "standard": "ISO_9001",
+            "clauseNumber": "9.3.3",
+            "item": "a"
+          },
+          {
+            "standard": "ISO_14001",
+            "clauseNumber": "9.3",
+            "item": null
+          },
+          {
+            "standard": "ISO_45001",
+            "clauseNumber": "9.3",
+            "item": null
+          }
+        ]
+      },
+      {
+        "id": "13d6e0c8-aa12-5f67-b135-ae02d981efae",
+        "firmId": "520ce557-0294-5abf-ad6e-e46595f7a4f0",
+        "createdAt": "2024-09-23T05:30:00Z",
+        "updatedAt": "2024-10-30T05:30:00Z",
+        "archivedAt": null,
+        "version": 2,
+        "clientId": "00000000-0000-5000-8000-000000000101",
+        "managementReviewId": "306e434f-ae36-50fc-87ea-5dd6002e324a",
+        "outputDefId": "ee801bf5-4559-58f7-ae73-3cbf8e5c5250",
+        "decision": "Add the Bengaluru Office to the manual; invite contract workers to the committee.",
+        "key": "SYSTEM_CHANGES",
+        "title": "Decisions on changes to the management system",
+        "clauseRefs": [
+          {
+            "standard": "ISO_9001",
+            "clauseNumber": "9.3.3",
+            "item": "b"
+          },
+          {
+            "standard": "ISO_14001",
+            "clauseNumber": "9.3",
+            "item": null
+          },
+          {
+            "standard": "ISO_45001",
+            "clauseNumber": "9.3",
+            "item": null
+          }
+        ]
+      },
+      {
+        "id": "fab8657a-614a-5190-9e44-5e20768b96fd",
+        "firmId": "520ce557-0294-5abf-ad6e-e46595f7a4f0",
+        "createdAt": "2024-09-23T05:30:00Z",
+        "updatedAt": "2024-10-30T05:30:00Z",
+        "archivedAt": null,
+        "version": 2,
+        "clientId": "00000000-0000-5000-8000-000000000101",
+        "managementReviewId": "306e434f-ae36-50fc-87ea-5dd6002e324a",
+        "outputDefId": "2321350b-7a3e-54fa-9241-1116379bffc2",
+        "decision": "Budget for a supplier audit; a second quality technician next year.",
+        "key": "RESOURCE_NEEDS",
+        "title": "Resources needed",
+        "clauseRefs": [
+          {
+            "standard": "ISO_9001",
+            "clauseNumber": "9.3.3",
+            "item": "c"
+          },
+          {
+            "standard": "ISO_14001",
+            "clauseNumber": "9.3",
+            "item": null
+          },
+          {
+            "standard": "ISO_45001",
+            "clauseNumber": "9.3",
+            "item": null
+          }
+        ]
+      },
+      {
+        "id": "6954e6b8-4dd2-5f1b-a47b-9892008b9153",
+        "firmId": "520ce557-0294-5abf-ad6e-e46595f7a4f0",
+        "createdAt": "2024-09-23T05:30:00Z",
+        "updatedAt": "2024-10-30T05:30:00Z",
+        "archivedAt": null,
+        "version": 2,
+        "clientId": "00000000-0000-5000-8000-000000000101",
+        "managementReviewId": "306e434f-ae36-50fc-87ea-5dd6002e324a",
+        "outputDefId": "22231a1f-f027-59da-8e26-29b0f7f98fdf",
+        "decision": "Complaints objective kept; seal checks to be audited.",
+        "key": "OBJECTIVES_NOT_MET",
+        "title": "Actions where objectives were not met",
+        "clauseRefs": [
+          {
+            "standard": "ISO_14001",
+            "clauseNumber": "9.3",
+            "item": null
+          },
+          {
+            "standard": "ISO_45001",
+            "clauseNumber": "9.3",
+            "item": null
+          }
+        ]
+      },
+      {
+        "id": "4e85b4d9-5205-52ed-ad0a-b02966100763",
+        "firmId": "520ce557-0294-5abf-ad6e-e46595f7a4f0",
+        "createdAt": "2024-09-23T05:30:00Z",
+        "updatedAt": "2024-10-30T05:30:00Z",
+        "archivedAt": null,
+        "version": 2,
+        "clientId": "00000000-0000-5000-8000-000000000101",
+        "managementReviewId": "306e434f-ae36-50fc-87ea-5dd6002e324a",
+        "outputDefId": "81229bf0-f008-5d08-9aec-4af77dd73d61",
+        "decision": "Keep one integrated audit programme and one review.",
+        "key": "INTEGRATION",
+        "title": "Better integration with other business processes",
+        "clauseRefs": [
+          {
+            "standard": "ISO_14001",
+            "clauseNumber": "9.3",
+            "item": null
+          },
+          {
+            "standard": "ISO_45001",
+            "clauseNumber": "9.3",
+            "item": null
+          }
+        ]
+      },
+      {
+        "id": "bf2f38bd-cfb0-594a-a6a4-c0f324bc58d1",
+        "firmId": "520ce557-0294-5abf-ad6e-e46595f7a4f0",
+        "createdAt": "2024-09-23T05:30:00Z",
+        "updatedAt": "2024-10-30T05:30:00Z",
+        "archivedAt": null,
+        "version": 2,
+        "clientId": "00000000-0000-5000-8000-000000000101",
+        "managementReviewId": "306e434f-ae36-50fc-87ea-5dd6002e324a",
+        "outputDefId": "281edd0f-a8dd-534a-95f9-9fc2964cb0dd",
+        "decision": "Climate risk goes into the business plan.",
+        "key": "STRATEGIC_DIRECTION",
+        "title": "Implications for the organisation's strategic direction",
+        "clauseRefs": [
+          {
+            "standard": "ISO_14001",
+            "clauseNumber": "9.3",
+            "item": null
+          },
+          {
+            "standard": "ISO_45001",
+            "clauseNumber": "9.3",
+            "item": null
+          }
+        ]
+      },
+      {
+        "id": "8c111a41-d52c-5594-999a-260199894618",
+        "firmId": "520ce557-0294-5abf-ad6e-e46595f7a4f0",
+        "createdAt": "2024-09-23T05:30:00Z",
+        "updatedAt": "2024-09-23T05:30:00Z",
+        "archivedAt": null,
+        "version": 1,
+        "clientId": "00000000-0000-5000-8000-000000000101",
+        "managementReviewId": "306e434f-ae36-50fc-87ea-5dd6002e324a",
+        "outputDefId": "f7db0c03-205e-559a-a02c-74a45e1db714",
+        "decision": null,
+        "key": "WORKER_COMMUNICATION",
+        "title": "Outputs communicated to workers and their representatives",
+        "clauseRefs": [
+          {
+            "standard": "ISO_45001",
+            "clauseNumber": "9.3",
+            "item": null
+          }
+        ]
+      }
+    ]
   }
 }
