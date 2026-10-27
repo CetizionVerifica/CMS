@@ -19,13 +19,15 @@ records part 1 and grows with the later parts.
 3. **Read when the job runs, through M3.** The store reads every page of `nonconformities.list` and `riskItems.list`
    with the resolved filters (`me` is the requester) and the requester's unit scope (plan §3.3): `unitScope`'s units
    and the requester's person id, or no scope for a reader who sees the whole client. M3 applies the scope in SQL, the
-   named-person rule included. The worker re-reads the add-on and the requester's scope when it runs, as for every
-   kind. The filters a list computes rather than stores (`incident`, `overdue`, and `q` over number, description and
+   named-person rule included. The scope is the one the creating request carried: the worker runs with that request's
+   context and does not look the requester's memberships up again, as for every kind. It does re-read the add-on
+   (ISO-11b). The filters a list computes rather than stores (`incident`, `overdue`, and `q` over number, description and
    root cause for NCs, or activity, description and impact for risks) are applied by M10 after the read, as the
    contract mock's lists apply them; the rows keep the lists' order (NCs newest first by `reportedOn` then number,
    risks by rating, highest first, then in the order added).
 4. **Names, not ids.** People, units, systems, clauses ("ISO 9001 8.7") and statutory obligations print by name,
-   archived ones included, since a record keeps naming them. Codes print as words (model §4.7): sentence case with a
+   archived ones included, since a record keeps naming them. Clauses are the exception: a clause prints by name only
+   while it and its standard are live in the account's catalogue, and an archived one prints blank. Codes print as words (model §4.7): sentence case with a
    space for each underscore, with "PPE" and the standard titles as the model's exceptions. A record with no unit of its
    own prints "The whole system".
 5. **The NC log.** One row per NC with its record fields, timing, days overdue and open actions. The incident columns
