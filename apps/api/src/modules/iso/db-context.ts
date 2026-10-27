@@ -261,6 +261,8 @@ export function createCore(options: IsoRouteOptions) {
         reasonOnUpdate?: boolean;
         /** How a field's value is written into the event (free text noted as changed, not copied). */
         record?: (key: string, value: unknown) => unknown;
+        /** Written into the UPDATE's `after` beside the fields (a review's rows added and removed, model §8). */
+        updateAfter?: Record<string, unknown>;
       } = {},
     ): Promise<T> {
       const changed = Object.keys(definedOf(patch)).filter(
@@ -283,7 +285,10 @@ export function createCore(options: IsoRouteOptions) {
           entityType,
           entityId: row.id,
           before: Object.fromEntries(keys.map((k) => [k, record(k, row[k as keyof T])])),
-          after: Object.fromEntries(keys.map((k) => [k, record(k, patch[k as keyof T])])),
+          after: {
+            ...Object.fromEntries(keys.map((k) => [k, record(k, patch[k as keyof T])])),
+            ...(action === 'UPDATE' ? options.updateAfter : {}),
+          },
           reason:
             action === 'UPDATE' && options.reasonOnUpdate !== true
               ? null

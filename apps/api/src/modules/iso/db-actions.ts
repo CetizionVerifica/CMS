@@ -37,6 +37,7 @@ import {
   MANAGERS,
   may,
   objectiveReach,
+  reviewReach,
   riskReach,
   systemReach,
   type Reach,
@@ -221,7 +222,7 @@ export async function actionSubject(
       return {
         entity: 'management_review',
         systemId: system.id,
-        reach: { ...systemReach(system), people: [review.chairId, ...review.attendeeIds] },
+        reach: reviewReach(system, review),
         ownerId: review.chairId,
         approverId: null,
         unitId: null,
