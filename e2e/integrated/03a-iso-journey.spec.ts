@@ -557,11 +557,15 @@ test.describe.serial('the ISO add-on, turned on, used and turned off', () => {
       `management-reviews/${none}`,
       'certification',
     ]) {
-      await page.goto(`/c/${clients.kestrel}/iso/${path}`);
-      await expect(page.getByRole('heading', { name: OFF }), path).toBeVisible();
-      await expect(page).toHaveTitle(
-        'Not turned on · Kestrel Metals Group · PlanetPulse Compliance',
-      );
+      // The shell sets the title once the page's h1 settles (useSettledTitle waits up to 10 s), and the layout's
+      // features can trail the page's by the Me cache, so the heading and the title are retried together.
+      await shownAfterMeCache(page, `/c/${clients.kestrel}/iso/${path}`, async () => {
+        await expect(page.getByRole('heading', { name: OFF }), path).toBeVisible();
+        await expect(page, path).toHaveTitle(
+          'Not turned on · Kestrel Metals Group · PlanetPulse Compliance',
+          { timeout: 10_000 },
+        );
+      });
       await expect(page.getByRole('table')).toHaveCount(0);
       await expect(page.getByText(DESCRIPTION)).toHaveCount(0);
       await checkPage(page);
