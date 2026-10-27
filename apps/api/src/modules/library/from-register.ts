@@ -1,5 +1,5 @@
 import type { ImportPlan } from '@canopy/importer';
-import type { MasterLibrary, MasterObligation } from './master.js';
+import type { MasterAct, MasterLibrary, MasterObligation } from './master.js';
 
 /**
  * Builds a master library from an import plan (ADR M6-0002): the Acts, categories and obligations a consultant
@@ -43,6 +43,8 @@ export function masterFromPlan(
       evidenceRequired: false,
       forms: o.forms,
       logSheets: o.logSheets,
+      // A register obligation serves no ISO clause; only the ISO catalogue sets clauses.
+      clauseRefs: [],
     };
   });
   return {
@@ -51,13 +53,15 @@ export function masterFromPlan(
       .map((c) => ({ key: keyOf(categoryKeys, c.name), name: c.name, aliases: [...c.aliases] }))
       .sort(byKey),
     acts: plan.acts
-      .map((a) => ({
+      .map((a): MasterAct => ({
         key: keyOf(actKeys, rename(a.name)),
         name: rename(a.name),
         shortName: null,
         jurisdiction: a.jurisdiction,
         stateCode: a.stateCode,
         aliases: [...a.aliases],
+        // A register names laws; only the ISO catalogue copy makes a STANDARD act.
+        kind: 'STATUTE',
       }))
       .sort(byKey),
     obligations: obligations.sort(

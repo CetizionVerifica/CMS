@@ -185,7 +185,7 @@ function objectiveView(ctx: IsoCtx, actor: Actor, objective: Objective): Objecti
 
 /**
  * Legal links are live statutory obligations of the account (model §3.5): not archived, and not an activity of a
- * STANDARD act from the ISO catalogue copy (an act without a kind is a STATUTE).
+ * STANDARD act from the ISO catalogue copy.
  */
 function checkObligations(firm: FirmState, obligationIds: readonly string[]): void {
   for (const id of obligationIds) {

@@ -544,7 +544,7 @@ describe('audits, findings and nonconformities', () => {
             o.id === register.assignments.find((x) => x.id === notice.assignmentId)!.obligationId,
         )!.actId,
     )!;
-    expect(act.kind ?? 'STATUTE').toBe('STATUTE');
+    expect(act.kind).toBe('STATUTE');
     // No person's name in any NC text field (model §3.11).
     const names = register.people.flatMap((p) => [p.displayName, p.displayName.split(' ')[0]!]);
     for (const n of iso.nonconformities) {

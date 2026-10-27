@@ -25,7 +25,7 @@ import {
   Obligation,
   tolerant,
 } from '../src/index.js';
-import { obligation, versioned } from './samples.js';
+import { obligation, versioned, without } from './samples.js';
 
 /** Contracts 1.7.0: the ISO add-on's feature contracts (docs/iso/plan.md §7, ISO-0). */
 
@@ -132,13 +132,15 @@ describe('Act kind', () => {
     jurisdiction: 'CENTRAL',
     stateCode: null,
     aliases: [],
+    kind: 'STANDARD',
   };
 
-  it('is STATUTE or STANDARD, and may be missing because other modules build acts without it (decision 56)', () => {
+  it('is STATUTE or STANDARD, and required since every creator sets it (decision 58)', () => {
     expect(ActKind.options).toEqual(['STATUTE', 'STANDARD']);
-    expect(Act.parse(act)).not.toHaveProperty('kind');
-    expect(Act.safeParse({ ...act, kind: 'STANDARD' }).success).toBe(true);
+    expect(Act.safeParse(act).success).toBe(true);
+    expect(Act.safeParse({ ...act, kind: 'STATUTE' }).success).toBe(true);
     expect(Act.safeParse({ ...act, kind: 'ISO' }).success).toBe(false);
+    expect(Act.safeParse(without(act, 'kind')).success).toBe(false);
   });
   it('keeps a STANDARD act CENTRAL', () => {
     const state = { ...act, kind: 'STANDARD', jurisdiction: 'STATE', stateCode: 'WB' };
@@ -153,11 +155,12 @@ describe('Act kind', () => {
 });
 
 describe('obligation clause references', () => {
-  it('are optional clauses of a named standard, each once', () => {
+  it('are clauses of a named standard, each once, and a list required since 1.8.8 (decision 58)', () => {
     const ref = (standard: string, clauseNumber: string) => ({ standard, clauseNumber });
     const ok = (clauseRefs: unknown) => Obligation.safeParse({ ...obligation, clauseRefs }).success;
     expect(Obligation.safeParse(obligation).success).toBe(true);
     expect(ok([])).toBe(true);
+    expect(Obligation.safeParse(without(obligation, 'clauseRefs')).success).toBe(false);
     // 9001 8.2 and 14001 8.2 are different clauses, so the same number may appear once per standard.
     expect(ok([ref('ISO_9001', '8.2'), ref('ISO_14001', '8.2'), ref('ISO_45001', '9.1.1')])).toBe(
       true,
