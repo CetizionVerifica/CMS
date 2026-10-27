@@ -18,6 +18,7 @@
     "@playwright/test": "catalog:",
     "@types/node": "catalog:",
     "@types/pg": "catalog:",
+    "jszip": "^3.10.2",
     "pg": "catalog:",
     "tsx": "catalog:",
     "typescript": "catalog:"
