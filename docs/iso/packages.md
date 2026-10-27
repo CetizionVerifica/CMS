@@ -13,15 +13,15 @@ its paths. Rules every brief shares (plan §5):
   (the ISO fixtures use firm B's Northwind Foods Group and invented people).
 - ADRs go in `docs/adr/M<n>-NNNN-slug.md` with the next free number of the module's own series.
 - The contracts (ISO-1, contracts 1.8.0; its patches ISO-1a, 1.8.1, ISO-1a2, 1.8.2, ISO-1b, 1.8.3, ISO-1a3, 1.8.4,
-  ISO-1a4, 1.8.5, and ISO-1c, 1.8.6) are the source of shapes, routes and role lists; the departures they took from
-  model.md and plan §3.2 are `docs/contracts/README.md` decision 51 (a-n, and o from ISO-1a), already folded into these
-  files (traces at the end). Every ISO route takes one `can()` action (plan §3.2). Where model.md is silent, the M0 mock
-  had to pick a rule; its picks are in `docs/contracts/iso-mock.md`. M4, M16 and M17 keep each pick that touches their
-  work, or record a different one in their module's ADR and tell the coordinator, who asks M0 to change the mock so
-  screens tested against it and the real API agree.
+  ISO-1a4, 1.8.5, ISO-1c, 1.8.6, and ISO-1c2, 1.8.7) are the source of shapes, routes and role lists; the departures
+  they took from model.md and plan §3.2 are `docs/contracts/README.md` decision 51 (a-n, and o from ISO-1a), already
+  folded into these files (traces at the end). Every ISO route takes one `can()` action (plan §3.2). Where model.md is
+  silent, the M0 mock had to pick a rule; its picks are in `docs/contracts/iso-mock.md`. M4, M16 and M17 keep each pick
+  that touches their work, or record a different one in their module's ADR and tell the coordinator, who asks M0 to
+  change the mock so screens tested against it and the real API agree.
 
 Started packages keep their ids and scopes; the first-wave briefs those threads received are summarised here with what
-v2 adds around them. Status is as of 2026-10-27 (`origin/main` at #324); plan §6 holds the current status.
+v2 adds around them. Status is as of 2026-10-27 (`origin/main` at #330); plan §6 holds the current status.
 
 ---
 
@@ -1018,6 +1018,12 @@ v2 adds around them. Status is as of 2026-10-27 (`origin/main` at #324); plan §
   audits opens a list that shows exactly its count, and a component test that the log sends `ids` to the API and filters
   nothing itself, and that its download sends none; M11's shell ISO test stays green for the pages this package adds;
   a11y and layout checks as in ISO-6a.
+- **As built:** three PRs: nonconformities (#321), the audit programme and internal audits (#327), and management
+  reviews (#329). Besides the downloads beside the review pack, the audit page offers its own audit report once the
+  audit is REPORTED or CLOSED (#327, accepted by its audit). Against the real API, the NC log and risk register work
+  since ISO-11d part 1 (#319). The real API refuses the audit report and review pack at create until the ISO-11d part
+  that builds each has merged (`BUILT_KINDS` in M10's reports `service.ts`, ADR M10-0003 decision 1); until then only
+  the mock serves them.
 
 ## ISO-8b · M16 · ISO API 2: risks, objectives, actions
 - **Thread title:** "ISO-8b: ISO API, part 2". **Needs:** ISO-8a, ISO-2e, ISO-1a4, ISO-2i, ISO-2j.
@@ -1047,9 +1053,10 @@ v2 adds around them. Status is as of 2026-10-27 (`origin/main` at #324); plan §
 
 ## ISO-8c · M16 · ISO API 3: internal audits, external-audit findings, nonconformities, management reviews, overview
 - **Thread title:** "ISO-8c: ISO API, part 3". **PR title:** `Tooling: ISO ...` (plan §5.3). It ships in three parts,
-  each with its spec changes (ADR M16-0006): nonconformities (#323, merged); audit programmes, internal audits with
-  their checklist, internal and external findings, and the external audits' RECORD_RESPONSE and CLOSE (#325); then
-  management reviews, their figures and the overview. **Needs:** ISO-8b, ISO-2h, ISO-3b, ISO-2i, ISO-2j.
+  each with its spec changes (ADR M16-0006): nonconformities (#323); audit programmes, internal audits with their
+  checklist, internal and external findings, and the external audits' RECORD_RESPONSE and CLOSE (#325); then management
+  reviews, their figures and the overview (#328). All three have merged. **Needs:** ISO-8b, ISO-2h, ISO-3b, ISO-2i,
+  ISO-2j.
 - **Read:** model §1.7, §1.9, §3.7-3.11, §3.13, §4 preamble, §4.1, §4.3, §4.4, §4.5, §5.1-5.2, §5.4, §6, §8, §9 (unit
   scope only), §10; plan §3.3 (the review figures' exception); ADR M16-0003; ADR M16-0004 (decisions 3, 4 and 6); ADR
   M16-0005; the #320 audits; `docs/contracts/iso-mock.md` ("Shared rules"; "Internal audits"; "Nonconformities";
@@ -1097,8 +1104,7 @@ v2 adds around them. Status is as of 2026-10-27 (`origin/main` at #324); plan §
   - The ISO overview (model §5.1-5.2 engine results with the ids behind each number), under `isoSystem.read`.
     `nonconformities.overdue` counts the open NCs whose `nonconformityStatus` is OVERDUE on as-of, as the NC list's
     `overdue` filter does, and `effectivenessOverdue` those whose status has an overdue effectiveness check (contracts
-    1.8.6, ISO-1c; model §10). It builds that count, not the mock's, which keeps the old one until ISO-1c2 (the #324
-    audit, Info 1).
+    1.8.6, ISO-1c; model §10). The mock has counted the same way since ISO-1c2 (#331, contracts 1.8.7).
   - File routes for internal audits, findings, nonconformities and management reviews with the model §6 lock rules,
     and the incident-file download rule (model §6).
   - Rows in the audit gate test for each new route; `allowedActions` on audits, NCs and reviews; the mock's picks kept
@@ -1145,8 +1151,18 @@ v2 adds around them. Status is as of 2026-10-27 (`origin/main` at #324); plan §
   limited to unit A is refused with 403, not the owner check's 400, on a PATCH of their risk item that sets `unitId` to
   unit B and `ownerId` to an owner of B, with a reason, and accepted when B is also one of their units; the overview's
   `nonconformities.overdue` ids equal the NC list's `overdue=true` ids for the same reader, an NC whose OPEN action is
-  late counted and a submitted NC past `dueOn` not (contracts 1.8.6), though the mock counts the old way until ISO-1c2;
-  the integrated security spec green with ISO-8c's routes swept, its part audited by the e2e auditor.
+  late counted and a submitted NC past `dueOn` not (contracts 1.8.6), as the mock has since ISO-1c2; the integrated
+  security spec green with ISO-8c's routes swept, its part audited by the e2e auditor.
+- **As built:** `served.ts` lists all 119 ISO routes: the 114 that M16 always mounts, and the five file routes,
+  served since ISO-14b (#330) gave the app an `IsoFiles`. Part 3 holds the external audit with a finding of its own,
+  so `updateIsoExternalFinding` is swept with an external finding's id (the #325 e2e audit's Low). The overview's
+  overdue NC ids equal the NC list's `overdue=true` ids for a client admin and a unit-limited owner
+  (`overview.db.test.ts`), which the #328 M16 audit took as closing the #321 audit's Info 1 on the API side. ADRs
+  M16-0006 to M16-0008 record each part's departures from the mock. ISO-1c2 (#331) closed one, the overview's overdue
+  NC count; no package changes the others. Among them, a failed guard names only its first field in all three parts,
+  where the mock lists more (M16-0006 decision 2, M16-0007 decision 1, M16-0008 decision 1), and a disallowed `asOf`
+  on the overview answers 403 naming `isoSystem.read`, where the mock names `report.asOf`, which is not an action of
+  the policy (M16-0008 decision 8).
 
 ## ISO-9b · M6 · Hide and refuse STANDARD library rows when off; no cross-kind changes
 - **Thread title:** "ISO-9b: the library respects the ISO switch". **Needs:** ISO-9, ISO-2f, ISO-4b.
@@ -1265,10 +1281,10 @@ v2 adds around them. Status is as of 2026-10-27 (`origin/main` at #324); plan §
 ## ISO-14a · Tooling · Wire the ISO catalogue copy
 - **Thread title:** "ISO-14a: wire the ISO catalogue copy". **PR title:** `Tooling: ISO ...` (no module owns these
   files). **Needs:** ISO-9, ISO-10a.
-- **Why early:** until the copier is wired, switching the add-on on fails its retries and the sweep logs an error
-  every 10 minutes (#277 audit Info 1). Nothing is lost, and nothing is deployed yet, but the console switch is live
-  (#252). Until ISO-9b, a copied STANDARD act shows in the library even after a switch-off; that holds only for
-  local demo data, and ISO-13 checks the end state.
+- **Why early:** until the copier is wired, switching the add-on on fails its retries and the sweep logs an error every
+  10 minutes (#277 audit Info 1). Nothing is lost, and nothing is deployed yet, but the console switch is live (#252).
+  Until ISO-9b, a copied STANDARD act shows in the library even after a switch-off; that holds only for local demo data,
+  and ISO-13b checks the end state.
 - **Paths:** `apps/api/src/wiring.ts`, `apps/api/src/wiring.test.ts`, `apps/api/src/main.ts` if needed,
   `apps/api/CLAUDE.md` (jobs: the catalogue consumer and sweep).
 - **Delivers:** `wiring.ts` passes `copyIsoCatalogue` (M6, ISO-9) to the jobs as `copyIsoCatalogue`, beside
@@ -1298,19 +1314,71 @@ v2 adds around them. Status is as of 2026-10-27 (`origin/main` at #324); plan §
 - **Tests:** a server test that the ISO file routes mount only with evidence storage; the integrated suite green with
   the file routes swept, and a mutation check that putting one file route back on `UNMOUNTED`, or dropping one subject
   type's record, fails the spec. The spec part is audited by the e2e auditor, as #305's and #320's were.
+- **As built (#330):**
+  - `server.ts` keeps its `isoFiles` option and defaults it to M7's `createIsoFiles` over `evidenceStorage`, with the
+    server's clock. Production's wiring sets only `evidenceStorage`, so it never gets the fake (the API audit).
+  - Two files lie outside the Paths above: M16's test harness takes a `files` option (the fake, none, or M7's service
+    over a storage), and a new `apps/api/src/server-iso-files.db.test.ts` runs the real service. Both are what the
+    Tests line needs, and the API audit accepted them (the e2e audits covered only the spec).
+  - The security spec uploads each file as the client admin, since an NC's files follow `isoNc.work` (ADR M16-0006).
+    `FILE_SUBJECTS` names a record of each subject type, with a finding on an internal and on an external audit, and
+    `probesOf` sweeps the file routes once per subject or file.
+  - An "ISO files" test has firm A list each file, download it once the scan finds it CLEAN, and remove it, on every
+    subject (the e2e audit's Medium). The external finding the brief asks for came with ISO-8c part 3 (#328).
+  - The mutation check was reasoned through in the PR, not run: a file route put back on `UNMOUNTED` fails the sweep's
+    404 check for routes on that list, and the record map's type and the first test refuse a subject type with no
+    record. The e2e audit found the second sound by construction.
 
-## ISO-13 · M14 · Integrated ISO journey and off-switch sweep
-- **Thread title:** "ISO-13: ISO journey against the real stack". **Needs:** every other package.
-- **Read:** plan §4, §7.
-- **Paths:** `e2e/integrated/` (new ISO specs), `docs/security/review.md` if a check is added.
-- **Delivers:** journey: the operator turns the add-on on; the screens show "being set up" until the copy is recorded;
-  a client sets up a system, runs an internal audit, raises an NC from a finding, closes it with an action and a file
-  (the file's upload, download and removal each appear in the client audit trail on its subject);
-  the operator turns it off; the next request on the same session gets 403; every ISO screen shows not-turned-on; the
-  console shows Off. Sweep: every `ENDPOINTS` entry called with an ISO fixture id answers 403 or returns no ISO item
-  (plan §7 item 3); turning it back on shows the same data. axe on every page visited, including the operator
-  console's account page with the Add-ons card open (ISO-5 shipped the drawer with no integrated or axe step).
-- **Tests:** the specs themselves, in the `e2e-integrated` job.
+## ISO-13 · M14 · Integrated ISO journey
+- **Thread title:** "ISO-13: ISO journey against the real stack" (ISO-13b continues it). **Needs:** every other
+  package but ISO-11d, ISO-1e and ISO-13b.
+- **Why before ISO-11d and ISO-1e:** the journey uses no ISO export and no field ISO-1e makes required, so it runs while
+  ISO-11d's last parts are built. The off-switch sweep, which also calls the ISO export kinds, is ISO-13b.
+- **Read:** plan §4, §7 (items 2, 3 and 8); the "ISO files" test and `isoFileOf` in `e2e/integrated/04-security.spec.ts`
+  (#330).
+- **Paths:** `e2e/integrated/` (new ISO specs, and any helper it moves out of `04-security.spec.ts` to share),
+  `docs/security/review.md` if a check is added.
+- **Delivers:**
+  - The operator turns the add-on on in the console, and the screens show "being set up" until the copy is recorded.
+  - A client sets up a system, runs an internal audit, raises an NC from a finding, and closes it with an action and a
+    file. The file's upload, its download once the scan finds it CLEAN, and its removal each appear in the client audit
+    trail on its subject.
+  - The operator turns it off. The next request on the same session gets 403 `FEATURE_NOT_ENABLED`, every ISO screen
+    shows not-turned-on, and the console shows Off.
+  - axe runs on every page visited, including the operator console's account page with the Add-ons card open (ISO-5
+    shipped the drawer with no integrated or axe step).
+  - It downloads no ISO export: the real API builds two of the four ISO export kinds so far (ISO-11d part 1, #319)
+    and refuses the other two at create until the ISO-11d part that builds each has merged (`BUILT_KINDS` in M10's
+    reports `service.ts`, ADR M10-0003 decision 1), so ISO-13b checks them.
+  - The stack's jobs copy the catalogue and scan files on their own schedule. Each step waits for the state it needs.
+    Where a job could pass a state before the spec looks (the copy before "being set up" shows), the spec reaches that
+    state in a way that cannot race, and the PR says how.
+- **Tests:** the spec itself, in the `e2e-integrated` job, and three runs of `test:integrated` in a row, each on the
+  fresh database its run prepares, all green and reported in the PR.
+
+## ISO-13b · M14 · Off-switch sweep against the real stack
+- **Thread title:** the ISO-13 thread continues. **Needs:** every other package.
+- **Read:** plan §4.4, §4.5, §7 item 3; ISO-13's spec; `isoRecordsOf`, `FILE_SUBJECTS` and `probesOf` in
+  `e2e/integrated/04-security.spec.ts`.
+- **Paths:** `e2e/integrated/`, `docs/security/review.md` if a check is added.
+- **Delivers:**
+  - With the add-on off, every ISO route answers 403 `FEATURE_NOT_ENABLED`. Every `ENDPOINTS` entry called with an ISO
+    fixture id (ISO record, STANDARD act, obligation, assignment, instance, ISO file) answers 403 or returns no ISO item
+    (plan §7 item 3), the four ISO export kinds included (ISO-11d).
+  - The client audit trail still lists ISO events and the client archive still includes ISO data, as plan §4.4 keeps
+    them.
+  - Turning it back on shows the same data, and each ISO export made before the switch-off downloads again.
+  - It reuses `isoRecordsOf`, `FILE_SUBJECTS` and `probesOf` from `04-security.spec.ts`, moved to a shared helper under
+    `e2e/integrated/` if ISO-13 has not moved them, and adds the fixtures they lack: a STANDARD act and one of its
+    obligations from the copied catalogue, an assignment of that obligation with an instance of it, and one export of
+    each ISO kind made while the add-on is on. A new call of `isoRecordsOf` makes one more set of firm A's records, as
+    each `firmAIds` call and the "ISO files" test already do (the #330 e2e re-audit, Info); that is harmless, since
+    the e2e database is recreated each run.
+  - It does not wait for mail. Reminders, escalations, the digest and workflow emails while it is off are the jobs'
+    own tests (ISO-10b, ISO-10c; plan §4.5, M9 row): the stack runs those jobs on their own schedule, once a client's
+    send time comes, with no route that runs one on demand.
+- **Tests:** the spec in the `e2e-integrated` job, and a mutation check, run and reported in the PR, that a route left
+  out of the feature gate fails it.
 
 ## ISO-1c · M0 · Type the engine API's review figures; keep three add-on fields optional
 - **Thread title:** the ISO-1 thread ("Build ISO contracts") continues (#324). **Needs:** ISO-1b, ISO-2c, ISO-4a, ISO-5,
@@ -1331,8 +1399,8 @@ v2 adds around them. Status is as of 2026-10-27 (`origin/main` at #324); plan §
   - `IsoSystemOverview.nonconformities.overdue` is defined as the open NCs whose `nonconformityStatus` (model §5.2) is
     OVERDUE on as-of: `dueOn` counts until the owner submits, and a late OPEN action counts too, the NC list's `overdue`
     test (the #321 audit, Info 1); `effectivenessOverdue` as the open ones whose status has an overdue effectiveness
-    check. The mock keeps its old count until ISO-1c2, because changing it breaks M17's snapshot, which an `M0:` PR
-    cannot regenerate.
+    check. The mock kept its old count until ISO-1c2 (#331, contracts 1.8.7), because changing it breaks M17's snapshot,
+    which an `M0:` PR cannot regenerate.
   - Reads of the three fields keep plan §5.1's meaning of a missing value (a missing `kind` is STATUTE, a missing list
     empty). ISO-8c and ISO-11d did not wait for ISO-1c. ISO-1e makes `kind` and `clauseRefs` required once their
     creators set them (the #324 audit, Info 2).
@@ -1360,9 +1428,9 @@ v2 adds around them. Status is as of 2026-10-27 (`origin/main` at #324); plan §
     and `overdue=true`, as the actions' "Overdue" link does), with no `ids`, no 200 limit and no "nearest filter" note,
     and the comment saying the two differ goes (the #321 audit, Info 1).
   - It needs all of ISO-6c, not only its NC part (#321), because each ISO-6c PR may regenerate the same snapshot, and a
-    mock change merged while one is open fails that PR's snapshot test in the merge queue. Only ISO-13 needs ISO-1c2,
-    and ISO-13 waits for ISO-6c anyway. Until it merges, the mock's overview count differs from the contract's, and
-    ISO-8c builds the contract's (the #324 audit, Info 1).
+    mock change merged while one is open fails that PR's snapshot test in the merge queue. ISO-1e, ISO-13 and ISO-13b
+    need ISO-1c2, and the last two wait for ISO-6c anyway. Until it merges, the mock's overview count differs from the
+    contract's, and ISO-8c builds the contract's (the #324 audit, Info 1).
 - **Tests:** on a seeded system, an NC past `dueOn` and one whose OPEN action is late are overdue, while a submitted NC
   past `dueOn` and one whose late action is DONE are not, the overview's overdue NC ids equal the NC list's
   `overdue=true` ids, and none is overdue before they fall due (the saved patch's test); firm B's demo client counts 1
@@ -1370,18 +1438,29 @@ v2 adds around them. Status is as of 2026-10-27 (`origin/main` at #324); plan §
   green with the regenerated file; every package's tests stay green. The M0 audit thread audits the PR, and the M17
   auditor checks that only the snapshot and that link changed in M17's paths. The PR carries `no-automerge` until both
   have posted Ready for its head, as #305, #320 and #323 did.
+- **As built (#331, contracts 1.8.7):** one `ncStatus` in the mock's `mock/iso/derive.ts` drives the NC list's
+  `overdue` filter, `NonconformityView.status` and the overview, so the mock agrees with M16's overview. M17's NC
+  "Overdue" link is `managementSystemId` with `overdue=true` again, and its "nearest filter" fallback is gone. README
+  decision 57 records it. Both audits were Ready with no findings, and they close the #321 and #324 audits' Info 1.
 
 ## ISO-1e · M0 · Require `Act.kind` and `Obligation.clauseRefs` once their creators set them
 - **Thread title:** the ISO-1 thread ("Build ISO contracts") continues. **PR title:** `Tooling: ISO ...` (plan §5.3).
   **Needs:** ISO-1c, ISO-1c2, ISO-8c, ISO-11d.
+- **Start check:** its Needs name the packages that were changing these builders when it was planned. Before it starts,
+  the coordinator checks that no other open PR edits a builder of acts or obligations in M3, M6 to M10, M13 or M16,
+  and sequences the two if one does (the #326 audit). ISO-13's journey may run beside it, since neither touches the
+  other's paths.
 - **Read:** plan §5.1; ISO-1c's PR (#324), contracts README decisions 41 and 56, and the #324 audit (Info 2).
 - **Paths:** `packages/contracts/`, `docs/contracts/`, and the creators and test builders of acts and obligations that
   `tsc` or the tests name once the two fields are required: M6's master library (`master-data.ts`, `from-register.ts`),
   its `NewRow<T>`, `createObligation` and `createAct` (whose body cast hides a missing `kind` from `tsc`), its test
   world (`entities/testing/world.ts`, whose `store.seed` takes an untyped row) and in-memory store
   (`entities/testing/memory-store.ts`, which has no column defaults), M8's import commit (an obligation's `clauseRefs`),
-  and the test builders in M3, M6 to M10 and M16. In those modules it changes only the lines that build an act or an
-  obligation, the in-memory store's defaults, and assertions that expect a seeded row to lack a field.
+  and the test builders in M3, M6 to M10 and M16, and M13's `act()` and `obligation()` in
+  `apps/web/app/(shell)/library/test-data.ts`, which `library-model.test.ts` parses against `Act` and `Obligation`
+  (their `as Act` and `as Obligation` casts hide a missing field from `tsc`; the v2.5.5 review). In those modules it
+  changes only the lines that build an act or an obligation, the in-memory store's defaults, and assertions that expect
+  a seeded row to lack a field.
 - **Delivers:** each of those creators and builders sets `kind` (STATUTE, except where the catalogue copy makes a
   STANDARD act) and `clauseRefs` (`[]` unless it copies them), or builds from a create type that keeps them optional,
   and M6's in-memory store gives a new act `STATUTE` and a new obligation `[]`, as Postgres does; then a contracts bump
@@ -1634,3 +1713,28 @@ How plan v2.3 takes in what the audits of #268 (ISO-12a, merged) and #273 (ISO-2
 | ISO-8c ships in three parts (#323 merged, #325 open) | ISO-8c (PR title) |
 | ISO-1c, ISO-1c2 and ISO-1e continue the ISO-1 thread | ISO-1c, ISO-1c2, ISO-1e (thread titles); plan §5.4 |
 | Statuses: ISO-1c (#324) and ISO-8c part 1 (#323) merged; ISO-6c (part 3a, #321) and ISO-8c part 2 (#325) started | plan §6 |
+
+### Notes from audited packages (plan v2.5.5)
+
+| Note | Where it is addressed |
+|---|---|
+| #326 audit, Info 2: of the threads that edit act or obligation builders, ISO-1e's Needs name only ISO-8c and ISO-11d; before it starts, check that no other open PR edits one | ISO-1e (start check); plan §6 |
+| v2.5.5 review: M13's library test data builds acts and obligations behind casts and parses them against the contract | ISO-1e (Paths, start check); plan §6 |
+| #327 (PR body): ISO-6c ships in three PRs (#321, #327, #329); #327 audit (Ready, no findings): the audit page's own report download is accepted | ISO-6c (as built); plan §6 |
+| M10 on main (`BUILT_KINDS`, ADR M10-0003 decision 1): the real API refuses the audit report and review pack at create until the ISO-11d part that builds each has merged (the NC log and risk register came with #319), so those downloads work against the mock alone until then | ISO-6c (as built); ISO-13 (no ISO export); ISO-13b (the export kinds) |
+| #328 e2e audit, Infos 1 and 2: replace the direct `iso_file` seed for the external audit's report with a real upload once ISO-14b wires the file routes | ISO-14b (as built: done in #330) |
+| #328 e2e audit: part 3's external finding closes the #325 e2e audit's Low (`updateIsoExternalFinding` swept with an internal finding's id) | ISO-8c (as built); ISO-14b (as built) |
+| #328 M16 audit: the overview's overdue NC ids equal the NC list's `overdue=true` ids, closing the #321 audit's Info 1 on the API side | ISO-8c (as built) |
+| ADRs M16-0006 decision 2, M16-0007 decision 1 and M16-0008 decisions 1 and 8 (#323, #325, #328): a failed guard names only its first field; a disallowed overview `asOf` answers 403 naming `isoSystem.read`, where the mock names `report.asOf` | ISO-8c (as built); no package changes them |
+| #329 audit, Info 1: the ISO e2e specs share one demo API and run in parallel, so an overview count test could race | no package now; if one flakes, the coordinator has a package added (plan §5.6) that runs `e2e/tests/iso/` one file at a time |
+| #329 audit, Info 2: a MANUAL input on a cancelled review reads "Written by hand", not "Not held" | no package (M17 wording) |
+| #329 audit, Info 3: the demo review e2e test does not re-run on a reused local server | no package (CI starts each run fresh) |
+| #330 e2e audit, High and Medium (fixed in #330): upload as the client admin, since an NC's files follow `isoNc.work`; add a firm A step for the file routes | ISO-14b (as built) |
+| #330 API audit: `isoFiles` stays a server option, defaulting to M7's service over `evidenceStorage`; its scope took in the harness's `files` option and `server-iso-files.db.test.ts`, which lie outside the brief's Paths | ISO-14b (as built) |
+| #330 API audit, Info 1: a harness not given the fake still holds an unused one in `Harness.files` | no package (its comment says so) |
+| #330 (PR body): ISO-14b's mutation check (a file route back on `UNMOUNTED`, a subject type with no record) was reasoned through, not run; the e2e audit found the record half sound by construction | ISO-14b (as built; not re-run); ISO-13b runs and reports its own mutation check |
+| #330 e2e re-audit, Info: the "ISO files" test calls `isoRecordsOf` again, so firm A gets one more set of ISO records (each `firmAIds` call already makes one); harmless, since the e2e database is recreated each run | ISO-13b (reuses the helpers; a new set is allowed) |
+| v2.5.5 review: the stack runs the mail jobs only on their own schedule, so an empty mailbox would prove nothing | ISO-13b (no mail check); plan §7 item 3 (the jobs' tests) |
+| #331 audits: the mock's overview follows the contract's NC overdue definition (README decision 57), closing the #321 and #324 audits' Info 1 | ISO-1c2 (as built); ISO-1c, ISO-8c (wording); shared rules (contracts 1.8.7) |
+| ISO-13's journey needs no ISO export and no field ISO-1e makes required, so it need not wait for ISO-11d and ISO-1e | ISO-13 (the journey), ISO-13b (new: the sweep); plan §5.5, §6, §7 item 3; ISO-14a |
+| Statuses: ISO-6c (#321, #327, #329), ISO-8c (#323, #325, #328), ISO-14b (#330) and ISO-1c2 (#331) merged; ISO-11d started (part 1 merged, #319) | plan §6 |
