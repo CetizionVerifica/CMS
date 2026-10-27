@@ -628,8 +628,8 @@ The statutory `computeScore` and its breakdowns are unchanged; callers pass STAT
 included, each number with the ids behind it. Contracts 1.8.2 (ISO-1a2) types `data` per source (`ReviewFigureData`,
 taken by the generic `TypedReviewInputFigures`) but keeps `IsoEngineApi`'s wide `data` of 1.8.1, so ISO-3's engine,
 which declares its own per-source types, still builds; ISO-3b types the engine function with the contract's, and ISO-1c
-narrows `IsoEngineApi` once ISO-3b has merged. `data` holds the records of the review's system that the source reads, as
-each source below says, archived ones included, with no unit scope (§3.13). Every timestamp arrives as a client-local
+(contracts 1.8.6) narrows `IsoEngineApi` to it. `data` holds the records of the review's system that the source reads,
+as each source below says, archived ones included, with no unit scope (§3.13). Every timestamp arrives as a client-local
 day: ISO-2h's `gather` takes the day function from its caller (the engine's `localDateIn` with the client's time zone),
 since `packages/db` does not import the engine; INCIDENTS also gets the client's time zone for `occurredAt`, as
 `incidentCounts` does. M3 gathers `data` and `since` (ISO-2h's `reviewFigures.gather`), so M16 and M10 pass the same.
@@ -902,8 +902,9 @@ owner, state; `complete|cancel|reopen`), `audit-programmes`, `internal-audits` (
 input row returned with its `sourceFigures` (stored for HELD and CLOSED, computed by `reviewInputFigures` (§5.4)
 for PLANNED, null for CANCELLED and `MANUAL` rows), `figuresStoredAt` and `figuresWithheld` (§3.13), outputs,
 `held|close|cancel`), `files`
-(§6), `overview` (the ISO overview KPIs, every number with the ids behind it; M16's, ISO-8c). The ISO exports go
-through M10's `/clients/{clientId}/exports`.
+(§6), `overview` (the ISO overview KPIs, every number with the ids behind it; its overdue nonconformities are the open
+ones whose `nonconformityStatus` (§5.2) is OVERDUE on as-of, the NC list's `overdue` test, contracts 1.8.6; M16's,
+ISO-8c). The ISO exports go through M10's `/clients/{clientId}/exports`.
 
 Every route takes exactly one `can()` action (plan §3.2, ISO-1a). The catalogue and overview reads use
 `isoSystem.read` (plan §3.2), since neither has a resource of its own. Views of records with a machine (§4, and
