@@ -473,8 +473,8 @@ function syncRows(
 // of the system and takes no part in the review (model §3.13 item 4).
 //
 // The mock splits the work as M3 and M4 do: `gather` builds the contract's `ReviewFigureData` for one input from the
-// store and its audit trail, as ISO-2h's `reviewFigures.gather` will, and `figuresFrom` computes the figures from that
-// data and the window alone, as the engine's `reviewInputFigures` will once typed (`TypedReviewInputFigures`, ISO-3b).
+// store and its audit trail, as ISO-2h's `reviewFigures.gather` does, and `figuresFrom` computes the figures from that
+// data and the window alone, as the engine's `reviewInputFigures` does (`TypedReviewInputFigures`, ISO-3b).
 
 type FigureSource = Exclude<ReviewInputSource, 'MANUAL'>;
 
@@ -1110,7 +1110,7 @@ const COMPUTE: { [S in FigureSource]: (d: Data<S>, w: Window) => Figure[] } = {
   },
 };
 
-/** `reviewInputFigures` (model §5.4) from one source's data and the window alone, typed as ISO-3b's engine is. */
+/** `reviewInputFigures` (model §5.4) from one source's data and the window alone, typed as the engine is. */
 const figuresFrom: TypedReviewInputFigures = (source, data, since, asOf) => ({
   source,
   since,

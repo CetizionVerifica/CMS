@@ -664,7 +664,7 @@ describe('mock server', () => {
       query: { domain: 'TAX,EHS' },
     });
     expect(list.items.length).toBeGreaterThan(0);
-    const obligation = await ok<{ id: string }>(app, 'createObligation', {
+    const obligation = await ok<{ id: string; clauseRefs?: unknown[] }>(app, 'createObligation', {
       body: {
         externalRef: 'SLC-HRS-099',
         domain: 'HRS',
@@ -684,6 +684,8 @@ describe('mock server', () => {
         logSheets: [],
       },
     });
+    // Stored with no clauses, as M3 stores it (README decision 56).
+    expect(obligation.clauseRefs).toEqual([]);
     const updated = await ok<{ libraryVersion: number }>(app, 'updateObligation', {
       params: { id: obligation.id },
       body: { version: 1, criticality: 'MEDIUM' },
@@ -1439,6 +1441,8 @@ describe('mock server', () => {
       status: 'ACTIVE',
       entitlements: { planCode: 'CONSULTANCY' },
     });
+    // As M3 sends it: the features only in `entitlements`, not beside them.
+    expect(account).not.toHaveProperty('features');
     await fails(app, 'getAccount', { as: PERSON.kabir }, 'FORBIDDEN', 403);
     await fails(app, 'getAccount', { as: PERSON.arjun }, 'FORBIDDEN', 403);
     const me = await ok<{ account?: unknown }>(app, 'getMe');

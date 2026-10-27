@@ -48,7 +48,7 @@ describe('known features', () => {
 describe('account override', () => {
   const override = { limits: {}, features: ['importer'], note: null };
 
-  it('reads an override stored before removedFeatures existed', () => {
+  it('accepts an override body without removedFeatures, read as none (decision 56)', () => {
     expect(AccountOverride.parse(override)).toEqual(override);
   });
   it('takes a feature away, but not one it also adds', () => {
@@ -95,7 +95,7 @@ describe('effectiveFeatures', () => {
 });
 
 describe("the account's features on Me", () => {
-  it('are optional until M5 sends them, and are flags when present', () => {
+  it('stay optional because AccountView spreads AccountSummary (decision 56), and are flags when present', () => {
     const summary = { kind: 'CONSULTANCY', status: 'ACTIVE', trialEndsOn: null };
     expect(AccountSummary.safeParse(summary).success).toBe(true);
     expect(AccountSummary.safeParse({ ...summary, features: ['isoManagement'] }).success).toBe(
@@ -134,7 +134,7 @@ describe('Act kind', () => {
     aliases: [],
   };
 
-  it('is STATUTE or STANDARD, and missing on Acts stored before it existed', () => {
+  it('is STATUTE or STANDARD, and may be missing because other modules build acts without it (decision 56)', () => {
     expect(ActKind.options).toEqual(['STATUTE', 'STANDARD']);
     expect(Act.parse(act)).not.toHaveProperty('kind');
     expect(Act.safeParse({ ...act, kind: 'STANDARD' }).success).toBe(true);

@@ -620,7 +620,8 @@
       "shortName": "Income Tax Act",
       "jurisdiction": "CENTRAL",
       "stateCode": null,
-      "aliases": []
+      "aliases": [],
+      "kind": "STATUTE"
     },
     {
       "id": "f825cc4d-65ee-5a8e-bc79-2cc899bdf25c",
@@ -633,7 +634,8 @@
       "shortName": "EPF Act",
       "jurisdiction": "CENTRAL",
       "stateCode": null,
-      "aliases": []
+      "aliases": [],
+      "kind": "STATUTE"
     },
     {
       "id": "c2e32602-96c0-53f3-a93f-b7add77d55ca",
@@ -646,7 +648,8 @@
       "shortName": null,
       "jurisdiction": "CENTRAL",
       "stateCode": null,
-      "aliases": []
+      "aliases": [],
+      "kind": "STATUTE"
     },
     {
       "id": "791d1d8c-ada2-50c2-b20b-5bfd4209d16a",
@@ -659,7 +662,8 @@
       "shortName": "MH Shops Act",
       "jurisdiction": "STATE",
       "stateCode": "MH",
-      "aliases": []
+      "aliases": [],
+      "kind": "STATUTE"
     },
     {
       "id": "6186e1ab-a6da-5138-b410-93aa8cb5c30e",
@@ -672,7 +676,8 @@
       "shortName": "KA Shops Act",
       "jurisdiction": "STATE",
       "stateCode": "KA",
-      "aliases": []
+      "aliases": [],
+      "kind": "STATUTE"
     },
     {
       "id": "9816c5c0-3729-59a5-afde-2cbbaef6762f",
@@ -685,7 +690,8 @@
       "shortName": "TN Shops Act",
       "jurisdiction": "STATE",
       "stateCode": "TN",
-      "aliases": []
+      "aliases": [],
+      "kind": "STATUTE"
     },
     {
       "id": "7d4caffd-8e20-5a7e-b280-7742eff82229",
@@ -698,7 +704,8 @@
       "shortName": null,
       "jurisdiction": "CENTRAL",
       "stateCode": null,
-      "aliases": []
+      "aliases": [],
+      "kind": "STATUTE"
     }
   ],
   "categories": [
@@ -781,7 +788,8 @@
       "evidenceRequired": true,
       "forms": [],
       "logSheets": [],
-      "libraryVersion": 1
+      "libraryVersion": 1,
+      "clauseRefs": []
     },
     {
       "id": "aec349b3-00bb-5f4d-a31f-f72f6bbca1a8",
@@ -810,7 +818,8 @@
       "evidenceRequired": false,
       "forms": [],
       "logSheets": [],
-      "libraryVersion": 1
+      "libraryVersion": 1,
+      "clauseRefs": []
     },
     {
       "id": "7a1758a5-4e0b-5fde-b84a-f73f05296638",
@@ -839,7 +848,8 @@
       "evidenceRequired": false,
       "forms": [],
       "logSheets": [],
-      "libraryVersion": 1
+      "libraryVersion": 1,
+      "clauseRefs": []
     },
     {
       "id": "e16509b0-6a1b-5ab7-87b0-9a3177fd23fe",
@@ -868,7 +878,8 @@
       "evidenceRequired": false,
       "forms": [],
       "logSheets": [],
-      "libraryVersion": 1
+      "libraryVersion": 1,
+      "clauseRefs": []
     },
     {
       "id": "06544807-11c1-5404-b682-0b7bf17bdbf3",
@@ -897,7 +908,8 @@
       "evidenceRequired": false,
       "forms": [],
       "logSheets": [],
-      "libraryVersion": 1
+      "libraryVersion": 1,
+      "clauseRefs": []
     },
     {
       "id": "29c5d343-6763-59e4-8a35-82e2f7581191",
@@ -926,7 +938,8 @@
       "evidenceRequired": false,
       "forms": [],
       "logSheets": [],
-      "libraryVersion": 1
+      "libraryVersion": 1,
+      "clauseRefs": []
     },
     {
       "id": "7e87302b-e861-5a47-90dd-ddd7adece19c",
@@ -955,7 +968,8 @@
       "evidenceRequired": false,
       "forms": [],
       "logSheets": [],
-      "libraryVersion": 1
+      "libraryVersion": 1,
+      "clauseRefs": []
     },
     {
       "id": "8c823031-d6fe-50b4-9556-8738efc5b16d",
@@ -1000,7 +1014,8 @@
       "evidenceRequired": false,
       "forms": [],
       "logSheets": [],
-      "libraryVersion": 1
+      "libraryVersion": 1,
+      "clauseRefs": []
     },
     {
       "id": "be7cfdc2-1f55-5e8a-be83-c59bfd0e51e8",
@@ -1037,7 +1052,8 @@
       "evidenceRequired": false,
       "forms": [],
       "logSheets": [],
-      "libraryVersion": 1
+      "libraryVersion": 1,
+      "clauseRefs": []
     },
     {
       "id": "e2c86bc9-8a3a-5971-a7cd-d03d94ae950b",
@@ -1065,7 +1081,8 @@
       "evidenceRequired": false,
       "forms": [],
       "logSheets": [],
-      "libraryVersion": 1
+      "libraryVersion": 1,
+      "clauseRefs": []
     },
     {
       "id": "671045e5-434f-550a-bc94-ae3c45c5a050",
@@ -1093,7 +1110,8 @@
       "evidenceRequired": false,
       "forms": [],
       "logSheets": [],
-      "libraryVersion": 1
+      "libraryVersion": 1,
+      "clauseRefs": []
     },
     {
       "id": "749530b6-29ce-569a-bd92-b198bf6dbac3",
@@ -1122,7 +1140,8 @@
       "evidenceRequired": false,
       "forms": [],
       "logSheets": [],
-      "libraryVersion": 1
+      "libraryVersion": 1,
+      "clauseRefs": []
     },
     {
       "id": "b00fa038-eff2-57de-8095-02186dad3824",
@@ -1151,7 +1170,8 @@
       "evidenceRequired": false,
       "forms": [],
       "logSheets": [],
-      "libraryVersion": 1
+      "libraryVersion": 1,
+      "clauseRefs": []
     },
     {
       "id": "1c31390e-d69f-54f3-bf68-613a2015f787",
@@ -1179,7 +1199,8 @@
       "evidenceRequired": false,
       "forms": [],
       "logSheets": [],
-      "libraryVersion": 1
+      "libraryVersion": 1,
+      "clauseRefs": []
     },
     {
       "id": "485a05e1-214f-57e0-953a-82b1698f0091",
@@ -1207,7 +1228,8 @@
       "evidenceRequired": false,
       "forms": [],
       "logSheets": [],
-      "libraryVersion": 1
+      "libraryVersion": 1,
+      "clauseRefs": []
     }
   ],
   "assignments": [

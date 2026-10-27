@@ -41,10 +41,20 @@ describe('IsoEngineApi.reviewInputFigures', () => {
     expectTypeOf(wrong).returns.toEqualTypeOf<ReviewInputFigures>();
   });
 
-  it('lets an engine typed per source satisfy IsoEngineApi before the signature narrows', () => {
+  it('declares the signature typed per source, so a caller through IsoEngineApi passes the data its source names', () => {
+    expectTypeOf<IsoEngineApi['reviewInputFigures']>().toEqualTypeOf<TypedReviewInputFigures>();
     const engine = (figures: TypedReviewInputFigures) =>
       ({ reviewInputFigures: figures }) satisfies Pick<IsoEngineApi, 'reviewInputFigures'>;
     expectTypeOf(engine).returns.toExtend<Pick<IsoEngineApi, 'reviewInputFigures'>>();
+    const wrong = (api: IsoEngineApi) =>
+      api.reviewInputFigures(
+        'OBJECTIVES',
+        // @ts-expect-error OBJECTIVES reads objectives, readings and their actions, not incidents
+        { nonconformities: [], timeZone: 'Asia/Kolkata' },
+        SINCE,
+        AS_OF,
+      );
+    expectTypeOf(wrong).returns.toEqualTypeOf<ReviewInputFigures>();
   });
 
   it('reads every record with its creation and archive days, and no held flag or general change list', () => {

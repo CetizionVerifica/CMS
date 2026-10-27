@@ -110,7 +110,11 @@ asks M0 for it (rule 1).
 ### Notifications (producer M9)
 | Type | `data` | Consumers |
 |---|---|---|
-| `notification.sent` | `{ kind: NotificationKind, recipientId, instanceId: Id \| null, sendDate: LocalDate, sourceEventId: Id \| null }` | — (send log; dedupe key per rule 4) |
+| `notification.sent` | `{ kind: NotificationKind, recipientId, instanceId: Id \| null, sendDate: LocalDate, sourceEventId: Id \| null, isoSubjectType?: IsoEntityType, isoSubjectId?: Id }` | — (send log; dedupe key per rule 4) |
+
+An ISO reminder (`kind` one of `IsoNotificationKind`, ISO-10c) is about an ISO record, not an instance: its
+`notification.sent` has `instanceId` and `sourceEventId` null and names the record in `isoSubjectType` and
+`isoSubjectId`. Only ISO reminders carry those two fields, and they always carry both.
 
 ## 4. Rules
 1. Add a type only through an M0 change request; never rename one (add `schemaVersion: 2` alongside instead).
@@ -126,5 +130,7 @@ asks M0 for it (rule 1).
    for scheduled kinds. Scheduled kinds about no instance (`CONSULTANT_DIGEST`, `TRIAL_ENDING`, `RENEWAL_DUE`) have
    `instanceId` null and dedupe on `(recipientId, kind, sendDate)`; `ACCOUNT_NOTIFICATION_KINDS` (`TRIAL_ENDING`,
    `RENEWAL_DUE`) are about the whole account, so they name no client either. Sends that answer a person's own
-   event (`INVITE`, `MAGIC_LINK`, `MFA_ENROLLED`) name no client or instance and keep the event id.
+   event (`INVITE`, `MAGIC_LINK`, `MFA_ENROLLED`) name no client or instance and keep the event id. ISO reminders
+   dedupe on their record instead (`ISO_NOTIFICATION_DEDUPE_KEY`: `isoSubjectType`, `isoSubjectId`, `kind`,
+   `sendDate`, `recipientId`), so two ISO records due the same day for the same person are two sends.
 5. Importer commit emits domain events with `actor.kind = "IMPORT"`, but M9 must **not** send reminders for instances created as already APPROVED or NOT_APPLICABLE (engine already returns none for them).

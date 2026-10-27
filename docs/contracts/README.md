@@ -19,7 +19,7 @@ ISO add-on (M16): its records, engine interface, 119 routes (1.8.1), catalogue a
 | [CHANGELOG.md](CHANGELOG.md) | Contract versions | everyone |
 
 ## Status
-Version `1.8.5` (`CONTRACTS_VERSION` in `packages/contracts/src/version.ts`). The domain model in §1-8 of
+Version `1.8.6` (`CONTRACTS_VERSION` in `packages/contracts/src/version.ts`). The domain model in §1-8 of
 [domain-model.md](domain-model.md) is published as v1 so wave 1 (M3, M4, M8, M11) can build against it. Each consumer
 module owner still reviews its part (MODULES.md M0 acceptance); review findings ship as additive changes or, if breaking,
 with sign-off per "How to change a contract".
@@ -131,11 +131,12 @@ with sign-off per "How to change a contract".
 41. Add-ons (contracts 1.7.0, ADR M16-0001, `docs/iso/plan.md` ISO-0). New fields are optional so this bump merges
     before their providers send them: `AccountOverride.removedFeatures` and `Me.account.features` (a reader treats a
     missing list as empty), `Act.kind` (missing reads as `STATUTE`) and `Obligation.clauseRefs` (missing reads as
-    empty); later patches make them required once M3 stores and M5 sends them. A `STANDARD` act is `CENTRAL` with no
-    state code rather than a new jurisdiction, and the library's create and update bodies take no `kind`: only the ISO
-    catalogue (M6, as code) creates STANDARD acts. The ISO entity types are staged in `ISO_ENTITY_TYPES` and join
-    `EntityType` in a later bump, after M3's migration and the audit page's words, as `account` did (decision 39).
-    The mock gives firm B (Second Ledger Consulting, whose people cover every role) `isoManagement` and firm A none, and
+    empty); later patches make them required once M3 stores and M5 sends them (not done: in 1.8.6 M3 stores and M5
+    sends them, but they stay optional, decision 56 says why). A `STANDARD` act is `CENTRAL` with no state code rather
+    than a new jurisdiction, and the library's create and update bodies take no `kind`: only the ISO catalogue (M6, as
+    code) creates STANDARD acts. The ISO entity types are staged in `ISO_ENTITY_TYPES` and join `EntityType` in a
+    later bump, after M3's migration and the audit page's words, as `account` did (decision 39). The mock gives firm B
+    (Second Ledger Consulting, whose people cover every role) `isoManagement` and firm A none, and
     `PUT /__mock/firms/{firmId}/features` `{ features }` stands in for the console's switches until the next reset.
 42. ISO contracts (contracts 1.8.0, ADR M16-0002, `docs/iso/packages.md` ISO-1). The shapes follow `docs/iso/model.md`
     v2: the catalogue rows, every client record, the eight machines, `IsoFile`, the engine results and `IsoEngineApi`
@@ -324,7 +325,7 @@ with sign-off per "How to change a contract".
     its own shapes and checks itself with `satisfies IsoEngineApi`, so narrowing the signature here would break its
     build, and M0 cannot change packages/engine. M4 takes `TypedReviewInputFigures` in ISO-3b (a function typed that
     way satisfies the 1.8.2 signature, test/engine-api.test.ts), and M0 narrows `IsoEngineApi` to it in the next
-    contracts PR after that merges. `ReviewFigure` and `ReviewInputFigures` move to `src/schemas/iso.ts`, beside the
+    contracts PR after that merges (done in 1.8.6, decision 56). `ReviewFigure` and `ReviewInputFigures` move to `src/schemas/iso.ts`, beside the
     record that stores them; the package exports the same names.
 53. The ISO values join the contract enums (contracts 1.8.3, ISO-1b; plan §5.1 step 4). `ISO_ENTITY_TYPES`,
     `ISO_NOTIFICATION_KINDS` and `ISO_EXPORT_KINDS` are now the last values of `EntityType`, `NotificationKind` and
@@ -390,3 +391,29 @@ with sign-off per "How to change a contract".
     leaves out paging, so the NC log and risk register exports keep their filters. Also in 1.8.5: the mock's REQUEST_NA
     on a clause that allows no exclusion names `status`, not `clauseId`, as the engine's guard and the API do (ADR
     M16-0004 decision 5). It is a patch: an optional query parameter, and a mock error path.
+56. The add-on's optional fields after ISO-1c (contracts 1.8.6). `IsoEngineApi.reviewInputFigures` is now
+    `TypedReviewInputFigures`, as decision 52 planned, since ISO-3b moved the engine onto it: a caller through
+    `IsoEngineApi` passes the data of the source it names. `Act.kind` and `Obligation.clauseRefs` stay optional. M3
+    stores both on every row (NOT NULL, with defaults STATUTE and `[]`, backfilled by migration 0036) and returns them
+    on every read. But other modules build records from these same types without them: M6's `NewRow<T>`, master
+    library and `createObligation`, and M8's import commit (which sets an act's `kind` since ISO-16, but not an
+    obligation's `clauseRefs`), and test builders in M3, M6, M7, M8, M9, M10 and M16. Requiring either field would
+    stop those compiling, and an M0 change cannot edit them. M6's in-memory test store also answers acts and
+    obligations without them. A later contracts bump can require a field once its creators set it or build from a
+    create type that leaves it optional. Meanwhile the mock stores a created act as a STATUTE and a created obligation
+    with no clauses, and the fixtures carry `kind` and `clauseRefs` on every act and obligation, as Postgres does.
+    `AccountOverride.removedFeatures` stays optional for another reason: `AccountOverride` is no read shape, only the
+    body of `PUT /accounts/{id}/override`, where M15 reads a missing list as an empty one. The body and the type are
+    one schema, so requiring the list would refuse a PUT that leaves it out. M3 stores the list on every override and
+    the console always sends it; tests in M0, M3 and M15 build overrides without it. `AccountSummary.features` stays
+    optional for good: `AccountView` (`GET /account`) spreads that shape, and M3 sends the features there in
+    `entitlements` only, while `Me.account` always has them. The mock's `getAccount` now leaves the top-level list out
+    too. Also in 1.8.6, events.md describes the `notification.sent` of an ISO reminder (ISO-10c audit Info 1), and
+    `IsoSystemOverview` defines `nonconformities.overdue` as the open nonconformities whose `nonconformityStatus`
+    (model §5.2) is OVERDUE on as-of: `dueOn` counts until the owner submits, and a late OPEN action counts too, the
+    test the nonconformity list's `overdue` filter already used. The mock's overview still counts an open
+    nonconformity past `dueOn`, even once submitted and whatever its actions, so it disagrees with its list (ISO-6c
+    audit Info 1). It moves to the definition in a later patch together with M17's demo snapshot (`iso-data.json`),
+    which records the mock's overview and which an M0 PR cannot regenerate; ISO-8c builds the API's count to the
+    definition. It is a patch: no wire shape changes, the narrowed signature's only implementer already has it, and no
+    API serves the overview yet.

@@ -195,6 +195,7 @@ const acts: Act[] = actRows.map(([key, name, shortName, stateCode]) => ({
   jurisdiction: stateCode === null ? 'CENTRAL' : 'STATE',
   stateCode,
   aliases: [],
+  kind: 'STATUTE',
 }));
 const categoryRows = [
   ['filings', 'Filings / Returns'],
@@ -455,6 +456,7 @@ export function buildFirmB(): FixtureSet {
       forms: [],
       logSheets: [],
       libraryVersion: 1,
+      clauseRefs: [],
     };
     obligations.push(obligation);
 

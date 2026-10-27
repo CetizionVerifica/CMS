@@ -56,8 +56,10 @@ export const Act = z
     /** Other spellings that resolve to this Act on import. */
     aliases: z.array(Name),
     /**
-     * STATUTE (a law) or STANDARD (an ISO management-system standard, ADR M16-0001). Optional until M3 stores it: a
-     * reader treats a missing kind as STATUTE. A STANDARD act is CENTRAL with no stateCode.
+     * STATUTE (a law) or STANDARD (an ISO management-system standard, ADR M16-0001). A STANDARD act is CENTRAL with no
+     * stateCode. M3 stores it on every act (STATUTE unless the catalogue copy says STANDARD) and the mock sends it, but
+     * it stays optional: other modules build acts from this type and do not set it yet (README decision 56). A reader
+     * treats a missing kind as STATUTE.
      */
     kind: ActKind.optional(),
   })
@@ -177,7 +179,9 @@ export const Obligation = z
     /**
      * The clauses an activity under a STANDARD act serves (docs/iso/catalogue.md §2), e.g. calibration names
      * `{ standard: 'ISO_9001', clauseNumber: '7.1.5' }` and the 9.1.1 clauses of 14001 and 45001. Never bare numbers:
-     * 9001 8.2 and 14001 8.2 are different clauses. Optional until M3 stores it: a reader treats a missing list as empty.
+     * 9001 8.2 and 14001 8.2 are different clauses. M3 stores it on every obligation (`[]` when none) and the mock
+     * sends it, but it stays optional: other modules build obligations from this type and do not set it yet (README
+     * decision 56). A reader treats a missing list as empty.
      */
     clauseRefs: z.array(ClauseRef).max(20).optional(),
   })

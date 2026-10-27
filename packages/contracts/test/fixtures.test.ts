@@ -66,6 +66,11 @@ describe.each([
   ['firm A', firmA],
   ['firm B', firmB],
 ])('%s fixture set', (_, set) => {
+  it('gives every act its kind and every obligation its clauses, as M3 stores them (README decision 56)', () => {
+    expect(set.acts.map((a) => a.kind)).toEqual(set.acts.map(() => 'STATUTE'));
+    expect(set.obligations.map((o) => o.clauseRefs)).toEqual(set.obligations.map(() => []));
+  });
+
   it('keeps every row in one firm', () => {
     for (const { collection, entity } of entities(set)) {
       if (collection === 'firm') continue;

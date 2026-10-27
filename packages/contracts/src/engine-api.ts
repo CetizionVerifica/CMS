@@ -299,7 +299,7 @@ export interface ReviewFigureData {
 
 /**
  * `IsoEngineApi.reviewInputFigures` typed per source: the data of the source it is called for, and no other's. M4
- * implements this shape (ISO-3b), which satisfies the 1.8.2 signature, and M0 then narrows `IsoEngineApi` to it.
+ * implements this shape since ISO-3b, and `IsoEngineApi` declares it since 1.8.6 (ISO-1c).
  */
 export type TypedReviewInputFigures = <S extends ReviewInputSource>(
   source: S,
@@ -415,14 +415,8 @@ export interface IsoEngineApi {
    * before `asOf`, the earliest across the input's standards, and never after `asOf`. A HELD or CLOSED review's
    * figures are the stored copy (`ReviewInput.sourceFigures`), never computed again.
    *
-   * `data` is `ReviewFigureData[source]`. The signature keeps 1.8.1's untyped `data` until M4 takes that shape
-   * (ISO-3b), so ISO-3's engine still satisfies it; M0 then narrows it to `TypedReviewInputFigures` (README
-   * decision 52).
+   * `data` is `ReviewFigureData[source]`: a caller passes the data of the source it names, and no other's (README
+   * decisions 52 and 56).
    */
-  reviewInputFigures(
-    source: ReviewInputSource,
-    data: Readonly<Record<string, unknown>>,
-    since: LocalDate,
-    asOf: LocalDate,
-  ): ReviewInputFigures;
+  reviewInputFigures: TypedReviewInputFigures;
 }

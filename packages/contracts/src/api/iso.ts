@@ -1542,6 +1542,12 @@ export const IsoSystemOverview = z.strictObject({
   clauseReadiness: ClauseReadiness,
   certificationReadiness: CertificationReadiness,
   climateGaps: z.array(ClimateGap),
+  /**
+   * `overdue`: open nonconformities whose `nonconformityStatus` (model §5.2) on as-of has timing OVERDUE, so `dueOn`
+   * counts until the owner submits and a late OPEN action of the nonconformity counts too, as the list's `overdue`
+   * filter reads it (1.8.6; the mock follows in a later patch, iso-mock.md). `effectivenessOverdue`: open ones whose
+   * status has `effectivenessOverdueDays`.
+   */
   nonconformities: z.strictObject({
     open: IdCount,
     overdue: IdCount,
