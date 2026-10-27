@@ -1,6 +1,6 @@
 # ISO management systems add-on: plan (v2)
 
-Status: v2.5.5, 2026-10-27. Decisions: ADR [M16-0001](../adr/M16-0001-iso-management-systems.md), amended by ADRs
+Status: v2.5.6, 2026-10-27. Decisions: ADR [M16-0001](../adr/M16-0001-iso-management-systems.md), amended by ADRs
 [M16-0002](../adr/M16-0002-iso-plan-v2.md) and [M16-0003](../adr/M16-0003-stored-review-figures.md). v2 answers the 58
 findings of the independent review of v1 (trace at the end of [packages.md](packages.md)). v2.1 takes in the departures
 the ISO contracts (ISO-1, contracts 1.8.0) list in `docs/contracts/README.md` decision 51 (a-n), and points the API,
@@ -42,7 +42,11 @@ notes on ISO-8c's parts and ADR M16-0006's rule for who owns and approves an NC.
 and ISO-1c2 as built and splits ISO-13 in two. Its journey (ISO-13) uses no ISO export and no field ISO-1e makes
 required, so it waits for every package but ISO-11d, ISO-1e and ISO-13b, and runs while ISO-11d's last parts are built.
 The off-switch sweep (ISO-13b) checks the ISO export kinds too, so it comes last. v2.5.5 also gives ISO-1e a start check
-(the #326 audit).
+(the #326 audit). v2.5.6 records ISO-11d and ISO-13 as built: the real API builds all four ISO export kinds, and the
+client archive holds ISO data. It gives ISO-13b what those need: an export of each kind, the archive's `iso/` folder,
+all 16 ISO screens, the API's rate limits, the gates its mutation check changes, and ISO-14b's file-route mutation
+check, which nobody ran (the #333 audit). In ISO-1e, M3's create keeps `kind` and `clauseRefs` optional, since Postgres
+sets both (§5.1).
 
 Every ISO thread reads, in order: the root `CLAUDE.md`, this file, its own brief in [packages.md](packages.md), the
 parts of [model.md](model.md) and [catalogue.md](catalogue.md) its brief names, then the area `CLAUDE.md` of the paths
@@ -360,14 +364,16 @@ it, and exhaustive maps in other modules stop compiling. The order is always:
 New fields on existing shapes arrive **optional**, with the meaning of a missing value written down (a missing
 `Act.kind` reads as STATUTE, a missing `clauseRefs`, `removedFeatures` or `features` as empty). `.default()` alone is
 not enough, because `NewEntity<T>` and the create callers in M6 and M8 use the output type. A field becomes required
-only in a later contracts bump, after its column exists and every provider and create caller sets it. ISO-1c (#324,
-contracts 1.8.6) checked: M3 sends `kind` and `clauseRefs` on every read, but M6's master library (`master-data.ts`,
-`from-register.ts`), its `NewRow<T>` and `createObligation`, M8's import commit (an obligation's `clauseRefs`) and test
-builders in M3, M6 to M10 and M16 build records from the read types without them, and `removedFeatures` is only on the
-override's request body, where a missing list means none. So all three stay optional for now (contracts README
-decision 56). ISO-1e makes `kind` and `clauseRefs` required once those creators and builders set them; `removedFeatures`
-stays optional. `features` lives on `AccountSummary` as an optional field (1.7.0), so `AccountView`, which spreads its
-shape, keeps compiling.
+only in a later contracts bump, after its column exists, every provider sets it, and every create caller sets it or
+creates through a type that keeps it optional. ISO-1c (#324, contracts 1.8.6) checked: M3 sends `kind` and `clauseRefs`
+on every read, but M6's master library (`master-data.ts`, `from-register.ts`), its `NewRow<T>` and `createObligation`,
+M8's import commit (an obligation's `clauseRefs`) and test builders in M3, M6 to M10 and M16 build records from the read
+types without them, and `removedFeatures` is only on the override's request body, where a missing list means none. So
+all three stay optional for now (contracts README decision 56). ISO-1e makes `kind` and `clauseRefs` required once those
+creators and builders set them. It gives M3's `acts.create` and `obligations.create` a create type that keeps the two
+fields optional, since Postgres defaults them (STATUTE, `[]`), so a call through M3 need not set them, M8's import
+commit included; the creators that build from the read types set them. `removedFeatures` stays optional. `features`
+lives on `AccountSummary` as an optional field (1.7.0), so `AccountView`, which spreads its shape, keeps compiling.
 
 ### 5.2 New error codes
 
@@ -427,10 +433,11 @@ before any package that depends on the change starts.
 ## 6. Packages and waves
 
 Briefs: [packages.md](packages.md). Waves are for orientation; the Needs column decides. Status as of 2026-10-27
-(`origin/main` at #330). ISO-3 and ISO-7b started before ISO-1a was added to their Needs, and merged after it. ISO-6b
+(`origin/main` at #338). ISO-3 and ISO-7b started before ISO-1a was added to their Needs, and merged after it. ISO-6b
 may start before ISO-1a4 but marks its PR ready only once ISO-1a4 has merged (its brief). Before ISO-1e starts, the
 coordinator checks that no other open PR edits a builder of acts or obligations in M3, M6 to M10, M13 or M16, and
-sequences the two if one does (its start check, the #326 audit). The Needs column can hold neither condition.
+sequences the two if one does (its start check, the #326 audit; met on 2026-10-27). The Needs column can hold neither
+condition.
 
 | Wave | Package | Module | Title | Needs | Status |
 |---|---|---|---|---|---|
@@ -482,9 +489,9 @@ sequences the two if one does (its start check, the #326 audit). The Needs colum
 | I5 | ISO-14a | none (`Tooling:`) | Wire the ISO catalogue copy | ISO-9, ISO-10a | merged (#283) |
 | I5 | ISO-11b | M10 | Statutory numbers exclude ISO; off switch | ISO-1b, ISO-2e, ISO-2f, ISO-4b, ISO-11e | merged (#309) |
 | I6 | ISO-10c | M9 | ISO reminders | ISO-10b, ISO-2e, ISO-3, ISO-2j | merged (#318) |
-| I6 | ISO-11d | M10 | ISO exports and ISO data in the client archive | ISO-11b, ISO-3, ISO-3b, ISO-2h | started (part 1 merged, #319) |
+| I6 | ISO-11d | M10 | ISO exports and ISO data in the client archive | ISO-11b, ISO-3, ISO-3b, ISO-2h | merged (#319, #335, #337, #338) |
 | I7 | ISO-14b | none (`Tooling:`) | Wire ISO files | ISO-8c, ISO-10c, ISO-14a, ISO-15 | merged (#330) |
-| I7 | ISO-13 | M14 | Integrated ISO journey | every other package but ISO-11d, ISO-1e and ISO-13b | |
+| I7 | ISO-13 | M14 | Integrated ISO journey | every other package but ISO-11d, ISO-1e and ISO-13b | merged (#332, #334, #336) |
 | I7 | ISO-1c | M0 | Type the engine API's review figures; keep three add-on fields optional | ISO-1b, ISO-2c, ISO-4a, ISO-5, ISO-5b, ISO-9, ISO-16, ISO-3b | merged (#324) |
 | I7 | ISO-1c2 | M0 | The mock's overview counts overdue nonconformities as the NC list does | ISO-1c, ISO-6c | merged (#331) |
 | I7 | ISO-1e | M0 | Require `Act.kind` and `Obligation.clauseRefs` once their creators set them | ISO-1c, ISO-1c2, ISO-8c, ISO-11d | |
@@ -507,9 +514,9 @@ Modules with ISO packages: M0, M3, M4, M5, M6, M7, M8, M9, M10, M11, M12, M13, M
    file `AuditEvent`s each port call writes are asserted in ISO-15's db tests and end to end in ISO-13.
 3. With the feature off: every ISO route answers 403 `FEATURE_NOT_ENABLED`; every route in §4.5 refuses or leaves out
    ISO items; an M14 test (ISO-13b) calls every `ENDPOINTS` entry with an ISO fixture id (ISO record, STANDARD act,
-   obligation, assignment, instance, ISO file) and expects 403 or no ISO item; no reminder, escalation, digest line or
-   workflow email mentions ISO work (the jobs' tests, ISO-10b and ISO-10c). With it back on, all data is unchanged. The
-   next request after a switch sees it.
+   obligation, assignment, instance, evidence on that instance, ISO file, and an export job of each ISO kind) and
+   expects 403 or no ISO item; no reminder, escalation, digest line or workflow email mentions ISO work (the jobs'
+   tests, ISO-10b and ISO-10c). With it back on, all data is unchanged. The next request after a switch sees it.
 4. Turning the feature on copies the catalogue once, whether through an override, a plan change or a plan edit, with
    the event delivered twice and the sweep running at the same time; ISO routes answer 409 `FEATURE_NOT_READY` until
    the copy is recorded.
