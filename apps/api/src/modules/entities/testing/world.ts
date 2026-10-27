@@ -312,11 +312,13 @@ export function seedWorld(store: MemoryStore): void {
     shortName: 'Factories Act',
     jurisdiction: 'CENTRAL',
     stateCode: null,
+    kind: 'STATUTE',
   });
   aliased('acts', ids.actDup, 'The Factories Act 1948', {
     shortName: null,
     jurisdiction: 'CENTRAL',
     stateCode: null,
+    kind: 'STATUTE',
   });
   aliased('categories', ids.category, 'Returns');
   aliased('categories', ids.categoryDup, 'Return');
@@ -341,6 +343,7 @@ export function seedWorld(store: MemoryStore): void {
       evidenceRequired: false,
       forms: [],
       logSheets: [],
+      clauseRefs: [],
       libraryVersion: 1,
     });
   obligation(ids.obligation, 'Annual return');

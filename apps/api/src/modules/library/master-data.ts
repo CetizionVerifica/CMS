@@ -64,6 +64,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
       jurisdiction: 'CENTRAL',
       stateCode: null,
       aliases: [],
+      kind: 'STATUTE',
     },
     {
       key: 'child-and-adolescent-labour-prohibition-and-regulation-act-1986-and-west-bengal',
@@ -72,6 +73,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
       jurisdiction: 'STATE',
       stateCode: 'WB',
       aliases: [],
+      kind: 'STATUTE',
     },
     {
       key: 'contract-labour-regulation-and-abolition-act-1970-and-west-bengal-contract-labou',
@@ -80,6 +82,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
       jurisdiction: 'STATE',
       stateCode: 'WB',
       aliases: [],
+      kind: 'STATUTE',
     },
     {
       key: 'electricity-act-2003-central-electricity-authority-safety-requirements-for-const',
@@ -88,6 +91,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
       jurisdiction: 'CENTRAL',
       stateCode: null,
       aliases: [],
+      kind: 'STATUTE',
     },
     {
       key: 'employees-state-insurance-act-1948-read-with-employees-state-insurance-general-r',
@@ -96,6 +100,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
       jurisdiction: 'CENTRAL',
       stateCode: null,
       aliases: [],
+      kind: 'STATUTE',
     },
     {
       key: 'employment-exchanges-compulsory-notification-of-vacancies-act-1959-and-employmen',
@@ -104,6 +109,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
       jurisdiction: 'CENTRAL',
       stateCode: null,
       aliases: [],
+      kind: 'STATUTE',
     },
     {
       key: 'environment-protection-act-1986-and-batteries-management-and-handling-rules-2001',
@@ -112,6 +118,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
       jurisdiction: 'CENTRAL',
       stateCode: null,
       aliases: [],
+      kind: 'STATUTE',
     },
     {
       key: 'environment-protection-act-1986-and-environment-protection-rules-1986',
@@ -120,6 +127,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
       jurisdiction: 'CENTRAL',
       stateCode: null,
       aliases: [],
+      kind: 'STATUTE',
     },
     {
       key: 'environment-protection-act-1986-and-hazardous-and-other-wastes-management-and-tr',
@@ -128,6 +136,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
       jurisdiction: 'CENTRAL',
       stateCode: null,
       aliases: [],
+      kind: 'STATUTE',
     },
     {
       key: 'environment-protection-act-1986-and-plastic-waste-management-and-handling-rules',
@@ -136,6 +145,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
       jurisdiction: 'CENTRAL',
       stateCode: null,
       aliases: [],
+      kind: 'STATUTE',
     },
     {
       key: 'environment-protection-act-1986-and-solid-waste-management-rules-2016',
@@ -144,6 +154,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
       jurisdiction: 'CENTRAL',
       stateCode: null,
       aliases: [],
+      kind: 'STATUTE',
     },
     {
       key: 'environment-protection-act-1986-and-the-manufacture-storage-and-import-of-hazard',
@@ -152,6 +163,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
       jurisdiction: 'CENTRAL',
       stateCode: null,
       aliases: [],
+      kind: 'STATUTE',
     },
     {
       key: 'environment-protection-act-1986-and-the-noise-pollution-regulation-and-control-r',
@@ -160,6 +172,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
       jurisdiction: 'CENTRAL',
       stateCode: null,
       aliases: [],
+      kind: 'STATUTE',
     },
     {
       key: 'environment-protection-act-1986-ozone-depleting-substances-regulation-and-contro',
@@ -168,6 +181,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
       jurisdiction: 'CENTRAL',
       stateCode: null,
       aliases: [],
+      kind: 'STATUTE',
     },
     {
       key: 'environment-protection-act-1986-read-with-bio-medical-waste-management-rules-201',
@@ -176,6 +190,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
       jurisdiction: 'CENTRAL',
       stateCode: null,
       aliases: [],
+      kind: 'STATUTE',
     },
     {
       key: 'explosives-act-1884-and-gas-cylinders-rules-2016',
@@ -184,6 +199,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
       jurisdiction: 'CENTRAL',
       stateCode: null,
       aliases: [],
+      kind: 'STATUTE',
     },
     {
       key: 'factories-act-1948',
@@ -192,6 +208,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
       jurisdiction: 'CENTRAL',
       stateCode: null,
       aliases: [],
+      kind: 'STATUTE',
     },
     {
       key: 'factories-act-1948-and-west-bengal-factories-rules-1958',
@@ -200,6 +217,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
       jurisdiction: 'STATE',
       stateCode: 'WB',
       aliases: [],
+      kind: 'STATUTE',
     },
     {
       key: 'income-tax-act-1961-and-income-tax-rules-1962',
@@ -208,6 +226,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
       jurisdiction: 'CENTRAL',
       stateCode: null,
       aliases: [],
+      kind: 'STATUTE',
     },
     {
       key: 'indian-explosives-act-1884-and-static-and-mobile-pressure-vessels-unfired-rules',
@@ -216,6 +235,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
       jurisdiction: 'CENTRAL',
       stateCode: null,
       aliases: [],
+      kind: 'STATUTE',
     },
     {
       key: 'information-technology-act-2000-and-information-technology-reasonable-security-p',
@@ -224,6 +244,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
       jurisdiction: 'CENTRAL',
       stateCode: null,
       aliases: [],
+      kind: 'STATUTE',
     },
     {
       key: 'inter-state-migrant-workmen-regulation-of-employment-and-conditions-of-service-a',
@@ -232,6 +253,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
       jurisdiction: 'CENTRAL',
       stateCode: null,
       aliases: [],
+      kind: 'STATUTE',
     },
     {
       key: 'maternity-benefit-act-1961-and-west-bengal-maternity-benefit-rules-1965',
@@ -240,6 +262,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
       jurisdiction: 'STATE',
       stateCode: 'WB',
       aliases: [],
+      kind: 'STATUTE',
     },
     {
       key: 'minimum-wages-act-1948-and-west-bengal-minimum-wages-rules-1951',
@@ -248,6 +271,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
       jurisdiction: 'STATE',
       stateCode: 'WB',
       aliases: [],
+      kind: 'STATUTE',
     },
     {
       key: 'payment-of-bonus-act-1965-and-payment-of-bonus-rules-1975',
@@ -256,6 +280,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
       jurisdiction: 'CENTRAL',
       stateCode: null,
       aliases: [],
+      kind: 'STATUTE',
     },
     {
       key: 'payment-of-wages-act-1936-and-west-bengal-payment-of-wages-rules-1958',
@@ -264,6 +289,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
       jurisdiction: 'STATE',
       stateCode: 'WB',
       aliases: [],
+      kind: 'STATUTE',
     },
     {
       key: 'petroleum-act-1934-read-with-petroleum-rules-2002',
@@ -276,6 +302,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
         'The Petroleum Act, 1934 and Petroleum Rules, 2002',
         'The Petroleum Act, 1934 and Petroleum Rules, 2005',
       ],
+      kind: 'STATUTE',
     },
     {
       key: 'rights-of-persons-with-disabilities-act-2016-and-rights-of-persons-with-disabili',
@@ -284,6 +311,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
       jurisdiction: 'CENTRAL',
       stateCode: null,
       aliases: [],
+      kind: 'STATUTE',
     },
     {
       key: 'sexual-harassment-of-women-at-workplace-prevention-prohibition-and-redressal-act',
@@ -292,6 +320,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
       jurisdiction: 'CENTRAL',
       stateCode: null,
       aliases: [],
+      kind: 'STATUTE',
     },
     {
       key: 'water-prevention-and-control-of-pollution-act-1974-and-air-prevention-and-contro',
@@ -300,6 +329,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
       jurisdiction: 'CENTRAL',
       stateCode: null,
       aliases: [],
+      kind: 'STATUTE',
     },
     {
       key: 'west-bengal-fire-services-act-1950-and-rules-2003',
@@ -308,6 +338,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
       jurisdiction: 'STATE',
       stateCode: 'WB',
       aliases: [],
+      kind: 'STATUTE',
     },
     {
       key: 'west-bengal-labour-welfare-fund-act-1974-and-west-bengal-labour-welfare-fund-rul',
@@ -316,6 +347,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
       jurisdiction: 'STATE',
       stateCode: 'WB',
       aliases: [],
+      kind: 'STATUTE',
     },
     {
       key: 'west-bengal-workmen-s-house-rent-allowance-act-1974-and-west-bengal-workmen-s-ho',
@@ -324,6 +356,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
       jurisdiction: 'STATE',
       stateCode: 'WB',
       aliases: [],
+      kind: 'STATUTE',
     },
   ],
   obligations: [
@@ -355,6 +388,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
           templateFileId: null,
         },
       ],
+      clauseRefs: [],
     },
     {
       act: 'environment-protection-act-1986-and-the-manufacture-storage-and-import-of-hazard',
@@ -384,6 +418,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
           templateFileId: null,
         },
       ],
+      clauseRefs: [],
     },
     {
       act: 'environment-protection-act-1986-and-the-noise-pollution-regulation-and-control-r',
@@ -411,6 +446,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
           templateFileId: null,
         },
       ],
+      clauseRefs: [],
     },
     {
       act: 'environment-protection-act-1986-ozone-depleting-substances-regulation-and-contro',
@@ -442,6 +478,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
           templateFileId: null,
         },
       ],
+      clauseRefs: [],
     },
     {
       act: 'environment-protection-act-1986-and-batteries-management-and-handling-rules-2001',
@@ -478,6 +515,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
         },
       ],
       logSheets: [],
+      clauseRefs: [],
     },
     {
       act: 'environment-protection-act-1986-read-with-bio-medical-waste-management-rules-201',
@@ -501,6 +539,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
       evidenceRequired: false,
       forms: [],
       logSheets: [],
+      clauseRefs: [],
     },
     {
       act: 'environment-protection-act-1986-read-with-bio-medical-waste-management-rules-201',
@@ -531,6 +570,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
         },
       ],
       logSheets: [],
+      clauseRefs: [],
     },
     {
       act: 'environment-protection-act-1986-and-plastic-waste-management-and-handling-rules',
@@ -558,6 +598,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
           templateFileId: null,
         },
       ],
+      clauseRefs: [],
     },
     {
       act: 'environment-protection-act-1986-and-solid-waste-management-rules-2016',
@@ -585,6 +626,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
           templateFileId: null,
         },
       ],
+      clauseRefs: [],
     },
     {
       act: 'environment-protection-act-1986-and-solid-waste-management-rules-2016',
@@ -607,6 +649,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
       evidenceRequired: false,
       forms: [],
       logSheets: [],
+      clauseRefs: [],
     },
     {
       act: 'environment-protection-act-1986-and-hazardous-and-other-wastes-management-and-tr',
@@ -635,6 +678,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
           templateFileId: null,
         },
       ],
+      clauseRefs: [],
     },
     {
       act: 'environment-protection-act-1986-and-hazardous-and-other-wastes-management-and-tr',
@@ -658,6 +702,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
       evidenceRequired: false,
       forms: [],
       logSheets: [],
+      clauseRefs: [],
     },
     {
       act: 'environment-protection-act-1986-and-hazardous-and-other-wastes-management-and-tr',
@@ -686,6 +731,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
         },
       ],
       logSheets: [],
+      clauseRefs: [],
     },
     {
       act: 'environment-protection-act-1986-and-hazardous-and-other-wastes-management-and-tr',
@@ -714,6 +760,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
           templateFileId: null,
         },
       ],
+      clauseRefs: [],
     },
     {
       act: 'explosives-act-1884-and-gas-cylinders-rules-2016',
@@ -736,6 +783,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
       evidenceRequired: false,
       forms: [],
       logSheets: [],
+      clauseRefs: [],
     },
     {
       act: 'indian-explosives-act-1884-and-static-and-mobile-pressure-vessels-unfired-rules',
@@ -760,6 +808,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
       evidenceRequired: false,
       forms: [],
       logSheets: [],
+      clauseRefs: [],
     },
     {
       act: 'indian-explosives-act-1884-and-static-and-mobile-pressure-vessels-unfired-rules',
@@ -782,6 +831,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
       evidenceRequired: false,
       forms: [],
       logSheets: [],
+      clauseRefs: [],
     },
     {
       act: 'indian-explosives-act-1884-and-static-and-mobile-pressure-vessels-unfired-rules',
@@ -804,6 +854,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
       evidenceRequired: false,
       forms: [],
       logSheets: [],
+      clauseRefs: [],
     },
     {
       act: 'indian-explosives-act-1884-and-static-and-mobile-pressure-vessels-unfired-rules',
@@ -826,6 +877,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
       evidenceRequired: false,
       forms: [],
       logSheets: [],
+      clauseRefs: [],
     },
     {
       act: 'indian-explosives-act-1884-and-static-and-mobile-pressure-vessels-unfired-rules',
@@ -849,6 +901,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
       evidenceRequired: false,
       forms: [],
       logSheets: [],
+      clauseRefs: [],
     },
     {
       act: 'indian-explosives-act-1884-and-static-and-mobile-pressure-vessels-unfired-rules',
@@ -872,6 +925,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
       evidenceRequired: false,
       forms: [],
       logSheets: [],
+      clauseRefs: [],
     },
     {
       act: 'indian-explosives-act-1884-and-static-and-mobile-pressure-vessels-unfired-rules',
@@ -895,6 +949,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
       evidenceRequired: false,
       forms: [],
       logSheets: [],
+      clauseRefs: [],
     },
     {
       act: 'indian-explosives-act-1884-and-static-and-mobile-pressure-vessels-unfired-rules',
@@ -918,6 +973,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
       evidenceRequired: false,
       forms: [],
       logSheets: [],
+      clauseRefs: [],
     },
     {
       act: 'indian-explosives-act-1884-and-static-and-mobile-pressure-vessels-unfired-rules',
@@ -940,6 +996,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
       evidenceRequired: false,
       forms: [],
       logSheets: [],
+      clauseRefs: [],
     },
     {
       act: 'indian-explosives-act-1884-and-static-and-mobile-pressure-vessels-unfired-rules',
@@ -962,6 +1019,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
       evidenceRequired: false,
       forms: [],
       logSheets: [],
+      clauseRefs: [],
     },
     {
       act: 'indian-explosives-act-1884-and-static-and-mobile-pressure-vessels-unfired-rules',
@@ -991,6 +1049,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
           templateFileId: null,
         },
       ],
+      clauseRefs: [],
     },
     {
       act: 'indian-explosives-act-1884-and-static-and-mobile-pressure-vessels-unfired-rules',
@@ -1019,6 +1078,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
           templateFileId: null,
         },
       ],
+      clauseRefs: [],
     },
     {
       act: 'indian-explosives-act-1884-and-static-and-mobile-pressure-vessels-unfired-rules',
@@ -1041,6 +1101,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
       evidenceRequired: false,
       forms: [],
       logSheets: [],
+      clauseRefs: [],
     },
     {
       act: 'indian-explosives-act-1884-and-static-and-mobile-pressure-vessels-unfired-rules',
@@ -1069,6 +1130,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
           templateFileId: null,
         },
       ],
+      clauseRefs: [],
     },
     {
       act: 'indian-explosives-act-1884-and-static-and-mobile-pressure-vessels-unfired-rules',
@@ -1097,6 +1159,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
           templateFileId: null,
         },
       ],
+      clauseRefs: [],
     },
     {
       act: 'indian-explosives-act-1884-and-static-and-mobile-pressure-vessels-unfired-rules',
@@ -1126,6 +1189,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
           templateFileId: null,
         },
       ],
+      clauseRefs: [],
     },
     {
       act: 'indian-explosives-act-1884-and-static-and-mobile-pressure-vessels-unfired-rules',
@@ -1148,6 +1212,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
       evidenceRequired: false,
       forms: [],
       logSheets: [],
+      clauseRefs: [],
     },
     {
       act: 'indian-explosives-act-1884-and-static-and-mobile-pressure-vessels-unfired-rules',
@@ -1170,6 +1235,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
       evidenceRequired: false,
       forms: [],
       logSheets: [],
+      clauseRefs: [],
     },
     {
       act: 'indian-explosives-act-1884-and-static-and-mobile-pressure-vessels-unfired-rules',
@@ -1198,6 +1264,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
           templateFileId: null,
         },
       ],
+      clauseRefs: [],
     },
     {
       act: 'indian-explosives-act-1884-and-static-and-mobile-pressure-vessels-unfired-rules',
@@ -1226,6 +1293,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
           templateFileId: null,
         },
       ],
+      clauseRefs: [],
     },
     {
       act: 'indian-explosives-act-1884-and-static-and-mobile-pressure-vessels-unfired-rules',
@@ -1254,6 +1322,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
           templateFileId: null,
         },
       ],
+      clauseRefs: [],
     },
     {
       act: 'indian-explosives-act-1884-and-static-and-mobile-pressure-vessels-unfired-rules',
@@ -1276,6 +1345,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
       evidenceRequired: false,
       forms: [],
       logSheets: [],
+      clauseRefs: [],
     },
     {
       act: 'indian-explosives-act-1884-and-static-and-mobile-pressure-vessels-unfired-rules',
@@ -1299,6 +1369,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
       evidenceRequired: false,
       forms: [],
       logSheets: [],
+      clauseRefs: [],
     },
     {
       act: 'indian-explosives-act-1884-and-static-and-mobile-pressure-vessels-unfired-rules',
@@ -1322,6 +1393,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
       evidenceRequired: false,
       forms: [],
       logSheets: [],
+      clauseRefs: [],
     },
     {
       act: 'indian-explosives-act-1884-and-static-and-mobile-pressure-vessels-unfired-rules',
@@ -1344,6 +1416,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
       evidenceRequired: false,
       forms: [],
       logSheets: [],
+      clauseRefs: [],
     },
     {
       act: 'indian-explosives-act-1884-and-static-and-mobile-pressure-vessels-unfired-rules',
@@ -1366,6 +1439,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
       evidenceRequired: false,
       forms: [],
       logSheets: [],
+      clauseRefs: [],
     },
     {
       act: 'indian-explosives-act-1884-and-static-and-mobile-pressure-vessels-unfired-rules',
@@ -1389,6 +1463,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
       evidenceRequired: false,
       forms: [],
       logSheets: [],
+      clauseRefs: [],
     },
     {
       act: 'indian-explosives-act-1884-and-static-and-mobile-pressure-vessels-unfired-rules',
@@ -1411,6 +1486,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
       evidenceRequired: false,
       forms: [],
       logSheets: [],
+      clauseRefs: [],
     },
     {
       act: 'indian-explosives-act-1884-and-static-and-mobile-pressure-vessels-unfired-rules',
@@ -1434,6 +1510,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
       evidenceRequired: false,
       forms: [],
       logSheets: [],
+      clauseRefs: [],
     },
     {
       act: 'petroleum-act-1934-read-with-petroleum-rules-2002',
@@ -1463,6 +1540,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
           templateFileId: null,
         },
       ],
+      clauseRefs: [],
     },
     {
       act: 'electricity-act-2003-central-electricity-authority-safety-requirements-for-const',
@@ -1486,6 +1564,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
       evidenceRequired: false,
       forms: [],
       logSheets: [],
+      clauseRefs: [],
     },
     {
       act: 'water-prevention-and-control-of-pollution-act-1974-and-air-prevention-and-contro',
@@ -1507,6 +1586,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
       evidenceRequired: false,
       forms: [],
       logSheets: [],
+      clauseRefs: [],
     },
     {
       act: 'apprentices-act-1961-read-with-apprenticeship-rules-1992',
@@ -1535,6 +1615,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
           templateFileId: null,
         },
       ],
+      clauseRefs: [],
     },
     {
       act: 'apprentices-act-1961-read-with-apprenticeship-rules-1992',
@@ -1557,6 +1638,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
       evidenceRequired: false,
       forms: [],
       logSheets: [],
+      clauseRefs: [],
     },
     {
       act: 'apprentices-act-1961-read-with-apprenticeship-rules-1992',
@@ -1579,6 +1661,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
       evidenceRequired: false,
       forms: [],
       logSheets: [],
+      clauseRefs: [],
     },
     {
       act: 'apprentices-act-1961-read-with-apprenticeship-rules-1992',
@@ -1601,6 +1684,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
       evidenceRequired: false,
       forms: [],
       logSheets: [],
+      clauseRefs: [],
     },
     {
       act: 'apprentices-act-1961-read-with-apprenticeship-rules-1992',
@@ -1629,6 +1713,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
           templateFileId: null,
         },
       ],
+      clauseRefs: [],
     },
     {
       act: 'payment-of-bonus-act-1965-and-payment-of-bonus-rules-1975',
@@ -1658,6 +1743,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
           templateFileId: null,
         },
       ],
+      clauseRefs: [],
     },
     {
       act: 'payment-of-bonus-act-1965-and-payment-of-bonus-rules-1975',
@@ -1687,6 +1773,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
         },
       ],
       logSheets: [],
+      clauseRefs: [],
     },
     {
       act: 'employment-exchanges-compulsory-notification-of-vacancies-act-1959-and-employmen',
@@ -1732,6 +1819,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
         },
       ],
       logSheets: [],
+      clauseRefs: [],
     },
     {
       act: 'employees-state-insurance-act-1948-read-with-employees-state-insurance-general-r',
@@ -1762,6 +1850,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
           templateFileId: null,
         },
       ],
+      clauseRefs: [],
     },
     {
       act: 'inter-state-migrant-workmen-regulation-of-employment-and-conditions-of-service-a',
@@ -1791,6 +1880,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
         },
       ],
       logSheets: [],
+      clauseRefs: [],
     },
     {
       act: 'rights-of-persons-with-disabilities-act-2016-and-rights-of-persons-with-disabili',
@@ -1822,6 +1912,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
       evidenceRequired: false,
       forms: [],
       logSheets: [],
+      clauseRefs: [],
     },
     {
       act: 'rights-of-persons-with-disabilities-act-2016-and-rights-of-persons-with-disabili',
@@ -1853,6 +1944,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
       evidenceRequired: false,
       forms: [],
       logSheets: [],
+      clauseRefs: [],
     },
     {
       act: 'rights-of-persons-with-disabilities-act-2016-and-rights-of-persons-with-disabili',
@@ -1884,6 +1976,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
       evidenceRequired: false,
       forms: [],
       logSheets: [],
+      clauseRefs: [],
     },
     {
       act: 'rights-of-persons-with-disabilities-act-2016-and-rights-of-persons-with-disabili',
@@ -1907,6 +2000,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
       evidenceRequired: false,
       forms: [],
       logSheets: [],
+      clauseRefs: [],
     },
     {
       act: 'sexual-harassment-of-women-at-workplace-prevention-prohibition-and-redressal-act',
@@ -1930,6 +2024,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
       evidenceRequired: false,
       forms: [],
       logSheets: [],
+      clauseRefs: [],
     },
     {
       act: 'child-and-adolescent-labour-prohibition-and-regulation-act-1986-and-west-bengal',
@@ -1959,6 +2054,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
           templateFileId: null,
         },
       ],
+      clauseRefs: [],
     },
     {
       act: 'contract-labour-regulation-and-abolition-act-1970-and-west-bengal-contract-labou',
@@ -1994,6 +2090,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
           templateFileId: null,
         },
       ],
+      clauseRefs: [],
     },
     {
       act: 'contract-labour-regulation-and-abolition-act-1970-and-west-bengal-contract-labou',
@@ -2017,6 +2114,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
       evidenceRequired: false,
       forms: [],
       logSheets: [],
+      clauseRefs: [],
     },
     {
       act: 'contract-labour-regulation-and-abolition-act-1970-and-west-bengal-contract-labou',
@@ -2040,6 +2138,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
       evidenceRequired: false,
       forms: [],
       logSheets: [],
+      clauseRefs: [],
     },
     {
       act: 'contract-labour-regulation-and-abolition-act-1970-and-west-bengal-contract-labou',
@@ -2069,6 +2168,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
           templateFileId: null,
         },
       ],
+      clauseRefs: [],
     },
     {
       act: 'contract-labour-regulation-and-abolition-act-1970-and-west-bengal-contract-labou',
@@ -2097,6 +2197,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
           templateFileId: null,
         },
       ],
+      clauseRefs: [],
     },
     {
       act: 'contract-labour-regulation-and-abolition-act-1970-and-west-bengal-contract-labou',
@@ -2125,6 +2226,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
           templateFileId: null,
         },
       ],
+      clauseRefs: [],
     },
     {
       act: 'contract-labour-regulation-and-abolition-act-1970-and-west-bengal-contract-labou',
@@ -2153,6 +2255,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
           templateFileId: null,
         },
       ],
+      clauseRefs: [],
     },
     {
       act: 'contract-labour-regulation-and-abolition-act-1970-and-west-bengal-contract-labou',
@@ -2182,6 +2285,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
         },
       ],
       logSheets: [],
+      clauseRefs: [],
     },
     {
       act: 'west-bengal-workmen-s-house-rent-allowance-act-1974-and-west-bengal-workmen-s-ho',
@@ -2205,6 +2309,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
       evidenceRequired: false,
       forms: [],
       logSheets: [],
+      clauseRefs: [],
     },
     {
       act: 'west-bengal-labour-welfare-fund-act-1974-and-west-bengal-labour-welfare-fund-rul',
@@ -2244,6 +2349,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
       evidenceRequired: false,
       forms: [],
       logSheets: [],
+      clauseRefs: [],
     },
     {
       act: 'west-bengal-labour-welfare-fund-act-1974-and-west-bengal-labour-welfare-fund-rul',
@@ -2281,6 +2387,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
         },
       ],
       logSheets: [],
+      clauseRefs: [],
     },
     {
       act: 'west-bengal-labour-welfare-fund-act-1974-and-west-bengal-labour-welfare-fund-rul',
@@ -2310,6 +2417,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
         },
       ],
       logSheets: [],
+      clauseRefs: [],
     },
     {
       act: 'maternity-benefit-act-1961-and-west-bengal-maternity-benefit-rules-1965',
@@ -2339,6 +2447,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
         },
       ],
       logSheets: [],
+      clauseRefs: [],
     },
     {
       act: 'minimum-wages-act-1948-and-west-bengal-minimum-wages-rules-1951',
@@ -2361,6 +2470,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
       evidenceRequired: false,
       forms: [],
       logSheets: [],
+      clauseRefs: [],
     },
     {
       act: 'minimum-wages-act-1948-and-west-bengal-minimum-wages-rules-1951',
@@ -2390,6 +2500,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
         },
       ],
       logSheets: [],
+      clauseRefs: [],
     },
     {
       act: 'minimum-wages-act-1948-and-west-bengal-minimum-wages-rules-1951',
@@ -2417,6 +2528,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
         },
       ],
       logSheets: [],
+      clauseRefs: [],
     },
     {
       act: 'payment-of-wages-act-1936-and-west-bengal-payment-of-wages-rules-1958',
@@ -2445,6 +2557,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
           templateFileId: null,
         },
       ],
+      clauseRefs: [],
     },
     {
       act: 'payment-of-wages-act-1936-and-west-bengal-payment-of-wages-rules-1958',
@@ -2474,6 +2587,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
         },
       ],
       logSheets: [],
+      clauseRefs: [],
     },
     {
       act: 'factories-act-1948-and-west-bengal-factories-rules-1958',
@@ -2508,6 +2622,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
           templateFileId: null,
         },
       ],
+      clauseRefs: [],
     },
     {
       act: 'factories-act-1948-and-west-bengal-factories-rules-1958',
@@ -2536,6 +2651,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
           templateFileId: null,
         },
       ],
+      clauseRefs: [],
     },
     {
       act: 'factories-act-1948-and-west-bengal-factories-rules-1958',
@@ -2558,6 +2674,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
       evidenceRequired: false,
       forms: [],
       logSheets: [],
+      clauseRefs: [],
     },
     {
       act: 'factories-act-1948-and-west-bengal-factories-rules-1958',
@@ -2589,6 +2706,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
       evidenceRequired: false,
       forms: [],
       logSheets: [],
+      clauseRefs: [],
     },
     {
       act: 'factories-act-1948-and-west-bengal-factories-rules-1958',
@@ -2612,6 +2730,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
       evidenceRequired: false,
       forms: [],
       logSheets: [],
+      clauseRefs: [],
     },
     {
       act: 'factories-act-1948-and-west-bengal-factories-rules-1958',
@@ -2643,6 +2762,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
       evidenceRequired: false,
       forms: [],
       logSheets: [],
+      clauseRefs: [],
     },
     {
       act: 'factories-act-1948-and-west-bengal-factories-rules-1958',
@@ -2665,6 +2785,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
       evidenceRequired: false,
       forms: [],
       logSheets: [],
+      clauseRefs: [],
     },
     {
       act: 'factories-act-1948-and-west-bengal-factories-rules-1958',
@@ -2687,6 +2808,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
       evidenceRequired: false,
       forms: [],
       logSheets: [],
+      clauseRefs: [],
     },
     {
       act: 'factories-act-1948-and-west-bengal-factories-rules-1958',
@@ -2710,6 +2832,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
       evidenceRequired: false,
       forms: [],
       logSheets: [],
+      clauseRefs: [],
     },
     {
       act: 'factories-act-1948-and-west-bengal-factories-rules-1958',
@@ -2739,6 +2862,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
           templateFileId: null,
         },
       ],
+      clauseRefs: [],
     },
     {
       act: 'factories-act-1948-and-west-bengal-factories-rules-1958',
@@ -2761,6 +2885,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
       evidenceRequired: false,
       forms: [],
       logSheets: [],
+      clauseRefs: [],
     },
     {
       act: 'factories-act-1948-and-west-bengal-factories-rules-1958',
@@ -2783,6 +2908,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
       evidenceRequired: false,
       forms: [],
       logSheets: [],
+      clauseRefs: [],
     },
     {
       act: 'factories-act-1948-and-west-bengal-factories-rules-1958',
@@ -2815,6 +2941,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
       evidenceRequired: false,
       forms: [],
       logSheets: [],
+      clauseRefs: [],
     },
     {
       act: 'factories-act-1948-and-west-bengal-factories-rules-1958',
@@ -2843,6 +2970,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
           templateFileId: null,
         },
       ],
+      clauseRefs: [],
     },
     {
       act: 'factories-act-1948-and-west-bengal-factories-rules-1958',
@@ -2871,6 +2999,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
           templateFileId: null,
         },
       ],
+      clauseRefs: [],
     },
     {
       act: 'factories-act-1948-and-west-bengal-factories-rules-1958',
@@ -2908,6 +3037,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
         },
       ],
       logSheets: [],
+      clauseRefs: [],
     },
     {
       act: 'factories-act-1948-and-west-bengal-factories-rules-1958',
@@ -2937,6 +3067,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
           templateFileId: null,
         },
       ],
+      clauseRefs: [],
     },
     {
       act: 'factories-act-1948-and-west-bengal-factories-rules-1958',
@@ -2959,6 +3090,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
       evidenceRequired: false,
       forms: [],
       logSheets: [],
+      clauseRefs: [],
     },
     {
       act: 'factories-act-1948-and-west-bengal-factories-rules-1958',
@@ -2988,6 +3120,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
         },
       ],
       logSheets: [],
+      clauseRefs: [],
     },
     {
       act: 'factories-act-1948-and-west-bengal-factories-rules-1958',
@@ -3010,6 +3143,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
       evidenceRequired: false,
       forms: [],
       logSheets: [],
+      clauseRefs: [],
     },
     {
       act: 'factories-act-1948',
@@ -3032,6 +3166,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
       evidenceRequired: false,
       forms: [],
       logSheets: [],
+      clauseRefs: [],
     },
     {
       act: 'petroleum-act-1934-read-with-petroleum-rules-2002',
@@ -3061,6 +3196,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
         },
       ],
       logSheets: [],
+      clauseRefs: [],
     },
     {
       act: 'petroleum-act-1934-read-with-petroleum-rules-2002',
@@ -3090,6 +3226,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
         },
       ],
       logSheets: [],
+      clauseRefs: [],
     },
     {
       act: 'petroleum-act-1934-read-with-petroleum-rules-2002',
@@ -3119,6 +3256,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
         },
       ],
       logSheets: [],
+      clauseRefs: [],
     },
     {
       act: 'west-bengal-fire-services-act-1950-and-rules-2003',
@@ -3148,6 +3286,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
         },
       ],
       logSheets: [],
+      clauseRefs: [],
     },
     {
       act: 'information-technology-act-2000-and-information-technology-reasonable-security-p',
@@ -3170,6 +3309,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
       evidenceRequired: false,
       forms: [],
       logSheets: [],
+      clauseRefs: [],
     },
     {
       act: 'information-technology-act-2000-and-information-technology-reasonable-security-p',
@@ -3193,6 +3333,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
       evidenceRequired: false,
       forms: [],
       logSheets: [],
+      clauseRefs: [],
     },
     {
       act: 'information-technology-act-2000-and-information-technology-reasonable-security-p',
@@ -3216,6 +3357,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
       evidenceRequired: false,
       forms: [],
       logSheets: [],
+      clauseRefs: [],
     },
     {
       act: 'information-technology-act-2000-and-information-technology-reasonable-security-p',
@@ -3245,6 +3387,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
           templateFileId: null,
         },
       ],
+      clauseRefs: [],
     },
     {
       act: 'income-tax-act-1961-and-income-tax-rules-1962',
@@ -3274,6 +3417,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
         },
       ],
       logSheets: [],
+      clauseRefs: [],
     },
     {
       act: 'income-tax-act-1961-and-income-tax-rules-1962',
@@ -3303,6 +3447,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
         },
       ],
       logSheets: [],
+      clauseRefs: [],
     },
     {
       act: 'income-tax-act-1961-and-income-tax-rules-1962',
@@ -3332,6 +3477,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
         },
       ],
       logSheets: [],
+      clauseRefs: [],
     },
     {
       act: 'income-tax-act-1961-and-income-tax-rules-1962',
@@ -3356,6 +3502,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
       evidenceRequired: false,
       forms: [],
       logSheets: [],
+      clauseRefs: [],
     },
     {
       act: 'income-tax-act-1961-and-income-tax-rules-1962',
@@ -3386,6 +3533,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
         },
       ],
       logSheets: [],
+      clauseRefs: [],
     },
     {
       act: 'income-tax-act-1961-and-income-tax-rules-1962',
@@ -3415,6 +3563,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
         },
       ],
       logSheets: [],
+      clauseRefs: [],
     },
     {
       act: 'income-tax-act-1961-and-income-tax-rules-1962',
@@ -3439,6 +3588,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
       evidenceRequired: false,
       forms: [],
       logSheets: [],
+      clauseRefs: [],
     },
     {
       act: 'income-tax-act-1961-and-income-tax-rules-1962',
@@ -3469,6 +3619,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
         },
       ],
       logSheets: [],
+      clauseRefs: [],
     },
     {
       act: 'income-tax-act-1961-and-income-tax-rules-1962',
@@ -3491,6 +3642,7 @@ export const MASTER_CONTENT: Omit<MasterLibrary, 'version'> = {
       evidenceRequired: false,
       forms: [],
       logSheets: [],
+      clauseRefs: [],
     },
   ],
 };

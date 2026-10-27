@@ -322,3 +322,12 @@ ISO-1c2: the mock's ISO overview counts `nonconformities.overdue` as 1.8.6 defin
 client counts 1 overdue nonconformity where it counted 2. `effectivenessOverdue` reads the same status and is
 unchanged. M17's demo snapshot is regenerated, and the overview's NC "Overdue" link opens the log's `overdue=true`
 filter again. This is a patch.
+
+## 1.8.8 · 2026-10-27
+ISO-1e: `Act.kind` and `Obligation.clauseRefs` are required (README decision 58). M3's `acts.create` and
+`obligations.create` take `NewAct` and `NewObligation`, which leave the two fields optional because Postgres defaults
+them, so calls through M3's repositories are unchanged. M6's master library, sample master, test world, `createAct`
+and `createObligation` set them, and its in-memory test store defaults them as Postgres does; M13's library test
+builders set them. `master-data.ts` is regenerated with `MASTER_VERSION` unchanged. Nothing changes on the wire, except that the audit
+`after` of a library create through M6 (its routes and the master library copy) now names `kind` or `clauseRefs`.
+`AccountOverride.removedFeatures` and `AccountSummary.features` stay optional. This is a patch.

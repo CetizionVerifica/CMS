@@ -3,14 +3,20 @@ import { and, arrayContains, eq, isNull, or } from 'drizzle-orm';
 import type { TenantTx } from '../database.js';
 import * as s from '../schema/index.js';
 import { actIdOfKind, actKindIs, type ActKindFilter } from './act-kind.js';
-import { entity, type PageRequest, type Query } from './crud.js';
+import { entity, type NewEntity, type PageRequest, type Query } from './crud.js';
 
 /**
  * Library: Acts, categories, obligations, firm-wide (domain-model.md §4). The act and obligation lists take an
  * `actKinds` filter (docs/iso/plan.md §4.6); categories have no kind.
  */
 
-const actEntity = entity<Act>({ table: s.act, schema: Act });
+/**
+ * Create input for an act. `kind` is required on `Act` (contracts 1.8.8) but may be left out here: the column defaults
+ * to STATUTE, and only the ISO catalogue copy creates a STANDARD act.
+ */
+export type NewAct = Omit<NewEntity<Act>, 'kind'> & Partial<Pick<Act, 'kind'>>;
+
+const actEntity = entity<Act, NewAct>({ table: s.act, schema: Act });
 export const acts = {
   get: actEntity.get,
   require: actEntity.require,
@@ -57,10 +63,20 @@ export const categories = {
 };
 
 /**
+ * Create input for an obligation. `clauseRefs` is required on `Obligation` (contracts 1.8.8) but may be left out here:
+ * the column defaults to `[]`.
+ */
+export type NewObligation = Omit<NewEntity<Obligation>, 'clauseRefs'> &
+  Partial<Pick<Obligation, 'clauseRefs'>>;
+
+/**
  * The recurrence rule is checked with the contract `RecurrenceRule` schema on every read and write. `clauseRefs` is
  * stored as the contract's `{ standard, clauseNumber }` objects (contracts 1.8.0) and always read back, `[]` when none.
  */
-const obligationEntity = entity<Obligation>({ table: s.obligation, schema: Obligation });
+const obligationEntity = entity<Obligation, NewObligation>({
+  table: s.obligation,
+  schema: Obligation,
+});
 export const obligations = {
   get: obligationEntity.get,
   require: obligationEntity.require,

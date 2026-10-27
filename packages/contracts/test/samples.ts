@@ -55,6 +55,7 @@ export const obligation = {
   evidenceRequired: false,
   forms: [{ label: 'Challan 281', fileName: 'challan-281.pdf', templateFileId: null }],
   logSheets: [],
+  clauseRefs: [],
   libraryVersion: 1,
 };
 
