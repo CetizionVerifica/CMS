@@ -46,6 +46,7 @@ export async function isoData(api?: ApiClient) {
     risks,
     objectives,
     actions,
+    ncs,
   ] = await Promise.all([
     a.call('getIsoOverview', p).then((r) => r.data),
     a.call('listIsoSystems', { ...p, query: limit }).then((r) => r.data.items),
@@ -64,6 +65,7 @@ export async function isoData(api?: ApiClient) {
       .then((r) => r.data.items),
     a.call('listIsoObjectives', { ...p, query: limit }).then((r) => r.data.items),
     a.call('listIsoActions', { ...p, query: limit }).then((r) => r.data.items),
+    a.call('listIsoNonconformities', { ...p, query: limit }).then((r) => r.data.items),
   ]);
   const system = systems[0]!;
   // Every item's controls and every objective's readings, keyed by their item or objective.
@@ -101,6 +103,7 @@ export async function isoData(api?: ApiClient) {
     objectives,
     readings,
     actions,
+    ncs,
   };
 }
 

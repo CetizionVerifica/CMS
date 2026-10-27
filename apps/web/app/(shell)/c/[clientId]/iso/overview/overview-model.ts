@@ -38,17 +38,46 @@ function idsLink(
   systemId: string,
   c: IdCount,
   whole: Record<string, string> = {},
+  /** `whole` is a filter close to the count, not every record of the kind. */
+  near = false,
 ): Pick<CountLink, 'href' | 'note'> {
   if (c.ids.length <= MAX_LINK_IDS) return { href: href({ ids: ids(c) }) };
   return {
     href: href({ managementSystemId: systemId, ...whole }),
-    note: "Too many to list on their own: the link shows all of the system's records.",
+    note: near
+      ? "Too many to list on their own: the link shows the system's records by the nearest filter."
+      : "Too many to list on their own: the link shows all of the system's records.",
   };
 }
 
 // The documents list shows only ACTIVE documents unless it is given a status or ids, so the whole-system link names
 // every status.
 const everyStatus = { status: DocumentStatus.options.join(',') };
+
+/**
+ * The incident card's counts (the 12-month window): all incidents, then each type that has any. Past the `ids` limit a
+ * link opens every incident and near miss of the system.
+ */
+export function incidentLinks(clientId: string, s: IsoSystemOverview): CountLink[] {
+  const at = (query: Record<string, string | undefined>) =>
+    hrefWith(isoPath(clientId, 'nonconformities'), query);
+  const sys = s.managementSystemId;
+  const all = { incident: 'true' };
+  return [
+    {
+      label: 'All incidents',
+      count: s.incidents.total.count,
+      ...idsLink(at, sys, s.incidents.total, all),
+    },
+    ...s.incidents.byType
+      .filter((t) => t.count > 0)
+      .map((t) => ({
+        label: word('IncidentType', t.type),
+        count: t.count,
+        ...idsLink(at, sys, t, all),
+      })),
+  ];
+}
 
 /** The client's ISO pages. */
 export function isoPath(clientId: string, page: string): string {
@@ -75,7 +104,15 @@ export function countGroups(clientId: string, s: IsoSystemOverview): CountGroup[
         {
           label: 'Overdue',
           count: s.nonconformities.overdue.count,
-          href: at('nonconformities', { managementSystemId: sys, overdue: 'true' }),
+          // The overview counts an open one past its due date, also once submitted; the log's `overdue` filter is the
+          // record's timing, which a submitted one leaves to its approver. So the link names the ids.
+          ...idsLink(
+            (q) => at('nonconformities', q),
+            sys,
+            s.nonconformities.overdue,
+            { overdue: 'true' },
+            true,
+          ),
         },
         {
           label: 'Awaiting verification',

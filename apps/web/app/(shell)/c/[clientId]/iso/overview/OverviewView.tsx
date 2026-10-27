@@ -8,12 +8,13 @@ import NextLink from 'next/link';
 import type { ReactNode } from 'react';
 
 import { hrefWith } from '../_lib/people';
-import { standardTitle, standardTitleByCode, word } from '../_lib/words';
+import { standardTitle, standardTitleByCode } from '../_lib/words';
 import { IsoPill, TimingPill } from '../_components/IsoStates';
 import {
   climateGapHref,
   climateGapText,
   countGroups,
+  incidentLinks,
   gateRows,
   isoPath,
   readinessLinks,
@@ -102,9 +103,6 @@ export function SystemOverview({
   const uncovered = programme
     ? programme.uncoveredClauseIds.map((id) => clauseNumbers[id] ?? 'an unknown clause')
     : [];
-  const incidentsHref = hrefWith(isoPath(clientId, 'nonconformities'), {
-    ids: system.incidents.total.ids.join(','),
-  });
   return (
     <div className="flex flex-col gap-4">
       {system.climateGaps.length > 0 ? (
@@ -261,25 +259,9 @@ export function SystemOverview({
             {formatDate(system.incidents.from)} to {formatDate(system.incidents.to)}
           </p>
           <ul className="flex flex-col gap-1.5">
-            <Count
-              item={{
-                label: 'All incidents',
-                count: system.incidents.total.count,
-                href: incidentsHref,
-              }}
-            />
-            {system.incidents.byType
-              .filter((t) => t.count > 0)
-              .map((t) => (
-                <Count
-                  key={t.type}
-                  item={{
-                    label: word('IncidentType', t.type),
-                    count: t.count,
-                    href: hrefWith(isoPath(clientId, 'nonconformities'), { ids: t.ids.join(',') }),
-                  }}
-                />
-              ))}
+            {incidentLinks(clientId, system).map((item) => (
+              <Count key={item.label} item={item} />
+            ))}
           </ul>
         </Card>
       </div>

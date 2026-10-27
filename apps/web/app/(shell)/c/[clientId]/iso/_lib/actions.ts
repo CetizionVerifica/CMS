@@ -1,6 +1,6 @@
 'use server';
-// Server Actions behind the ISO screens. A screen names an ISO route from the contracts' endpoint table; the route must
-// be one of the add-on's (never another module's), its path ids are checked as ids and its body against the route's own
+// Server Actions behind the ISO screens. A screen names an ISO route from the contracts' endpoint table; a write must
+// be one of the add-on's (never another module's), a read one of the few listed below; its path ids are checked as ids and its body against the route's own
 // contracts schema before anything is sent (root rule 7). The API checks access, the add-on and every ISO rule, and
 // writes the audit events; nothing here decides who may act.
 import { ENDPOINTS, Id } from '@canopy/contracts';
@@ -16,12 +16,18 @@ import { sessionApi } from '../../../../../../lib/api/server';
 import type { IsoWriteRoute } from './may';
 import { failureMessage, type Outcome } from './outcome';
 
-/** Reads a screen makes after the page has loaded: a record's files, and a file's short-lived download link. */
-export type IsoReadRoute = 'listIsoFiles' | 'isoFileDownloadUrl' | 'listIsoExternalFindings';
+/**
+ * Reads a screen makes after the page has loaded: a record's files, a file's short-lived download link, and the
+ * register search behind the instance picker (a nonconformity's source or statutory notice instance), the one read of
+ * another module's route, sent like every other call through the typed client.
+ */
+export type IsoReadRoute =
+  'listIsoFiles' | 'isoFileDownloadUrl' | 'listIsoExternalFindings' | 'listInstances';
 const READS: readonly string[] = [
   'listIsoFiles',
   'isoFileDownloadUrl',
   'listIsoExternalFindings',
+  'listInstances',
 ] satisfies IsoReadRoute[];
 
 function isIsoWrite(name: string): name is IsoWriteRoute {

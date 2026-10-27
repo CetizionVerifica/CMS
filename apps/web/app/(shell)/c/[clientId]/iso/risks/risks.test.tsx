@@ -5,6 +5,7 @@ import type { ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ISO } from '../_test/fixture';
+import { ncSystems } from '../nonconformities/nc-model';
 import { kindTabs, riskFilterDefs, riskFilters, riskRows } from './risks-model';
 
 const nav = vi.hoisted(() => ({ push: vi.fn(), refresh: vi.fn() }));
@@ -222,12 +223,40 @@ function record(over: Partial<Parameters<typeof RiskRecord>[0]> = {}) {
       canAddAction
       actionEditing={{ all: true, personId: ROHAN }}
       today="2024-11-15"
+      raise={null}
       {...over}
     />,
   );
 }
 
 describe('RiskRecord', () => {
+  it('raises a nonconformity from the item, its system, unit and item filled in', async () => {
+    const [system] = ncSystems([ISO.system], ISO.standards, ISO.clauses, [OVEN]);
+    record({
+      raise: {
+        clientId: C,
+        systems: [system!],
+        units,
+        people: ISO.people,
+        today: '2024-11-15',
+        timeZone: 'Asia/Kolkata',
+        preset: {
+          managementSystemId: ISO.system.id,
+          raisedFromRiskItemId: OVEN.id,
+          unitId: OVEN.unitId,
+        },
+      },
+    });
+    await userEvent.click(screen.getByRole('button', { name: 'Raise nonconformity' }));
+    const form = screen.getByRole('dialog', { name: 'Raise a nonconformity' });
+    expect(
+      within(form).getByRole('combobox', { name: 'Risk item it came from (optional)' }).textContent,
+    ).toMatch(/^Hazard: Changing oven trays on line 2/);
+    expect(within(form).getByRole('combobox', { name: 'Unit (optional)' }).textContent).toBe(
+      units.find((u) => u.id === OVEN.unitId)!.name,
+    );
+  });
+
   it("shows a hazard's fields, rating, controls and treatment actions", () => {
     record();
     expect(screen.getByText(OVEN.impact!)).toBeTruthy();

@@ -189,7 +189,9 @@ test.describe('ISO screens at 1280px', () => {
     await settled(page);
     await page.getByRole('link', { name: 'Stage 1 · ISO 14001, ISO 45001' }).click();
     const visit = page.getByRole('dialog', { name: 'Stage 1 · ISO 14001, ISO 45001' });
-    await expect(visit.getByText('Raised a nonconformity.')).toBeVisible();
+    await expect(
+      visit.getByRole('link', { name: 'Open the nonconformity it raised' }),
+    ).toBeVisible();
     await expect(visit.getByText('stage-1-audit-report.pdf')).toBeVisible();
     await settledOpen(page);
     await page.keyboard.press('Escape');
