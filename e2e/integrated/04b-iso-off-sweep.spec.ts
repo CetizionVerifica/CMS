@@ -50,6 +50,28 @@ type Instance = Rec & { dueDate: string; workflowState: string };
 const clientToday = () =>
   new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date());
 
+/**
+ * How long before the client's midnight the snapshot waits for the next day. Some ISO reads are worked out against
+ * today (what is overdue, days left), so a snapshot taken before midnight and compared after it can differ with no
+ * data changed. The tests between the snapshot and the comparison take a few minutes; this leaves room to spare.
+ */
+const MIDNIGHT_MARGIN_MS = 15 * 60_000;
+const DAY_MS = 86_400_000;
+/** Asia/Kolkata is UTC+05:30 all year. */
+const KOLKATA_OFFSET_MS = 19_800_000;
+
+/** Waits for the client's next day when its midnight is under `MIDNIGHT_MARGIN_MS` away. */
+async function clearOfClientMidnight(): Promise<void> {
+  const untilMidnight = DAY_MS - ((Date.now() + KOLKATA_OFFSET_MS) % DAY_MS);
+  if (untilMidnight < MIDNIGHT_MARGIN_MS) {
+    await new Promise((resolve) => setTimeout(resolve, untilMidnight + 5_000));
+  }
+}
+
+/** Every id in a read's answer. */
+const idsIn = (text: string) =>
+  new Set(text.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/g) ?? []);
+
 /** A list the add-on hides from: who reads it, where, and which fixtures it shows while the add-on is on. */
 type ListCheck = { name: string; key: AccountKey; path: string; shows: string[] };
 
@@ -69,6 +91,8 @@ const made: {
   lists?: ListCheck[];
   /** Each ISO read's answer with the add-on on, by path. */
   snapshot?: Map<string, string>;
+  /** The client's day when the snapshot was taken. */
+  snapshotDay?: string;
 } = {};
 
 /** The API as `key` from a fresh address (stack.ts `addressOf`), so one test's calls stay under the per-IP limits. */
@@ -126,7 +150,7 @@ test.describe.serial('the ISO add-on turned off and on again', () => {
   test.afterAll(isoOff);
 
   test('with the add-on on, firm A has ISO records with files, a STANDARD instance with evidence, and each ISO export', async () => {
-    test.setTimeout(420_000);
+    test.setTimeout(420_000 + MIDNIGHT_MARGIN_MS);
     const { clients } = seeded();
     // An ISO record of every kind with a file on each, made with the add-on on (sweep.ts `isoOn`).
     const ids = await firmAIds();
@@ -317,7 +341,9 @@ test.describe.serial('the ISO add-on turned off and on again', () => {
       await api.dispose();
     }
 
-    // Each ISO read's answer while on, to compare once the add-on is back.
+    // Each ISO read's answer while on, to compare once the add-on is back, taken on a day the comparison shares.
+    await clearOfClientMidnight();
+    made.snapshotDay = clientToday();
     made.snapshot = new Map();
     let api = await fresh('consultant');
     for (const [index, { probe }] of reads(ids, made.iso).entries()) {
@@ -531,8 +557,10 @@ test.describe.serial('the ISO add-on turned off and on again', () => {
 
   test('turned back on, the same data shows and each ISO export downloads again', async () => {
     test.setTimeout(240_000);
-    const { ids, iso, lists, snapshot, exports } = made as Required<typeof made>;
+    const { ids, iso, lists, snapshot, snapshotDay, exports } = made as Required<typeof made>;
     await isoOn();
+    // Past the client's midnight, answers worked out against today may differ, so they must still hold every id.
+    const sameDay = clientToday() === snapshotDay;
     let api = await fresh('consultant');
     for (const [index, { probe }] of reads(ids, iso).entries()) {
       if (index > 0 && index % SWEEP_CHUNK === 0) {
@@ -541,9 +569,15 @@ test.describe.serial('the ISO add-on turned off and on again', () => {
       }
       const res = await api.get(probe.path);
       expect(res.status, `${probe.name} GET ${probe.path}: ${JSON.stringify(res.body)}`).toBe(200);
-      expect(JSON.stringify(res.body), `${probe.name} GET ${probe.path}`).toBe(
-        snapshot.get(probe.path),
-      );
+      const before = snapshot.get(probe.path) ?? '';
+      if (sameDay) {
+        expect(JSON.stringify(res.body), `${probe.name} GET ${probe.path}`).toBe(before);
+      } else {
+        const after = idsIn(JSON.stringify(res.body));
+        for (const id of idsIn(before)) {
+          expect(after.has(id), `${probe.name} GET ${probe.path} still shows ${id}`).toBe(true);
+        }
+      }
     }
     for (const kind of ISO_EXPORT_KINDS) {
       const link = await api.get(`/exports/${exports[kind]}/download-url`);
