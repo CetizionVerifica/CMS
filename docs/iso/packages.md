@@ -1495,8 +1495,9 @@ v2 adds around them. Status is as of 2026-10-28 (`origin/main` at #342); plan §
     (the archive leaving out every ISO file) failed test 5.
   - The audit's Infos: test 6 compares each read with its snapshot, so a run that crosses midnight in the client's time
     zone (IST) between tests 1 and 6 could see a read computed from today change: an NC's or instance's overdue state,
-    or the ISO overview, whose `asOf` is that day (an optional M14 follow-up, if it ever flakes: compare those reads
-    without their computed fields and `asOf`); and the brief's optional check of #334's other 422 code was not taken.
+    or the ISO overview, whose `asOf` is that day. #343 fixed it: the snapshot waits out the client's midnight when it
+    is less than 15 minutes away, and if the day still changes, each read must still hold every id its snapshot held.
+    The other Info: the brief's optional check of #334's other 422 code was not taken.
 
 ## ISO-1c · M0 · Type the engine API's review figures; keep three add-on fields optional
 - **Thread title:** the ISO-1 thread ("Build ISO contracts") continues (#324). **Needs:** ISO-1b, ISO-2c, ISO-4a, ISO-5,
@@ -1938,7 +1939,7 @@ How plan v2.3 takes in what the audits of #268 (ISO-12a, merged) and #273 (ISO-2
 | ISO-1e start check, after the v2.5.6 check: the #339 audit found only #339 open; #339 and #340, open when #341 opened, changed only docs; #342 changed only `e2e/` and the lockfile | ISO-1e (start check); plan §6 |
 | #341 audit, Info 1 (from the M13 audit): M13's library test data still builds acts and obligations behind `as Act` and `as Obligation`, so `tsc` would not catch a missing field | optional follow-up for M13's next PR (drop the casts, typing the due date in `obligation()` as a `LocalDate`); ISO-1e (as built) |
 | #341 audit, Info 2, and its PR body: M6's `kindOf` comment (`entities/http/iso-switch.ts`) and M16's in `iso/db-risks.ts` still say a missing kind reads as STATUTE | optional follow-up for M6's and M16's next PRs (comments only); ISO-1e (as built) |
-| #342 audit, first Info: test 6 compares each read with its snapshot from test 1, so a read computed from today (an NC's or instance's overdue state, or the ISO overview, whose `asOf` is the client's today) could differ if a run crosses midnight in the client's time zone (IST) between them | optional follow-up for M14's next PR, if it ever flakes (compare those reads without their computed fields and `asOf`); ISO-13b (as built) |
+| #342 audit, first Info: test 6 compares each read with its snapshot from test 1, so a read computed from today (an NC's or instance's overdue state, or the ISO overview, whose `asOf` is the client's today) could differ if a run crosses midnight in the client's time zone (IST) between them | ISO-13b (as built: fixed in #343, which waits out the client's midnight before the snapshot and, if the day still changes, checks that each read keeps every id its snapshot held) |
 | #342 audit, second Info: the brief's optional check of #334's other 422 code was not taken | no package (optional in the brief) |
 | v2.5.6 brief and trace (the #332 audit's Medium): ISO-13b was to check a file's not-ready refusal as #334 does; #342 waits for CLEAN and asserts no PENDING state (the #342 audit) | ISO-13b (as built); no package: 04's "ISO files" test keeps #334's check |
 | #342, CI at `b1ac2f1`: in the demo suite, the test "an owner lists the actions, filters them and opens one over the list" (`e2e/tests/iso/risks-objectives.spec.ts`) failed once when a 5 s wait ran out at line 168 (the builder's comment names the "State: Open" chip); a second run at the same commit passed, and so did CI at `7faff90`. The PR changes nothing under `e2e/tests/` | no package now; a repeat goes to that screen's owner, M17 (the row for the #329 audit's Info 1 applies if the shared demo API is the cause) |

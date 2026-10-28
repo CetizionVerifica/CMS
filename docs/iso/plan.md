@@ -50,7 +50,7 @@ sets both (§5.1). v2.5.7 records ISO-1e (#341, contracts 1.8.8) and ISO-13b (#3
 merged. What is left is the 2026 editions of ISO 9001 and ISO 14001. Catalogue §6 has them seeded, with a top-up for
 accounts that copied version 1 (ADR M6-0003 decision 8), before any production account turns the add-on on. Their
 package waits for a decision on how they are released and for a check of the 9001:2026 clause list against the published
-text, so a later plan change sets it and the top-up. Three optional follow-ups the last audits noted also remain (the
+text, so a later plan change sets it and the top-up. Two optional follow-ups the last audits noted also remain (the
 trace at the end of [packages.md](packages.md), v2.5.7).
 
 Every ISO thread reads, in order: the root `CLAUDE.md`, this file, its own brief in [packages.md](packages.md), the
@@ -449,7 +449,7 @@ brief on `main`, before ISO-1e merged, though its Needs name ISO-1e, and marked 
 merged and `main` was merged in, with its three runs at that ready head (`7faff90`; #342). The two share no path, and
 those runs ran against ISO-1e's contracts and API. Every package in the table has merged. The 2026 editions are not in
 it: a later plan change sets their package and top-up, which merge before any production account turns the add-on on
-(catalogue §6). The three optional follow-ups from the last audits go in their owners' next PRs (trace, v2.5.7).
+(catalogue §6). The two optional follow-ups from the last audits go in their owners' next PRs (trace, v2.5.7).
 
 | Wave | Package | Module | Title | Needs | Status |
 |---|---|---|---|---|---|
