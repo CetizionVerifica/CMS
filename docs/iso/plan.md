@@ -1,6 +1,6 @@
 # ISO management systems add-on: plan (v2)
 
-Status: v2.5.6, 2026-10-27. Decisions: ADR [M16-0001](../adr/M16-0001-iso-management-systems.md), amended by ADRs
+Status: v2.5.7, 2026-10-28. Decisions: ADR [M16-0001](../adr/M16-0001-iso-management-systems.md), amended by ADRs
 [M16-0002](../adr/M16-0002-iso-plan-v2.md) and [M16-0003](../adr/M16-0003-stored-review-figures.md). v2 answers the 58
 findings of the independent review of v1 (trace at the end of [packages.md](packages.md)). v2.1 takes in the departures
 the ISO contracts (ISO-1, contracts 1.8.0) list in `docs/contracts/README.md` decision 51 (a-n), and points the API,
@@ -46,7 +46,12 @@ The off-switch sweep (ISO-13b) checks the ISO export kinds too, so it comes last
 client archive holds ISO data. It gives ISO-13b what those need: an export of each kind, the archive's `iso/` folder,
 all 16 ISO screens, the API's rate limits, the gates its mutation check changes, and ISO-14b's file-route mutation
 check, which nobody ran (the #333 audit). In ISO-1e, M3's create keeps `kind` and `clauseRefs` optional, since Postgres
-sets both (§5.1).
+sets both (§5.1). v2.5.7 records ISO-1e (#341, contracts 1.8.8) and ISO-13b (#342) as built, so every package in §6 has
+merged. What is left is the 2026 editions of ISO 9001 and ISO 14001. Catalogue §6 has them seeded, with a top-up for
+accounts that copied version 1 (ADR M6-0003 decision 8), before any production account turns the add-on on. Their
+package waits for a decision on how they are released and for a check of the 9001:2026 clause list against the published
+text, so a later plan change sets it and the top-up. Two optional follow-ups the last audits noted also remain (the
+trace at the end of [packages.md](packages.md), v2.5.7).
 
 Every ISO thread reads, in order: the root `CLAUDE.md`, this file, its own brief in [packages.md](packages.md), the
 parts of [model.md](model.md) and [catalogue.md](catalogue.md) its brief names, then the area `CLAUDE.md` of the paths
@@ -362,18 +367,21 @@ it, and exhaustive maps in other modules stop compiling. The order is always:
    and no `can()` resource names one, before ISO-1b merges.
 
 New fields on existing shapes arrive **optional**, with the meaning of a missing value written down (a missing
-`Act.kind` reads as STATUTE, a missing `clauseRefs`, `removedFeatures` or `features` as empty). `.default()` alone is
-not enough, because `NewEntity<T>` and the create callers in M6 and M8 use the output type. A field becomes required
-only in a later contracts bump, after its column exists, every provider sets it, and every create caller sets it or
-creates through a type that keeps it optional. ISO-1c (#324, contracts 1.8.6) checked: M3 sends `kind` and `clauseRefs`
-on every read, but M6's master library (`master-data.ts`, `from-register.ts`), its `NewRow<T>` and `createObligation`,
-M8's import commit (an obligation's `clauseRefs`) and test builders in M3, M6 to M10 and M16 build records from the read
-types without them, and `removedFeatures` is only on the override's request body, where a missing list means none. So
-all three stay optional for now (contracts README decision 56). ISO-1e makes `kind` and `clauseRefs` required once those
-creators and builders set them. It gives M3's `acts.create` and `obligations.create` a create type that keeps the two
-fields optional, since Postgres defaults them (STATUTE, `[]`), so a call through M3 need not set them, M8's import
-commit included; the creators that build from the read types set them. `removedFeatures` stays optional. `features`
-lives on `AccountSummary` as an optional field (1.7.0), so `AccountView`, which spreads its shape, keeps compiling.
+`Act.kind` read as STATUTE and a missing `clauseRefs` as empty until 1.8.8 made both required; a missing
+`removedFeatures` or `features` reads as empty). `.default()` alone is not enough, because `NewEntity<T>` and the create
+callers in M6 and M8 use the output type. A field becomes required only in a later contracts bump, after its column
+exists, every provider sets it, and every create caller sets it or creates through a type that keeps it optional. ISO-1c
+(#324, contracts 1.8.6) checked: M3 sends `kind` and `clauseRefs` on every read, but M6's master library
+(`master-data.ts`, `from-register.ts`), its `NewRow<T>` and `createObligation`, M8's import commit (an obligation's
+`clauseRefs`) and test builders in M3, M6 to M10 and M16 built records from the read types without them, and
+`removedFeatures` is only on the override's request body, where a missing list means none. So all three stayed optional
+then (contracts README decision 56). ISO-1e (#341, contracts 1.8.8) made `kind` and `clauseRefs` required once every
+creator set them or created through a type that keeps them optional (decision 58). M3's `acts.create` and
+`obligations.create` take `NewAct` and `NewObligation`, which keep the two fields optional, since Postgres defaults them
+(STATUTE, `[]`), so a call through M3 need not set them, M8's import commit and the test builders in M3, M7, M9, M10 and
+M16 included; the creators and builders that build from the read types set them. `removedFeatures` stays optional.
+`features` lives on `AccountSummary` as an optional field (1.7.0), so `AccountView`, which spreads its shape, keeps
+compiling.
 
 ### 5.2 New error codes
 
@@ -432,12 +440,16 @@ before any package that depends on the change starts.
 
 ## 6. Packages and waves
 
-Briefs: [packages.md](packages.md). Waves are for orientation; the Needs column decides. Status as of 2026-10-27
-(`origin/main` at #338). ISO-3 and ISO-7b started before ISO-1a was added to their Needs, and merged after it. ISO-6b
-may start before ISO-1a4 but marks its PR ready only once ISO-1a4 has merged (its brief). Before ISO-1e starts, the
-coordinator checks that no other open PR edits a builder of acts or obligations in M3, M6 to M10, M13 or M16, and
-sequences the two if one does (its start check, the #326 audit; met on 2026-10-27). The Needs column can hold neither
-condition.
+Briefs: [packages.md](packages.md). Waves are for orientation; the Needs column decides. Status as of 2026-10-28
+(`origin/main` at #342). ISO-3 and ISO-7b started before ISO-1a was added to their Needs, and merged after it. ISO-6b
+could start before ISO-1a4 but marked its PR ready only once ISO-1a4 had merged (its brief). ISO-1e started only once no
+other open PR edited a builder of acts or obligations in M3, M6 to M10, M13 or M16 (its start check, the #326 audit; met
+on 2026-10-27). The Needs column can hold neither condition. ISO-13b departed from §5.4: it started once #339 put its
+brief on `main`, before ISO-1e merged, though its Needs name ISO-1e, and marked its PR ready only after ISO-1e had
+merged and `main` was merged in, with its three runs at that ready head (`7faff90`; #342). The two share no path, and
+those runs ran against ISO-1e's contracts and API. Every package in the table has merged. The 2026 editions are not in
+it: a later plan change sets their package and top-up, which merge before any production account turns the add-on on
+(catalogue §6). The two optional follow-ups from the last audits go in their owners' next PRs (trace, v2.5.7).
 
 | Wave | Package | Module | Title | Needs | Status |
 |---|---|---|---|---|---|
@@ -494,8 +506,8 @@ condition.
 | I7 | ISO-13 | M14 | Integrated ISO journey | every other package but ISO-11d, ISO-1e and ISO-13b | merged (#332, #334, #336) |
 | I7 | ISO-1c | M0 | Type the engine API's review figures; keep three add-on fields optional | ISO-1b, ISO-2c, ISO-4a, ISO-5, ISO-5b, ISO-9, ISO-16, ISO-3b | merged (#324) |
 | I7 | ISO-1c2 | M0 | The mock's overview counts overdue nonconformities as the NC list does | ISO-1c, ISO-6c | merged (#331) |
-| I7 | ISO-1e | M0 | Require `Act.kind` and `Obligation.clauseRefs` once their creators set them | ISO-1c, ISO-1c2, ISO-8c, ISO-11d | |
-| I8 | ISO-13b | M14 | Off-switch sweep against the real stack | every other package | |
+| I7 | ISO-1e | M0 | Require `Act.kind` and `Obligation.clauseRefs` once their creators set them | ISO-1c, ISO-1c2, ISO-8c, ISO-11d | merged (#341) |
+| I8 | ISO-13b | M14 | Off-switch sweep against the real stack | every other package | merged (#342) |
 
 Modules with ISO packages: M0, M3, M4, M5, M6, M7, M8, M9, M10, M11, M12, M13, M14, M15, M16, M17, and Tooling.
 

@@ -160,7 +160,7 @@ Editions are data. A revised ISO 9001 or ISO 14001 is seeded as a separate editi
 choose; existing systems keep theirs. ISO-9 (#279) seeded the editions above only: ISO 14001:2026 and ISO 9001:2026,
 published in 2026, follow in a later package once their clause lists are checked against the published texts, before any
 production account turns the add-on on. The copy runs once per account, so an account that copied version 1 gets them
-only through a top-up (ADR M6-0003 decision 8); the next plan change sets the package and the top-up. Every record keeps
+only through a top-up (ADR M6-0003 decision 8); a later plan change sets the package and the top-up. Every record keeps
 the clause ids of the edition it was made under. **Moving an existing system to a newer edition** (a clause mapping,
 carrying assessments over, an edition-move action) **is Later**; until then a client that wants the new edition sets up
 a new management system on it.
